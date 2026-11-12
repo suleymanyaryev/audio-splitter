@@ -48,3 +48,6 @@ playwright-report/
 .cache/
 # Playwright CLI output (may contain credentials)
 .playwright-cli/
+
+# Real audio used for manual checks and spikes (large, personal)
+samples/
