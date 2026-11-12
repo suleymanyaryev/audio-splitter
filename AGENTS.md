@@ -45,3 +45,13 @@ Fix a `pnpm knip` finding by removing the unused file, export or dependency afte
 - Vitest + jsdom + `@vue/test-utils`. Specs are `__tests__/*.spec.ts` next to the code they cover; a spec anywhere else is not collected. Import `describe`/`it`/`expect` from `vitest` (globals are off).
 - Specs for Node-side code start with `// @vitest-environment node`. Playwright specs live in `e2e/`.
 - `scripts/*.ts` run directly under Node type stripping: erasable syntax only (no enums, namespaces or parameter properties) and `.ts` extensions on relative imports. `tsconfig.node.json` enforces both.
+
+## Agent skills
+
+### Issue tracker
+
+Issues and specs live as local markdown files under `.scratch/<feature>/`. See `docs/agents/issue-tracker.md`.
+
+### Domain docs
+
+Single-context: one `GLOSSARY.md` and `docs/adr/` at the repo root. See `docs/agents/domain.md`.
