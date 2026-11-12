@@ -43,3 +43,8 @@ playwright-report/
 
 # Agent skill bundled binaries (large, platform-specific, fetched by the installer)
 **/skills/impeccable/scripts/bin/
+
+# Tool caches (ESLint)
+.cache/
+# Playwright CLI output (may contain credentials)
+.playwright-cli/

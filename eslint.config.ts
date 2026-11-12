@@ -1,38 +1,101 @@
 import { globalIgnores } from 'eslint/config'
+import js from '@eslint/js'
 import { defineConfigWithVueTs, vueTsConfigs } from '@vue/eslint-config-typescript'
 import pluginVue from 'eslint-plugin-vue'
 import pluginPlaywright from 'eslint-plugin-playwright'
 import pluginVitest from '@vitest/eslint-plugin'
-import pluginOxlint from 'eslint-plugin-oxlint'
-import skipFormatting from 'eslint-config-prettier/flat'
+import pluginPrettierRecommended from 'eslint-plugin-prettier/recommended'
+import sonarjs, { configs as sonarjsConfigs } from 'eslint-plugin-sonarjs'
+import unicorn from 'eslint-plugin-unicorn'
 
-// To allow more languages other than `ts` in `.vue` files, uncomment the following lines:
-// import { configureVueProject } from '@vue/eslint-config-typescript'
-// configureVueProject({ scriptLangs: ['ts', 'tsx'] })
-// More info at https://github.com/vuejs/eslint-config-typescript/#advanced-setup
+import { IGNORED_DIRECTORIES, SOURCE_EXTENSIONS, SPEC_FILE_GLOB } from './scripts/check-scope.ts'
 
-export default defineConfigWithVueTs(
+const SOURCE_FILES = [`**/*.{${SOURCE_EXTENSIONS.join(',')}}`]
+
+const config = defineConfigWithVueTs(
   {
     name: 'app/files-to-lint',
-    files: ['**/*.{vue,ts,mts,tsx}'],
+    files: SOURCE_FILES,
   },
 
-  globalIgnores(['**/dist/**', '**/dist-ssr/**', '**/coverage/**']),
+  globalIgnores(IGNORED_DIRECTORIES.map((directory) => `**/${directory}/**`)),
 
-  ...pluginVue.configs['flat/essential'],
+  js.configs.recommended,
+  ...pluginVue.configs['flat/recommended'],
   vueTsConfigs.recommended,
+
+  {
+    name: 'app/base-rules',
+    rules: {
+      'no-console': ['warn', { allow: ['warn', 'error'] }],
+      'dot-notation': 'error',
+    },
+  },
+
+  {
+    name: 'app/sonarjs',
+    files: SOURCE_FILES,
+    plugins: { sonarjs },
+    rules: sonarjsConfigs.recommended.rules,
+  },
+
+  {
+    name: 'app/unicorn',
+    files: SOURCE_FILES,
+    plugins: { unicorn },
+    rules: unicorn.configs.recommended.rules,
+  },
+
+  {
+    name: 'app/unicorn/tuning',
+    files: SOURCE_FILES,
+    rules: {
+      // `null` is a legitimate value in browser APIs and initial-state patterns;
+      // converting every site to `undefined` would change `??` and serialization semantics.
+      'unicorn/no-null': 'off',
+      // PascalCase `.vue` component files are the Vue convention (App.vue, WaveformView.vue);
+      // the rule cannot be satisfied without breaking it.
+      'unicorn/filename-case': 'off',
+      // Vue convention identifiers are not genuine abbreviations. The rule matches camelCase words
+      // case-sensitively (`canvasEl` -> `canvas` + `El`), so each word needs both forms allowlisted.
+      'unicorn/name-replacements': [
+        'error',
+        {
+          allowList: {
+            props: true, // Vue props
+            Props: true,
+            ref: true, // template refs (canvasRef)
+            Ref: true,
+            el: true, // element refs (canvasEl)
+            El: true,
+            src: true, // media sources (audioSrc)
+            Src: true,
+          },
+        },
+      ],
+    },
+  },
+
+  {
+    ...pluginVitest.configs.recommended,
+    files: [SPEC_FILE_GLOB],
+  },
+
+  {
+    // Specs log freely when debugging a failing characterization.
+    name: 'app/tests',
+    files: [SPEC_FILE_GLOB],
+    rules: {
+      'no-console': 'off',
+    },
+  },
 
   {
     ...pluginPlaywright.configs['flat/recommended'],
     files: ['e2e/**/*.{test,spec}.{js,ts,jsx,tsx}'],
   },
 
-  {
-    ...pluginVitest.configs.recommended,
-    files: ['src/**/__tests__/*'],
-  },
-
-  ...pluginOxlint.buildFromOxlintConfigFile('.oxlintrc.json'),
-
-  skipFormatting,
+  pluginPrettierRecommended,
 )
+
+export default config
