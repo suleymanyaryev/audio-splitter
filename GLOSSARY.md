@@ -12,6 +12,10 @@ _Avoid_: Input, upload, mix, set
 A stretch of the source file between two neighbouring splits (or between a split and the start or end of the file), exported as one audio file.
 _Avoid_: Segment, part, chunk, song
 
+**Track name**:
+The name a track is exported under: its number until the user renames it. It belongs to the split where the track starts (or to the start of the source file for the first track), so it follows that split when it moves and disappears when that split is deleted.
+_Avoid_: Title, label
+
 **Gap**:
 A stretch of the source file whose loudness stays under the silence threshold for at least the minimum gap length.
 _Avoid_: Silence, pause, quiet region

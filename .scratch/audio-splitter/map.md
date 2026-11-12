@@ -19,7 +19,7 @@ A rewritten `docs/audio-splitter-milestones.md` in which every technical decisio
 - Simple and human-readable over reusable. No abstraction that exists only for a possible future.
 - Few dependencies, each one justified. This rule is about core logic: signal processing (peaks, downmix, RMS, dB, gap finding) and canvas drawing are hand-written because they are the learnable parts.
 - Container work (reading and writing `.mp3`, `.m4a`, `.opus`) uses ffmpeg.wasm. The user chose it.
-- UI uses Reka UI primitives and Tailwind. Code follows Feature-Sliced Design; how much of it is the question in [Code layout](issues/05-code-layout.md).
+- UI uses Reka UI primitives and Tailwind. Code follows a subset of Feature-Sliced Design, settled in [Code layout](issues/05-code-layout.md).
 
 **Settled while charting** (decisions with no ticket of their own):
 
@@ -43,10 +43,11 @@ A rewritten `docs/audio-splitter-milestones.md` in which every technical decisio
 - [Stream-copy splitting per format](issues/03-stream-copy-splitting-per-format.md): one ffmpeg run per track with `-ss` and `-to` on the same side of `-i`, never the segment muxer. Measured on the real `.m4a` sample: cuts land within one frame (23 ms) and title and track-number tags cost about 63 bytes and no time. MP3 and Opus are from documentation only and need a real file in the spike.
 - [ffmpeg.wasm with long files in Chrome](issues/02-ffmpeg-wasm-with-long-files.md): pin `@ffmpeg/ffmpeg@0.12.15` with the single-thread `@ffmpeg/core@0.12.10`, self-hosted, no special headers; mount the source file read-only (WORKERFS) so input size is not the limit. The limits are on the other side: the core fails after repeated calls on one worker (reload it about every 20 calls), outputs are held in memory, the project has had no release since January 2025, and the default core is GPL.
 - [Spike: decode and split a real file](issues/06-spike-decode-and-split-a-real-file.md): both risky parts work on the real `.m4a` in Chrome. Sliced decode of 1 h takes 4.4 s; the hand-written downmix and decimation match ffmpeg within 0.03 dB; reloading every 20 calls carried 71 calls with no failure; the 8 cut tracks start on the sample, end within one frame, and the user judged them good enough for v1. `.mp3`, `.opus` and a 3 h file are still unverified.
+- [Code layout](issues/05-code-layout.md): FSD layers `app`, `pages`, `widgets`, `entities` (`source-file`, `split`), `shared`, with no `features` layer, no barrels and no router ([ADR 0001](../../docs/adr/0001-fsd-subset.md)). Signal math in `shared/lib/audio/`, ffmpeg machinery in `shared/api/ffmpeg/`, and Pinia setup stores per entity. Tailwind 4, Reka UI and a day-one `shared/ui` kit; `eslint-plugin-boundaries` and `prettier-plugin-tailwindcss` approved.
 
 ## Not yet specified
 
-- **Review-screen interaction design.** How the five panels become components: dragging a split, moving the zoom window, where renaming happens. Likely a prototype ticket once the code layout and the decode path are known.
+- **Review-screen interaction design.** How the five widgets (`source-waveform`, `loudness-curve`, `split-zoom`, `split-list`, `track-strip`) behave: dragging a split, moving the zoom window, where renaming happens, and where the minimum gap length control sits now that the wireframe's settings panel is gone. Likely a prototype ticket once the decode path is known.
 - **Waveform peaks.** What resolution the whole-file view and the zoomed view each need, and whether one peaks array serves both. Hangs on the decode path.
 - **Playback for auditioning a split.** Probably a plain `<audio>` element on the source file; whether seeking is accurate enough in a variable-bitrate MP3 is unknown.
 - **Progress, cancel and failure.** What the load screen reports while the worker runs, and what happens with a file ffmpeg cannot read. The spike showed that progress can only be counted per call (slice or track), and that cancelling means `terminate()`. The failure mode near the memory limit is still unseen.
