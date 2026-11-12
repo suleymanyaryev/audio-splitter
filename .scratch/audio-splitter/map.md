@@ -42,16 +42,16 @@ A rewritten `docs/audio-splitter-milestones.md` in which every technical decisio
 - [Decoding a long file for analysis](issues/04-decoding-a-long-file-for-analysis.md): first choice is ffmpeg.wasm decoding in 5-minute slices to full-rate stereo PCM, with the slice loop, downmix and downsample hand-written; fallback is one ffmpeg run with `-ac 1 -ar 8000`; `decodeAudioData` is rejected. About 8 kHz mono is enough for gap detection. All browser figures are estimates for the spike to measure.
 - [Stream-copy splitting per format](issues/03-stream-copy-splitting-per-format.md): one ffmpeg run per track with `-ss` and `-to` on the same side of `-i`, never the segment muxer. Measured on the real `.m4a` sample: cuts land within one frame (23 ms) and title and track-number tags cost about 63 bytes and no time. MP3 and Opus are from documentation only and need a real file in the spike.
 - [ffmpeg.wasm with long files in Chrome](issues/02-ffmpeg-wasm-with-long-files.md): pin `@ffmpeg/ffmpeg@0.12.15` with the single-thread `@ffmpeg/core@0.12.10`, self-hosted, no special headers; mount the source file read-only (WORKERFS) so input size is not the limit. The limits are on the other side: the core fails after repeated calls on one worker (reload it about every 20 calls), outputs are held in memory, the project has had no release since January 2025, and the default core is GPL.
+- [Spike: decode and split a real file](issues/06-spike-decode-and-split-a-real-file.md): both risky parts work on the real `.m4a` in Chrome. Sliced decode of 1 h takes 4.4 s; the hand-written downmix and decimation match ffmpeg within 0.03 dB; reloading every 20 calls carried 71 calls with no failure; the 8 cut tracks start on the sample, end within one frame, and the user judged them good enough for v1. `.mp3`, `.opus` and a 3 h file are still unverified.
 
 ## Not yet specified
 
 - **Review-screen interaction design.** How the five panels become components: dragging a split, moving the zoom window, where renaming happens. Likely a prototype ticket once the code layout and the decode path are known.
 - **Waveform peaks.** What resolution the whole-file view and the zoomed view each need, and whether one peaks array serves both. Hangs on the decode path.
 - **Playback for auditioning a split.** Probably a plain `<audio>` element on the source file; whether seeking is accurate enough in a variable-bitrate MP3 is unknown.
-- **Progress, cancel and failure.** What the load screen reports while the worker runs, and what happens with a file ffmpeg cannot read.
+- **Progress, cancel and failure.** What the load screen reports while the worker runs, and what happens with a file ffmpeg cannot read. The spike showed that progress can only be counted per call (slice or track), and that cancelling means `terminate()`. The failure mode near the memory limit is still unseen.
 - **CUE sheet details.** Small; only matters once export works.
 - **Default silence threshold.** The sample's gaps are fade tails at −30 to −40 dB, so a fixed −50 dB default proposes nothing. Whether the default is a fixed higher value or is derived from the file's own loudness is open; it belongs to the detection milestone.
-- **What v1 claims for `.mp3` and `.opus`.** Both are untested on real audio, and the research flags one risk each (Opus tracks starting up to about 1 s early with input seeking; a wrong start offset of about 93 ms on the last MP3 track). Whether v1 accepts them as untested, or accepts `.m4a` only until a sample exists, is undecided.
 - **Testing approach for the signal code.** Synthetic fixtures (generated tones and silence) versus real sample files, and whether any flow needs an e2e spec.
 
 ## Out of scope
