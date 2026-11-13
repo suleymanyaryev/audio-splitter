@@ -32,6 +32,7 @@ const testConfig = defineConfig({
       ...IGNORED_DIRECTORIES.map((directory) => `**/${directory}/**`),
     ],
     root: ROOT_DIRECTORY,
+    setupFiles: ['vitest.setup.ts'],
     forceRerunTriggers: FORCE_RERUN_TRIGGERS,
   },
 })

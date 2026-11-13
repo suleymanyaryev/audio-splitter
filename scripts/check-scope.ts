@@ -77,6 +77,7 @@ export const FULL_TEST_FALLBACK_PATTERNS = [
   ...SHARED_FALLBACK_PATTERNS,
   'vite.config.ts',
   'vitest.config.ts',
+  'vitest.setup.ts',
   'environment.d.ts',
   'src/**/*.worker.ts',
   'src/**/*.worklet.ts',

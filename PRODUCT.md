@@ -27,7 +27,7 @@ Nothing is uploaded: decoding, analysis and cutting all run locally in the brows
 
 ## Capabilities and Constraints
 
-- Vue 3, Vite, TypeScript, Tailwind 4, Reka UI; a small `shared/ui` kit (`Button`, `IconButton`, `Slider`, `TextField`, `Panel`, `ProgressBar`). Canvas views are hand-drawn inside their widgets.
+- Vue 3, Vite, TypeScript, Tailwind 4, Reka UI; a small `shared/ui` kit (`UiButton`, `UiIconButton`, `UiSlider`, `UiTextField`, `UiPanel`, `UiProgressBar`, `UiDialog`). Canvas views are hand-drawn inside their widgets.
 - ffmpeg.wasm for decoding and cutting; signal code is hand-written.
 - Export writes into a folder picked through the File System Access API.
 
