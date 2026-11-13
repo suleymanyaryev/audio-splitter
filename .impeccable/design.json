@@ -1,0 +1,749 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-13T12:30:00Z",
+  "title": "Design System: Audio Splitter",
+  "extensions": {
+    "colorMeta": {
+      "ink": {
+        "role": "neutral",
+        "displayName": "Vinyl Ink",
+        "canonical": "#121212",
+        "oklch": "oklch(18.2% 0.000 90)",
+        "tonalRamp": [
+          "#0B0B0B",
+          "#252525",
+          "#424242",
+          "#616161",
+          "#828282",
+          "#A5A5A5",
+          "#C9C9C9",
+          "#EEEEEE"
+        ],
+        "cssVar": "--color-ink",
+        "theme": "light"
+      },
+      "muted": {
+        "role": "neutral",
+        "displayName": "Label Grey",
+        "canonical": "#5E6066",
+        "oklch": "oklch(48.9% 0.010 271)",
+        "tonalRamp": [
+          "#0B0B0C",
+          "#242527",
+          "#404246",
+          "#5F6167",
+          "#808288",
+          "#A3A5AA",
+          "#C8C9CC",
+          "#EEEEEF"
+        ],
+        "cssVar": "--color-muted",
+        "theme": "light"
+      },
+      "ground": {
+        "role": "neutral",
+        "displayName": "Sleeve Ground",
+        "canonical": "#F7F7F5",
+        "oklch": "oklch(97.6% 0.003 106)",
+        "tonalRamp": [
+          "#0B0B0B",
+          "#252524",
+          "#424241",
+          "#616160",
+          "#828281",
+          "#A5A5A3",
+          "#C9C9C8",
+          "#EEEEEE"
+        ],
+        "cssVar": "--color-ground",
+        "theme": "light"
+      },
+      "surface": {
+        "role": "neutral",
+        "displayName": "Sleeve Surface",
+        "canonical": "#FFFFFF",
+        "oklch": "oklch(100.0% 0.000 90)",
+        "tonalRamp": [
+          "#0B0B0B",
+          "#252525",
+          "#424242",
+          "#616161",
+          "#828282",
+          "#A5A5A5",
+          "#C9C9C9",
+          "#EEEEEE"
+        ],
+        "cssVar": "--color-surface",
+        "theme": "light"
+      },
+      "hairline": {
+        "role": "neutral",
+        "displayName": "Hairline",
+        "canonical": "#E2E3E0",
+        "oklch": "oklch(91.4% 0.004 122)",
+        "tonalRamp": [
+          "#0B0B0B",
+          "#252524",
+          "#424240",
+          "#61625F",
+          "#828380",
+          "#A4A5A3",
+          "#C9C9C8",
+          "#EEEEEE"
+        ],
+        "cssVar": "--color-hairline",
+        "theme": "light"
+      },
+      "edge": {
+        "role": "neutral",
+        "displayName": "Control Edge",
+        "canonical": "#8A8D93",
+        "oklch": "oklch(64.3% 0.010 264)",
+        "tonalRamp": [
+          "#0B0B0C",
+          "#242527",
+          "#404246",
+          "#5E6167",
+          "#7F8288",
+          "#A3A5AA",
+          "#C8C9CC",
+          "#EEEEEF"
+        ],
+        "cssVar": "--color-edge",
+        "theme": "light"
+      },
+      "wave": {
+        "role": "neutral",
+        "displayName": "Groove Grey",
+        "canonical": "#3A3A3A",
+        "oklch": "oklch(34.8% 0.000 90)",
+        "tonalRamp": [
+          "#0B0B0B",
+          "#252525",
+          "#424242",
+          "#616161",
+          "#828282",
+          "#A5A5A5",
+          "#C9C9C9",
+          "#EEEEEE"
+        ],
+        "cssVar": "--color-wave",
+        "theme": "light"
+      },
+      "track": {
+        "role": "neutral",
+        "displayName": "Track Grey",
+        "canonical": "#3A3A3A",
+        "oklch": "oklch(34.8% 0.000 90)",
+        "tonalRamp": [
+          "#0B0B0B",
+          "#252525",
+          "#424242",
+          "#616161",
+          "#828282",
+          "#A5A5A5",
+          "#C9C9C9",
+          "#EEEEEE"
+        ],
+        "cssVar": "--color-track",
+        "theme": "light"
+      },
+      "on-track": {
+        "role": "neutral",
+        "displayName": "On Track",
+        "canonical": "#FFFFFF",
+        "oklch": "oklch(100.0% 0.000 90)",
+        "tonalRamp": [
+          "#0B0B0B",
+          "#252525",
+          "#424242",
+          "#616161",
+          "#828282",
+          "#A5A5A5",
+          "#C9C9C9",
+          "#EEEEEE"
+        ],
+        "cssVar": "--color-on-track",
+        "theme": "light"
+      },
+      "land": {
+        "role": "neutral",
+        "displayName": "Sheen Land",
+        "canonical": "#C9CCD1",
+        "oklch": "oklch(84.4% 0.008 261)",
+        "tonalRamp": [
+          "#0B0B0C",
+          "#242527",
+          "#404245",
+          "#5F6166",
+          "#808287",
+          "#A3A5A9",
+          "#C8C9CB",
+          "#EEEEEF"
+        ],
+        "cssVar": "--color-land",
+        "theme": "light"
+      },
+      "split": {
+        "role": "primary",
+        "displayName": "Centre-Label Vermilion",
+        "canonical": "#C8341F",
+        "oklch": "oklch(55.1% 0.188 31)",
+        "tonalRamp": [
+          "#150705",
+          "#470D05",
+          "#7F0700",
+          "#B31B03",
+          "#DC4832",
+          "#F57D68",
+          "#FEB4A6",
+          "#FFE8E3"
+        ],
+        "cssVar": "--color-split",
+        "theme": "light"
+      },
+      "on-split": {
+        "role": "primary",
+        "displayName": "On Vermilion",
+        "canonical": "#FFFFFF",
+        "oklch": "oklch(100.0% 0.000 90)",
+        "tonalRamp": [
+          "#0B0B0B",
+          "#252525",
+          "#424242",
+          "#616161",
+          "#828282",
+          "#A5A5A5",
+          "#C9C9C9",
+          "#EEEEEE"
+        ],
+        "cssVar": "--color-on-split",
+        "theme": "light"
+      },
+      "vinyl": {
+        "role": "neutral",
+        "displayName": "Vinyl",
+        "canonical": "#121212",
+        "oklch": "oklch(18.2% 0.000 90)",
+        "tonalRamp": [
+          "#0B0B0B",
+          "#252525",
+          "#424242",
+          "#616161",
+          "#828282",
+          "#A5A5A5",
+          "#C9C9C9",
+          "#EEEEEE"
+        ],
+        "cssVar": "--color-vinyl",
+        "theme": "both"
+      },
+      "on-vinyl": {
+        "role": "neutral",
+        "displayName": "On Vinyl",
+        "canonical": "#EDEDEA",
+        "oklch": "oklch(94.5% 0.004 106)",
+        "tonalRamp": [
+          "#0B0B0B",
+          "#252524",
+          "#424240",
+          "#61615F",
+          "#828280",
+          "#A5A5A3",
+          "#C9C9C8",
+          "#EEEEEE"
+        ],
+        "cssVar": "--color-on-vinyl",
+        "theme": "both"
+      },
+      "on-vinyl-muted": {
+        "role": "neutral",
+        "displayName": "On Vinyl Muted",
+        "canonical": "#A3A5AA",
+        "oklch": "oklch(72.2% 0.008 269)",
+        "tonalRamp": [
+          "#0B0B0C",
+          "#242527",
+          "#414245",
+          "#5F6166",
+          "#808287",
+          "#A3A5A9",
+          "#C8C9CB",
+          "#EEEEEF"
+        ],
+        "cssVar": "--color-on-vinyl-muted",
+        "theme": "both"
+      },
+      "vinyl-edge": {
+        "role": "neutral",
+        "displayName": "Vinyl Edge",
+        "canonical": "#3A3A3A",
+        "oklch": "oklch(34.8% 0.000 90)",
+        "tonalRamp": [
+          "#0B0B0B",
+          "#252525",
+          "#424242",
+          "#616161",
+          "#828282",
+          "#A5A5A5",
+          "#C9C9C9",
+          "#EEEEEE"
+        ],
+        "cssVar": "--color-vinyl-edge",
+        "theme": "both"
+      },
+      "ink-dark": {
+        "role": "neutral",
+        "displayName": "Vinyl Ink (dark)",
+        "canonical": "#EDEDEA",
+        "oklch": "oklch(94.5% 0.004 106)",
+        "tonalRamp": [
+          "#0B0B0B",
+          "#252524",
+          "#424240",
+          "#61615F",
+          "#828280",
+          "#A5A5A3",
+          "#C9C9C8",
+          "#EEEEEE"
+        ],
+        "cssVar": "--color-ink",
+        "theme": "dark"
+      },
+      "muted-dark": {
+        "role": "neutral",
+        "displayName": "Label Grey (dark)",
+        "canonical": "#A3A5AA",
+        "oklch": "oklch(72.2% 0.008 269)",
+        "tonalRamp": [
+          "#0B0B0C",
+          "#242527",
+          "#414245",
+          "#5F6166",
+          "#808287",
+          "#A3A5A9",
+          "#C8C9CB",
+          "#EEEEEF"
+        ],
+        "cssVar": "--color-muted",
+        "theme": "dark"
+      },
+      "ground-dark": {
+        "role": "neutral",
+        "displayName": "Sleeve Ground (dark)",
+        "canonical": "#0E0E0E",
+        "oklch": "oklch(16.4% 0.000 90)",
+        "tonalRamp": [
+          "#0B0B0B",
+          "#252525",
+          "#424242",
+          "#616161",
+          "#828282",
+          "#A5A5A5",
+          "#C9C9C9",
+          "#EEEEEE"
+        ],
+        "cssVar": "--color-ground",
+        "theme": "dark"
+      },
+      "surface-dark": {
+        "role": "neutral",
+        "displayName": "Sleeve Surface (dark)",
+        "canonical": "#171717",
+        "oklch": "oklch(20.5% 0.000 90)",
+        "tonalRamp": [
+          "#0B0B0B",
+          "#252525",
+          "#424242",
+          "#616161",
+          "#828282",
+          "#A5A5A5",
+          "#C9C9C9",
+          "#EEEEEE"
+        ],
+        "cssVar": "--color-surface",
+        "theme": "dark"
+      },
+      "hairline-dark": {
+        "role": "neutral",
+        "displayName": "Hairline (dark)",
+        "canonical": "#2A2B2D",
+        "oklch": "oklch(28.9% 0.004 265)",
+        "tonalRamp": [
+          "#0B0B0B",
+          "#252526",
+          "#414244",
+          "#606163",
+          "#818285",
+          "#A4A5A7",
+          "#C8C9CA",
+          "#EEEEEF"
+        ],
+        "cssVar": "--color-hairline",
+        "theme": "dark"
+      },
+      "edge-dark": {
+        "role": "neutral",
+        "displayName": "Control Edge (dark)",
+        "canonical": "#6E7076",
+        "oklch": "oklch(54.5% 0.010 271)",
+        "tonalRamp": [
+          "#0B0B0C",
+          "#242527",
+          "#404246",
+          "#5F6167",
+          "#808288",
+          "#A3A5AA",
+          "#C8C9CC",
+          "#EEEEEF"
+        ],
+        "cssVar": "--color-edge",
+        "theme": "dark"
+      },
+      "wave-dark": {
+        "role": "neutral",
+        "displayName": "Groove Grey (dark)",
+        "canonical": "#B9BCC1",
+        "oklch": "oklch(79.4% 0.008 261)",
+        "tonalRamp": [
+          "#0B0B0C",
+          "#242527",
+          "#404245",
+          "#5F6166",
+          "#808287",
+          "#A3A5A9",
+          "#C8C9CB",
+          "#EEEEEF"
+        ],
+        "cssVar": "--color-wave",
+        "theme": "dark"
+      },
+      "track-dark": {
+        "role": "neutral",
+        "displayName": "Track Grey (dark)",
+        "canonical": "#5C5E63",
+        "oklch": "oklch(48.2% 0.008 268)",
+        "tonalRamp": [
+          "#0B0B0C",
+          "#242527",
+          "#404246",
+          "#5F6166",
+          "#808287",
+          "#A3A5A9",
+          "#C8C9CC",
+          "#EEEEEF"
+        ],
+        "cssVar": "--color-track",
+        "theme": "dark"
+      },
+      "on-track-dark": {
+        "role": "neutral",
+        "displayName": "On Track (dark)",
+        "canonical": "#EDEDEA",
+        "oklch": "oklch(94.5% 0.004 106)",
+        "tonalRamp": [
+          "#0B0B0B",
+          "#252524",
+          "#424240",
+          "#61615F",
+          "#828280",
+          "#A5A5A3",
+          "#C9C9C8",
+          "#EEEEEE"
+        ],
+        "cssVar": "--color-on-track",
+        "theme": "dark"
+      },
+      "land-dark": {
+        "role": "neutral",
+        "displayName": "Sheen Land (dark)",
+        "canonical": "#383A3E",
+        "oklch": "oklch(34.8% 0.007 264)",
+        "tonalRamp": [
+          "#0B0B0C",
+          "#242527",
+          "#404245",
+          "#5F6166",
+          "#808287",
+          "#A3A5A9",
+          "#C8C9CB",
+          "#EEEEEF"
+        ],
+        "cssVar": "--color-land",
+        "theme": "dark"
+      },
+      "split-dark": {
+        "role": "primary",
+        "displayName": "Centre-Label Vermilion (dark)",
+        "canonical": "#FF5A43",
+        "oklch": "oklch(68.5% 0.204 31)",
+        "tonalRamp": [
+          "#160604",
+          "#4A0803",
+          "#840000",
+          "#B90000",
+          "#E33E29",
+          "#FB7863",
+          "#FFB2A3",
+          "#FFE7E2"
+        ],
+        "cssVar": "--color-split",
+        "theme": "dark"
+      },
+      "on-split-dark": {
+        "role": "primary",
+        "displayName": "On Vermilion (dark)",
+        "canonical": "#0E0E0E",
+        "oklch": "oklch(16.4% 0.000 90)",
+        "tonalRamp": [
+          "#0B0B0B",
+          "#252525",
+          "#424242",
+          "#616161",
+          "#828282",
+          "#A5A5A5",
+          "#C9C9C9",
+          "#EEEEEE"
+        ],
+        "cssVar": "--color-on-split",
+        "theme": "dark"
+      }
+    },
+    "typographyMeta": {
+      "headline": {
+        "displayName": "Headline",
+        "purpose": "Product name; the single most important reading on a panel."
+      },
+      "title": {
+        "displayName": "Title",
+        "purpose": "Panel titles and the Export button label."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Default text, table cells, field values, panel metadata."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "Button labels, slider readouts, in-progress counts, the selected row."
+      },
+      "caption": {
+        "displayName": "Caption",
+        "purpose": "Axis times, table headings, track durations, quiet header text."
+      },
+      "caption-strong": {
+        "displayName": "Caption Strong",
+        "purpose": "File chip, invalid message, split numbers and chips."
+      }
+    },
+    "shadows": [],
+    "motion": [
+      {
+        "name": "control-colors",
+        "value": "color, background-color, border-color 100ms (Tailwind default ease)",
+        "purpose": "Hover and state colour change on buttons and icon buttons; nothing else animates."
+      }
+    ],
+    "breakpoints": [],
+    "focusRing": {
+      "value": "outline: 2px solid var(--color-ink); outline-offset: 2px",
+      "purpose": "Keyboard focus on every control; on-vinyl on the header band, on-track on a track block, split on an invalid field."
+    },
+    "disabled": {
+      "value": "opacity: 0.4; cursor: not-allowed",
+      "purpose": "Every disabled control; hover is gated by :enabled."
+    },
+    "icons": {
+      "library": "lucide-vue-next",
+      "size": "16px",
+      "strokeWidth": 2,
+      "linecap": "round",
+      "linejoin": "round",
+      "note": "Play drawn filled. Unicode glyphs are never icons."
+    },
+    "canvas": {
+      "readColors": "getComputedStyle(document.documentElement).getPropertyValue('--color-…'); redraw on prefers-color-scheme change",
+      "font": "700 12px Manrope",
+      "wave": "wave bars 2px wide on a 3px pitch",
+      "land": "land band with no waveform; at least 12px wide in whole-file views",
+      "split": "1.5px split line; selected 3px plus a 20px filled split chip with on-split number",
+      "splitNumbers": "22px band above the whole-file waveform, numbers in split",
+      "zoomWindow": "1.5px ink outline in the whole-file view, matching the zoom view frame",
+      "loudness": "1.5px wave line, 14% wave fill beneath, lands full height behind",
+      "threshold": "dashed 5/4, 1.5px, split; label on a surface plate (text width + 8px, 17px tall); 18x10 drag handle at the right edge",
+      "zoom": "land band with a flat 1px wave run-out line; 3px split line with a 14x10 handle at the top; 1.5px ink frame"
+    }
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The main action of a panel; ink fill, groove-grey on hover.",
+      "html": "<button class=\"ds-btn ds-btn-primary\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"currentColor\" stroke=\"none\" aria-hidden=\"true\"><polygon points=\"6 3 20 12 6 21 6 3\"/></svg>Play across split</button>",
+      "css": ".ds-btn { display:inline-flex; align-items:center; gap:8px; height:36px; padding:0 14px; border-radius:var(--radius-control,6px); font:600 14px/20px Manrope,ui-sans-serif,system-ui,sans-serif; font-variant-numeric:tabular-nums; white-space:nowrap; cursor:pointer; border:1px solid transparent; transition:background-color .1s,border-color .1s,color .1s; } .ds-btn:focus-visible { outline:2px solid var(--color-ink); outline-offset:2px; } .ds-btn:disabled { opacity:.4; cursor:not-allowed; } .ds-btn-primary { background:var(--color-ink); color:var(--color-surface); } .ds-btn-primary:enabled:hover { background:var(--color-wave); }"
+    },
+    {
+      "name": "Primary Button Large",
+      "kind": "button",
+      "refersTo": "button-primary-lg",
+      "description": "Reserved for the Export action; the strongest button on any screen.",
+      "html": "<button class=\"ds-btn ds-btn-primary ds-btn-lg\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4\"/><path d=\"m7 10 5 5 5-5\"/><path d=\"M12 15V3\"/></svg>Export 8 tracks</button>",
+      "css": ".ds-btn { display:inline-flex; align-items:center; gap:8px; height:36px; padding:0 14px; border-radius:var(--radius-control,6px); font:600 14px/20px Manrope,ui-sans-serif,system-ui,sans-serif; font-variant-numeric:tabular-nums; white-space:nowrap; cursor:pointer; border:1px solid transparent; transition:background-color .1s,border-color .1s,color .1s; } .ds-btn:focus-visible { outline:2px solid var(--color-ink); outline-offset:2px; } .ds-btn:disabled { opacity:.4; cursor:not-allowed; } .ds-btn-primary { background:var(--color-ink); color:var(--color-surface); } .ds-btn-primary:enabled:hover { background:var(--color-wave); } .ds-btn-lg { height:40px; padding:0 20px; font-size:16px; line-height:24px; }"
+    },
+    {
+      "name": "Secondary Button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Every other action; edge border on surface, ink border and land tint on hover.",
+      "html": "<button class=\"ds-btn ds-btn-secondary\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M5 12h14\"/><path d=\"M12 5v14\"/></svg>Add split</button>",
+      "css": ".ds-btn { display:inline-flex; align-items:center; gap:8px; height:36px; padding:0 14px; border-radius:var(--radius-control,6px); font:600 14px/20px Manrope,ui-sans-serif,system-ui,sans-serif; font-variant-numeric:tabular-nums; white-space:nowrap; cursor:pointer; border:1px solid transparent; transition:background-color .1s,border-color .1s,color .1s; } .ds-btn:focus-visible { outline:2px solid var(--color-ink); outline-offset:2px; } .ds-btn:disabled { opacity:.4; cursor:not-allowed; } .ds-btn-secondary { background:var(--color-surface); color:var(--color-ink); border-color:var(--color-edge); } .ds-btn-secondary:enabled:hover { border-color:var(--color-ink); background:color-mix(in srgb, var(--color-land) 40%, var(--color-surface)); }"
+    },
+    {
+      "name": "Danger Button",
+      "kind": "button",
+      "refersTo": "button-danger",
+      "description": "Destructive actions; vermilion outline at rest, filled vermilion on hover.",
+      "html": "<button class=\"ds-btn ds-btn-danger\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M3 6h18\"/><path d=\"M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6\"/><path d=\"M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2\"/><line x1=\"10\" x2=\"10\" y1=\"11\" y2=\"17\"/><line x1=\"14\" x2=\"14\" y1=\"11\" y2=\"17\"/></svg>Delete split</button>",
+      "css": ".ds-btn { display:inline-flex; align-items:center; gap:8px; height:36px; padding:0 14px; border-radius:var(--radius-control,6px); font:600 14px/20px Manrope,ui-sans-serif,system-ui,sans-serif; font-variant-numeric:tabular-nums; white-space:nowrap; cursor:pointer; border:1px solid transparent; transition:background-color .1s,border-color .1s,color .1s; } .ds-btn:focus-visible { outline:2px solid var(--color-ink); outline-offset:2px; } .ds-btn:disabled { opacity:.4; cursor:not-allowed; } .ds-btn-danger { background:var(--color-surface); color:var(--color-split); border-color:var(--color-split); } .ds-btn-danger:enabled:hover { background:var(--color-split); color:var(--color-on-split); }"
+    },
+    {
+      "name": "Inverse Button on the Header Band",
+      "kind": "nav",
+      "refersTo": "header-band",
+      "description": "The vinyl-black header band, identical in both themes, with the centre-label mark, file chip and an inverse button.",
+      "html": "<header class=\"ds-band\"><span class=\"ds-mark\" aria-hidden=\"true\"><span></span></span><span class=\"ds-name\">Audio Splitter</span><span class=\"ds-chip\">sample1.m4a · 1:01:24</span><span class=\"ds-quiet\">Local only</span><button class=\"ds-btn-inverse\">New file</button></header>",
+      "css": ".ds-band { display:flex; align-items:center; gap:16px; height:48px; padding:0 16px; background:var(--color-vinyl); color:var(--color-on-vinyl); border-bottom:1px solid var(--color-vinyl-edge); font-family:Manrope,ui-sans-serif,system-ui,sans-serif; font-variant-numeric:tabular-nums; } .ds-mark { display:grid; place-items:center; width:20px; height:20px; border-radius:9999px; background:var(--color-split); } .ds-mark span { width:6px; height:6px; border-radius:9999px; background:var(--color-vinyl); } .ds-name { font:700 20px/28px Manrope,sans-serif; } .ds-chip { border:1px solid var(--color-vinyl-edge); border-radius:var(--radius-control,6px); padding:4px 10px; font:600 12px/16px Manrope,sans-serif; } .ds-quiet { margin-left:auto; font-size:12px; line-height:16px; color:var(--color-on-vinyl-muted); } .ds-btn-inverse { height:36px; padding:0 14px; border:0; border-radius:var(--radius-control,6px); background:var(--color-on-vinyl); color:var(--color-vinyl); font:600 14px/20px Manrope,sans-serif; cursor:pointer; transition:background-color .1s; } .ds-btn-inverse:hover { background:#FFFFFF; } .ds-btn-inverse:focus-visible { outline:2px solid var(--color-on-vinyl); outline-offset:2px; }"
+    },
+    {
+      "name": "IconButton",
+      "kind": "button",
+      "refersTo": "icon-button",
+      "description": "A 36 px square secondary button holding one 16 px Lucide icon; aria-label required.",
+      "html": "<button class=\"ds-ibtn\" aria-label=\"Play\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"currentColor\" stroke=\"none\" aria-hidden=\"true\"><polygon points=\"6 3 20 12 6 21 6 3\"/></svg></button>",
+      "css": ".ds-ibtn { display:inline-flex; align-items:center; justify-content:center; width:36px; height:36px; border:1px solid var(--color-edge); border-radius:var(--radius-control,6px); background:var(--color-surface); color:var(--color-ink); cursor:pointer; transition:background-color .1s,border-color .1s; } .ds-ibtn:enabled:hover { border-color:var(--color-ink); background:color-mix(in srgb, var(--color-land) 40%, var(--color-surface)); } .ds-ibtn:focus-visible { outline:2px solid var(--color-ink); outline-offset:2px; } .ds-ibtn:disabled { opacity:.4; cursor:not-allowed; }"
+    },
+    {
+      "name": "TextField",
+      "kind": "input",
+      "refersTo": "text-field",
+      "description": "Edge-bordered input; ink border on hover, ink ring on focus, vermilion border, ring and message when invalid.",
+      "html": "<div class=\"ds-fieldset\"><input class=\"ds-field\" value=\"Sunrise Drive\" aria-label=\"Track name\"><input class=\"ds-field\" value=\"03/04\" aria-label=\"Track name\" aria-invalid=\"true\" aria-describedby=\"ds-err\"><p id=\"ds-err\" class=\"ds-err\">A track name can't contain “/”.</p></div>",
+      "css": ".ds-fieldset { display:grid; gap:8px; } .ds-field { height:36px; width:100%; max-width:224px; padding:0 10px; border:1px solid var(--color-edge); border-radius:var(--radius-control,6px); background:var(--color-surface); color:var(--color-ink); font:400 14px/20px Manrope,ui-sans-serif,system-ui,sans-serif; font-variant-numeric:tabular-nums; } .ds-field:enabled:hover { border-color:var(--color-ink); } .ds-field:focus-visible { outline:2px solid var(--color-ink); outline-offset:2px; } .ds-field:disabled { opacity:.4; } .ds-field[aria-invalid=true] { border-color:var(--color-split); outline-color:var(--color-split); } .ds-err { margin:-4px 0 0; font:600 12px/16px Manrope,sans-serif; color:var(--color-split); }"
+    },
+    {
+      "name": "Slider",
+      "kind": "custom",
+      "refersTo": "slider-thumb",
+      "description": "Hairline track, ink range, ink thumb with a surface ring that grows on hover; value readout to the right.",
+      "html": "<label class=\"ds-slider-row\">Minimum gap length<span class=\"ds-slider\"><span class=\"ds-slider-track\"><span class=\"ds-slider-range\"></span></span><span class=\"ds-slider-thumb\" role=\"slider\" tabindex=\"0\" aria-label=\"Minimum gap length\" aria-valuemin=\"0.2\" aria-valuemax=\"5\" aria-valuenow=\"1\"></span></span><span class=\"ds-slider-value\">1.0 s</span></label>",
+      "css": ".ds-slider-row { display:flex; align-items:center; gap:12px; color:var(--color-muted); font:400 14px/20px Manrope,sans-serif; font-variant-numeric:tabular-nums; } .ds-slider { position:relative; display:flex; align-items:center; width:160px; height:20px; } .ds-slider-track { width:100%; height:4px; border-radius:9999px; background:var(--color-hairline); } .ds-slider-range { display:block; width:18%; height:4px; border-radius:9999px; background:var(--color-ink); } .ds-slider-thumb { position:absolute; left:18%; transform:translateX(-50%); width:16px; height:16px; box-sizing:border-box; border:2px solid var(--color-surface); border-radius:9999px; background:var(--color-ink); cursor:grab; } .ds-slider-thumb:hover { width:20px; height:20px; } .ds-slider-thumb:focus-visible { outline:2px solid var(--color-ink); outline-offset:2px; } .ds-slider-value { width:40px; text-align:right; font-weight:600; color:var(--color-ink); }"
+    },
+    {
+      "name": "ProgressBar",
+      "kind": "custom",
+      "refersTo": "progress-indicator",
+      "description": "Determinate bar on land with an ink fill and a counted label in words.",
+      "html": "<div class=\"ds-progress\"><div class=\"ds-progress-track\" role=\"progressbar\" aria-valuemin=\"0\" aria-valuemax=\"62\" aria-valuenow=\"38\" aria-label=\"Slices analysed\"><div class=\"ds-progress-fill\" style=\"width:61%\"></div></div><span class=\"ds-progress-count\">38 / 62 slices</span></div>",
+      "css": ".ds-progress { display:grid; grid-template-columns:1fr 112px; align-items:center; gap:12px; font:600 14px/20px Manrope,sans-serif; font-variant-numeric:tabular-nums; color:var(--color-ink); } .ds-progress-track { height:6px; border-radius:9999px; background:var(--color-land); } .ds-progress-fill { height:100%; border-radius:9999px; background:var(--color-ink); } .ds-progress-count { text-align:right; }"
+    },
+    {
+      "name": "Panel with Track Strip",
+      "kind": "card",
+      "refersTo": "panel",
+      "description": "A titled frame on the ground; here holding the track strip, where each 6 px gap between groove-grey blocks is a land.",
+      "html": "<section class=\"ds-panel\"><div class=\"ds-panel-head\"><h2>8 tracks</h2><p>1:01:24</p></div><div class=\"ds-strip\"><div class=\"ds-block\" style=\"flex:462\"><b>01</b><span>7:42</span></div><div class=\"ds-block\" style=\"flex:448\"><b>02</b><span>7:28</span></div><div class=\"ds-block\" style=\"flex:441\"><b>03 Sunrise Drive</b><span>7:21</span></div></div></section>",
+      "css": ".ds-panel { border:1px solid var(--color-hairline); border-radius:var(--radius-panel,8px); background:var(--color-surface); color:var(--color-ink); padding:16px; font:400 14px/20px Manrope,ui-sans-serif,system-ui,sans-serif; font-variant-numeric:tabular-nums; } .ds-panel-head { display:flex; align-items:baseline; justify-content:space-between; margin-bottom:12px; } .ds-panel-head h2 { margin:0; font:600 16px/24px Manrope,sans-serif; } .ds-panel-head p { margin:0; color:var(--color-muted); } .ds-strip { display:flex; gap:6px; height:56px; border-radius:var(--radius-control,6px); background:var(--color-land); } .ds-block { display:flex; flex-direction:column; justify-content:center; gap:2px; min-width:0; padding:0 12px; border-radius:var(--radius-control,6px); background:var(--color-track); color:var(--color-on-track); } .ds-block b { font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; } .ds-block span { font-size:12px; line-height:16px; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "Side of an LP",
+    "overview": "On a record you can see where one track ends: the textured groove bands stop and a smooth land runs between them. Audio Splitter draws a source file the same way. Tracks are dense grey waveform bands, every gap is a flat land, and a split reads as something you can see before you read a number. The world refuses the dark audio editor with a bright blue waveform, the studio-gear look, decoration that competes with the waveforms, and dense tiny technical type.\n\nBy day the ground is sleeve white and the panels are white; by night the ground is vinyl black and the panels near-black. Ink is vinyl black, inverted at night. Waveforms and track blocks are groove grey, lands are sheen grey, and one centre-label vermilion marks splits and the silence threshold. Colour is flat: no gradients, no shadows. Panels separate by a hairline and the ground between them. The theme follows the system setting; there is no theme toggle.\n\nThe waveforms and the loudness curve are the content, so the chrome is quiet: one face (Manrope) with tabular figures, two radii, a 16 px rhythm, and controls that carry state through ink and border rather than colour. Motion is limited to a 100 ms colour transition on controls.",
+    "keyCharacteristics": [
+      "Groove grey for everything that is audio; sheen-grey lands for every gap.",
+      "One reserved vermilion: splits, the silence threshold, danger and invalid states, and the centre-label mark in the header.",
+      "A vinyl-black header band in both themes.",
+      "Flat colour throughout; depth comes from ground versus surface and a 1 px hairline.",
+      "Manrope everywhere, tabular figures everywhere, nothing smaller than 12 px.",
+      "Hand-drawn canvas views read the same colour tokens as the kit."
+    ],
+    "rules": [
+      {
+        "name": "The Centre-Label Rule",
+        "body": "Vermilion marks a split, the silence threshold, a destructive action, an invalid value, or the centre-label mark in the header, and nothing else: not hover, not selection, not links, not emphasis, not a progress fill.",
+        "section": "colors"
+      },
+      {
+        "name": "The Vinyl Band Rule",
+        "body": "The header band is vinyl black with on-vinyl text in both themes; its tokens never take dark-mode overrides.",
+        "section": "colors"
+      },
+      {
+        "name": "The Groove Grey Rule",
+        "body": "Audio is drawn in groove grey. A waveform, curve or track block is never coloured, never blue, never vermilion.",
+        "section": "colors"
+      },
+      {
+        "name": "The Tabular Rule",
+        "body": "`font-variant-numeric: tabular-nums` is set once on `body` and is never switched off; every time, gap, count and dB value is tabular.",
+        "section": "typography"
+      },
+      {
+        "name": "The Twelve-Pixel Floor",
+        "body": "Nothing is set below 12 px, and nothing is uppercased or letter-spaced to look technical.",
+        "section": "typography"
+      },
+      {
+        "name": "The Full-Strength Text Rule",
+        "body": "Text hierarchy comes from size, weight and the `muted` token, never from opacity on text.",
+        "section": "typography"
+      },
+      {
+        "name": "The Flat Sleeve Rule",
+        "body": "No `box-shadow`, no `drop-shadow`, no gradient, no blur, no translucency over content. If something needs to stand apart, it gets the surface colour, a hairline, or ground around it.",
+        "section": "elevation"
+      },
+      {
+        "name": "The Two Radii Rule",
+        "body": "6 px for anything you press or type into, 8 px for a panel, fully round only for tracks, thumbs, bars and chips. No other radius.",
+        "section": "shapes"
+      },
+      {
+        "name": "The Land Rule",
+        "body": "A gap is always drawn as land, never as waveform, and never narrower than 12 px in a whole-file view.",
+        "section": "components"
+      },
+      {
+        "name": "The Shared Token Rule",
+        "body": "Canvas code never hard-codes a colour; it reads the `--color-…` variables, so canvases and kit change theme together.",
+        "section": "components"
+      },
+      {
+        "name": "The Ink Focus Rule",
+        "body": "Keyboard focus is always a 2 px outline at 2 px offset in the ink of its ground (`ink`, `on-vinyl` on the header band, `on-track` on a track block, `split` on an invalid field).",
+        "section": "components"
+      }
+    ],
+    "dos": [
+      "Do take every colour, radius and text size from the token block; add a token before adding a one-off value.",
+      "Do follow the system theme through `prefers-color-scheme` alone.",
+      "Do draw every gap as a land, at least 12 px wide in whole-file views, and keep audio in groove grey.",
+      "Do keep vermilion for splits, the silence threshold, danger, invalid states and the header's centre-label mark.",
+      "Do read canvas colours from the `--color-…` variables and redraw when the colour scheme changes.",
+      "Do give every control a visible keyboard focus ring (2 px outline, 2 px offset) and every icon button an `aria-label`.",
+      "Do use `lucide-vue-next` icons at 16 px with a 2 px round stroke.",
+      "Do keep figures tabular and text at 12 px or larger.",
+      "Do reserve the large button size for the Export action."
+    ],
+    "donts": [
+      "Don't use gradients, shadows, blur or translucency over content.",
+      "Don't draw a bright blue (or any coloured) waveform, or dress the screen as studio gear.",
+      "Don't use vermilion for hover, selection, links, emphasis, progress or branding beyond the centre-label mark.",
+      "Don't add a theme toggle or a `data-theme` switch.",
+      "Don't fetch fonts or any other asset from the network at runtime.",
+      "Don't use Unicode glyphs as icons.",
+      "Don't dim text with opacity to make hierarchy; use `muted`, size or weight.",
+      "Don't set text below 12 px, or uppercase and letter-space labels to look technical.",
+      "Don't introduce a third radius or a second typeface."
+    ]
+  }
+}
