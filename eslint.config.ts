@@ -7,10 +7,16 @@ import pluginVitest from '@vitest/eslint-plugin'
 import pluginPrettierRecommended from 'eslint-plugin-prettier/recommended'
 import sonarjs, { configs as sonarjsConfigs } from 'eslint-plugin-sonarjs'
 import unicorn from 'eslint-plugin-unicorn'
+import boundaries from 'eslint-plugin-boundaries'
 
 import { IGNORED_DIRECTORIES, SOURCE_EXTENSIONS, SPEC_FILE_GLOB } from './scripts/check-scope.ts'
 
 const SOURCE_FILES = [`**/*.{${SOURCE_EXTENSIONS.join(',')}}`]
+
+// Feature-Sliced Design layers, highest first (docs/adr/0001-fsd-subset.md). A layer imports only
+// the layers after it; `app` and `shared` have no slices, the others have one folder per slice.
+const LAYERS = ['app', 'pages', 'widgets', 'entities', 'shared'] as const
+const SLICED_LAYERS = new Set<string>(['pages', 'widgets', 'entities'])
 
 const config = defineConfigWithVueTs(
   {
@@ -71,6 +77,36 @@ const config = defineConfigWithVueTs(
             src: true, // media sources (audioSrc)
             Src: true,
           },
+        },
+      ],
+    },
+  },
+
+  {
+    name: 'app/boundaries',
+    files: [`src/**/*.{${SOURCE_EXTENSIONS.join(',')}}`],
+    plugins: { boundaries },
+    settings: {
+      // Resolves the `@/` alias and `.vue` files, so cross-slice imports are seen at all.
+      'import/resolver': { typescript: { project: './tsconfig.app.json' } },
+      'boundaries/elements': LAYERS.map((layer) =>
+        SLICED_LAYERS.has(layer)
+          ? { type: layer, pattern: `src/${layer}/*`, capture: ['slice'], partialMatch: false }
+          : { type: layer, pattern: `src/${layer}`, partialMatch: false },
+      ),
+    },
+    rules: {
+      // Imports inside one element (a slice, or all of `app` or `shared`) are not checked, so the
+      // only allowed imports between elements point down the layer list. Two slices of one layer
+      // are two elements with no policy between them, which keeps slices isolated.
+      'boundaries/dependencies': [
+        'error',
+        {
+          default: 'disallow',
+          policies: LAYERS.map((layer, index) => ({
+            from: { element: { type: layer } },
+            allow: { to: { element: { types: LAYERS.slice(index + 1) } } },
+          })),
         },
       ],
     },

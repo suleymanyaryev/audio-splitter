@@ -1,6 +1,6 @@
 # Audio Splitter
 
-Browser-only Vue 3 + Vite + TypeScript app that proposes split points in long audio files; nothing is uploaded. Scope and milestones: `docs/audio-splitter-milestones.md`. pnpm only, Node 24 via `mise.toml`. `README.md` is create-vue boilerplate: use this file.
+Browser-only Vue 3 + Vite + TypeScript app that proposes split points in long audio files; nothing is uploaded. Scope and milestones: `docs/audio-splitter-milestones.md`. pnpm only, Node 24 via `mise.toml`. `README.md` points here.
 
 ## Checks
 
@@ -27,6 +27,22 @@ The baseline is green: `pnpm typecheck`, `pnpm test`, `pnpm lint`, `pnpm knip` a
 - Inputs that affect every file (dependencies, tsconfigs, lint policy, Vite/Vitest config) fall back to the full run and print the reason: `full test fallback: pattern <p> matches <path>`. The lists live in `scripts/check-scope.ts`, shared with `eslint.config.ts` and `vitest.config.ts`: change scope there.
 - Worker and worklet entries (`*.worker.ts`, `*.worklet.ts`) always trigger the full suite, because `new Worker(new URL(...))` and `audioWorklet.addModule()` are invisible to the import graph. Keep entries thin: analysis logic lives in plain modules that specs import directly.
 
+## Code layout
+
+A subset of Feature-Sliced Design ([ADR 0001](docs/adr/0001-fsd-subset.md)): layers `app` → `pages` → `widgets` → `entities` → `shared`, no `features`. A layer imports only the layers after it, and two slices of one layer never import each other. `eslint-plugin-boundaries` enforces both inside `pnpm lint` (`app/boundaries` in `eslint.config.ts`).
+
+| Folder                 | Holds                                                                                                                                                                                                                                           |
+| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/app/`             | `main.ts` (the Vite entry), `App.vue` (the header band; switches between the two pages on whether a source file is loaded, no router) and `styles/main.css` (DESIGN.md's token block; the Manrope woff2 and its OFL licence in `styles/fonts/`) |
+| `src/pages/load/ui/`   | `LoadPage.vue`: "Choose file…"                                                                                                                                                                                                                  |
+| `src/pages/review/ui/` | `ReviewPage.vue`: the five panels in their grid                                                                                                                                                                                                 |
+| `src/shared/ui/`       | The kit, `Ui<Name>.vue`: `UiButton`, `UiIconButton`, `UiTextField`, `UiSlider`, `UiPanel`, `UiProgressBar`, `UiDialog`. Their look is DESIGN.md's; read it before touching one                                                                  |
+
+- Slice folders are kebab-case, `.vue` files PascalCase. A segment folder (`ui`, `model`, `lib`, `api`, `config`) exists only when it holds a file.
+- No `index.ts` public APIs: import the file itself, with its extension (`@/shared/ui/UiButton.vue`).
+- Imports across slices or layers use `@/`; imports inside a slice are relative.
+- A new layer or slice gets its row here when its first file lands.
+
 ## Lint
 
 ESLint with `eslint:recommended`, typescript-eslint, Vue recommended, SonarJS, Unicorn and Prettier. Formatting findings are lint errors; `pnpm lint:fix` applies them.
@@ -42,8 +58,8 @@ Fix a `pnpm knip` finding by removing the unused file, export or dependency afte
 
 ## Testing
 
-- Vitest + jsdom + `@vue/test-utils`. Specs are `__tests__/*.spec.ts` next to the code they cover; a spec anywhere else is not collected. Import `describe`/`it`/`expect` from `vitest` (globals are off).
-- Specs for Node-side code start with `// @vitest-environment node`. Playwright specs live in `e2e/`.
+- Vitest + jsdom + `@vue/test-utils`. `vitest.setup.ts` fills browser APIs jsdom lacks (`ResizeObserver`, which Reka's slider uses). Specs are `__tests__/*.spec.ts` next to the code they cover; a spec anywhere else is not collected. Import `describe`/`it`/`expect` from `vitest` (globals are off).
+- Specs for Node-side code start with `// @vitest-environment node`. Playwright specs live in `e2e/`; the folder has no spec and no tsconfig yet, so the first spec adds `e2e/tsconfig.json` (extending `@tsconfig/node24`) and its reference in `tsconfig.json`.
 - `scripts/*.ts` run directly under Node type stripping: erasable syntax only (no enums, namespaces or parameter properties) and `.ts` extensions on relative imports. `tsconfig.node.json` enforces both.
 
 ## Agent skills

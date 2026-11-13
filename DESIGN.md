@@ -122,6 +122,12 @@ components:
     typography: '{typography.label}'
     rounded: '{rounded.control}'
     padding: '0 14px'
+    height: '36px'
+  button-sm:
+    typography: '{typography.label}'
+    rounded: '{rounded.control}'
+    padding: '0 12px'
+    height: '32px'
   button-inverse-hover:
     backgroundColor: '#FFFFFF'
     textColor: '{colors.vinyl}'
@@ -130,6 +136,11 @@ components:
     textColor: '{colors.ink}'
     rounded: '{rounded.control}'
     size: '36px'
+  icon-button-sm:
+    backgroundColor: '{colors.surface}'
+    textColor: '{colors.ink}'
+    rounded: '{rounded.control}'
+    size: '32px'
   text-field:
     backgroundColor: '{colors.surface}'
     textColor: '{colors.ink}'
@@ -139,8 +150,8 @@ components:
     height: '36px'
   text-field-inline:
     backgroundColor: 'transparent'
-    textColor: '{colors.on-track}'
-    typography: '{typography.label}'
+    textColor: '{colors.ink}'
+    typography: '{typography.body}'
     rounded: '{rounded.control}'
     padding: '0 6px'
     height: '24px'
@@ -172,6 +183,14 @@ components:
     textColor: '{colors.ink}'
     rounded: '{rounded.panel}'
     padding: '16px'
+  dialog-overlay:
+    backgroundColor: '{colors.ground}'
+  dialog:
+    backgroundColor: '{colors.surface}'
+    textColor: '{colors.ink}'
+    rounded: '{rounded.panel}'
+    padding: '16px'
+    width: '448px'
   header-band:
     backgroundColor: '{colors.vinyl}'
     textColor: '{colors.on-vinyl}'
@@ -256,7 +275,7 @@ A near-monochrome palette of ink, paper and groove greys with one hot accent tha
 
 **Character:** One humanist-geometric sans at four weights (400, 500, 600, 700). It reads friendly rather than technical, and its tabular figures keep times, gaps and counts aligned in columns and steady while they change.
 
-Manrope ships as one committed variable woff2 file in `src/app/styles/fonts/` (SIL OFL), loaded by the `@font-face` rule in the token block below. Nothing is fetched from the network at runtime.
+Manrope ships as one committed variable woff2 file in `src/app/styles/fonts/` (SIL OFL, licence in `OFL.txt` beside it), loaded by the `@font-face` rule in the token block below. The file is the Latin subset (from `@fontsource-variable/manrope` 5.3.0): Basic Latin, Latin-1, the minus sign, the ellipsis and general punctuation. Characters outside it fall back to the system face. Nothing is fetched from the network at runtime.
 
 ### Hierarchy
 
@@ -303,7 +322,7 @@ Borders are 1px: hairline for panels and row rules, control edge for controls, v
 
 ## Components
 
-Every kit component lives in `src/shared/ui/` and is a Reka UI 2 primitive (or a native element) styled with Tailwind 4 utilities on the tokens below. Classes are given exactly; `focus-ring` is the custom utility defined in the token block.
+Every kit component lives in `src/shared/ui/` as `Ui<Name>.vue` (`UiButton`, `UiIconButton`, `UiTextField`, `UiSlider`, `UiPanel`, `UiProgressBar`, `UiDialog`; the prefix keeps a kit component from reading like a native element) and is a Reka UI 2 primitive (or a native element) styled with Tailwind 4 utilities on the tokens below. Classes are given exactly; `focus-ring` is the custom utility defined in the token block.
 
 **Focus.** Every interactive element shows `focus-visible:focus-ring`: a 2px solid ink outline at 2px offset. On the vinyl band the ring uses `on-vinyl`. On a track block (clicking one selects its split) it uses `on-track`.
 
@@ -317,13 +336,13 @@ Every kit component lives in `src/shared/ui/` and is a Reka UI 2 primitive (or a
 
 Character: firm and quiet; ink does the talking, colour only for danger.
 
-- **Base:** `inline-flex h-9 cursor-pointer items-center gap-2 rounded-control px-3.5 text-sm font-semibold whitespace-nowrap transition-colors duration-100 focus-visible:focus-ring disabled:cursor-not-allowed disabled:opacity-40`. Icon before the label, except a "forward" step where it follows.
+- **Base:** `inline-flex h-9 cursor-pointer items-center gap-2 rounded-control px-3.5 text-sm font-semibold whitespace-nowrap transition-colors duration-100 disabled:cursor-not-allowed disabled:opacity-40`. Icon before the label, except a "forward" step where it follows. Every variant but inverse adds `focus-visible:focus-ring`.
 - **Primary:** `bg-ink text-surface enabled:hover:bg-wave`. One per panel at most; it is the panel's main action.
 - **Primary lg:** primary plus `h-10 px-5 text-base`. Reserved for the Export action; no other button is large.
 - **Small (`sm`):** base with `h-8 px-3` in place of `h-9 px-3.5`. For actions in a panel title row and in table rows (for example "Add split").
 - **Secondary:** `border border-edge bg-surface text-ink enabled:hover:border-ink enabled:hover:bg-land/40`.
 - **Danger:** `border border-split bg-surface text-split enabled:hover:bg-split enabled:hover:text-on-split`. Outlined at rest, filled vermilion on hover.
-- **Inverse:** `bg-on-vinyl text-vinyl enabled:hover:bg-white focus-visible:outline-on-vinyl`. Only on the vinyl header band.
+- **Inverse:** `bg-on-vinyl text-vinyl enabled:hover:bg-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-on-vinyl`. Only on the vinyl header band. The ring is spelled out rather than `focus-ring` plus a colour, because those two outline colours have no stable winner: the dev server and the build order the rules differently.
 - **States:** default as above; hover as the `enabled:hover:` utilities; keyboard focus adds the ring without changing fill; disabled at 40% opacity.
 
 ### IconButton
@@ -343,17 +362,17 @@ Character: firm and quiet; ink does the talking, colour only for danger.
 
 Reka `SliderRoot` / `SliderTrack` / `SliderRange` / `SliderThumb`; focus and ARIA live on the thumb (`aria-label` names the setting).
 
-- **Root:** `relative flex h-5 items-center` with a width set by context; disabled: `data-disabled:opacity-40`.
-- **Track:** `h-1 w-full rounded-full bg-hairline`. **Range:** `h-1 rounded-full bg-ink`.
-- **Thumb:** `block size-4 cursor-grab rounded-full border-2 border-surface bg-ink hover:size-5 focus-visible:focus-ring` (Reka positions the thumb; no manual translate). Hover grows it from 16 to 20 px; keyboard focus adds the ink ring.
-- **Readout:** the current value sits to the right in Label style (`w-10 text-right font-semibold text-ink`, e.g. "1.0 s"); the setting's name sits to the left in `muted`.
+- **Root:** `relative flex h-5 min-w-32 flex-1 items-center`; the width comes from the context, set on the component (`class="w-72"`) and shared by name, track and readout; disabled: `data-disabled:opacity-40`.
+- **Track:** `relative h-1 w-full rounded-full bg-hairline`. **Range:** `absolute h-1 rounded-full bg-ink` (Reka sets its ends).
+- **Thumb:** `block size-4 cursor-grab rounded-full border-2 border-surface bg-ink not-data-disabled:hover:size-5 data-disabled:cursor-not-allowed focus-visible:focus-ring` (Reka positions the thumb; no manual translate). Hover grows it from 16 to 20 px; keyboard focus adds the ink ring.
+- **Readout:** the current value sits to the right in Label style (`w-14 text-right font-semibold whitespace-nowrap text-ink`, e.g. "1.0 s", "−35 dB"; 56 px keeps "−100 dB" on one line and stops the track from shifting as the value changes); the setting's name sits to the left in `muted`, `whitespace-nowrap`.
 
 ### Panel
 
 A titled frame (`section` with an `h2`).
 
 - **Frame:** `rounded-panel border border-hairline bg-surface p-4`.
-- **Title row:** `mb-3 flex items-baseline justify-between` (use `items-center` when the row holds a control). Title `text-base font-semibold`; metadata on the right in `text-muted`; a panel action on the right is a secondary button.
+- **Title row:** `mb-3 flex items-baseline justify-between gap-6` (`items-center` when the row holds a control). Title `text-base font-semibold`; on the right, metadata in `text-muted` or the panel's controls, grouped `flex items-center gap-2`. A title-row button is `sm` (secondary, or primary for the panel's one main action), except Export, which is primary `lg`.
 
 ### ProgressBar
 
@@ -361,6 +380,14 @@ Determinate only; Reka `ProgressRoot` / `ProgressIndicator`, with the count as a
 
 - **Track:** `h-1.5 rounded-full bg-land`. **Indicator:** `h-full rounded-full bg-ink`, width = done / total.
 - **Count label:** right-aligned beside the bar, counting calls in words: "38 / 62 slices", "Track 3 of 8". While running: `font-semibold` ink. Idle or done: `text-muted`.
+
+### Dialog
+
+Reka `AlertDialog`: the confirm before a setting change or "New file" replaces edits, and export's locking overlay. Focus starts on the first button; Escape closes it. The actions are plain kit buttons, so the caller closes the dialog itself through `v-model:open`.
+
+- **Overlay:** `fixed inset-0 z-40 bg-ground`, opaque. The Flat Sleeve Rule forbids a dimmed or blurred page, so the dialog does not float over the screen: the screen gives way to the ground, and the dialog is the one panel lying on it.
+- **Frame:** the panel frame, centred: `fixed top-1/2 left-1/2 z-50 w-[calc(100vw-32px)] max-w-md -translate-1/2 rounded-panel border border-hairline bg-surface p-4 focus:outline-none` (focus moves to the first button, which shows the ring). No shadow.
+- **Content:** title in Title (`text-base font-semibold`), the description below it in Body (`mt-1`), optional content (`mt-4`, e.g. a `ProgressBar`), then the actions right-aligned (`mt-4 flex justify-end gap-2`): a secondary "Cancel" first, the action last (danger when it discards edits).
 
 ### Header band
 
