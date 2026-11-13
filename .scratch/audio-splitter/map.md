@@ -55,6 +55,8 @@ A rewritten `docs/audio-splitter-milestones.md` in which every technical decisio
 - [Spike: decode and split the .mp3 and .opus samples](issues/12-spike-decode-and-split-the-mp3-and-opus-samples.md): `.mp3` (VBR, CBR, with cover) passes the bar and `.opus` passes every measurement but 6 of its 7 cut starts carry a short −37 to −41 dBFS burst the user must listen to; Chrome's `<audio>` seeks VBR MP3 2–10 s off (m4a and Opus exact), and a 1 s pre-roll per slice plus `-ss START-2 -i … -ss 2` cuts are command-line fixes for later tickets. The user then listened and heard nothing, so `.opus` passes too.
 - [MP3 playback](issues/19-mp3-playback.md): Chrome seeks VBR MP3 seconds off, so every format plays an 8 s WAV clip that ffmpeg decodes around the split. Adopted from the spike: a 1 s pre-roll on each decode slice (amends Decode path), the faster `-ss START-2 -i … -ss 2 -t` cut for `.mp3` and `.opus` (amends Stream-copy splitting), and the slow decode of long MP3 files is accepted. All three formats are in v1.
 
+- [Milestone sequence](issues/09-milestone-sequence.md): **destination reached.** [docs/audio-splitter-milestones.md](../../docs/audio-splitter-milestones.md) is rewritten: M0 setup and UI kit (no concept note), then M1 Sound is numbers, M2 Long files, M3 Loudness, M4 Gaps become splits, M5 Editing splits, M6 Auditioning, M7 Export. Each milestone has one concept note in `docs/concepts/`, two stops for confirmation, a `milestone/NN-<slug>` branch, and links to the tickets holding its detail. M5 and M7 have named seams.
+
 ## Not yet specified
 
 Nothing. The last items became tickets on 2026-11-13: playback, load progress, the default silence threshold, the CUE sheet and the testing approach.
