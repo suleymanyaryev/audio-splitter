@@ -47,3 +47,9 @@ Resolved 2026-11-13, grilled with the user. Builds on the facts in [Decoding a l
 | Min/max peaks per 10 ms | hand-written |
 | Gap finding on the loudness curve | hand-written |
 | Downsampling | none (concept note only) |
+
+## Comments
+
+### 2026-11-13: amended by MP3 playback
+
+[MP3 playback](19-mp3-playback.md) adds a 1 s pre-roll to every slice after the first (`-ss S-1 -i input -ss 1 -t 60`), measured in [Spike: decode and split the .mp3 and .opus samples](12-spike-decode-and-split-the-mp3-and-opus-samples.md) to make slice borders exact. It also accepts the slow decode of long MP3 files (time grows with the square of the length) with the 60 s slice unchanged.

@@ -230,7 +230,7 @@ A near-monochrome palette of ink, paper and groove greys with one hot accent tha
 - **Control Edge** (`edge`; dark: `edge-dark`): borders of inputs, secondary buttons and icon buttons; 3.33:1 (light) and 3.62:1 (dark) against the surface, enough for a component boundary.
 - **Groove Grey** (`wave`; dark: `wave-dark`): waveform bars, the loudness curve and its 14% fill, the flat run-out line in a land, and the primary button's hover fill.
 - **Track Grey** (`track`; dark: `track-dark`): track blocks in the track strip. Same as the wave in light; a step darker than the wave at night so the white-ish name sits on it at 5.53:1.
-- **On Track** (`on-track`; dark: `on-track-dark`): track names and durations on a track block, and the inline rename field's outline.
+- **On Track** (`on-track`; dark: `on-track-dark`): track names and durations on a track block, and the focus ring on a block.
 - **Sheen Land** (`land`; dark: `land-dark`): every gap (the band with no waveform), the track strip's ground between blocks, the empty progress track, text selection, and as a tint for hover (40%) and the selected table row (50%).
 
 ### Header band (fixed in both themes)
@@ -305,7 +305,7 @@ Borders are 1px: hairline for panels and row rules, control edge for controls, v
 
 Every kit component lives in `src/shared/ui/` and is a Reka UI 2 primitive (or a native element) styled with Tailwind 4 utilities on the tokens below. Classes are given exactly; `focus-ring` is the custom utility defined in the token block.
 
-**Focus.** Every interactive element shows `focus-visible:focus-ring`: a 2px solid ink outline at 2px offset. On the vinyl band the ring uses `on-vinyl`. On a track block (inline rename) it uses `on-track`.
+**Focus.** Every interactive element shows `focus-visible:focus-ring`: a 2px solid ink outline at 2px offset. On the vinyl band the ring uses `on-vinyl`. On a track block (clicking one selects its split) it uses `on-track`.
 
 **Disabled.** Opacity 40% on the whole control and `cursor-not-allowed`; no colour change, no hover response (hover utilities are gated by `enabled:`).
 
@@ -320,6 +320,7 @@ Character: firm and quiet; ink does the talking, colour only for danger.
 - **Base:** `inline-flex h-9 cursor-pointer items-center gap-2 rounded-control px-3.5 text-sm font-semibold whitespace-nowrap transition-colors duration-100 focus-visible:focus-ring disabled:cursor-not-allowed disabled:opacity-40`. Icon before the label, except a "forward" step where it follows.
 - **Primary:** `bg-ink text-surface enabled:hover:bg-wave`. One per panel at most; it is the panel's main action.
 - **Primary lg:** primary plus `h-10 px-5 text-base`. Reserved for the Export action; no other button is large.
+- **Small (`sm`):** base with `h-8 px-3` in place of `h-9 px-3.5`. For actions in a panel title row and in table rows (for example "Add split").
 - **Secondary:** `border border-edge bg-surface text-ink enabled:hover:border-ink enabled:hover:bg-land/40`.
 - **Danger:** `border border-split bg-surface text-split enabled:hover:bg-split enabled:hover:text-on-split`. Outlined at rest, filled vermilion on hover.
 - **Inverse:** `bg-on-vinyl text-vinyl enabled:hover:bg-white focus-visible:outline-on-vinyl`. Only on the vinyl header band.
@@ -329,13 +330,14 @@ Character: firm and quiet; ink does the talking, colour only for danger.
 
 - `inline-flex size-9 cursor-pointer items-center justify-center rounded-control border border-edge bg-surface text-ink transition-colors duration-100 enabled:hover:border-ink enabled:hover:bg-land/40 focus-visible:focus-ring disabled:cursor-not-allowed disabled:opacity-40`.
 - A 36 px square styled like a secondary button, holding one 16 px icon. An `aria-label` is required.
+- **Small (`sm`):** `size-8` in place of `size-9`, for table rows (the track list’s delete button).
 
 ### TextField
 
 - **Default:** native `input`: `h-9 w-full max-w-56 rounded-control border border-edge bg-surface px-2.5 text-sm text-ink enabled:hover:border-ink focus-visible:focus-ring disabled:opacity-40`.
 - **Hover:** border goes to ink. **Focus:** ink ring. **Disabled:** 40% opacity.
-- **Invalid:** set `aria-invalid="true"` and the field takes `aria-invalid:border-split aria-invalid:outline-split` (vermilion border at rest, vermilion ring when focused). The message sits directly below: `mt-1 text-xs font-semibold text-split`, linked with `aria-describedby`, written as a plain sentence ("A track name can't contain “/”.").
-- **Inline variant** (rename a track inside its track block): `-mx-1.5 h-6 w-[calc(100%+12px)] rounded-control border border-transparent bg-transparent px-1.5 font-semibold text-on-track outline-on-track hover:border-on-track/50 focus-visible:outline-2`. It reads as the block's label until hovered (half-strength on-track border) or focused (2px on-track outline). Its invalid treatment is not built yet; decide it with the rename ticket.
+- **Invalid:** set `aria-invalid="true"` and the field takes `aria-invalid:border-split aria-invalid:outline-split` (vermilion border at rest, vermilion ring when focused). The message sits directly below: `mt-1 text-xs font-semibold text-split`, linked with `aria-describedby`, written as a plain sentence. No field uses it yet: track names are never invalid.
+- **Inline variant** (rename a track inside its track-list row): `-mx-1.5 h-6 w-[calc(100%+12px)] rounded-control border border-transparent bg-transparent px-1.5 text-sm text-ink enabled:hover:border-edge focus-visible:focus-ring`. It reads as the row's text until hovered (edge border) or focused (ink ring). It has no invalid state: export sanitises filenames, so no track name is wrong.
 
 ### Slider
 

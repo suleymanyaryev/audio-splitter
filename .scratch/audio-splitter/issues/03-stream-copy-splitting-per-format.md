@@ -180,3 +180,9 @@ Recommendation: do not use the segment muxer. If one run per track proves too sl
 8. Try a source file with an embedded cover image and one with chapters, and confirm that `-map 0:a:0` and `-map_chapters -1` give clean audio-only tracks.
 9. Confirm that the app never places a cut closer than about 0.2 s to the edge of a quiet stretch. The worst expected start damage is one frame for AAC, about 130 ms for a quiet variable-bitrate MP3 and 80 ms for Opus.
 10. If a sample turns out to be HE-AAC (ffprobe shows `profile=HE-AAC`) or 48 kHz, repeat the m4a check. Neither was tested.
+
+## Comments
+
+### 2026-11-13: amended by MP3 playback
+
+[MP3 playback](19-mp3-playback.md) changes the `.mp3` and `.opus` cut to `-ss START-2 -i input -ss 2 -t LENGTH -c copy`, measured in [Spike: decode and split the .mp3 and .opus samples](12-spike-decode-and-split-the-mp3-and-opus-samples.md) to give the same cut positions much faster. `.m4a` keeps its command.

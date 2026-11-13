@@ -13,7 +13,7 @@ Audience and task: the single user reviews proposed splits in a 1–3 h source f
 
 Chosen direction: Side of an LP (the user's pick from the decision round of 2026-11-13). Composition reference: the LP-side decision sketch.
 
-Unresolved here (belongs to the review-screen interaction ticket): exact drag behaviour, zoom window width, where renaming happens, the warning before a setting change replaces splits.
+Interaction (drag, zoom window, renaming, the warning before a setting change) is settled in .scratch/audio-splitter/issues/13-review-screen-interaction-design.md.
 
 ## Direction contract
 
@@ -23,7 +23,7 @@ OWN-WORLD: Sleeve white ground and white panels by day; vinyl black ground and n
 
 STORY: The user sees the whole file banded into tracks at a glance, sees why each split is there (the loudness curve dips under the vermilion threshold inside each land), checks one split up close, fixes it, and exports.
 
-FIRST VIEWPORT: Vinyl-black header with a vermilion centre-label dot, the product name, the file chip, "Local only" and "New file". Full-width whole-file waveform with lands and numbered vermilion split markers and an outlined zoom window; full-width loudness curve on the same time axis with the dashed vermilion threshold and the minimum-gap slider in its header; zoom view (left, about two thirds) with the split's time as the panel's largest type and "Play across split" as the primary button; split list (right) with "Add split"; track strip at the bottom with groove blocks separated by lands and "Export 8 tracks" as the strongest button.
+FIRST VIEWPORT: Vinyl-black header with a vermilion centre-label dot, the product name, the file chip, "Local only" and "New file". Full-width whole-file waveform with lands and numbered vermilion split markers and an outlined zoom window; full-width loudness curve on the same time axis with the dashed vermilion threshold and the minimum-gap slider in its header; zoom view (left, about two thirds) with the split's time as the panel's largest type and "Play across split" as the primary button; track list (right) with an inline name field per row; "Add split" in the zoom view's title row; track strip at the bottom with groove blocks separated by lands and "Export to folder…" as the strongest button. Behaviour: .scratch/audio-splitter/issues/13-review-screen-interaction-design.md.
 
 FORM: Side of an LP, position 1 on my ordered list (IMPECCABLE'S PICK; the roll assigned position 3, Departure Timetable). seed:1810f64224c6b8e7
 

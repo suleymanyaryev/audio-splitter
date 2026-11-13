@@ -27,7 +27,7 @@ Resolved 2026-11-13, grilled with the user.
 
 - `pages/load`: file picker and load progress, page-local UI.
 - `pages/review`: lays out the five panels.
-- `widgets/`: `source-waveform`, `loudness-curve`, `split-zoom`, `split-list`, `track-strip`.
+- `widgets/`: `source-waveform`, `loudness-curve`, `split-zoom`, `split-list`, `track-strip`. _Amended by [Review-screen interaction design](13-review-screen-interaction-design.md):_ `split-list` is `track-list`, a list of tracks with inline renaming.
 - `entities/source-file`: the loaded `File`, its format and duration, and the analysis results (loudness curve, peaks); replaced on "New file".
 - `entities/split`: the splits, each split's track name, the two detection settings (silence threshold, minimum gap length), and the tracks derived from them. There is no `track` entity: a track has no state of its own (see **Track name** in `GLOSSARY.md`).
 

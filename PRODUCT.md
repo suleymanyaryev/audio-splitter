@@ -22,7 +22,7 @@ Nothing is uploaded: decoding, analysis and cutting all run locally in the brows
 
 - Desktop Chrome only, at a desk, used in daylight and in the evening; the theme follows the system setting.
 - One source file at a time; state lives in memory and is lost on reload.
-- Two screens: a load screen (pick a file, watch it decode) and a review screen with five panels (whole-file waveform, loudness curve with threshold, zoomed view around one split, split list, track strip with rename and export). Wireframes: `docs/screens/1.png`, `docs/screens/2.png`.
+- Two screens: a load screen (pick a file, watch it decode) and a review screen with five panels (whole-file waveform, loudness curve with threshold, zoomed view around one split, track list with rename, track strip with export). Wireframes: `docs/screens/1.png`, `docs/screens/2.png`.
 - Source files are mostly `.m4a`, `.mp3` and `.opus`.
 
 ## Capabilities and Constraints
