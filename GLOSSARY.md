@@ -8,6 +8,10 @@ A browser-only tool that proposes where to cut a long audio file made of concate
 The long audio file the user loads, made of several tracks played one after another.
 _Avoid_: Input, upload, mix, set
 
+**Supported format**:
+A container and codec pair the splitter accepts as a source file and exports tracks in: AAC in `.m4a`, MP3 in `.mp3`, or Opus in `.opus`. It is told by the file's contents, not its extension.
+_Avoid_: File type, extension
+
 **Track**:
 A stretch of the source file between two neighbouring splits (or between a split and the start or end of the file), exported as one audio file.
 _Avoid_: Segment, part, chunk, song
