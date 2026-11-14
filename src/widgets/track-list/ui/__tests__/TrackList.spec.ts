@@ -1,4 +1,4 @@
-import { beforeEach, describe, it, expect } from 'vitest'
+import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 
 import { mount } from '@vue/test-utils'
@@ -13,13 +13,40 @@ function curveWithTwoGaps() {
   return curve
 }
 
+// Each row as number, the name field's value, start and length.
 function rows(wrapper: ReturnType<typeof mount>) {
-  return wrapper.findAll('tbody tr').map((row) => row.findAll('td').map((cell) => cell.text()))
+  return wrapper.findAll('tbody tr').map((row) => {
+    const [number, , start, length] = row.findAll('td')
+    return [
+      number?.text(),
+      row.get<HTMLInputElement>('input').element.value,
+      start?.text(),
+      length?.text(),
+    ]
+  })
+}
+
+function nameField(wrapper: ReturnType<typeof mount>, trackNumber: number) {
+  return wrapper.get<HTMLInputElement>(`input[aria-label="Name of track ${trackNumber}"]`)
+}
+
+function mountWithTwoGaps() {
+  const split = useSplitStore()
+  split.detect(curveWithTwoGaps(), { windowSeconds: 0.05, durationSeconds: 100 })
+  return { split, wrapper: mount(TrackList) }
 }
 
 describe('TrackList', () => {
+  const scrollIntoView = vi.fn()
+
   beforeEach(() => {
     setActivePinia(createPinia())
+    // jsdom has no layout and no scrollIntoView.
+    Element.prototype.scrollIntoView = scrollIntoView
+  })
+
+  afterEach(() => {
+    scrollIntoView.mockClear()
   })
 
   it('lists number, start with hundredths and length for each track', () => {
@@ -27,11 +54,17 @@ describe('TrackList', () => {
 
     const wrapper = mount(TrackList)
 
-    expect(wrapper.findAll('thead th').map((cell) => cell.text())).toEqual(['#', 'Start', 'Length'])
+    expect(wrapper.findAll('thead th').map((cell) => cell.text())).toEqual([
+      '#',
+      'Name',
+      'Start',
+      'Length',
+      'Delete',
+    ])
     expect(rows(wrapper)).toEqual([
-      ['1', '0:00:00.00', '0:00:21'],
-      ['2', '0:00:21.00', '0:00:50'],
-      ['3', '0:01:11.50', '0:00:28'],
+      ['1', '1', '0:00:00.00', '0:00:21'],
+      ['2', '2', '0:00:21.00', '0:00:50'],
+      ['3', '3', '0:01:11.50', '0:00:28'],
     ])
   })
 
@@ -41,7 +74,7 @@ describe('TrackList', () => {
       durationSeconds: 20,
     })
 
-    expect(rows(mount(TrackList))).toEqual([['1', '0:00:00.00', '0:00:20']])
+    expect(rows(mount(TrackList))).toEqual([['1', '1', '0:00:00.00', '0:00:20']])
   })
 
   it('follows the minimum gap length: fewer gaps, fewer rows', async () => {
@@ -63,5 +96,233 @@ describe('TrackList', () => {
     const wrapper = mount(TrackList)
 
     expect(wrapper.classes()).toEqual(expect.arrayContaining(['h-40', 'overflow-y-auto']))
+  })
+
+  describe('deleting a split', () => {
+    it('offers a trash button on every row but the first', () => {
+      const { wrapper } = mountWithTwoGaps()
+
+      const labels = wrapper
+        .findAll('tbody tr')
+        .map((row) =>
+          row.findAll('button[aria-label^="Delete"]').map((b) => b.attributes('aria-label')),
+        )
+
+      expect(labels).toEqual([[], ['Delete split at 0:00:21.00'], ['Delete split at 0:01:11.50']])
+    })
+
+    it('deletes the split where the track starts, which merges the track into the one before', async () => {
+      const { split, wrapper } = mountWithTwoGaps()
+
+      await wrapper.get('button[aria-label="Delete split at 0:01:11.50"]').trigger('click')
+
+      expect(split.splits.map((point) => point.seconds)).toEqual([21])
+      expect(wrapper.findAll('tbody tr')).toHaveLength(2)
+    })
+
+    it('does not select the row it was clicked in', async () => {
+      const { split, wrapper } = mountWithTwoGaps()
+      const first = split.splits[0]
+
+      await wrapper.get('button[aria-label="Delete split at 0:01:11.50"]').trigger('click')
+
+      expect(split.selectedSplitId).toBe(first?.id)
+    })
+  })
+
+  describe('renaming a track', () => {
+    it('holds a name field in every row, the track 1 row included, capped at 100 characters', () => {
+      const { wrapper } = mountWithTwoGaps()
+
+      for (const number of [1, 2, 3]) {
+        expect(nameField(wrapper, number).attributes('maxlength')).toBe('100')
+      }
+    })
+
+    it('shows a track its own name once it has one', async () => {
+      const { split, wrapper } = mountWithTwoGaps()
+
+      split.renameTrack(split.splits[1]?.id ?? null, 'Outro')
+      await wrapper.vm.$nextTick()
+
+      expect(nameField(wrapper, 3).element.value).toBe('Outro')
+      expect(nameField(wrapper, 2).element.value).toBe('2')
+    })
+
+    it('saves the name on Enter', async () => {
+      const { split, wrapper } = mountWithTwoGaps()
+      const field = nameField(wrapper, 3)
+
+      await field.trigger('focus')
+      await field.setValue('Intro')
+      await field.trigger('keydown', { key: 'Enter' })
+
+      expect(split.tracks[2]?.name).toBe('Intro')
+      expect(split.editCount).toBe(1)
+    })
+
+    it('saves the name when the field loses focus', async () => {
+      const { split, wrapper } = mountWithTwoGaps()
+      const field = nameField(wrapper, 2)
+
+      await field.trigger('focus')
+      await field.setValue('Sunrise')
+      await field.trigger('blur')
+
+      expect(split.tracks[1]?.name).toBe('Sunrise')
+    })
+
+    it('names the first track, which starts with the file', async () => {
+      const { split, wrapper } = mountWithTwoGaps()
+      const field = nameField(wrapper, 1)
+
+      await field.trigger('focus')
+      await field.setValue('Opener')
+      await field.trigger('blur')
+
+      expect(split.tracks[0]?.name).toBe('Opener')
+    })
+
+    it('puts the old name back on Escape and saves nothing', async () => {
+      const { split, wrapper } = mountWithTwoGaps()
+      const field = nameField(wrapper, 3)
+
+      await field.trigger('focus')
+      await field.setValue('Intro')
+      await field.trigger('keydown', { key: 'Escape' })
+      await field.trigger('blur')
+
+      expect(field.element.value).toBe('3')
+      expect(split.tracks[2]?.name).toBe('3')
+      expect(split.hasEdits).toBe(false)
+    })
+
+    it('falls back to the number when the name is emptied', async () => {
+      const { split, wrapper } = mountWithTwoGaps()
+      split.renameTrack(split.splits[1]?.id ?? null, 'Outro')
+      await wrapper.vm.$nextTick()
+      const field = nameField(wrapper, 3)
+
+      await field.trigger('focus')
+      await field.setValue(' '.repeat(3))
+      await field.trigger('keydown', { key: 'Enter' })
+      await wrapper.vm.$nextTick()
+
+      expect(split.tracks[2]?.name).toBe('3')
+      expect(field.element.value).toBe('3')
+    })
+
+    it('shows the trimmed name after saving', async () => {
+      const { wrapper } = mountWithTwoGaps()
+      const field = nameField(wrapper, 3)
+
+      await field.trigger('focus')
+      await field.setValue('  Intro ')
+      await field.trigger('keydown', { key: 'Enter' })
+      await wrapper.vm.$nextTick()
+
+      expect(field.element.value).toBe('Intro')
+    })
+
+    it('counts no edit when the field is left as it was found', async () => {
+      const { split, wrapper } = mountWithTwoGaps()
+      const field = nameField(wrapper, 3)
+
+      await field.trigger('focus')
+      await field.trigger('blur')
+
+      expect(split.tracks[2]?.name).toBe('3')
+      expect(split.hasEdits).toBe(false)
+    })
+
+    it('selects the split where the track starts when its field is focused', async () => {
+      const { split, wrapper } = mountWithTwoGaps()
+
+      await nameField(wrapper, 3).trigger('focus')
+
+      expect(split.selectedSplit?.seconds).toBeCloseTo(71.5)
+    })
+
+    it('selects nothing when the first track field is focused', async () => {
+      const { split, wrapper } = mountWithTwoGaps()
+      const before = split.selectedSplitId
+
+      await nameField(wrapper, 1).trigger('focus')
+
+      expect(split.selectedSplitId).toBe(before)
+    })
+  })
+
+  describe('selecting a track', () => {
+    it('selects the split where a track starts when its row is clicked', async () => {
+      const { split, wrapper } = mountWithTwoGaps()
+
+      await wrapper.findAll('tbody tr')[2]?.trigger('click')
+
+      expect(split.selectedSplit?.seconds).toBeCloseTo(71.5)
+    })
+
+    it('selects nothing for the first track, which starts with the file', async () => {
+      const { split, wrapper } = mountWithTwoGaps()
+      const before = split.selectedSplitId
+
+      await wrapper.findAll('tbody tr')[0]?.trigger('click')
+
+      expect(split.selectedSplitId).toBe(before)
+      expect(wrapper.findAll('tbody tr')[0]?.find('button').exists()).toBe(false)
+    })
+
+    it('can be selected from the keyboard through a button in the number cell', async () => {
+      const { split, wrapper } = mountWithTwoGaps()
+
+      const button = wrapper.findAll('tbody tr')[2]?.get('button')
+      await button?.trigger('click')
+
+      expect(button?.attributes('aria-label')).toBe('Select track 3, starts at 0:01:11.50')
+      expect(split.selectedSplit?.seconds).toBeCloseTo(71.5)
+    })
+
+    it('marks the row of the selected split as current, in the selected-row style', async () => {
+      const { wrapper } = mountWithTwoGaps()
+      const rows = wrapper.findAll('tbody tr')
+
+      // Detection selects split 1, where track 2 starts.
+      expect(rows.map((row) => row.attributes('aria-current'))).toEqual([
+        undefined,
+        'true',
+        undefined,
+      ])
+      expect(rows[1]?.classes()).toEqual(expect.arrayContaining(['bg-land/50', 'font-semibold']))
+      expect(rows[0]?.classes()).not.toContain('bg-land/50')
+
+      await rows[2]?.trigger('click')
+
+      expect(rows.map((row) => row.attributes('aria-current'))).toEqual([
+        undefined,
+        undefined,
+        'true',
+      ])
+    })
+
+    it('marks no row when the window was moved without a selection', async () => {
+      const { split, wrapper } = mountWithTwoGaps()
+
+      split.moveZoomTo(50)
+      await wrapper.vm.$nextTick()
+
+      expect(wrapper.findAll('tbody tr[aria-current]')).toHaveLength(0)
+    })
+
+    it('keeps the selected row in view when the selection changes', async () => {
+      const { split, wrapper } = mountWithTwoGaps()
+      scrollIntoView.mockClear()
+
+      const second = split.splits[1]
+      if (second) split.selectSplit(second.id)
+      await wrapper.vm.$nextTick()
+
+      expect(scrollIntoView).toHaveBeenCalledWith({ block: 'nearest' })
+      expect(scrollIntoView.mock.contexts.at(-1)).toBe(wrapper.findAll('tbody tr')[2]?.element)
+    })
   })
 })

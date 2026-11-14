@@ -19,7 +19,9 @@ import {
   handleTop,
   labelPlateTop,
 } from '../lib/threshold-line.ts'
+import { useReplaceGuard } from '../lib/use-replace-guard.ts'
 import { useThresholdDrag } from '../lib/use-threshold-drag.ts'
+import ReplaceEditsDialog from './ReplaceEditsDialog.vue'
 
 // DESIGN.md: the area under the curve is filled at 14 % alpha.
 const FILL_ALPHA = 0.14
@@ -35,9 +37,14 @@ const sourceFile = useSourceFileStore()
 const split = useSplitStore()
 const canvas = useTemplateRef('canvas')
 
+// With edits to lose, the drag's first move asks instead of moving the line, and the drag ends.
+const { asking, editCount, change, replace } = useReplaceGuard()
 const { overLine, onPointerDown, onPointerMove, onPointerEnd } = useThresholdDrag({
   threshold: () => split.silenceThreshold,
-  set: split.setSilenceThreshold,
+  set: (decibels) => {
+    change(() => split.setSilenceThreshold(decibels))
+    return !asking.value
+  },
 })
 
 // The same five times as the whole-file view, so the two panels read on one time axis.
@@ -147,6 +154,7 @@ function draw() {
     style.getPropertyValue('--color-split'),
     0,
     height,
+    split.selectedSplitIndex,
   )
 
   drawThreshold(context, style, width, height)
@@ -169,7 +177,16 @@ onBeforeUnmount(() => {
   darkScheme.removeEventListener('change', draw)
 })
 
-watch(() => [sourceFile.loudness, split.gaps, split.splits, split.silenceThreshold], draw)
+watch(
+  () => [
+    sourceFile.loudness,
+    split.gaps,
+    split.splits.map((point) => point.seconds),
+    split.selectedSplitId,
+    split.silenceThreshold,
+  ],
+  draw,
+)
 </script>
 
 <template>
@@ -187,5 +204,6 @@ watch(() => [sourceFile.loudness, split.gaps, split.splits, split.silenceThresho
     <div class="mt-1 flex justify-between text-xs text-muted">
       <span v-for="(time, index) in axisTimes" :key="index">{{ time }}</span>
     </div>
+    <ReplaceEditsDialog v-model:open="asking" :edit-count="editCount" @replace="replace" />
   </div>
 </template>

@@ -64,3 +64,11 @@ Resolved 2026-11-13 by grilling; the user accepted every recommendation. Playbac
 ### 2026-11-15: whole-file canvas height
 
 The whole-file canvas is now 120 px, not 96 px: the 22 px split-number band above a 98 px wave area, built in the detection milestone ([DESIGN.md](../../../DESIGN.md), canvas drawing rules). The loudness curve stays 120 px and the zoom view 160 px.
+
+### 2026-11-15: editing details settled for milestone 5
+
+- The confirm dialog's N counts things changed: each split moved counts once however often it was moved, each split added counts once, each split deleted counts once, and each track renamed counts once.
+- A zoom window near the file's ends stays centred on the split; the part beyond the file is drawn as empty ground. The window is not clamped to the file.
+- The arrow keys stop at the zoom window's edges, like a drag.
+- A drag snaps to 10 ms steps.
+- The zoom view uses [DESIGN.md](../../../DESIGN.md)'s 2 px bars on a 3 px pitch, which is about 7 buckets per bar on a ~900 px canvas.

@@ -24,6 +24,12 @@ function blocks(wrapper: ReturnType<typeof mount>) {
   return wrapper.findAll('li')
 }
 
+async function mountWithTwoGaps() {
+  const split = useSplitStore()
+  split.detect(curveWithTwoGaps(), { windowSeconds: 0.05, durationSeconds: 100 })
+  return { split, wrapper: await mountStrip() }
+}
+
 describe('TrackStrip', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
@@ -77,8 +83,8 @@ describe('TrackStrip', () => {
     // The first and third block are under 32 px: no text. The second, 50 px, has only its name.
     expect(blocks(wrapper).map((block) => block.text())).toEqual(['', '2', ''])
     // A sliver has no padding: border-box padding would keep it from getting narrower than itself.
-    expect(blocks(wrapper)[0]?.classes()).not.toContain('px-1.5')
-    expect(blocks(wrapper)[1]?.classes()).toContain('px-1.5')
+    expect(blocks(wrapper)[0]?.classes()).not.toContain('px-1')
+    expect(blocks(wrapper)[1]?.classes()).toContain('px-1')
     expect(blocks(wrapper)[0]?.attributes('title')).toBe('1, 0:00:21')
     expect(blocks(wrapper)[2]?.attributes('aria-label')).toBe('3, 0:00:28')
   })
@@ -93,5 +99,53 @@ describe('TrackStrip', () => {
     await wrapper.vm.$nextTick()
 
     expect(blocks(wrapper)).toHaveLength(1)
+  })
+
+  describe('selecting a track', () => {
+    it('selects the split where a track starts when its block is clicked', async () => {
+      const { split, wrapper } = await mountWithTwoGaps()
+
+      await blocks(wrapper)[2]?.get('button').trigger('click')
+
+      expect(split.selectedSplit?.seconds).toBeCloseTo(71.5)
+    })
+
+    it('selects nothing for the first block, which starts with the file', async () => {
+      const { split, wrapper } = await mountWithTwoGaps()
+      const before = split.selectedSplitId
+
+      await blocks(wrapper)[0]?.trigger('click')
+
+      expect(blocks(wrapper)[0]?.find('button').exists()).toBe(false)
+      expect(split.selectedSplitId).toBe(before)
+    })
+
+    it('marks the block of the selected split as current, in a 2 px on-track border', async () => {
+      const { wrapper } = await mountWithTwoGaps()
+
+      // Detection selects split 1, where track 2 starts.
+      expect(blocks(wrapper).map((block) => block.attributes('aria-current'))).toEqual([
+        undefined,
+        'true',
+        undefined,
+      ])
+      expect(blocks(wrapper)[1]?.classes()).toContain('border-on-track')
+      expect(blocks(wrapper)[0]?.classes()).not.toContain('border-on-track')
+    })
+
+    it('marks no block when the window was moved without a selection', async () => {
+      const { split, wrapper } = await mountWithTwoGaps()
+
+      split.moveZoomTo(50)
+      await wrapper.vm.$nextTick()
+
+      expect(wrapper.findAll('li[aria-current]')).toHaveLength(0)
+    })
+
+    it('keeps the name and length of a block in the button too', async () => {
+      const { wrapper } = await mountWithTwoGaps()
+
+      expect(blocks(wrapper)[1]?.get('button').text()).toBe('20:00:50')
+    })
   })
 })

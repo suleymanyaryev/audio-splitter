@@ -1,4 +1,4 @@
-import { beforeEach, describe, it, expect } from 'vitest'
+import { afterEach, beforeEach, describe, it, expect } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 
 import { flushPromises, mount } from '@vue/test-utils'
@@ -11,6 +11,30 @@ function curveWithOneGap() {
   const curve = new Float32Array(400).fill(-10)
   curve.fill(-70, 200, 240)
   return curve
+}
+
+function dialog() {
+  return document.querySelector('[role="alertdialog"]')
+}
+
+function dialogButton(text: string) {
+  const button = [...(dialog()?.querySelectorAll('button') ?? [])].find(
+    (candidate) => candidate.textContent === text,
+  )
+  if (!button) throw new Error(`no "${text}" button`)
+  return button
+}
+
+// A track named for each of the first `edits` entries: the first track, then the split's.
+async function mountEdited(edits: number) {
+  const split = useSplitStore()
+  const names = ['Opener', 'Closer']
+  for (const [index, name] of names.slice(0, edits).entries()) {
+    split.renameTrack(split.splits[index - 1]?.id ?? null, name)
+  }
+  const wrapper = mount(LoudnessSettings, { attachTo: document.body })
+  await flushPromises()
+  return { split, wrapper }
 }
 
 describe('LoudnessSettings', () => {
@@ -55,5 +79,96 @@ describe('LoudnessSettings', () => {
     expect(split.minimumGapLength).toBeCloseTo(DEFAULT_MINIMUM_GAP_SECONDS + 0.1, 9)
     expect(split.splits).toHaveLength(0)
     wrapper.unmount()
+  })
+
+  describe('with edits to protect', () => {
+    afterEach(() => {
+      document.body.replaceChildren()
+    })
+
+    it('asks first, counting the edits, and leaves the value where it was', async () => {
+      const { split, wrapper } = await mountEdited(2)
+      const before = split.silenceThreshold
+
+      await wrapper
+        .get('[aria-label="Silence threshold"]')
+        .trigger('keydown', { key: 'ArrowRight' })
+      await flushPromises()
+
+      expect(dialog()?.textContent).toContain('Replace your edits?')
+      expect(dialog()?.textContent).toContain(
+        'This replaces your 2 edits with freshly detected splits.',
+      )
+      expect(split.silenceThreshold).toBe(before)
+      expect(split.hasEdits).toBe(true)
+      wrapper.unmount()
+    })
+
+    it('says "1 edit" for a single edit', async () => {
+      const { wrapper } = await mountEdited(1)
+
+      await wrapper
+        .get('[aria-label="Silence threshold"]')
+        .trigger('keydown', { key: 'ArrowRight' })
+      await flushPromises()
+
+      expect(dialog()?.textContent).toContain(
+        'This replaces your 1 edit with freshly detected splits.',
+      )
+      wrapper.unmount()
+    })
+
+    it('puts focus on "Keep edits", which closes the question and keeps the value and the edits', async () => {
+      const { split, wrapper } = await mountEdited(2)
+      const before = split.silenceThreshold
+      await wrapper
+        .get('[aria-label="Silence threshold"]')
+        .trigger('keydown', { key: 'ArrowRight' })
+      await flushPromises()
+      expect(document.activeElement).toBe(dialogButton('Keep edits'))
+
+      dialogButton('Keep edits').dispatchEvent(new MouseEvent('click', { bubbles: true }))
+      await flushPromises()
+
+      expect(dialog()).toBeNull()
+      expect(split.silenceThreshold).toBe(before)
+      expect(split.hasEdits).toBe(true)
+      wrapper.unmount()
+    })
+
+    it('applies the value asked about, with fresh splits and no edits, on "Replace"', async () => {
+      const { split, wrapper } = await mountEdited(2)
+      const before = split.silenceThreshold ?? 0
+      await wrapper
+        .get('[aria-label="Silence threshold"]')
+        .trigger('keydown', { key: 'ArrowRight' })
+      await flushPromises()
+
+      dialogButton('Replace').dispatchEvent(new MouseEvent('click', { bubbles: true }))
+      await flushPromises()
+
+      expect(dialog()).toBeNull()
+      expect(split.silenceThreshold).toBeCloseTo(before + 0.1, 9)
+      expect(split.hasEdits).toBe(false)
+      expect(split.tracks[0]?.name).toBe('1')
+      wrapper.unmount()
+    })
+
+    it('guards the minimum gap length the same way, and asks no more once the edits are gone', async () => {
+      const { split, wrapper } = await mountEdited(2)
+      const thumb = wrapper.get('[aria-label="Minimum gap length"]')
+
+      await thumb.trigger('keydown', { key: 'ArrowRight' })
+      await flushPromises()
+      expect(split.minimumGapLength).toBe(DEFAULT_MINIMUM_GAP_SECONDS)
+      dialogButton('Replace').dispatchEvent(new MouseEvent('click', { bubbles: true }))
+      await flushPromises()
+      await thumb.trigger('keydown', { key: 'ArrowRight' })
+      await flushPromises()
+
+      expect(dialog()).toBeNull()
+      expect(split.minimumGapLength).toBeCloseTo(DEFAULT_MINIMUM_GAP_SECONDS + 0.2, 9)
+      wrapper.unmount()
+    })
   })
 })

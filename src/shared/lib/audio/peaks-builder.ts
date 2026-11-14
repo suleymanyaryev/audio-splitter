@@ -1,5 +1,5 @@
 // 10 ms is fine enough for the zoom view (about one bucket per pixel) and small enough to keep.
-const BUCKET_SECONDS = 0.01
+export const PEAK_BUCKET_SECONDS = 0.01
 
 /*
 Builds the lowest and highest sample of every 10 ms bucket of a mono signal, as one array:
@@ -14,7 +14,7 @@ the whole bucket, so this is the same as keeping the leftover samples themselves
 Only the last bucket of the file may be shorter than the rest.
 */
 export function createPeaksBuilder(sampleRate: number) {
-  const bucketSize = Math.round(sampleRate * BUCKET_SECONDS)
+  const bucketSize = Math.round(sampleRate * PEAK_BUCKET_SECONDS)
   // One array of closed buckets per push, joined once in `finish`.
   const chunks: Float32Array[] = []
   let length = 0

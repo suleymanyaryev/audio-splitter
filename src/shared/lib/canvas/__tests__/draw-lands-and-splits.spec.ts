@@ -1,6 +1,11 @@
 import { describe, it, expect } from 'vitest'
 
-import { drawLands, drawSplitLines, SPLIT_LINE_WIDTH } from '../draw-lands-and-splits.ts'
+import {
+  drawLands,
+  drawSplitLines,
+  SELECTED_SPLIT_LINE_WIDTH,
+  SPLIT_LINE_WIDTH,
+} from '../draw-lands-and-splits.ts'
 
 interface FilledRect {
   fillStyle: string
@@ -60,5 +65,26 @@ describe('drawSplitLines', () => {
       { fillStyle: '#f60', rect: [49.25, 0, 1.5, 120] },
       { fillStyle: '#f60', rect: [299.75, 0, 1.5, 120] },
     ])
+  })
+
+  it('draws the selected split 3 px wide, centred on its x', () => {
+    const { context, filled } = recordingContext()
+
+    drawSplitLines(context, [50, 300, 400], '#f60', 0, 120, 1)
+
+    expect(SELECTED_SPLIT_LINE_WIDTH).toBe(3)
+    expect(filled).toEqual([
+      { fillStyle: '#f60', rect: [49.25, 0, 1.5, 120] },
+      { fillStyle: '#f60', rect: [298.5, 0, 3, 120] },
+      { fillStyle: '#f60', rect: [399.25, 0, 1.5, 120] },
+    ])
+  })
+
+  it('draws every line at the normal width when nothing is selected', () => {
+    const { context, filled } = recordingContext()
+
+    drawSplitLines(context, [50, 300], '#f60', 0, 120, null)
+
+    expect(filled.map((line) => line.rect[2])).toEqual([1.5, 1.5])
   })
 })

@@ -10,21 +10,26 @@ const TOP = 40
 // What the handlers read from a pointer event, without a browser's PointerEvent.
 function pointerAt(canvasY: number) {
   const setPointerCapture = vi.fn()
+  const releasePointerCapture = vi.fn()
   const event = {
     clientY: TOP + canvasY,
     pointerId: 7,
     currentTarget: {
       getBoundingClientRect: () => ({ top: TOP, height: HEIGHT }),
       setPointerCapture,
+      releasePointerCapture,
     },
   } as unknown as PointerEvent
-  return { event, setPointerCapture }
+  return { event, setPointerCapture, releasePointerCapture }
 }
 
-function dragOf(initial: number | null) {
+// A `set` that holds the change back (returns false) leaves the threshold where it was.
+function dragOf(initial: number | null, { holdsBack = false } = {}) {
   let threshold = initial
   const set = vi.fn((decibels: number) => {
+    if (holdsBack) return false
     threshold = decibels
+    return true
   })
   return { ...useThresholdDrag({ threshold: () => threshold, set }), set }
 }
@@ -116,5 +121,20 @@ describe('useThresholdDrag', () => {
     drag.onPointerMove(pointerAt(curveY(-45, HEIGHT)).event)
 
     expect(drag.set).not.toHaveBeenCalled()
+  })
+
+  it('lets go of the line when the change is held back, so the drag ends there', () => {
+    const drag = dragOf(-30, { holdsBack: true })
+    const line = curveY(-30, HEIGHT)
+    const press = pointerAt(line)
+
+    const firstMove = pointerAt(curveY(-45, HEIGHT))
+
+    drag.onPointerDown(press.event)
+    drag.onPointerMove(firstMove.event)
+    drag.onPointerMove(pointerAt(curveY(-50, HEIGHT)).event)
+
+    expect(drag.set).toHaveBeenCalledOnce()
+    expect(firstMove.releasePointerCapture).toHaveBeenCalledWith(7)
   })
 })
