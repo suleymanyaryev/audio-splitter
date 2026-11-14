@@ -6,6 +6,19 @@ const WINDOW_SECONDS = 0.05
 const FLOOR_DB = -100
 const FLOOR_RMS = 1e-5
 
+// A window is a whole number of samples: 2205 at 44.1 kHz, 2400 at 48 kHz, 1103 at 22.05 kHz.
+function windowSizeAt(sampleRate: number): number {
+  return Math.round(sampleRate * WINDOW_SECONDS)
+}
+
+/*
+How long one window lasts, from its sample count: exactly 0.05 at 44.1 and 48 kHz, 1103 / 22050
+at 22.05 kHz. Window times are this times the window's index, never a rounded 0.05.
+*/
+export function loudnessWindowSeconds(sampleRate: number): number {
+  return windowSizeAt(sampleRate) / sampleRate
+}
+
 /*
 Builds the loudness curve of a mono signal: one value in dB per 50 ms window, [dB0, dB1, …]. A window
 is a whole number of samples (2205 at 44.1 kHz, 2400 at 48 kHz, 1103 at 22.05 kHz), windows follow
@@ -16,7 +29,7 @@ open window is the leftover: the builder keeps its running sum of squares and sa
 next `push` carries on from there. Only the last window of the file may be shorter than the rest.
 */
 export function createLoudnessBuilder(sampleRate: number) {
-  const windowSize = Math.round(sampleRate * WINDOW_SECONDS)
+  const windowSize = windowSizeAt(sampleRate)
   // One array of closed windows per push, joined once in `finish`.
   const chunks: Float32Array[] = []
   let length = 0

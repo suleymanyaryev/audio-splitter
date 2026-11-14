@@ -1,0 +1,61 @@
+<script setup lang="ts">
+import { computed, onBeforeUnmount, onMounted, ref, useTemplateRef } from 'vue'
+
+import { useSplitStore } from '@/entities/split/model/split.ts'
+import { formatDuration } from '@/shared/lib/time/format-duration.ts'
+import { layoutTrackBlocks } from '../lib/layout-track-blocks.ts'
+
+/*
+The tracks as proportional blocks on a land ground, one per track, with their name and length.
+Widths come from `layoutTrackBlocks`, which needs the strip's pixel width, and which also decides
+whether a block is wide enough for its name and length. Read-only: selecting is a later milestone.
+*/
+const split = useSplitStore()
+
+const strip = useTemplateRef<HTMLElement>('strip')
+const stripWidth = ref(0)
+const observer = new ResizeObserver((entries) => {
+  const entry = entries.at(-1)
+  if (entry) stripWidth.value = entry.contentRect.width
+})
+
+onMounted(() => {
+  if (strip.value === null) return
+  stripWidth.value = strip.value.clientWidth
+  observer.observe(strip.value)
+})
+onBeforeUnmount(() => {
+  observer.disconnect()
+})
+
+const blocks = computed(() => {
+  const layout = layoutTrackBlocks(
+    split.tracks.map((track) => track.lengthSeconds),
+    stripWidth.value,
+  )
+  return split.tracks.map((track, index) => ({
+    track,
+    length: formatDuration(track.lengthSeconds),
+    ...layout[index]!,
+  }))
+})
+</script>
+
+<template>
+  <ol ref="strip" aria-label="Tracks" class="flex h-14 gap-1.5 rounded-control bg-land">
+    <li
+      v-for="block in blocks"
+      :key="block.track.number"
+      :title="`${block.track.name}, ${block.length}`"
+      :aria-label="`${block.track.name}, ${block.length}`"
+      class="flex min-w-0 flex-none flex-col justify-center gap-0.5 rounded-control bg-track text-on-track"
+      :class="block.showLength ? 'px-3' : block.showName ? 'px-1.5' : ''"
+      :style="{ width: `${block.widthPx}px` }"
+    >
+      <template v-if="block.showName">
+        <span class="truncate text-sm font-semibold">{{ block.track.name }}</span>
+        <span v-if="block.showLength" class="truncate text-xs">{{ block.length }}</span>
+      </template>
+    </li>
+  </ol>
+</template>

@@ -58,3 +58,9 @@ Resolved 2026-11-13 by grilling; the user accepted every recommendation. Playbac
 **Updated.** [DESIGN.md](../../../DESIGN.md) (sm size, rename field), `PRODUCT.md`, the direction contract `.impeccable/surfaces/src-pages-review.md`, and [Code layout](05-code-layout.md). The sidecar `.impeccable/design.json` still shows the old "Export 8 tracks" and the invalid rename example; the next impeccable documenter pass refreshes it.
 
 **Passed on** to the setup step in [Milestone sequence](09-milestone-sequence.md): the `Dialog`'s look is not in DESIGN.md yet; it is designed within DESIGN.md's rules (flat, hairline, no shadow) when the kit is built.
+
+## Comments
+
+### 2026-11-15: whole-file canvas height
+
+The whole-file canvas is now 120 px, not 96 px: the 22 px split-number band above a 98 px wave area, built in the detection milestone ([DESIGN.md](../../../DESIGN.md), canvas drawing rules). The loudness curve stays 120 px and the zoom view 160 px.

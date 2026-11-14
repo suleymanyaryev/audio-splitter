@@ -21,3 +21,7 @@ Resolved 2026-11-13 by grilling; the user accepted every recommendation.
 ### 2026-11-14: measured by the loudness milestone
 
 The "music around −14.8 dB" above is ffmpeg's `volumedetect` mean (`mean_volume`), not the curve's median. Measured on `sample1.m4a` with the app's own curve (50 ms windows of the mono downmix, [note 03](../../../docs/concepts/03-loudness.md)): median **−16.72 dB**, so an offset of 15 dB starts the threshold near **−31.7 dB**. The "−30 to −40 dB" is where the curve crosses on its way into a gap; the long gaps bottom out at −54 to −63 dB. The decision is unchanged; the numbers are still calibrated in the detection milestone.
+
+### 2026-11-15: calibrated by the detection milestone
+
+Calibrated with the user, listening to clips of `sample1.m4a` around every split the candidates disagreed on: **offset 18 dB (threshold −34.72 dB) and minimum gap length 2 s**. They give 33 splits on all three formats, every track 93 to 139.5 s. 15 dB / 1 s (65 splits) was too eager, with splits in shallow fade dips and 2.7 s tracks; 20 dB / 2 s (30 splits) merged two real tracks into one of 194 s. Details and numbers in [note 04](../../../docs/concepts/04-gaps-become-splits.md). The decision itself is unchanged: relative default, computed once.

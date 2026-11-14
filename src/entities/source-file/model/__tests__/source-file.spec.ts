@@ -66,6 +66,30 @@ describe('the source-file store', () => {
     expect(store.loudness?.[2 * 20 - 1]).toBe(-100)
   })
 
+  it('keeps the length of a loudness window in seconds, from the window size in samples', async () => {
+    vi.mocked(openFfmpeg).mockResolvedValue(
+      fakeFfmpegSession({ probeLog: m4aProbeLog(2), pcm: toneThenSilencePcm(44_100, 1, 0.5) }),
+    )
+    const store = useSourceFileStore()
+    expect(store.loudnessWindowSeconds).toBeNull()
+
+    await store.load(file)
+
+    expect(store.loudnessWindowSeconds).toBeCloseTo(0.05, 12)
+  })
+
+  it('keeps 1103 / 22050 s per loudness window at 22.05 kHz, not 0.05', async () => {
+    const log = m4aProbeLog(2).map((line) => line.replace('44100 Hz', '22050 Hz'))
+    vi.mocked(openFfmpeg).mockResolvedValue(
+      fakeFfmpegSession({ probeLog: log, pcm: toneThenSilencePcm(22_050, 1, 0.5) }),
+    )
+    const store = useSourceFileStore()
+
+    await store.load(file)
+
+    expect(store.loudnessWindowSeconds).toBeCloseTo(1103 / 22_050, 12)
+  })
+
   it('names what an unsupported file is and does not decode it', async () => {
     const session = fakeFfmpegSession({ probeLog: vorbisProbeLog(30) })
     vi.mocked(openFfmpeg).mockResolvedValue(session)
@@ -276,6 +300,7 @@ describe('the source-file store', () => {
     expect(store.file).toBeNull()
     expect(store.peaks).toBeNull()
     expect(store.loudness).toBeNull()
+    expect(store.loudnessWindowSeconds).toBeNull()
   })
 
   it('clears the loudness curve of the previous file when a new load starts', async () => {
@@ -294,5 +319,6 @@ describe('the source-file store', () => {
 
     expect(store.status).toBe('loading')
     expect(store.loudness).toBeNull()
+    expect(store.loudnessWindowSeconds).toBeNull()
   })
 })

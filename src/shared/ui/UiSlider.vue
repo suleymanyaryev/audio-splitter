@@ -48,6 +48,6 @@ const thumbValues = computed({
         class="block size-4 cursor-grab rounded-full border-2 border-surface bg-ink not-data-disabled:hover:size-5 focus-visible:focus-ring data-disabled:cursor-not-allowed"
       />
     </SliderRoot>
-    <span class="w-14 text-right font-semibold whitespace-nowrap text-ink">{{ readout }}</span>
+    <span class="w-18 text-right font-semibold whitespace-nowrap text-ink">{{ readout }}</span>
   </div>
 </template>

@@ -3,7 +3,10 @@ import { defineStore } from 'pinia'
 
 import { openFfmpeg, type FfmpegSession } from '@/shared/api/ffmpeg/ffmpeg.ts'
 import { downmix } from '@/shared/lib/audio/downmix.ts'
-import { createLoudnessBuilder } from '@/shared/lib/audio/loudness-builder.ts'
+import {
+  createLoudnessBuilder,
+  loudnessWindowSeconds as windowSecondsAt,
+} from '@/shared/lib/audio/loudness-builder.ts'
 import { createPeaksBuilder } from '@/shared/lib/audio/peaks-builder.ts'
 import { decodeSlice, sliceCount } from '../api/decode-slice.ts'
 import { probe, type SupportedFormat } from '../api/probe.ts'
@@ -29,6 +32,11 @@ export const useSourceFileStore = defineStore('source-file', () => {
   // dB of the mono downmix per window of round(rate × 0.05) samples: 50 ms at 44.1 and 48 kHz; -100 dB
   // is the floor (see shared/lib/audio/loudness-builder.ts).
   const loudness = shallowRef<Float32Array | null>(null)
+  /*
+  How long one window of the curve lasts, from its sample count: 0.05 at 44.1 and 48 kHz, but
+  1103 / 22050 at 22.05 kHz. Window i starts at i × this; it is set together with the curve.
+  */
+  const loudnessWindowSeconds = ref<number | null>(null)
   const failure = ref<LoadFailure | null>(null)
   // Progress, in slices (the probe is not counted): "38 / 62 slices". Both are 0 when empty.
   const slicesDone = ref(0)
@@ -47,6 +55,7 @@ export const useSourceFileStore = defineStore('source-file', () => {
     durationSeconds.value = null
     peaks.value = null
     loudness.value = null
+    loudnessWindowSeconds.value = null
     failure.value = null
     slicesDone.value = 0
     sliceTotal.value = 0
@@ -101,6 +110,7 @@ export const useSourceFileStore = defineStore('source-file', () => {
       }
       peaks.value = peaksBuilder.finish()
       loudness.value = loudnessBuilder.finish()
+      loudnessWindowSeconds.value = windowSecondsAt(probed.sampleRate)
       status.value = 'ready'
     } catch (error) {
       if (isStale()) return
@@ -125,6 +135,7 @@ export const useSourceFileStore = defineStore('source-file', () => {
     durationSeconds,
     peaks,
     loudness,
+    loudnessWindowSeconds,
     failure,
     slicesDone,
     sliceTotal,

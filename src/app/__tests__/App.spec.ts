@@ -9,6 +9,7 @@ import {
   toneThenSilencePcm,
   vorbisProbeLog,
 } from '@/shared/api/ffmpeg/__tests__/fake-ffmpeg.ts'
+import { useSplitStore } from '@/entities/split/model/split.ts'
 import App from '../App.vue'
 
 vi.mock('@/shared/api/ffmpeg/ffmpeg.ts', () => ({ openFfmpeg: vi.fn() }))
@@ -51,6 +52,23 @@ describe('App', () => {
     expect(wrapper.text()).toContain('evening-set-vol3.m4a · 0:00:30')
     expect(wrapper.get('canvas').attributes('aria-label')).toBe('Waveform of the whole file')
     expect(wrapper.text()).toMatch(/0:00:00\s*0:00:07\s*0:00:15\s*0:00:22\s*0:00:30/)
+  })
+
+  it('finds the gaps of the loudness curve once the file is ready, and forgets them on New file', async () => {
+    const wrapper = mount(App)
+
+    await chooseFile(wrapper, file)
+
+    // 15 s of tone, then 15 s of silence: one run-out gap, which proposes no split.
+    const split = useSplitStore()
+    expect(split.gaps).toEqual([{ startSeconds: 15, endSeconds: 30, edge: 'run-out' }])
+    expect(split.tracks).toHaveLength(1)
+    expect(split.tracks[0]?.lengthSeconds).toBe(30)
+    expect(headings(wrapper)).toContain('Tracks (1)')
+    expect(wrapper.findAll('tbody tr')).toHaveLength(1)
+
+    await wrapper.get('header button').trigger('click')
+    expect(split.tracks).toEqual([])
   })
 
   it('loads a file dropped anywhere on the load page', async () => {
