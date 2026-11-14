@@ -4,18 +4,19 @@ import { Download, Play, Plus } from 'lucide-vue-next'
 import UiButton from '@/shared/ui/UiButton.vue'
 import UiPanel from '@/shared/ui/UiPanel.vue'
 import UiSlider from '@/shared/ui/UiSlider.vue'
+import SourceWaveform from '@/widgets/source-waveform/ui/SourceWaveform.vue'
 
 /*
-The empty review screen: each panel at its fixed canvas height, with the controls it will hold.
-Nothing is analysed yet, so every control is disabled; later milestones swap each panel for its
-widget.
+The review screen: each panel at its fixed canvas height, with the controls it will hold. Only
+the whole-file waveform is filled so far; the other controls stay disabled until later milestones
+swap each panel for its widget.
 */
 </script>
 
 <template>
   <main class="grid grid-cols-12 gap-4 p-4">
     <UiPanel title="Whole file" class="col-span-12">
-      <div class="h-24" />
+      <SourceWaveform />
     </UiPanel>
 
     <UiPanel title="Loudness" class="col-span-12">

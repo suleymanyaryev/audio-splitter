@@ -1,13 +1,22 @@
 <script setup lang="ts">
-import { shallowRef } from 'vue'
+import { computed } from 'vue'
 
+import { useSourceFileStore } from '@/entities/source-file/model/source-file.ts'
 import LoadPage from '@/pages/load/ui/LoadPage.vue'
 import ReviewPage from '@/pages/review/ui/ReviewPage.vue'
+import { formatDuration } from '@/shared/lib/time/format-duration.ts'
 import UiButton from '@/shared/ui/UiButton.vue'
 
 // No router: the page follows whether a file is loaded (docs/adr/0001-fsd-subset.md).
-// Milestone 1 moves the file into the source-file store.
-const sourceFile = shallowRef<File | null>(null)
+const sourceFile = useSourceFileStore()
+
+// The file chip: the name while loading, then its duration once the probe has read it.
+const chip = computed(() => {
+  if (sourceFile.status !== 'loading' && sourceFile.status !== 'ready') return null
+  const name = sourceFile.file?.name ?? ''
+  const duration = sourceFile.durationSeconds
+  return duration === null ? name : `${name} · ${formatDuration(duration)}`
+})
 </script>
 
 <template>
@@ -21,17 +30,19 @@ const sourceFile = shallowRef<File | null>(null)
     </span>
     <span class="text-lg font-bold">Audio Splitter</span>
     <span
-      v-if="sourceFile"
+      v-if="chip"
       class="min-w-0 truncate rounded-control border border-vinyl-edge px-2.5 py-1 text-xs font-semibold"
     >
-      {{ sourceFile.name }}
+      {{ chip }}
     </span>
     <span class="ml-auto shrink-0 text-xs text-on-vinyl-muted"
       >Local only · nothing is uploaded</span
     >
-    <UiButton v-if="sourceFile" variant="inverse" @click="sourceFile = null">New file</UiButton>
+    <UiButton v-if="sourceFile.status === 'ready'" variant="inverse" @click="sourceFile.reset()">
+      New file
+    </UiButton>
   </header>
 
-  <ReviewPage v-if="sourceFile" />
-  <LoadPage v-else @choose="sourceFile = $event" />
+  <ReviewPage v-if="sourceFile.status === 'ready'" />
+  <LoadPage v-else />
 </template>

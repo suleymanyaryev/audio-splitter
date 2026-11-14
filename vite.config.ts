@@ -13,6 +13,8 @@ const config = defineConfig({
       '@': fileURLToPath(new URL('src', import.meta.url)),
     },
   },
+  // Pre-bundling has broken ffmpeg.wasm's worker before; upstream's own Vite example excludes it.
+  optimizeDeps: { exclude: ['@ffmpeg/ffmpeg'] },
 })
 
 export default config
