@@ -86,8 +86,9 @@ describe('App', () => {
     await chooseFile(wrapper, file)
 
     const alert = wrapper.get('[role="alert"]').text()
-    expect(alert).toContain('evening-set-vol3.m4a could not be loaded at the decode step.')
-    expect(alert).toContain('ffmpeg said: Error while decoding stream')
+    expect(alert).toContain('evening-set-vol3.m4a could not be loaded.')
+    expect(alert).toContain('Failed at: slice 1 of 1.')
+    expect(alert).toContain('Reason: Error while decoding stream')
   })
 
   it('returns to the load page on "New file"', async () => {

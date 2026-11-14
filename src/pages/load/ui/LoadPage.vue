@@ -4,6 +4,7 @@ import { onBeforeUnmount, onMounted, useTemplateRef } from 'vue'
 import { useSourceFileStore } from '@/entities/source-file/model/source-file.ts'
 import UiButton from '@/shared/ui/UiButton.vue'
 import UiPanel from '@/shared/ui/UiPanel.vue'
+import UiProgressBar from '@/shared/ui/UiProgressBar.vue'
 
 const sourceFile = useSourceFileStore()
 const fileInput = useTemplateRef('fileInput')
@@ -52,9 +53,18 @@ onBeforeUnmount(() => {
         drop it anywhere on this page. It is read in this browser and never uploaded.
       </p>
 
-      <p v-if="sourceFile.status === 'loading'" class="mt-4 text-muted" role="status">
-        Reading {{ sourceFile.file?.name }}…
-      </p>
+      <template v-if="sourceFile.status === 'loading'">
+        <!-- Loading ffmpeg and probing come before the slice count is known. -->
+        <UiProgressBar
+          v-if="sourceFile.sliceTotal > 0"
+          class="mt-4"
+          :value="sourceFile.slicesDone"
+          :max="sourceFile.sliceTotal"
+          :label="`${sourceFile.slicesDone} / ${sourceFile.sliceTotal} slices`"
+          running
+        />
+        <p v-else class="mt-4 text-muted" role="status">Reading {{ sourceFile.file?.name }}…</p>
+      </template>
 
       <div
         v-if="sourceFile.status === 'failed' && sourceFile.failure"
@@ -66,22 +76,19 @@ onBeforeUnmount(() => {
           <p>{{ sourceFile.failure.message }}</p>
         </template>
         <template v-else>
-          <p class="break-words">
-            {{ sourceFile.file?.name }} could not be loaded at the {{ sourceFile.failure.step }}
-            step.
-          </p>
-          <p class="break-words">ffmpeg said: {{ sourceFile.failure.reason }}</p>
+          <p class="break-words">{{ sourceFile.file?.name }} could not be loaded.</p>
+          <p>Failed at: {{ sourceFile.failure.step }}.</p>
+          <p class="break-words">Reason: {{ sourceFile.failure.reason }}</p>
         </template>
       </div>
 
       <!-- The native input stays hidden; the kit button opens its file dialog. -->
       <input ref="fileInput" type="file" :accept="ACCEPT" class="hidden" @change="onFileChange" />
-      <UiButton
-        variant="primary"
-        class="mt-4"
-        :disabled="sourceFile.status === 'loading'"
-        @click="fileInput?.click()"
-      >
+      <!-- Cancel takes the button's place while loading. -->
+      <UiButton v-if="sourceFile.status === 'loading'" class="mt-4" @click="sourceFile.cancel()">
+        Cancel
+      </UiButton>
+      <UiButton v-else variant="primary" class="mt-4" @click="fileInput?.click()">
         {{ sourceFile.status === 'failed' ? 'Choose another file' : 'Choose file…' }}
       </UiButton>
     </UiPanel>
