@@ -27,6 +27,28 @@ function headings(wrapper: ReturnType<typeof mount>) {
   return wrapper.findAll('h2').map((heading) => heading.text())
 }
 
+function dialog() {
+  return document.querySelector('[role="alertdialog"]')
+}
+
+function dialogButton(text: string) {
+  const button = [...(dialog()?.querySelectorAll('button') ?? [])].find(
+    (candidate) => candidate.textContent === text,
+  )
+  if (!button) throw new Error(`no "${text}" button`)
+  return button
+}
+
+async function loadAndEdit() {
+  const wrapper = mount(App, { attachTo: document.body })
+  await chooseFile(wrapper, file)
+  useSplitStore().renameTrack(null, 'Opener')
+  const newFile = wrapper.findAll('header button').find((button) => button.text() === 'New file')
+  await newFile?.trigger('click')
+  await flushPromises()
+  return wrapper
+}
+
 describe('App', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
@@ -118,5 +140,53 @@ describe('App', () => {
 
     expect(wrapper.text()).toContain('Choose file…')
     expect(wrapper.text()).not.toContain('evening-set-vol3.m4a')
+  })
+
+  describe('"New file" with edits to lose', () => {
+    it('asks first, counting the edits, and stays on the review page', async () => {
+      const wrapper = await loadAndEdit()
+
+      expect(dialog()?.textContent).toContain('Discard your edits?')
+      expect(dialog()?.textContent).toContain('Loading a new file discards your 1 edit.')
+      expect(document.activeElement).toBe(dialogButton('Keep edits'))
+      expect(headings(wrapper)).toContain('Whole file')
+      wrapper.unmount()
+    })
+
+    it('keeps the file and the edits on "Keep edits"', async () => {
+      const wrapper = await loadAndEdit()
+
+      dialogButton('Keep edits').dispatchEvent(new MouseEvent('click', { bubbles: true }))
+      await flushPromises()
+
+      expect(dialog()).toBeNull()
+      expect(headings(wrapper)).toContain('Whole file')
+      expect(useSplitStore().tracks[0]?.name).toBe('Opener')
+      wrapper.unmount()
+    })
+
+    it('returns to the load page on "New file"', async () => {
+      const wrapper = await loadAndEdit()
+
+      dialogButton('New file').dispatchEvent(new MouseEvent('click', { bubbles: true }))
+      await flushPromises()
+
+      expect(dialog()).toBeNull()
+      expect(wrapper.text()).toContain('Choose file…')
+      expect(useSplitStore().tracks).toEqual([])
+      wrapper.unmount()
+    })
+
+    it('does not ask when nothing was edited', async () => {
+      const wrapper = mount(App, { attachTo: document.body })
+      await chooseFile(wrapper, file)
+
+      await wrapper.get('header button').trigger('click')
+      await flushPromises()
+
+      expect(dialog()).toBeNull()
+      expect(wrapper.text()).toContain('Choose file…')
+      wrapper.unmount()
+    })
   })
 })

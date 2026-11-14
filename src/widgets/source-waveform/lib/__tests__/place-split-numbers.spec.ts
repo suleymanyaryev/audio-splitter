@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 
-import { placeSplitNumbers } from '../place-split-numbers.ts'
+import { CHIP_DIAMETER, placeSplitNumbers } from '../place-split-numbers.ts'
 
 describe('placeSplitNumbers', () => {
   it('centres each number on its line', () => {
@@ -56,5 +56,73 @@ describe('placeSplitNumbers', () => {
 
   it('returns nothing for no splits', () => {
     expect(placeSplitNumbers([], 1000)).toEqual([])
+  })
+
+  describe('with a selected split', () => {
+    it('gives the selected number the width of its 20 px circle, centred on its line', () => {
+      const placed = placeSplitNumbers(
+        [
+          { x: 100, textWidth: 8 },
+          { x: 300, textWidth: 8 },
+        ],
+        1000,
+        1,
+      )
+
+      expect(CHIP_DIAMETER).toBe(20)
+      expect(placed).toEqual([
+        { index: 0, left: 96 },
+        { index: 1, left: 290 },
+      ])
+    })
+
+    it('keeps the circle inside the canvas at an edge', () => {
+      expect(placeSplitNumbers([{ x: 4, textWidth: 8 }], 1000, 0)).toEqual([{ index: 0, left: 0 }])
+      expect(placeSplitNumbers([{ x: 996, textWidth: 8 }], 1000, 0)).toEqual([
+        { index: 0, left: 980 },
+      ])
+    })
+
+    it('always shows the selected number, leaving out a number before it that it would touch', () => {
+      // 8 px number at 100 (96 to 104), circle at 110 (100 to 120): they overlap.
+      const placed = placeSplitNumbers(
+        [
+          { x: 100, textWidth: 8 },
+          { x: 110, textWidth: 8 },
+        ],
+        1000,
+        1,
+      )
+
+      expect(placed).toEqual([{ index: 1, left: 100 }])
+    })
+
+    it('leaves out a number after it that comes within the gap of the circle', () => {
+      // Circle at 100 (90 to 110); an 8 px number at 117 starts at 113, 3 px away.
+      const placed = placeSplitNumbers(
+        [
+          { x: 100, textWidth: 8 },
+          { x: 117, textWidth: 8 },
+          { x: 140, textWidth: 8 },
+        ],
+        1000,
+        0,
+      )
+
+      expect(placed.map((number) => number.index)).toEqual([0, 2])
+    })
+
+    it('does not give the first split precedence over the selected one', () => {
+      const placed = placeSplitNumbers(
+        [
+          { x: 10, textWidth: 8 },
+          { x: 14, textWidth: 8 },
+        ],
+        1000,
+        1,
+      )
+
+      expect(placed.map((number) => number.index)).toEqual([1])
+    })
   })
 })

@@ -1,14 +1,18 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 
 import { useSourceFileStore } from '@/entities/source-file/model/source-file.ts'
+import { formatEdits } from '@/entities/split/lib/format-edits.ts'
+import { useSplitStore } from '@/entities/split/model/split.ts'
 import LoadPage from '@/pages/load/ui/LoadPage.vue'
 import ReviewPage from '@/pages/review/ui/ReviewPage.vue'
 import { formatDuration } from '@/shared/lib/time/format-duration.ts'
 import UiButton from '@/shared/ui/UiButton.vue'
+import UiDialog from '@/shared/ui/UiDialog.vue'
 
 // No router: the page follows whether a file is loaded (docs/adr/0001-fsd-subset.md).
 const sourceFile = useSourceFileStore()
+const split = useSplitStore()
 
 // The file chip: the name while loading, then its duration once the probe has read it.
 const chip = computed(() => {
@@ -17,6 +21,19 @@ const chip = computed(() => {
   const duration = sourceFile.durationSeconds
   return duration === null ? name : `${name} · ${formatDuration(duration)}`
 })
+
+// "New file" throws the edits away, so it asks first when there are any.
+const asking = ref(false)
+
+function newFile() {
+  if (split.hasEdits) asking.value = true
+  else sourceFile.reset()
+}
+
+function discardAndReset() {
+  asking.value = false
+  sourceFile.reset()
+}
 </script>
 
 <template>
@@ -38,10 +55,21 @@ const chip = computed(() => {
     <span class="ml-auto shrink-0 text-xs text-on-vinyl-muted"
       >Local only · nothing is uploaded</span
     >
-    <UiButton v-if="sourceFile.status === 'ready'" variant="inverse" @click="sourceFile.reset()">
+    <UiButton v-if="sourceFile.status === 'ready'" variant="inverse" @click="newFile">
       New file
     </UiButton>
   </header>
+
+  <UiDialog
+    v-model:open="asking"
+    title="Discard your edits?"
+    :description="`Loading a new file discards your ${formatEdits(split.editCount)}.`"
+  >
+    <template #actions>
+      <UiButton @click="asking = false">Keep edits</UiButton>
+      <UiButton variant="danger" @click="discardAndReset">New file</UiButton>
+    </template>
+  </UiDialog>
 
   <ReviewPage v-if="sourceFile.status === 'ready'" />
   <LoadPage v-else />

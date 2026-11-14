@@ -32,6 +32,14 @@ _Avoid_: Silence, pause, quiet region
 A single point in time where the source file is cut. A split is either detected (proposed at the middle of a gap) or manual (added by the user); once it exists the two are treated the same.
 _Avoid_: Candidate, cut point, marker, split point
 
+**Selected split**:
+The one split the user is reviewing: at most one at a time. Selecting a split centres the zoom window on it; moving it does not recentre the window.
+_Avoid_: Current split, active split, focused split
+
+**Zoom window**:
+The 20 second stretch of the source file around a centre time that the zoom view shows, outlined on the whole-file view.
+_Avoid_: Viewport, zoom range, visible range
+
 **Loudness curve**:
 The loudness of the source file over time, one value in decibels per short window.
 _Avoid_: Energy curve, RMS curve, volume graph
@@ -43,3 +51,7 @@ _Avoid_: Noise floor, cutoff
 **Minimum gap length**:
 The shortest time the loudness must stay under the silence threshold for the stretch to count as a gap.
 _Avoid_: Minimum duration, minimum silence
+
+**Edit**:
+A thing the user changed since the last detection: a split moved, added or deleted, or a track renamed. It is counted once per thing changed, however often it was changed, and changing a setting replaces all edits with freshly detected splits.
+_Avoid_: Change, modification, revision

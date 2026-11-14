@@ -23,4 +23,15 @@ describe('UiPanel', () => {
     expect(wrapper.get('button').text()).toBe('Export to folder…')
     expect(wrapper.get('p').text()).toBe('blocks')
   })
+
+  it('sets the title in Title style, or in Headline style for the one big reading of a panel', () => {
+    const plain = mount(UiPanel, { props: { title: 'Whole file' } })
+    const big = mount(UiPanel, { props: { title: '0:42:03.25', headline: true } })
+
+    expect(plain.get('h2').classes()).toEqual(
+      expect.arrayContaining(['text-base', 'font-semibold']),
+    )
+    expect(big.get('h2').classes()).toEqual(expect.arrayContaining(['text-lg', 'font-bold']))
+    expect(big.get('h2').classes()).not.toContain('text-base')
+  })
 })

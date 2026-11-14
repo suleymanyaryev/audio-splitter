@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { useId } from 'vue'
 
-defineProps<{ title: string }>()
+// `headline` sets the title in Headline style: the panel's one big reading (the zoom view's time).
+defineProps<{ title: string; headline?: boolean }>()
 
 const slots = defineSlots<{ default?: () => unknown; actions?: () => unknown }>()
 
@@ -16,7 +17,9 @@ const titleId = useId()
       class="mb-3 flex justify-between gap-6"
       :class="slots.actions ? 'items-center' : 'items-baseline'"
     >
-      <h2 :id="titleId" class="text-base font-semibold">{{ title }}</h2>
+      <h2 :id="titleId" :class="headline ? 'text-lg font-bold' : 'text-base font-semibold'">
+        {{ title }}
+      </h2>
       <div v-if="slots.actions" class="flex items-center gap-2 text-muted">
         <slot name="actions" />
       </div>

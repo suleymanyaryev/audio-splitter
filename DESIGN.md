@@ -372,7 +372,7 @@ Reka `SliderRoot` / `SliderTrack` / `SliderRange` / `SliderThumb`; focus and ARI
 A titled frame (`section` with an `h2`).
 
 - **Frame:** `rounded-panel border border-hairline bg-surface p-4`.
-- **Title row:** `mb-3 flex items-baseline justify-between gap-6` (`items-center` when the row holds a control). Title `text-base font-semibold`; on the right, metadata in `text-muted` or the panel's controls, grouped `flex items-center gap-2`. A title-row button is `sm` (secondary, or primary for the panel's one main action), except Export, which is primary `lg`.
+- **Title row:** `mb-3 flex items-baseline justify-between gap-6` (`items-center` when the row holds a control). Title `text-base font-semibold` (Headline `text-lg font-bold` for the panel's one big reading, the zoom view's time); on the right, metadata in `text-muted` or the panel's controls, grouped `flex items-center gap-2`. A title-row button is `sm` (secondary, or primary for the panel's one main action), except Export, which is primary `lg`.
 
 ### ProgressBar
 
@@ -387,7 +387,7 @@ Reka `AlertDialog`: the confirm before a setting change or "New file" replaces e
 
 - **Overlay:** `fixed inset-0 z-40 bg-ground`, opaque. The Flat Sleeve Rule forbids a dimmed or blurred page, so the dialog does not float over the screen: the screen gives way to the ground, and the dialog is the one panel lying on it.
 - **Frame:** the panel frame, centred: `fixed top-1/2 left-1/2 z-50 w-[calc(100vw-32px)] max-w-md -translate-1/2 rounded-panel border border-hairline bg-surface p-4 focus:outline-none` (focus moves to the first button, which shows the ring). No shadow.
-- **Content:** title in Title (`text-base font-semibold`), the description below it in Body (`mt-1`), optional content (`mt-4`, e.g. a `ProgressBar`), then the actions right-aligned (`mt-4 flex justify-end gap-2`): a secondary "Cancel" first, the action last (danger when it discards edits).
+- **Content:** title in Title (`text-base font-semibold`), the description below it in Body (`mt-1`), optional content (`mt-4`, e.g. a `ProgressBar`), then the actions right-aligned (`mt-4 flex justify-end gap-2`): a secondary button first that keeps things as they are ("Keep edits", or "Cancel"), the action last (danger when it discards edits: "Replace", "New file").
 
 ### Header band
 
@@ -396,14 +396,18 @@ Reka `AlertDialog`: the confirm before a setting change or "New file" replaces e
 ### Track strip and track blocks
 
 - **Strip:** `flex h-14 gap-1.5 rounded-control bg-land`: the land shows between blocks, so each 6px gap is a land.
-- **Block:** `flex min-w-0 flex-none flex-col justify-center gap-0.5 rounded-control bg-track text-on-track`, with an inline pixel width from `layoutTrackBlocks`: proportional to the track's duration, after the 6px lands between blocks, and never under 4px (a very short track stays a visible sliver, and the others share what is left). Every block carries its name and length in `title` and `aria-label`.
-- **Text by width:** from 32px a block shows its name in Label (`truncate font-semibold`, `text-sm`); from 72px it also shows the duration below in Caption (`truncate text-xs`), both in full `on-track`. Padding follows what the block shows: `px-3` with name and duration, `px-1.5` with the name only, none for a sliver, which is a plain `track` block with no text.
+- **Block:** an `li`, `min-w-0 flex-none rounded-control border-2 bg-track text-on-track`, with an inline pixel width from `layoutTrackBlocks`: proportional to the track's duration, after the 6px lands between blocks, and never under 4px (a very short track stays a visible sliver, and the others share what is left). Every block carries its name and length in `title` and `aria-label`. The `li` holds one inner element, `flex size-full min-w-0 flex-col justify-center gap-0.5 text-left`, which lays out the text.
+- **Selected:** the block of the selected split's track (a click on a block selects the split where its track starts) has `aria-current="true"` and a 2px `on-track` border; every other block has a 2px transparent one, so nothing shifts.
+- **Button:** a block that starts at a split has a `button` as its inner element, with `cursor-pointer` and the on-track focus ring inside the block (`focus-visible:outline-2 focus-visible:-outline-offset-4 focus-visible:outline-on-track`). The first block, which starts with the file, has a plain `div` there and selects nothing.
+- **Text by width:** from 32px a block shows its name in Label (`truncate font-semibold`, `text-sm`); from 72px it also shows the duration below in Caption (`truncate text-xs`), both in full `on-track`. Padding on the `li` follows what the block shows: `px-2.5` with name and duration, `px-1` with the name only, none for a sliver, which is a plain `track` block with no text.
 
 ### Split number and selected row
 
 - The selected split's number is a filled vermilion chip wherever it appears: `inline-flex size-5 items-center justify-center rounded-full bg-split text-xs font-bold text-on-split`. Other split numbers in lists are plain `text-muted` in the same 20px box.
 - Table rows are separated by `border-b border-hairline` with 6px vertical padding; the selected row takes `bg-land/50 font-semibold`.
+- **Track-list rows:** a row whose track starts at a split is clickable (`cursor-pointer hover:bg-land/40`) and its number cell holds a button (`size-5 rounded-control text-muted focus-visible:focus-ring`, `aria-label` "Select track N, starts at …"); the selected row is `aria-current="true"`. The number is the track's, so the selected row is marked by its tint and weight only, not by a chip. The first row has no button.
 - **Track-list table:** `w-full border-separate border-spacing-0 text-left text-sm` inside a 160px (`h-40`) box that scrolls inside itself. The heading row is Caption in weight 500 and `muted` (`text-xs font-medium text-muted`); each `th` is `sticky top-0 border-b border-hairline bg-surface py-1` (`pr-2` except the last, `w-12` for the number column), so the headings stay in view over the scrolling rows. Cells are `border-b border-hairline py-1.5` (`pr-2` except the last).
+- **Track-list columns:** number (`w-12`), name (the one flexible column, `w-full` with the inline `TextField` in a `max-w-0` cell so a long name is cut off, not wrapped), start and length (`whitespace-nowrap`, start `pr-4`), and a last cell holding the `sm` trash `IconButton` (`py-0.5`, so the 32px button sets the row height at 36px); the first row's last cell is empty. A name field is `aria-label` "Name of track N"; focusing it or clicking it selects the split where the track starts, like the row.
 
 ### Canvas drawing rules (signature)
 
@@ -523,7 +527,7 @@ Paste into the app's single CSS entry (`src/app/styles/main.css`). Light values 
     color-scheme: light dark;
   }
   body {
-    @apply bg-ground text-ink font-sans text-sm antialiased;
+    @apply bg-ground font-sans text-sm text-ink antialiased;
     font-variant-numeric: tabular-nums;
   }
   ::selection {
