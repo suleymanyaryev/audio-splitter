@@ -1,9 +1,10 @@
-import { afterEach, beforeEach, describe, it, expect } from 'vitest'
+import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 
 import { enableAutoUnmount, mount } from '@vue/test-utils'
 import { useSourceFileStore } from '@/entities/source-file/model/source-file.ts'
 import { useSplitStore } from '@/entities/split/model/split.ts'
+import { useAuditionStore } from '@/widgets/split-zoom/model/audition.ts'
 import ReviewPage from '../ReviewPage.vue'
 
 enableAutoUnmount(afterEach)
@@ -32,6 +33,15 @@ function mountPage() {
 function addSplitButton(wrapper: ReturnType<typeof mount>) {
   const button = wrapper.findAll('button').find((candidate) => candidate.text() === 'Add split')
   if (!button) throw new Error('no Add split button')
+  return button
+}
+
+// The primary button of the zoom panel's title row; its name is "Play across split" or "Stop".
+function auditionButton(wrapper: ReturnType<typeof mount>) {
+  const button = wrapper
+    .findAll('button')
+    .find((candidate) => ['Play across split', 'Stop'].includes(candidate.text()))
+  if (!button) throw new Error('no audition button')
   return button
 }
 
@@ -73,6 +83,64 @@ describe('ReviewPage', () => {
       expect(document.activeElement).toBe(
         wrapper.get('[role="slider"][aria-label="Split 2"]').element,
       )
+    })
+  })
+
+  describe('the audition button', () => {
+    it('reads "Play across split" and is enabled while a split is selected', () => {
+      const wrapper = mountPage()
+
+      const button = auditionButton(wrapper)
+
+      expect(button.text()).toBe('Play across split')
+      expect(button.attributes('disabled')).toBeUndefined()
+    })
+
+    it('is disabled while no split is selected', async () => {
+      const wrapper = mountPage()
+      useSplitStore().moveZoomTo(46)
+      await wrapper.vm.$nextTick()
+
+      expect(auditionButton(wrapper).attributes('disabled')).toBeDefined()
+    })
+
+    it('calls the audition store when clicked', async () => {
+      const wrapper = mountPage()
+      const toggle = vi.spyOn(useAuditionStore(), 'toggle').mockImplementation(() => {})
+
+      await auditionButton(wrapper).trigger('click')
+
+      expect(toggle).toHaveBeenCalledTimes(1)
+    })
+
+    it('reads "Stop" with its own icon while a clip loads or plays, and stays enabled', async () => {
+      const wrapper = mountPage()
+      const audition = useAuditionStore()
+      const playIcon = auditionButton(wrapper).get('svg').classes()
+
+      audition.status = 'loading'
+      await wrapper.vm.$nextTick()
+      const loading = auditionButton(wrapper)
+      expect(loading.text()).toBe('Stop')
+      expect(loading.get('svg').classes()).not.toEqual(playIcon)
+      expect(loading.attributes('disabled')).toBeUndefined()
+
+      audition.status = 'playing'
+      await wrapper.vm.$nextTick()
+      expect(auditionButton(wrapper).text()).toBe('Stop')
+
+      audition.status = 'idle'
+      await wrapper.vm.$nextTick()
+      expect(auditionButton(wrapper).text()).toBe('Play across split')
+    })
+
+    it('stops the audition when the page goes away', () => {
+      const wrapper = mountPage()
+      const stop = vi.spyOn(useAuditionStore(), 'stop')
+
+      wrapper.unmount()
+
+      expect(stop).toHaveBeenCalled()
     })
   })
 })

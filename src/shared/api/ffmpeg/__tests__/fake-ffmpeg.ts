@@ -8,7 +8,8 @@ with `probeLog`. A decode answers with interleaved floats: `pcm` for every slice
 `pcmForSlice(index)` when slices differ. The slice is read back from the call's seek and length:
 the command of slice n seeks to n × length − 1 s, with the length in `-t` (slice 0 has no seek).
 `decodeError` makes a decode fail with that as ffmpeg's last log line and exit code 1, at every
-slice or only at slice `failAtSlice` (from 0).
+slice or only at slice `failAtSlice` (from 0). A clip (a command with the pair `-f wav`) answers
+with `wav`, or fails with `clipError` as its last log line and exit code 1.
 */
 export function fakeFfmpegSession(options: {
   probeLog: string[]
@@ -16,12 +17,19 @@ export function fakeFfmpegSession(options: {
   pcmForSlice?: (index: number) => Float32Array
   decodeError?: string
   failAtSlice?: number
+  wav?: Uint8Array
+  clipError?: string
 }) {
   // The slice of the latest decode call, for `takeFile` to answer with.
   let slice = 0
   const session = {
     inputPath: '/in/source.m4a',
     run: vi.fn<FfmpegSession['run']>(async (command) => {
+      if (command.at(command.indexOf('-f') + 1) === 'wav') {
+        return options.clipError
+          ? { exitCode: 1, log: [options.clipError] }
+          : { exitCode: 0, log: [] }
+      }
       if (!command.includes('f32le')) return { exitCode: 1, log: options.probeLog }
       const seek = command.indexOf('-ss')
       const length = Number(command[command.indexOf('-t') + 1])
@@ -31,7 +39,8 @@ export function fakeFfmpegSession(options: {
         ? { exitCode: 1, log: [options.decodeError] }
         : { exitCode: 0, log: [] }
     }),
-    takeFile: vi.fn<FfmpegSession['takeFile']>(async () => {
+    takeFile: vi.fn<FfmpegSession['takeFile']>(async (path) => {
+      if (path.endsWith('.wav')) return options.wav ?? new Uint8Array(0)
       const pcm = options.pcmForSlice?.(slice) ?? options.pcm ?? new Float32Array(0)
       return new Uint8Array(pcm.buffer, pcm.byteOffset, pcm.byteLength)
     }),

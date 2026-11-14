@@ -12,7 +12,7 @@ import {
 import { downmix } from '@/shared/lib/audio/downmix.ts'
 import { createLoudnessBuilder } from '@/shared/lib/audio/loudness-builder.ts'
 import { createPeaksBuilder } from '@/shared/lib/audio/peaks-builder.ts'
-import { useSourceFileStore } from '../source-file.ts'
+import { FileReplacedError, useSourceFileStore } from '../source-file.ts'
 
 vi.mock('@/shared/api/ffmpeg/ffmpeg.ts', () => ({ openFfmpeg: vi.fn() }))
 
@@ -48,7 +48,6 @@ describe('the source-file store', () => {
     expect(store.peaks).toHaveLength(2 * 200)
     expect(store.peaks?.[1]).toBeCloseTo(0.5, 2)
     expect(store.peaks?.[2 * 199 + 1]).toBe(0)
-    expect(session.close).toHaveBeenCalled()
   })
 
   it('keeps a loudness curve of 50 ms windows: loud in the tone, -100 dB in the silence', async () => {
@@ -320,5 +319,192 @@ describe('the source-file store', () => {
     expect(store.status).toBe('loading')
     expect(store.loudness).toBeNull()
     expect(store.loudnessWindowSeconds).toBeNull()
+  })
+
+  describe('the open session and clips', () => {
+    const wav = Uint8Array.of(0x52, 0x49, 0x46, 0x46)
+    const loadedSession = () =>
+      fakeFfmpegSession({
+        probeLog: m4aProbeLog(30),
+        pcm: toneThenSilencePcm(44_100, 15, 0.5),
+        wav,
+      })
+    const clipRuns = (session: ReturnType<typeof loadedSession>) =>
+      session.run.mock.calls.filter(([command]) => command.includes('wav'))
+
+    it('keeps the session open after a successful load', async () => {
+      const session = loadedSession()
+      vi.mocked(openFfmpeg).mockResolvedValue(session)
+      const store = useSourceFileStore()
+
+      await store.load(file)
+
+      expect(store.status).toBe('ready')
+      expect(session.close).not.toHaveBeenCalled()
+    })
+
+    it('closes the session of a load that fails', async () => {
+      const session = fakeFfmpegSession({
+        probeLog: m4aProbeLog(30),
+        decodeError: 'Error while decoding stream',
+      })
+      vi.mocked(openFfmpeg).mockResolvedValue(session)
+      const store = useSourceFileStore()
+
+      await store.load(file)
+
+      expect(store.status).toBe('failed')
+      expect(session.close).toHaveBeenCalled()
+    })
+
+    it('closes the session on reset, so New file frees the worker', async () => {
+      const session = loadedSession()
+      vi.mocked(openFfmpeg).mockResolvedValue(session)
+      const store = useSourceFileStore()
+      await store.load(file)
+
+      store.reset()
+
+      expect(session.close).toHaveBeenCalledOnce()
+    })
+
+    it('closes the session on cancel', async () => {
+      const session = loadedSession()
+      vi.mocked(openFfmpeg).mockResolvedValue(session)
+      const store = useSourceFileStore()
+      await store.load(file)
+
+      store.cancel()
+
+      expect(session.close).toHaveBeenCalled()
+    })
+
+    it('closes the old session when a new load starts', async () => {
+      const first = loadedSession()
+      vi.mocked(openFfmpeg).mockResolvedValue(first)
+      const store = useSourceFileStore()
+      await store.load(file)
+      const second = loadedSession()
+      vi.mocked(openFfmpeg).mockResolvedValue(second)
+
+      await store.load(new File(['y'], 'second.m4a'))
+
+      expect(first.close).toHaveBeenCalledOnce()
+      expect(second.close).not.toHaveBeenCalled()
+    })
+
+    it('decodes the clip around a split in the open session and gives its bytes and start', async () => {
+      const session = loadedSession()
+      vi.mocked(openFfmpeg).mockResolvedValue(session)
+      const store = useSourceFileStore()
+      await store.load(file)
+
+      const clip = await store.clip(15)
+
+      expect(clip).toEqual({ wav, startSeconds: 11, lengthSeconds: 8 })
+      expect(clipRuns(session)).toHaveLength(1)
+      expect(clipRuns(session)[0]?.[0]).toContain('/in/source.m4a')
+    })
+
+    it('rejects a clip before a file is ready', async () => {
+      const store = useSourceFileStore()
+
+      await expect(store.clip(15)).rejects.toThrow('No file is ready')
+    })
+
+    it('rejects a clip while the file is still loading', async () => {
+      const session = loadedSession()
+      session.run.mockImplementation(() => new Promise(() => {}))
+      vi.mocked(openFfmpeg).mockResolvedValue(session)
+      const store = useSourceFileStore()
+      void store.load(file)
+      await vi.waitFor(() => {
+        expect(session.run).toHaveBeenCalled()
+      })
+
+      await expect(store.clip(15)).rejects.toThrow('No file is ready')
+    })
+
+    it('runs clips one at a time, in the order they were pressed', async () => {
+      const session = loadedSession()
+      vi.mocked(openFfmpeg).mockResolvedValue(session)
+      const store = useSourceFileStore()
+      await store.load(file)
+      // The first clip holds ffmpeg until released.
+      const decode = session.run.getMockImplementation()!
+      let release: (() => void) | undefined
+      session.run.mockImplementationOnce(
+        async (command, timeoutMs) =>
+          new Promise((resolve) => {
+            release = () => {
+              resolve(decode(command, timeoutMs))
+            }
+          }),
+      )
+
+      const first = store.clip(10)
+      const second = store.clip(20)
+      await vi.waitFor(() => {
+        expect(clipRuns(session)).toHaveLength(1)
+      })
+      // Give a wrongly parallel second call the chance to start.
+      await new Promise((resolve) => setTimeout(resolve, 10))
+      expect(clipRuns(session)).toHaveLength(1)
+      release?.()
+
+      await expect(first).resolves.toMatchObject({ startSeconds: 6 })
+      await expect(second).resolves.toMatchObject({ startSeconds: 16 })
+      expect(clipRuns(session)).toHaveLength(2)
+    })
+
+    it('still runs the next clip after one fails', async () => {
+      const session = loadedSession()
+      vi.mocked(openFfmpeg).mockResolvedValue(session)
+      const store = useSourceFileStore()
+      await store.load(file)
+      session.run.mockResolvedValueOnce({ exitCode: 1, log: ['Invalid data'] })
+
+      await expect(store.clip(10)).rejects.toThrow('Invalid data')
+      await expect(store.clip(20)).resolves.toMatchObject({ startSeconds: 16 })
+    })
+
+    it('rejects a queued clip whose file was reset meanwhile, without decoding', async () => {
+      const session = loadedSession()
+      vi.mocked(openFfmpeg).mockResolvedValue(session)
+      const store = useSourceFileStore()
+      await store.load(file)
+      const decode = session.run.getMockImplementation()!
+      let release: (() => void) | undefined
+      session.run.mockImplementationOnce(
+        async (command, timeoutMs) =>
+          new Promise((resolve) => {
+            release = () => {
+              resolve(decode(command, timeoutMs))
+            }
+          }),
+      )
+      const first = store.clip(10)
+      const second = store.clip(20)
+      await vi.waitFor(() => {
+        expect(clipRuns(session)).toHaveLength(1)
+      })
+
+      store.reset()
+      release?.()
+
+      await expect(first).rejects.toBeInstanceOf(FileReplacedError)
+      await expect(second).rejects.toBeInstanceOf(FileReplacedError)
+      expect(clipRuns(session)).toHaveLength(1)
+    })
+
+    it('rejects a clip after reset', async () => {
+      vi.mocked(openFfmpeg).mockResolvedValue(loadedSession())
+      const store = useSourceFileStore()
+      await store.load(file)
+
+      store.reset()
+
+      await expect(store.clip(15)).rejects.toThrow('No file is ready')
+    })
   })
 })

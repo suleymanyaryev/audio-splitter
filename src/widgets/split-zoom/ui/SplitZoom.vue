@@ -12,6 +12,7 @@ import { draggedTime } from '../lib/dragged-time.ts'
 import { useSplitDrag } from '../lib/use-split-drag.ts'
 import { zoomBars } from '../lib/zoom-bars.ts'
 import { landSpansInWindow, outsideFileSpans } from '../lib/zoom-spans.ts'
+import { useAuditionStore } from '../model/audition.ts'
 
 /*
 The zoom view: the 20 s around the zoom centre at 160 px, where the selected split is moved. It is
@@ -19,7 +20,9 @@ the only place a split moves (ticket 13). The wave is the same peaks as the whol
 same bars; each gap is a land at its true width with a flat run-out line through it; the selected
 split is a wider line with a drag handle at its top. The handle is a real element over the canvas so
 it can take keyboard focus: Left and Right move the split 10 ms, with Shift 100 ms, and Delete
-(Backspace too, the delete key of a Mac keyboard) deletes it.
+(Backspace too, the delete key of a Mac keyboard) deletes it. Space plays the clip across the split
+or stops it, as the "Play across split" button does (ticket 14); while it plays a 1 px ink line
+shows where the sound is, and a failure to play is said in a line at the bottom of the view.
 */
 
 // DESIGN.md: bars 2 px wide on a 3 px pitch.
@@ -28,12 +31,15 @@ const BAR_PITCH = 3
 // DESIGN.md: the whole canvas is framed in 1.5 px ink; the run-out line is 1 px.
 const FRAME_WIDTH = 1.5
 const RUN_OUT_WIDTH = 1
+// The playhead is one CSS pixel of ink.
+const PLAYHEAD_WIDTH = 1
 // Arrow keys move 10 ms, one bucket; with Shift, 100 ms.
 const KEY_STEP_SECONDS = 0.01
 const SHIFT_KEY_STEP_SECONDS = 0.1
 
 const sourceFile = useSourceFileStore()
 const split = useSplitStore()
+const audition = useAuditionStore()
 const canvas = useTemplateRef('canvas')
 const frame = useTemplateRef('frame')
 const handle = useTemplateRef('handle')
@@ -81,6 +87,12 @@ async function focusHandle() {
 defineExpose({ focusHandle })
 
 function onKeydown(event: KeyboardEvent) {
+  if (event.key === ' ') {
+    // Never a page scroll, and a held key must not start and stop the sound over and over.
+    event.preventDefault()
+    if (!event.repeat) audition.toggle()
+    return
+  }
   const selected = split.selectedSplit
   if (selected !== null && (event.key === 'Delete' || event.key === 'Backspace')) {
     event.preventDefault()
@@ -156,10 +168,55 @@ function draw() {
     split.selectedSplitIndex,
   )
 
+  /*
+  The playhead goes over the split lines, which it must stay readable against, and under the
+  frame, so the frame stays the outermost line of the canvas.
+  */
+  const playhead = audition.playheadSeconds()
+  if (playhead !== null) {
+    const x = zoomTimeToX(playhead, centre, ZOOM_WINDOW_SECONDS, width)
+    if (x >= 0 && x <= width) {
+      context.fillStyle = style.getPropertyValue('--color-ink')
+      // Snapped to a whole CSS pixel so the line is not smeared over two.
+      context.fillRect(Math.round(x - PLAYHEAD_WIDTH / 2), 0, PLAYHEAD_WIDTH, height)
+    }
+  }
+
   context.strokeStyle = style.getPropertyValue('--color-ink')
   context.lineWidth = FRAME_WIDTH
   context.strokeRect(FRAME_WIDTH / 2, FRAME_WIDTH / 2, width - FRAME_WIDTH, height - FRAME_WIDTH)
 }
+
+/*
+The playhead moves with the audio, which Vue does not see, so while the clip plays the view
+redraws on every animation frame: about 300 bars and a few lines, cheap. When playback ends the
+loop stops and one more draw takes the line away.
+*/
+const playheadLoop: { frameId: number | undefined } = { frameId: undefined }
+
+function onFrame() {
+  if (audition.status !== 'playing') return
+  playheadLoop.frameId = requestAnimationFrame(onFrame)
+  draw()
+}
+
+function stopFrames() {
+  if (playheadLoop.frameId === undefined) return
+  cancelAnimationFrame(playheadLoop.frameId)
+  playheadLoop.frameId = undefined
+}
+
+watch(
+  () => audition.status,
+  (status) => {
+    stopFrames()
+    if (status === 'playing') {
+      playheadLoop.frameId = requestAnimationFrame(onFrame)
+    } else {
+      draw()
+    }
+  },
+)
 
 const resizeObserver = new ResizeObserver(draw)
 const darkScheme = globalThis.matchMedia('(prefers-color-scheme: dark)')
@@ -175,6 +232,7 @@ onMounted(() => {
 onBeforeUnmount(() => {
   resizeObserver.disconnect()
   darkScheme.removeEventListener('change', draw)
+  stopFrames()
 })
 
 watch(
@@ -215,6 +273,13 @@ watch(
       :style="{ left: handleLeft }"
       @keydown="onKeydown"
     />
+    <p
+      v-if="audition.failure !== null"
+      role="status"
+      class="pointer-events-none absolute inset-x-0 bottom-3 flex justify-center"
+    >
+      <span class="bg-surface px-3 py-1.5 text-sm text-muted">{{ audition.failure }}</span>
+    </p>
     <p
       v-if="split.splits.length === 0"
       role="status"

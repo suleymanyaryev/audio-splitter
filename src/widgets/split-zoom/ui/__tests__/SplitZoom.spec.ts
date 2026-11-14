@@ -1,9 +1,10 @@
-import { afterEach, beforeEach, describe, it, expect } from 'vitest'
+import { afterEach, beforeEach, describe, it, expect, vi, type MockInstance } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 
 import { enableAutoUnmount, mount } from '@vue/test-utils'
 import { useSourceFileStore } from '@/entities/source-file/model/source-file.ts'
 import { useSplitStore } from '@/entities/split/model/split.ts'
+import { useAuditionStore } from '../../model/audition.ts'
 import SplitZoom from '../SplitZoom.vue'
 
 /*
@@ -127,12 +128,128 @@ describe('SplitZoom', () => {
 
       const arrow = new KeyboardEvent('keydown', { key: 'ArrowRight', cancelable: true })
       handle.element.dispatchEvent(arrow)
-      const space = new KeyboardEvent('keydown', { key: ' ', cancelable: true })
-      handle.element.dispatchEvent(space)
+      const other = new KeyboardEvent('keydown', { key: 'a', cancelable: true })
+      handle.element.dispatchEvent(other)
 
       expect(arrow.defaultPrevented).toBe(true)
-      expect(space.defaultPrevented).toBe(false)
+      expect(other.defaultPrevented).toBe(false)
       expect(split.splits).toHaveLength(2)
+    })
+  })
+
+  describe('Space on the handle', () => {
+    it('plays or stops the audition, and does not scroll the page', () => {
+      const { wrapper } = setup()
+      const toggle = vi.spyOn(useAuditionStore(), 'toggle').mockImplementation(() => {})
+
+      const space = new KeyboardEvent('keydown', { key: ' ', cancelable: true })
+      wrapper.get('[role="slider"]').element.dispatchEvent(space)
+
+      expect(toggle).toHaveBeenCalledTimes(1)
+      expect(space.defaultPrevented).toBe(true)
+    })
+
+    it('does not toggle again while the key is held down', () => {
+      const { wrapper } = setup()
+      const toggle = vi.spyOn(useAuditionStore(), 'toggle').mockImplementation(() => {})
+
+      const repeat = new KeyboardEvent('keydown', { key: ' ', repeat: true, cancelable: true })
+      wrapper.get('[role="slider"]').element.dispatchEvent(repeat)
+
+      expect(toggle).not.toHaveBeenCalled()
+      expect(repeat.defaultPrevented).toBe(true)
+    })
+
+    it('leaves the split where it is', async () => {
+      const { split, wrapper } = setup()
+      vi.spyOn(useAuditionStore(), 'toggle').mockImplementation(() => {})
+
+      await wrapper.get('[role="slider"]').trigger('keydown', { key: ' ' })
+
+      expect(split.selectedSplit?.seconds).toBe(21)
+    })
+  })
+
+  describe('the playhead loop', () => {
+    let frames: FrameRequestCallback[]
+    let requestFrame: MockInstance<typeof requestAnimationFrame>
+    let cancelFrame: MockInstance<typeof cancelAnimationFrame>
+
+    beforeEach(() => {
+      frames = []
+      requestFrame = vi
+        .spyOn(globalThis, 'requestAnimationFrame')
+        .mockImplementation((callback) => {
+          frames.push(callback)
+          return frames.length
+        })
+      cancelFrame = vi.spyOn(globalThis, 'cancelAnimationFrame').mockImplementation(() => {})
+    })
+
+    afterEach(() => {
+      requestFrame.mockRestore()
+      cancelFrame.mockRestore()
+    })
+
+    it('asks for no frames while nothing plays', async () => {
+      const { wrapper } = setup()
+      useAuditionStore().status = 'loading'
+      await wrapper.vm.$nextTick()
+
+      expect(requestFrame).not.toHaveBeenCalled()
+    })
+
+    it('starts when the audition plays and asks for the next frame after each one', async () => {
+      const { wrapper } = setup()
+      useAuditionStore().status = 'playing'
+      await wrapper.vm.$nextTick()
+      expect(requestFrame).toHaveBeenCalledTimes(1)
+
+      frames[0]?.(0)
+      expect(requestFrame).toHaveBeenCalledTimes(2)
+    })
+
+    it('is cancelled when the audition leaves playing, and no further frame is asked for', async () => {
+      const { wrapper } = setup()
+      const audition = useAuditionStore()
+      audition.status = 'playing'
+      await wrapper.vm.$nextTick()
+      frames[0]?.(0)
+      const lastHandle = requestFrame.mock.results.at(-1)?.value
+
+      audition.status = 'idle'
+      await wrapper.vm.$nextTick()
+      expect(cancelFrame).toHaveBeenCalledWith(lastHandle)
+
+      requestFrame.mockClear()
+      frames.at(-1)?.(32)
+      expect(requestFrame).not.toHaveBeenCalled()
+    })
+
+    it('is cancelled when the view goes away while playing', async () => {
+      const { wrapper } = setup()
+      useAuditionStore().status = 'playing'
+      await wrapper.vm.$nextTick()
+
+      wrapper.unmount()
+
+      expect(cancelFrame).toHaveBeenCalledTimes(1)
+    })
+  })
+
+  describe('when the audition fails', () => {
+    it('shows the failure as a status line, and nothing when there is none', async () => {
+      const { wrapper } = setup()
+      expect(wrapper.find('[role="status"]').exists()).toBe(false)
+
+      useAuditionStore().failure = "Couldn't play this split: no sound"
+      await wrapper.vm.$nextTick()
+
+      expect(wrapper.get('[role="status"]').text()).toBe("Couldn't play this split: no sound")
+
+      useAuditionStore().failure = null
+      await wrapper.vm.$nextTick()
+      expect(wrapper.find('[role="status"]').exists()).toBe(false)
     })
   })
 
