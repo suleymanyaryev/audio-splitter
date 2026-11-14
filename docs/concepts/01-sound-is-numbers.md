@@ -38,8 +38,8 @@ This milestone decodes the whole file in one call, which is fine for the 30 s fi
 - [`e2e/fixtures/make-fixtures.sh`](../../e2e/fixtures/make-fixtures.sh): makes the 30 s test files (three tone bursts, two 2 s silences), one per supported format plus a Vorbis `.ogg`.
 - [`src/shared/api/ffmpeg/ffmpeg.ts`](../../src/shared/api/ffmpeg/ffmpeg.ts): loads ffmpeg.wasm, mounts the file read-only, a timeout on every call.
 - [`src/entities/source-file/api/probe.ts`](../../src/entities/source-file/api/probe.ts): reads duration, rate, channels, container and codec from ffmpeg's log; decides the supported format.
-- [`src/entities/source-file/api/decode-whole-file.ts`](../../src/entities/source-file/api/decode-whole-file.ts): one `f32le` decode at the file's own rate.
+- `src/entities/source-file/api/decode-whole-file.ts`: one `f32le` decode at the file's own rate. Removed in milestone 2: `decode-slice.ts` decodes a slice at a time.
 - [`src/shared/lib/audio/downmix.ts`](../../src/shared/lib/audio/downmix.ts): the channel average.
-- [`src/shared/lib/audio/min-max-peaks.ts`](../../src/shared/lib/audio/min-max-peaks.ts): min/max per 10 ms bucket.
+- `src/shared/lib/audio/min-max-peaks.ts`: min/max per 10 ms bucket. Replaced in milestone 2 by `peaks-builder.ts`, which is fed slice by slice.
 - [`src/entities/source-file/model/source-file.ts`](../../src/entities/source-file/model/source-file.ts): the store holding the file, its format, duration and peaks.
 - [`src/widgets/source-waveform/`](../../src/widgets/source-waveform/): merges buckets into bars and draws them.
