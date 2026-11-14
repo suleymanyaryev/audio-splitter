@@ -365,7 +365,7 @@ Reka `SliderRoot` / `SliderTrack` / `SliderRange` / `SliderThumb`; focus and ARI
 - **Root:** `relative flex h-5 min-w-32 flex-1 items-center`; the width comes from the context, set on the component (`class="w-72"`) and shared by name, track and readout; disabled: `data-disabled:opacity-40`.
 - **Track:** `relative h-1 w-full rounded-full bg-hairline`. **Range:** `absolute h-1 rounded-full bg-ink` (Reka sets its ends).
 - **Thumb:** `block size-4 cursor-grab rounded-full border-2 border-surface bg-ink not-data-disabled:hover:size-5 data-disabled:cursor-not-allowed focus-visible:focus-ring` (Reka positions the thumb; no manual translate). Hover grows it from 16 to 20 px; keyboard focus adds the ink ring.
-- **Readout:** the current value sits to the right in Label style (`w-14 text-right font-semibold whitespace-nowrap text-ink`, e.g. "1.0 s", "−35 dB"; 56 px keeps "−100 dB" on one line and stops the track from shifting as the value changes); the setting's name sits to the left in `muted`, `whitespace-nowrap`.
+- **Readout:** the current value sits to the right in Label style (`w-18 text-right font-semibold whitespace-nowrap text-ink`, e.g. "1.0 s", "−31.7 dB"; 72 px keeps "−31.7 dB" on one line and stops the track from shifting as the value changes); the setting's name sits to the left in `muted`, `whitespace-nowrap`.
 
 ### Panel
 
@@ -396,19 +396,22 @@ Reka `AlertDialog`: the confirm before a setting change or "New file" replaces e
 ### Track strip and track blocks
 
 - **Strip:** `flex h-14 gap-1.5 rounded-control bg-land`: the land shows between blocks, so each 6px gap is a land.
-- **Block:** `flex min-w-0 flex-col justify-center gap-0.5 rounded-control bg-track px-3 text-on-track`, width proportional to the track's duration (`flex: <seconds>`). Name in Label (`truncate font-semibold`), duration below in Caption, both in full `on-track`.
+- **Block:** `flex min-w-0 flex-none flex-col justify-center gap-0.5 rounded-control bg-track text-on-track`, with an inline pixel width from `layoutTrackBlocks`: proportional to the track's duration, after the 6px lands between blocks, and never under 4px (a very short track stays a visible sliver, and the others share what is left). Every block carries its name and length in `title` and `aria-label`.
+- **Text by width:** from 32px a block shows its name in Label (`truncate font-semibold`, `text-sm`); from 72px it also shows the duration below in Caption (`truncate text-xs`), both in full `on-track`. Padding follows what the block shows: `px-3` with name and duration, `px-1.5` with the name only, none for a sliver, which is a plain `track` block with no text.
 
 ### Split number and selected row
 
 - The selected split's number is a filled vermilion chip wherever it appears: `inline-flex size-5 items-center justify-center rounded-full bg-split text-xs font-bold text-on-split`. Other split numbers in lists are plain `text-muted` in the same 20px box.
 - Table rows are separated by `border-b border-hairline` with 6px vertical padding; the selected row takes `bg-land/50 font-semibold`.
+- **Track-list table:** `w-full border-separate border-spacing-0 text-left text-sm` inside a 160px (`h-40`) box that scrolls inside itself. The heading row is Caption in weight 500 and `muted` (`text-xs font-medium text-muted`); each `th` is `sticky top-0 border-b border-hairline bg-surface py-1` (`pr-2` except the last, `w-12` for the number column), so the headings stay in view over the scrolling rows. Cells are `border-b border-hairline py-1.5` (`pr-2` except the last).
 
 ### Canvas drawing rules (signature)
 
 The whole-file waveform, the loudness curve and the zoom view are hand-drawn canvases inside their widgets, not kit components. They read colours from the same tokens with `getComputedStyle(document.documentElement).getPropertyValue('--color-…')`, scale by `devicePixelRatio`, draw once `document.fonts.ready` resolves, and redraw on resize and when `matchMedia('(prefers-color-scheme: dark)')` changes. Canvas text is `700 12px Manrope`.
 
 - **Wave:** groove-grey (`wave`) vertical bars, 2px wide on a 3px pitch, symmetric about the centre line.
-- **Land:** a gap is a `land` band with no waveform in it. In whole-file views a 2 s gap is sub-pixel, so a land is drawn at least 12px wide, centred on its split.
+- **Whole-file canvas:** 120px tall in all: a 22px split-number band above a 98px wave area. Lands and split lines cover the wave area only. The loudness curve's canvas is also 120px, with lands and split lines over its full height.
+- **Land:** a gap is a `land` band with no waveform in it. In whole-file views a 2 s gap is sub-pixel, so a land is drawn at least 12px wide, centred on its split. A land that is widened shifts inwards only as far as the canvas edge needs. A lead-in or run-out land has no split, so it grows from its canvas edge (a lead-in from the left, a run-out from the right). Widened neighbours may overlap: lands are one flat colour, so overlapping ones read as one band, and each split line stays at its own time.
 - **Split line:** `split`, 1.5px wide, the full height of the wave area. The selected split is 3px wide.
 - **Split numbers (whole-file view):** a 22px band above the waveform carries each split's number, centred on its line, in `split`. The selected split's number sits in a filled vermilion circle (20px) with the number in `on-split`.
 - **Zoom window (whole-file view):** the stretch shown in the zoom view, outlined in 1.5px `ink`, the height of the wave area. It matches the zoom view's own frame.

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 
-import { createLoudnessBuilder } from '../loudness-builder.ts'
+import { createLoudnessBuilder, loudnessWindowSeconds } from '../loudness-builder.ts'
 
 function loudnessOf(pieces: Float32Array[], sampleRate: number) {
   const builder = createLoudnessBuilder(sampleRate)
@@ -140,5 +140,18 @@ describe('createLoudnessBuilder', () => {
 
     expect(whole).toHaveLength(2399)
     expect(slices).toEqual(whole)
+  })
+})
+
+describe('loudnessWindowSeconds', () => {
+  it('is 50 ms at 44.1 and 48 kHz', () => {
+    expect(loudnessWindowSeconds(44_100)).toBeCloseTo(0.05, 12)
+    expect(loudnessWindowSeconds(48_000)).toBeCloseTo(0.05, 12)
+  })
+
+  it('is the time of a whole number of samples at an odd rate', () => {
+    // 22.05 kHz: 50 ms is 1102.5 samples, so a window is 1103 samples, a little over 50 ms.
+    expect(loudnessWindowSeconds(22_050)).toBeCloseTo(1103 / 22_050, 12)
+    expect(loudnessWindowSeconds(22_050)).toBeGreaterThan(0.05)
   })
 })
