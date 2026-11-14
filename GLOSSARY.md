@@ -40,6 +40,14 @@ _Avoid_: Current split, active split, focused split
 The 20 second stretch of the source file around a centre time that the zoom view shows, outlined on the whole-file view.
 _Avoid_: Viewport, zoom range, visible range
 
+**Audition**:
+Hearing the 8 seconds across the selected split (4 before it, 4 after) to judge where the cut falls. The user starts and stops it with "Play across split"; moving or changing the selection ends it.
+_Avoid_: Preview, playback
+
+**Playhead**:
+The 1 px line in the zoom view that marks the point in the source file being heard during an audition.
+_Avoid_: Cursor, scrubber, position marker
+
 **Loudness curve**:
 The loudness of the source file over time, one value in decibels per short window.
 _Avoid_: Energy curve, RMS curve, volume graph

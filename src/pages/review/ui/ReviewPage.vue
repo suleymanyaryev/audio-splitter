@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onUnmounted, useTemplateRef } from 'vue'
-import { Download, Play, Plus } from 'lucide-vue-next'
+import { Download, Play, Plus, Square } from 'lucide-vue-next'
 
 import { useSourceFileStore } from '@/entities/source-file/model/source-file.ts'
 import { useSplitStore } from '@/entities/split/model/split.ts'
@@ -10,26 +10,30 @@ import LoudnessCurve from '@/widgets/loudness-curve/ui/LoudnessCurve.vue'
 import LoudnessSettings from '@/widgets/loudness-curve/ui/LoudnessSettings.vue'
 import SourceWaveform from '@/widgets/source-waveform/ui/SourceWaveform.vue'
 import { zoomTitle } from '@/widgets/split-zoom/lib/zoom-title.ts'
+import { useAuditionStore } from '@/widgets/split-zoom/model/audition.ts'
 import SplitZoom from '@/widgets/split-zoom/ui/SplitZoom.vue'
 import TrackList from '@/widgets/track-list/ui/TrackList.vue'
 import TrackStrip from '@/widgets/track-strip/ui/TrackStrip.vue'
 
 /*
 The review screen: each panel at its fixed canvas height, with the controls it holds. Every panel
-is filled; the buttons that need later milestones (playing across a split, export) stay disabled
-until then.
+is filled; "Play across split" plays the selected split's clip (and reads "Stop" while it loads or
+plays), and only export, which needs a later milestone, stays disabled until then.
 
 The page mounts only once the source file is ready (src/app/App.vue), which is when the split store
 looks for the gaps in its loudness curve, once; the split store cannot import the source-file store.
 */
 const sourceFile = useSourceFileStore()
 const split = useSplitStore()
+const audition = useAuditionStore()
 
 const { loudness, loudnessWindowSeconds, durationSeconds } = sourceFile
 if (loudness && loudnessWindowSeconds !== null && durationSeconds !== null) {
   split.detect(loudness, { windowSeconds: loudnessWindowSeconds, durationSeconds })
 }
 onUnmounted(() => {
+  // First, so that no clip is left playing over a page that has no split to show.
+  audition.stop()
   split.reset()
 })
 
@@ -63,9 +67,20 @@ const title = computed(() => zoomTitle(split.selectedSplit?.seconds ?? null, spl
           <Plus class="size-4 shrink-0" />
           Add split
         </UiButton>
-        <UiButton variant="primary" size="sm" disabled>
-          <Play class="size-4 shrink-0" fill="currentColor" :stroke-width="0" />
-          Play across split
+        <UiButton
+          variant="primary"
+          size="sm"
+          :disabled="split.selectedSplit === null && !audition.isActive"
+          @click="audition.toggle()"
+        >
+          <Square
+            v-if="audition.isActive"
+            class="size-4 shrink-0"
+            fill="currentColor"
+            :stroke-width="0"
+          />
+          <Play v-else class="size-4 shrink-0" fill="currentColor" :stroke-width="0" />
+          {{ audition.isActive ? 'Stop' : 'Play across split' }}
         </UiButton>
       </template>
       <SplitZoom ref="zoom" />

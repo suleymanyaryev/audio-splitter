@@ -8,6 +8,7 @@ import {
   loudnessWindowSeconds as windowSecondsAt,
 } from '@/shared/lib/audio/loudness-builder.ts'
 import { createPeaksBuilder } from '@/shared/lib/audio/peaks-builder.ts'
+import { decodeClip } from '../api/decode-clip.ts'
 import { decodeSlice, sliceCount } from '../api/decode-slice.ts'
 import { probe, type SupportedFormat } from '../api/probe.ts'
 
@@ -15,6 +16,23 @@ export type LoadFailure =
   | { kind: 'unsupported'; message: string }
   // `step` is "probe" or "slice 41 of 62".
   | { kind: 'failed'; step: string; reason: string }
+
+// Exported so a caller can tell this rejection (nothing to report) from a clip that really failed.
+export class FileReplacedError extends Error {
+  constructor() {
+    super('The file was replaced before the clip was ready')
+    this.name = 'FileReplacedError'
+  }
+}
+
+// Waits for a clip's end however it ends: its caller gets the error, and the next clip goes on.
+async function settled(promise: Promise<unknown>) {
+  try {
+    await promise
+  } catch {
+    // Reported to the caller of that clip.
+  }
+}
 
 /*
 The one source file being worked on, and what the analysis keeps of it. The file is decoded one
@@ -44,11 +62,22 @@ export const useSourceFileStore = defineStore('source-file', () => {
 
   // Counts loads, so a load that finishes after "New file" or a newer load changes nothing.
   let currentLoad = 0
-  // The ffmpeg session of the current load, so `cancel` can reach its worker.
+  /*
+  The ffmpeg session of the current load. It stays open once the file is ready, so a clip reuses
+  the loaded core (see the concept note, docs/concepts/06-seeking-compressed-audio.md), and
+  `reset` and `cancel` close it.
+  */
   let session: FfmpegSession | undefined
+  /*
+  The end of the latest clip call. One ffmpeg worker runs one command at a time, and the
+  session's log buffer belongs to one call, so each clip waits for the one before it.
+  */
+  let clipQueue: Promise<unknown> = Promise.resolve()
 
   function reset() {
     currentLoad++
+    session?.close()
+    session = undefined
     status.value = 'empty'
     file.value = null
     format.value = null
@@ -65,7 +94,6 @@ export const useSourceFileStore = defineStore('source-file', () => {
   // of; that load is stale by then, so the rejection is not reported as a failure.
   function cancel() {
     reset()
-    session?.close()
   }
 
   async function load(chosen: File) {
@@ -76,6 +104,7 @@ export const useSourceFileStore = defineStore('source-file', () => {
     status.value = 'loading'
 
     let ffmpeg: FfmpegSession | undefined
+    let isKept = false
     let step = 'probe'
     try {
       ffmpeg = await openFfmpeg(chosen)
@@ -112,15 +141,46 @@ export const useSourceFileStore = defineStore('source-file', () => {
       loudness.value = loudnessBuilder.finish()
       loudnessWindowSeconds.value = windowSecondsAt(probed.sampleRate)
       status.value = 'ready'
+      isKept = true
     } catch (error) {
       if (isStale()) return
       fail({ kind: 'failed', step, reason: error instanceof Error ? error.message : String(error) })
     } finally {
-      // A fresh worker per file, and none left running after a failure.
-      ffmpeg?.close()
-      // A newer load may have its own session by now.
-      if (session === ffmpeg) session = undefined
+      if (!isKept) {
+        /*
+        A fresh worker per file, and none left running after a failure or a cancel. A cancel
+        closed it already; closing twice is harmless.
+        */
+        ffmpeg?.close()
+        // A newer load may have its own session by now.
+        if (session === ffmpeg) session = undefined
+      }
     }
+  }
+
+  /*
+  Decodes the 8 s around a split in the open session. A clip whose file was reset or replaced
+  while it waited or decoded rejects, because the audio it would hand back is the old file's.
+  */
+  async function clip(splitSeconds: number) {
+    const open = session
+    const duration = durationSeconds.value
+    if (!open || duration === null || status.value !== 'ready') {
+      throw new Error('No file is ready to play')
+    }
+    const thisLoad = currentLoad
+    const isStale = () => thisLoad !== currentLoad
+    const previous = clipQueue
+
+    const turn = (async () => {
+      await previous
+      if (isStale()) throw new FileReplacedError()
+      const decoded = await decodeClip(open, splitSeconds, duration)
+      if (isStale()) throw new FileReplacedError()
+      return decoded
+    })()
+    clipQueue = settled(turn)
+    return turn
   }
 
   function fail(what: LoadFailure) {
@@ -140,6 +200,7 @@ export const useSourceFileStore = defineStore('source-file', () => {
     slicesDone,
     sliceTotal,
     load,
+    clip,
     cancel,
     reset,
   }

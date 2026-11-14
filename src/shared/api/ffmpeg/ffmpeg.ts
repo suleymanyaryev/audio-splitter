@@ -40,18 +40,21 @@ const FILE_TIMEOUT_MS = 10_000
 A call into ffmpeg's worker can hang without ever answering, so every call races a watchdog.
 Terminating is the only thing that really stops the worker. The watchdog rejects before it
 terminates, because terminating rejects the pending call with a less useful message of its own.
+`onTerminate` tells the session that its worker is gone, so the next run starts a fresh one.
 */
 async function watched<T>(
   ffmpeg: FFmpeg,
   call: Promise<T>,
   timeoutMs: number,
   what: string,
+  onTerminate: () => void,
 ): Promise<T> {
   let watchdog: ReturnType<typeof setTimeout> | undefined
   const timedOut = new Promise<never>((_, reject) => {
     watchdog = setTimeout(() => {
       reject(new Error(`ffmpeg did not finish ${what} within ${timeoutMs / 1000} s`))
       ffmpeg.terminate()
+      onTerminate()
     }, timeoutMs)
   })
   try {
@@ -72,8 +75,10 @@ const CALLS_PER_WORKER = 20
 Loads the core and mounts the file with WORKERFS, which reads only the bytes ffmpeg asks for
 instead of copying the whole file into memory.
 
-The session replaces its worker before the 21st call, the 41st and so on, and callers never see
-it: the file is mounted again at the same path.
+The session replaces its worker before the 21st call, the 41st and so on, and also before the
+first call after a watchdog terminated the worker (the session outlives a hung call, so later
+calls must not meet the dead worker). Callers never see it: the file is mounted again at the same
+path. After `close` no worker starts again and `run` fails.
 */
 export async function openFfmpeg(file: File): Promise<FfmpegSession> {
   const name = inputName(file)
@@ -81,6 +86,12 @@ export async function openFfmpeg(file: File): Promise<FfmpegSession> {
   // The current worker and how many `run` calls it has served.
   let ffmpeg: FFmpeg
   let calls = 0
+  // Set when a watchdog terminated the current worker, until a fresh one is up.
+  let hasLostWorker = false
+  let isClosed = false
+  const markTerminated = () => {
+    hasLostWorker = true
+  }
 
   async function startWorker() {
     const worker = new FFmpeg()
@@ -93,13 +104,26 @@ export async function openFfmpeg(file: File): Promise<FfmpegSession> {
       if (message !== 'Aborted()') log.push(message)
     })
 
-    await watched(worker, worker.load({ coreURL, wasmURL }), LOAD_TIMEOUT_MS, 'loading')
-    await watched(worker, worker.createDir(INPUT_DIRECTORY), FILE_TIMEOUT_MS, 'creating /in')
+    await watched(
+      worker,
+      worker.load({ coreURL, wasmURL }),
+      LOAD_TIMEOUT_MS,
+      'loading',
+      markTerminated,
+    )
+    await watched(
+      worker,
+      worker.createDir(INPUT_DIRECTORY),
+      FILE_TIMEOUT_MS,
+      'creating /in',
+      markTerminated,
+    )
     await watched(
       worker,
       worker.mount(FFFSType.WORKERFS, { blobs: [{ name, data: file }] }, INPUT_DIRECTORY),
       FILE_TIMEOUT_MS,
       'mounting the file',
+      markTerminated,
     )
   }
 
@@ -109,24 +133,47 @@ export async function openFfmpeg(file: File): Promise<FfmpegSession> {
     inputPath: `${INPUT_DIRECTORY}/${name}`,
 
     async run(command, timeoutMs) {
-      if (calls >= CALLS_PER_WORKER) {
+      if (isClosed) throw new Error('The ffmpeg session is closed')
+      if (hasLostWorker || calls >= CALLS_PER_WORKER) {
         ffmpeg.terminate()
+        // Stays set if the start fails, so the next run tries again.
+        hasLostWorker = true
         await startWorker()
+        hasLostWorker = false
       }
       calls++
       log = []
-      const exitCode = await watched(ffmpeg, ffmpeg.exec(command), timeoutMs, 'the command')
+      const exitCode = await watched(
+        ffmpeg,
+        ffmpeg.exec(command),
+        timeoutMs,
+        'the command',
+        markTerminated,
+      )
       return { exitCode, log }
     },
 
     async takeFile(path) {
-      const data = await watched(ffmpeg, ffmpeg.readFile(path), FILE_TIMEOUT_MS, `reading ${path}`)
-      await watched(ffmpeg, ffmpeg.deleteFile(path), FILE_TIMEOUT_MS, `deleting ${path}`)
+      const data = await watched(
+        ffmpeg,
+        ffmpeg.readFile(path),
+        FILE_TIMEOUT_MS,
+        `reading ${path}`,
+        markTerminated,
+      )
+      await watched(
+        ffmpeg,
+        ffmpeg.deleteFile(path),
+        FILE_TIMEOUT_MS,
+        `deleting ${path}`,
+        markTerminated,
+      )
       if (typeof data === 'string') throw new TypeError(`${path} came back as text`)
       return data
     },
 
     close() {
+      isClosed = true
       ffmpeg.terminate()
     },
   }
