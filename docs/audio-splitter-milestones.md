@@ -102,7 +102,7 @@ The real samples (`samples/sample1.{m4a,mp3,opus}`, 1 h 01 min, git-ignored) are
 - The loudness curve (a `Float32Array` of dB) kept in the `source-file` store next to the peaks, and nothing else ([Decode path and hand-written steps][07]).
 - The `loudness-curve` panel below the whole-file view, on the same time axis, with the 14 % fill from DESIGN.md.
 
-**Try it.** On `sample1.m4a`, music sits around −15 dB and the gaps dip to −30 to −40 dB.
+**Try it.** On `sample1.m4a`, music sits around −17 dB (the curve's median is −16.72 dB) and the gaps dip below −30 dB, the long ones to −54 to −63 dB.
 
 **Left for later.** The threshold line and anything that finds gaps.
 

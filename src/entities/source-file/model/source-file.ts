@@ -3,6 +3,7 @@ import { defineStore } from 'pinia'
 
 import { openFfmpeg, type FfmpegSession } from '@/shared/api/ffmpeg/ffmpeg.ts'
 import { downmix } from '@/shared/lib/audio/downmix.ts'
+import { createLoudnessBuilder } from '@/shared/lib/audio/loudness-builder.ts'
 import { createPeaksBuilder } from '@/shared/lib/audio/peaks-builder.ts'
 import { decodeSlice, sliceCount } from '../api/decode-slice.ts'
 import { probe, type SupportedFormat } from '../api/probe.ts'
@@ -15,7 +16,7 @@ export type LoadFailure =
 /*
 The one source file being worked on, and what the analysis keeps of it. The file is decoded one
 slice at a time (60 s, or 300 s for an MP3), and each slice's samples are thrown away as soon as
-the peaks have taken what they need: only the small summary stays.
+the peaks and the loudness curve have taken what they need: only the small summaries stay.
 */
 export const useSourceFileStore = defineStore('source-file', () => {
   const status = ref<'empty' | 'loading' | 'ready' | 'failed'>('empty')
@@ -25,6 +26,9 @@ export const useSourceFileStore = defineStore('source-file', () => {
   // [min, max] of the mono downmix per bucket of round(rate / 100) samples: exactly 10 ms at
   // 44.1 and 48 kHz (see shared/lib/audio/peaks-builder.ts).
   const peaks = shallowRef<Float32Array | null>(null)
+  // dB of the mono downmix per window of round(rate × 0.05) samples: 50 ms at 44.1 and 48 kHz; -100 dB
+  // is the floor (see shared/lib/audio/loudness-builder.ts).
+  const loudness = shallowRef<Float32Array | null>(null)
   const failure = ref<LoadFailure | null>(null)
   // Progress, in slices (the probe is not counted): "38 / 62 slices". Both are 0 when empty.
   const slicesDone = ref(0)
@@ -42,6 +46,7 @@ export const useSourceFileStore = defineStore('source-file', () => {
     format.value = null
     durationSeconds.value = null
     peaks.value = null
+    loudness.value = null
     failure.value = null
     slicesDone.value = 0
     sliceTotal.value = 0
@@ -83,15 +88,19 @@ export const useSourceFileStore = defineStore('source-file', () => {
 
       const total = sliceCount(probed.durationSeconds, probed.format)
       sliceTotal.value = total
-      const builder = createPeaksBuilder(probed.sampleRate)
+      const peaksBuilder = createPeaksBuilder(probed.sampleRate)
+      const loudnessBuilder = createLoudnessBuilder(probed.sampleRate)
       for (let index = 0; index < total; index++) {
         step = `slice ${index + 1} of ${total}`
         const pcm = await decodeSlice(ffmpeg, index, probed.format)
         if (isStale()) return
-        builder.push(downmix(pcm, probed.channelCount))
+        const mono = downmix(pcm, probed.channelCount)
+        peaksBuilder.push(mono)
+        loudnessBuilder.push(mono)
         slicesDone.value = index + 1
       }
-      peaks.value = builder.finish()
+      peaks.value = peaksBuilder.finish()
+      loudness.value = loudnessBuilder.finish()
       status.value = 'ready'
     } catch (error) {
       if (isStale()) return
@@ -115,6 +124,7 @@ export const useSourceFileStore = defineStore('source-file', () => {
     format,
     durationSeconds,
     peaks,
+    loudness,
     failure,
     slicesDone,
     sliceTotal,

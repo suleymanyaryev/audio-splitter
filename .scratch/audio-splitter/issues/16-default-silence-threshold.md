@@ -15,3 +15,9 @@ Resolved 2026-11-13 by grilling; the user accepted every recommendation.
 - **Relative default.** The silence threshold starts at the loudness curve's median minus a fixed offset in dB, computed once per file when analysis ends, and the Slider starts there. On `sample1.m4a` (music around −14.8 dB, gaps at −30 to −40 dB) an offset of about 15 dB lands near −30 dB. A fixed default would only suit files mastered at one loudness.
 - **The numbers are calibrated in the detection milestone**, with the user, on `sample1.m4a`, `sample1.mp3` and `sample1.opus`, comparing the proposed splits with what the user hears. That calibration is part of the lesson. Starting points: offset about 15 dB, minimum gap length about 1 s.
 - After the first detection the Slider is a plain value; moving it does not re-derive anything.
+
+## Comments
+
+### 2026-11-14: measured by the loudness milestone
+
+The "music around −14.8 dB" above is ffmpeg's `volumedetect` mean (`mean_volume`), not the curve's median. Measured on `sample1.m4a` with the app's own curve (50 ms windows of the mono downmix, [note 03](../../../docs/concepts/03-loudness.md)): median **−16.72 dB**, so an offset of 15 dB starts the threshold near **−31.7 dB**. The "−30 to −40 dB" is where the curve crosses on its way into a gap; the long gaps bottom out at −54 to −63 dB. The decision is unchanged; the numbers are still calibrated in the detection milestone.
