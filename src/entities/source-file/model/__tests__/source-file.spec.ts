@@ -10,6 +10,7 @@ import {
   vorbisProbeLog,
 } from '@/shared/api/ffmpeg/__tests__/fake-ffmpeg.ts'
 import { downmix } from '@/shared/lib/audio/downmix.ts'
+import { createLoudnessBuilder } from '@/shared/lib/audio/loudness-builder.ts'
 import { createPeaksBuilder } from '@/shared/lib/audio/peaks-builder.ts'
 import { useSourceFileStore } from '../source-file.ts'
 
@@ -48,6 +49,21 @@ describe('the source-file store', () => {
     expect(store.peaks?.[1]).toBeCloseTo(0.5, 2)
     expect(store.peaks?.[2 * 199 + 1]).toBe(0)
     expect(session.close).toHaveBeenCalled()
+  })
+
+  it('keeps a loudness curve of 50 ms windows: loud in the tone, -100 dB in the silence', async () => {
+    // 1 s of tone then 1 s of silence: 20 windows of 50 ms each. A sine of amplitude 0.5 has an
+    // RMS of 0.5 / sqrt(2), which is -9.03 dB.
+    vi.mocked(openFfmpeg).mockResolvedValue(
+      fakeFfmpegSession({ probeLog: m4aProbeLog(2), pcm: toneThenSilencePcm(44_100, 1, 0.5) }),
+    )
+    const store = useSourceFileStore()
+
+    await store.load(file)
+
+    expect(store.loudness).toHaveLength(2 * 20)
+    expect(store.loudness?.[5]).toBeCloseTo(-9.03, 1)
+    expect(store.loudness?.[2 * 20 - 1]).toBe(-100)
   })
 
   it('names what an unsupported file is and does not decode it', async () => {
@@ -115,6 +131,12 @@ describe('the source-file store', () => {
     builder.push(downmix(whole, 2))
     expect(store.peaks).toEqual(builder.finish())
     expect(store.peaks).toHaveLength(15_000 * 2)
+    // 150 s is 3000 windows of 50 ms. The slices end on whole windows here (60 s is 1200), so the
+    // curve of the whole and the curve slice by slice are the same.
+    const loudness = createLoudnessBuilder(44_100)
+    loudness.push(downmix(whole, 2))
+    expect(store.loudness).toEqual(loudness.finish())
+    expect(store.loudness).toHaveLength(3000)
     expect(store.status).toBe('ready')
   })
 
@@ -177,6 +199,7 @@ describe('the source-file store', () => {
       reason: 'Error while decoding stream',
     })
     expect(store.peaks).toBeNull()
+    expect(store.loudness).toBeNull()
   })
 
   it('returns to empty on cancel during a slice, and the stopped call is not a failure', async () => {
@@ -208,6 +231,7 @@ describe('the source-file store', () => {
     expect(store.failure).toBeNull()
     expect(store.file).toBeNull()
     expect(store.peaks).toBeNull()
+    expect(store.loudness).toBeNull()
     expect(store.slicesDone).toBe(0)
     expect(store.sliceTotal).toBe(0)
   })
@@ -251,5 +275,24 @@ describe('the source-file store', () => {
     expect(store.status).toBe('empty')
     expect(store.file).toBeNull()
     expect(store.peaks).toBeNull()
+    expect(store.loudness).toBeNull()
+  })
+
+  it('clears the loudness curve of the previous file when a new load starts', async () => {
+    vi.mocked(openFfmpeg).mockResolvedValue(
+      fakeFfmpegSession({ probeLog: m4aProbeLog(2), pcm: toneThenSilencePcm(44_100, 1, 0.5) }),
+    )
+    const store = useSourceFileStore()
+    await store.load(file)
+    expect(store.loudness).not.toBeNull()
+    // The second file's probe never answers by itself, so the load stays in progress.
+    const second = fakeFfmpegSession({ probeLog: m4aProbeLog(2) })
+    second.run.mockImplementation(() => new Promise(() => {}))
+    vi.mocked(openFfmpeg).mockResolvedValue(second)
+
+    void store.load(new File(['y'], 'second.m4a'))
+
+    expect(store.status).toBe('loading')
+    expect(store.loudness).toBeNull()
   })
 })

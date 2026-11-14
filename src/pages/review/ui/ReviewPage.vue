@@ -4,12 +4,13 @@ import { Download, Play, Plus } from 'lucide-vue-next'
 import UiButton from '@/shared/ui/UiButton.vue'
 import UiPanel from '@/shared/ui/UiPanel.vue'
 import UiSlider from '@/shared/ui/UiSlider.vue'
+import LoudnessCurve from '@/widgets/loudness-curve/ui/LoudnessCurve.vue'
 import SourceWaveform from '@/widgets/source-waveform/ui/SourceWaveform.vue'
 
 /*
 The review screen: each panel at its fixed canvas height, with the controls it will hold. Only
-the whole-file waveform is filled so far; the other controls stay disabled until later milestones
-swap each panel for its widget.
+the whole-file waveform and the loudness curve are filled so far; the other controls stay disabled
+until later milestones swap each panel for its widget.
 */
 </script>
 
@@ -26,7 +27,7 @@ swap each panel for its widget.
           <UiSlider :model-value="0" label="Minimum gap length" readout="–" disabled class="w-72" />
         </div>
       </template>
-      <div class="h-30" />
+      <LoudnessCurve />
     </UiPanel>
 
     <UiPanel title="Split" class="col-span-8">
