@@ -14,8 +14,8 @@ export type LoadFailure =
 
 /*
 The one source file being worked on, and what the analysis keeps of it. The file is decoded one
-60 s slice at a time, and each slice's samples are thrown away as soon as the peaks have taken
-what they need: only the small summary stays.
+slice at a time (60 s, or 300 s for an MP3), and each slice's samples are thrown away as soon as
+the peaks have taken what they need: only the small summary stays.
 */
 export const useSourceFileStore = defineStore('source-file', () => {
   const status = ref<'empty' | 'loading' | 'ready' | 'failed'>('empty')
@@ -81,12 +81,12 @@ export const useSourceFileStore = defineStore('source-file', () => {
       format.value = probed.format
       durationSeconds.value = probed.durationSeconds
 
-      const total = sliceCount(probed.durationSeconds)
+      const total = sliceCount(probed.durationSeconds, probed.format)
       sliceTotal.value = total
       const builder = createPeaksBuilder(probed.sampleRate)
       for (let index = 0; index < total; index++) {
         step = `slice ${index + 1} of ${total}`
-        const pcm = await decodeSlice(ffmpeg, index)
+        const pcm = await decodeSlice(ffmpeg, index, probed.format)
         if (isStale()) return
         builder.push(downmix(pcm, probed.channelCount))
         slicesDone.value = index + 1

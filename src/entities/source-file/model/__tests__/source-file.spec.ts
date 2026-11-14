@@ -5,6 +5,7 @@ import { openFfmpeg } from '@/shared/api/ffmpeg/ffmpeg.ts'
 import {
   fakeFfmpegSession,
   m4aProbeLog,
+  mp3ProbeLog,
   toneThenSilencePcm,
   vorbisProbeLog,
 } from '@/shared/api/ffmpeg/__tests__/fake-ffmpeg.ts'
@@ -114,6 +115,23 @@ describe('the source-file store', () => {
     builder.push(downmix(whole, 2))
     expect(store.peaks).toEqual(builder.finish())
     expect(store.peaks).toHaveLength(15_000 * 2)
+    expect(store.status).toBe('ready')
+  })
+
+  it('decodes an MP3 in slices of 300 s', async () => {
+    // 650 s is 300 s, 300 s and 50 s.
+    const session = fakeFfmpegSession({ probeLog: mp3ProbeLog(650), pcmForSlice: slicePcm })
+    vi.mocked(openFfmpeg).mockResolvedValue(session)
+    const store = useSourceFileStore()
+
+    await store.load(file)
+
+    const seeks = session.run.mock.calls
+      .slice(1)
+      .map(([command]) => (command.includes('-ss') ? command[command.indexOf('-ss') + 1] : null))
+    expect(seeks).toEqual([null, '299', '599'])
+    expect(store.sliceTotal).toBe(3)
+    expect(store.slicesDone).toBe(3)
     expect(store.status).toBe('ready')
   })
 

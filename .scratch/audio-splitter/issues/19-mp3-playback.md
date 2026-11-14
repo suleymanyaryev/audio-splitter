@@ -17,3 +17,7 @@ Resolved 2026-11-13 by grilling; the user accepted every recommendation and, aft
 - **Faster cut for `.mp3` and `.opus`**: `-ss START-2 -i input -ss 2 -t LENGTH -c copy` (rough input seek, then exact output seek; `-t`, never `-to`). Same cut positions as before, MP3 byte-identical; Opus cuts drop from up to 1.3 s to about 0.1 s. `.m4a` keeps its command. Amends [Stream-copy splitting per format](03-stream-copy-splitting-per-format.md).
 - **Slow decode of long MP3 files is accepted for v1.** ffmpeg seeks an MP3 by reading from the start, so decode time grows with the square of the length (inferred about 100 s for 3 h). The progress bar shows it, it happens once per file, and the 60 s slice stays one constant for all formats. Longer MP3 slices are measured only if the user's own 3 h MP3 proves too slow, in the decode milestone.
 - **`.opus` passes.** The user heard nothing at the six flagged starts, so all three supported formats are in v1.
+
+## Comments
+
+2026-11-14: The decode milestone measured longer MP3 slices (Chrome, M4 Pro, 24 GB, one run per cell), and the user chose **300 s slices for MP3 only**; `.m4a` and `.opus` stay at 60 s. A 3 h MP3 takes 39.0 s instead of 133.1 s (+931 MB instead of +1,142 MB), and a 1 h MP3 9.0 s instead of 18.1 s. For `.m4a` and `.opus` longer slices only cost memory (3 h `.m4a` 17.6 s to 16.1 s but +507 MB to +1,084 MB). This replaces "the 60 s slice stays one constant for all formats" in the Answer; the numbers are in `docs/concepts/02-long-files.md`, "Longer MP3 slices".

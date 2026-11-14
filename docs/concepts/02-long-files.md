@@ -1,13 +1,13 @@
 # 02 · Long files
 
-Milestone 1 decoded the whole file in one go. That is fine for a 30 s fixture and wrong for an hour of music: the numbers do not fit in memory. This milestone reads the file a minute at a time, keeps a tiny summary of each minute, and throws the samples away.
+Milestone 1 decoded the whole file in one go. That is fine for a 30 s fixture and wrong for an hour of music: the numbers do not fit in memory. This milestone reads the file a slice at a time, keeps a tiny summary of each slice, and throws the samples away.
 
 ## The words
 
-- **Slice**: one minute-long stretch of the source file that is decoded on its own: 60 s. One ffmpeg call per slice.
+- **Slice**: one stretch of the source file that is decoded on its own: 60 s, or 300 s for an MP3 (see "Longer MP3 slices"). One ffmpeg call per slice.
 - **Wasm heap**: the one block of memory a WebAssembly program (ffmpeg.wasm) may use. The pinned `@ffmpeg/core@0.12.10` declares a heap that starts at 32 MB and may grow to **2,048 MB** (read from the memory section of its `.wasm` file; ticket 02 reads the same figures from the build script). Files do not live in the heap: ffmpeg's outputs are plain JavaScript byte arrays inside its worker, and they leave it through `readFile`, one array at a time.
 - **Web Worker**: a background thread of the page. Work in it does not freeze the interface. ffmpeg.wasm already runs in its own worker, and the page talks to it by messages. Each call (`exec`) runs to the end without listening, so the only way to stop it is `terminate()`, which kills the worker and everything in it.
-- **Pre-roll**: a run-in. A decoder that jumps into the middle of a file starts cold: MP3 frames borrow bytes from earlier frames (the bit reservoir), Opus has a pre-skip, and AAC shows the same effect, smaller. So the app starts decoding 1 s before the slice and drops that second: `-ss S-1 -i input -ss 1 -t 60`. The first slice starts at 0 and has nothing before it.
+- **Pre-roll**: a run-in. A decoder that jumps into the middle of a file starts cold: MP3 frames borrow bytes from earlier frames (the bit reservoir), Opus has a pre-skip, and AAC shows the same effect, smaller. So the app starts decoding 1 s before the slice and drops that second: `-ss S-1 -i input -ss 1 -t 60` (`-t 300` for an MP3). The first slice starts at 0 and has nothing before it.
 - **Leftover**: a **bucket** (10 ms of samples, from note 01) is a whole number of samples. When a slice ends in the middle of a bucket, the samples already seen are carried into the next slice's first bucket instead of being cut short.
 - **Reload budget**: how many calls one ffmpeg worker may serve before the app replaces it with a fresh one. The app uses about 20.
 - **Nyquist limit and aliasing**: a sample rate can only describe pitches up to half of itself (22,050 Hz for 44,100 Hz). If samples are simply dropped to lower the rate, higher pitches do not vanish: they come back as false lower ones. That error is **aliasing**; a **low-pass filter** removes the high pitches first so there is nothing left to alias.
@@ -34,7 +34,7 @@ So the real `sample1` does not fail here: an hour fits on a 24 GB machine, as ti
 
 That message points at the wrong cause. ffmpeg decoded the whole file (about 7 s) and then could not hand the result over: the console holds the real error, `Failed to execute 'postMessage' on 'DedicatedWorkerGlobalScope': The ArrayBuffer/ArrayBufferView size exceeds the supported range`. The worker never answered, so the 10 s watchdog fired. Total time to failure is roughly the decode plus those 10 s. A computer with less memory would probably run out earlier, at the peak memory above, not at 2 GiB (inferred; not tried).
 
-**3. Decoding in slices.** 3,686.21 / 60 = 61.4, so **62 slices**: the "38 / 62 slices" of the progress bar (the probe is not counted, so there are 63 calls). Each full slice is 60 × 44,100 = 2,646,000 frames × 2 × 4 = **21,168,000 bytes** (21 MB), and native ffmpeg gives exactly that for the first slice and for the slices at 60 s and 1,800 s, in `.m4a` and `.mp3`; `.opus` (always 48 kHz) gives 2,880,000 frames, 23,040,000 bytes. The last slice holds what is left: 1,156,048 frames (26.21 s). All 62 add up to 162,562,048 frames, the count of a one-pass decode (tickets 06 and 12). In the browser a 60 s slice peaked at +360 MB; 300 s slices peaked at +769 MB (ticket 06). Memory depends on the slice, not on the file.
+**3. Decoding in slices.** Slices are 60 s, or 300 s for an MP3 (see "Longer MP3 slices"); the rest of this section counts 60 s slices. 3,686.21 / 60 = 61.4, so **62 slices** (13 for the same file as MP3): the "38 / 62 slices" of the progress bar (the probe is not counted, so there are 63 calls). Each full slice is 60 × 44,100 = 2,646,000 frames × 2 × 4 = **21,168,000 bytes** (21 MB), and native ffmpeg gives exactly that for the first slice and for the slices at 60 s and 1,800 s, in `.m4a` and `.mp3`; `.opus` (always 48 kHz) gives 2,880,000 frames, 23,040,000 bytes. The last slice holds what is left: 1,156,048 frames (26.21 s). All 62 add up to 162,562,048 frames, the count of a one-pass decode (tickets 06 and 12). In the browser a 60 s slice peaked at +360 MB; 300 s slices peaked at +769 MB (ticket 06). Memory depends on the slice, not on the file.
 
 **4. Why the 1 s pre-roll.** Cut the slice 1,800 to 1,860 s with and without it, and compare with the same stretch of a one-pass decode (native ffmpeg 8.1; loudness per 50 ms window):
 
@@ -70,10 +70,25 @@ For comparison, ticket 12 measured 1 h in ffmpeg.wasm on a busy machine: `.m4a` 
 
 `.m4a` and `.opus` take about three times as long for three times the audio (m4a: 0.1 s per slice, steadily). The MP3 grows with position: its first 20 slices took 0.16 s each, slices 80 to 100 took 0.71 s each and the last 20 took 1.23 s each, so 3 h costs 7 times the hour, not 3 times, and came out above the inferred 100 s. Every file loaded, and the progress bar counted up to 62 (1 h) and 185 (3 h) slices. The 3 h run reloaded the ffmpeg worker 9 times without a failure. The page's JavaScript heap ended between 94 and 118 MB for the 1 h files and between 99 and 163 MB for the 3 h files (`performance.memory`, which does not see ffmpeg's own worker), with no growth from one hour to three.
 
+### Longer MP3 slices
+
+An MP3 is decoded in 300 s slices; `.m4a` and `.opus` stay at 60 s. ffmpeg seeks an MP3 by reading from the start, so a late slice costs about 1.4 s whatever its length, and fewer slices mean fewer seeks. The other two seek almost for free, so longer slices would only cost memory. No size cap is needed: an MP3 cannot exceed 48 kHz stereo, so a 300 s slice is at most 115 MB of floats.
+
+Measured on 2026-11-14 on the same machine as above (Apple M4 Pro, 24 GB, Chrome), one run per cell. Peak is Chrome's summed RSS over idle.
+
+| File        | 60 s slices        | 300 s slices      |
+| ----------- | ------------------ | ----------------- |
+| 3 h MP3     | 133.1 s, +1,142 MB | 39.0 s, +931 MB   |
+| 1 h MP3     | 18.1 s, +468 MB    | 9.0 s, +628 MB    |
+| 3 h `.m4a`  | 17.6 s, +507 MB    | 16.1 s, +1,084 MB |
+| 3 h `.opus` | 25.8 s, +550 MB    | 25.0 s, +890 MB   |
+
+The 3 h MP3 took 75.7 s (+962 MB) at 120 s slices and 53.6 s (+944 MB) at 180 s. With 300 s slices the 1 h and 3 h MP3 decode times above become **9.0 s and 39.0 s**; the progress bar counts to 13 (1 h) and 37 (3 h) slices.
+
 ## Where it lives in the code
 
 - [`src/shared/api/ffmpeg/ffmpeg.ts`](../../src/shared/api/ffmpeg/ffmpeg.ts): loads the core, mounts the file, a watchdog on every call. A fresh worker every 20 calls; cancel is `close()` on the session, which terminates the current worker.
-- [`src/entities/source-file/api/decode-slice.ts`](../../src/entities/source-file/api/decode-slice.ts): one `f32le` call for one slice, `-ss S-1 -i input -ss 1 -t 60`, the first slice without pre-roll.
+- [`src/entities/source-file/api/decode-slice.ts`](../../src/entities/source-file/api/decode-slice.ts): one `f32le` call for one slice, `-ss S-1 -i input -ss 1 -t 60` (`-t 300` for an MP3), the first slice without pre-roll.
 - `decode-whole-file.ts`: milestone 1's single call, the one that fails above. Removed; the slice call replaced it.
 - [`src/shared/lib/audio/peaks-builder.ts`](../../src/shared/lib/audio/peaks-builder.ts): a peaks builder that is fed slice after slice and carries the leftover samples of a bucket across each border.
 - [`src/entities/source-file/model/source-file.ts`](../../src/entities/source-file/model/source-file.ts): the slice loop, progress counted per slice, each slice file deleted after analysis, the failure with its step.

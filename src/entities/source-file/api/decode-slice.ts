@@ -1,43 +1,57 @@
 import type { FfmpegSession } from '@/shared/api/ffmpeg/ffmpeg.ts'
-
-export const SLICE_SECONDS = 60
+import type { SupportedFormat } from './probe.ts'
 
 const OUTPUT_PATH = '/slice.pcm'
 
 /*
-A slice is 21 MB of floats and takes a second or so, except an MP3 slice late in a long file:
-ffmpeg reads the MP3 from the start to find the spot. The whole of a 3 h MP3 is inferred at about
-100 s (docs/concepts/02-long-files.md), so 300 s is three times the worst case, and a call that
-really hangs still fails in five minutes.
+A slice is 21 MB of floats (at most 115 MB for an MP3 slice) and takes a second or so, except an
+MP3 slice late in a long file: ffmpeg reads the MP3 from the start to find the spot, 1 to 2 s in a
+3 h file (docs/concepts/02-long-files.md). 300 s is far above that, and a call that really hangs
+still fails in five minutes.
 */
 const SLICE_TIMEOUT_MS = 300_000
 
-export function sliceCount(durationSeconds: number): number {
-  return Math.ceil(durationSeconds / SLICE_SECONDS)
+/*
+ffmpeg seeks an MP3 by reading from the start, so every slice costs a seek that grows with its
+position. Fewer, longer slices mean fewer seeks (see "Longer MP3 slices" in the concept note). The
+other formats seek for free, and longer slices would only cost memory.
+*/
+function sliceSeconds(format: SupportedFormat): number {
+  return format === 'mp3' ? 300 : 60
+}
+
+export function sliceCount(durationSeconds: number, format: SupportedFormat): number {
+  return Math.ceil(durationSeconds / sliceSeconds(format))
 }
 
 /*
-Decodes one 60 s slice of the first audio stream to raw PCM: 32-bit floats between −1 and 1,
-interleaved L R L R …, at the file's own sample rate and channel count. The last slice is shorter.
+Decodes one slice (60 s, or 300 s for an MP3) of the first audio stream to raw PCM: 32-bit floats
+between −1 and 1, interleaved L R L R …, at the file's own sample rate and channel count. The last
+slice is shorter.
 
 Slice 0 starts at 0. Any later slice starts decoding 1 s early (the pre-roll) and drops that second,
 because a decoder that jumps into the middle of a file starts cold (see the concept note). The
 `-ss` before `-i` is a fast seek that lands near the spot; the `-ss 1` after it is exact, and cuts
 the pre-roll off the decoded audio.
 */
-export async function decodeSlice(ffmpeg: FfmpegSession, index: number): Promise<Float32Array> {
+export async function decodeSlice(
+  ffmpeg: FfmpegSession,
+  index: number,
+  format: SupportedFormat,
+): Promise<Float32Array> {
+  const seconds = sliceSeconds(format)
   const cut =
     index === 0
-      ? ['-i', ffmpeg.inputPath, '-t', String(SLICE_SECONDS)]
+      ? ['-i', ffmpeg.inputPath, '-t', String(seconds)]
       : [
           '-ss',
-          String(index * SLICE_SECONDS - 1),
+          String(index * seconds - 1),
           '-i',
           ffmpeg.inputPath,
           '-ss',
           '1',
           '-t',
-          String(SLICE_SECONDS),
+          String(seconds),
         ]
 
   const { exitCode, log } = await ffmpeg.run(
