@@ -1,6 +1,6 @@
 # Audio Splitter
 
-Browser-only Vue 3 + Vite + TypeScript app that proposes split points in long audio files; nothing is uploaded. Scope and milestones: `docs/audio-splitter-milestones.md`. pnpm only, Node 24 via `mise.toml`. `README.md` points here.
+Browser-only Vue 3 + Vite + TypeScript app that proposes split points in long audio files; nothing is uploaded. Scope and milestones: `docs/audio-splitter-milestones.md`. pnpm only, Node 24 via `mise.toml`. `README.md` is for people (why the project exists, how v1 works) and links here for the detail.
 
 ## Checks
 
@@ -55,6 +55,7 @@ A subset of Feature-Sliced Design ([ADR 0001](docs/adr/0001-fsd-subset.md)): lay
 - No `index.ts` public APIs: import the file itself, with its extension (`@/shared/ui/UiButton.vue`).
 - Imports across slices or layers use `@/`; imports inside a slice are relative.
 - A new layer or slice gets its row here when its first file lands.
+- The Mermaid diagrams in `README.md` (pipeline, layers) and `docs/architecture.md` (stores, ffmpeg session, load, audition and export flows) are drawn from the code: a change to what one shows redraws it in the same commit.
 
 ## Lint
 
