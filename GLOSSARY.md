@@ -21,7 +21,7 @@ The name a track is exported under: its number until the user renames it. It bel
 _Avoid_: Title, label
 
 **Export**:
-Writing every track as its own audio file, in the source file's format, into a folder the user picks.
+Writing every track as its own audio file, in the source file's format, into a new folder named after the source file, made inside a folder the user picks (a second export of the same file makes `name (2)`).
 _Avoid_: Download, save, split (as a verb)
 
 **Gap**:

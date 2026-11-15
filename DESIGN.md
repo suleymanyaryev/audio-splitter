@@ -384,7 +384,7 @@ Determinate only; Reka `ProgressRoot` / `ProgressIndicator`, with the count as a
 
 ### Dialog
 
-Reka `AlertDialog`: the confirm before a setting change or "New file" replaces edits, and export's locking overlay. Focus starts on the first button; Escape closes it. The actions are plain kit buttons, so the caller closes the dialog itself through `v-model:open`.
+Reka `AlertDialog`: the confirm before a setting change or "New file" replaces edits, and export's locking overlay. Focus starts on the first button; Escape closes it, except while the export runs: its overlay ignores Escape until the run ends and then closes like "Close". The actions are plain kit buttons, so the caller closes the dialog itself through `v-model:open`.
 
 - **Overlay:** `fixed inset-0 z-40 bg-ground`, opaque. The Flat Sleeve Rule forbids a dimmed or blurred page, so the dialog does not float over the screen: the screen gives way to the ground, and the dialog is the one panel lying on it.
 - **Frame:** the panel frame, centred: `fixed top-1/2 left-1/2 z-50 w-[calc(100vw-32px)] max-w-md -translate-1/2 rounded-panel border border-hairline bg-surface p-4 focus:outline-none` (focus moves to the first button, which shows the ring). No shadow.

@@ -507,4 +507,181 @@ describe('the source-file store', () => {
       await expect(store.clip(15)).rejects.toThrow('No file is ready')
     })
   })
+
+  describe('cutting a track in the open session', () => {
+    const track = Uint8Array.of(0, 0, 0, 24, 0x66, 0x74, 0x79, 0x70)
+    const tags = { title: 'evening-set-vol3 02', track: '2/8', album: 'evening-set-vol3' }
+    const loadedSession = () =>
+      fakeFfmpegSession({
+        probeLog: m4aProbeLog(30),
+        pcm: toneThenSilencePcm(44_100, 15, 0.5),
+        track,
+      })
+    const cutRuns = (session: ReturnType<typeof loadedSession>) =>
+      session.run.mock.calls.filter(([command]) => command.includes('copy'))
+    // The next ffmpeg call holds until released, then answers as the fake would.
+    const holdNextCall = (session: ReturnType<typeof loadedSession>) => {
+      const answer = session.run.getMockImplementation()!
+      const held: { release?: () => void } = {}
+      session.run.mockImplementationOnce(
+        async (command, timeoutMs) =>
+          new Promise((resolve) => {
+            held.release = () => {
+              resolve(answer(command, timeoutMs))
+            }
+          }),
+      )
+      return held
+    }
+
+    it("cuts the track in the open session, in the file's own format, and gives its bytes", async () => {
+      const session = loadedSession()
+      vi.mocked(openFfmpeg).mockResolvedValue(session)
+      const store = useSourceFileStore()
+      await store.load(file)
+
+      const bytes = await store.cutTrack({ startSeconds: 10, endSeconds: 20, tags })
+
+      expect(bytes).toEqual(track)
+      expect(cutRuns(session)).toHaveLength(1)
+      const command = cutRuns(session)[0]?.[0] ?? []
+      expect(command).toContain('/in/source.m4a')
+      expect(command.slice(3, 7)).toEqual(['-ss', '10', '-to', '20'])
+      expect(command.at(-1)).toBe('/track.m4a')
+    })
+
+    it('rejects a cut before a file is ready', async () => {
+      const store = useSourceFileStore()
+
+      await expect(
+        store.cutTrack({ startSeconds: 0, endSeconds: undefined, tags }),
+      ).rejects.toThrow('No file is ready')
+    })
+
+    it('runs a cut and a clip one at a time, in the order they were asked for', async () => {
+      const session = loadedSession()
+      vi.mocked(openFfmpeg).mockResolvedValue(session)
+      const store = useSourceFileStore()
+      await store.load(file)
+      const held = holdNextCall(session)
+
+      const cut = store.cutTrack({ startSeconds: 0, endSeconds: 10, tags })
+      const clip = store.clip(20)
+      await vi.waitFor(() => {
+        expect(cutRuns(session)).toHaveLength(1)
+      })
+      // Give a wrongly parallel clip the chance to start.
+      await new Promise((resolve) => setTimeout(resolve, 10))
+      expect(session.run.mock.calls.filter(([command]) => command.includes('wav'))).toHaveLength(0)
+      held.release?.()
+
+      await expect(cut).resolves.toEqual(track)
+      await expect(clip).resolves.toMatchObject({ startSeconds: 16 })
+    })
+
+    it("still runs the next cut after one fails, and the failure is ffmpeg's last line", async () => {
+      const session = loadedSession()
+      vi.mocked(openFfmpeg).mockResolvedValue(session)
+      const store = useSourceFileStore()
+      await store.load(file)
+      session.run.mockResolvedValueOnce({ exitCode: 1, log: ['Invalid data'] })
+
+      await expect(store.cutTrack({ startSeconds: 0, endSeconds: 10, tags })).rejects.toThrow(
+        'Invalid data',
+      )
+      await expect(store.cutTrack({ startSeconds: 10, endSeconds: 20, tags })).resolves.toEqual(
+        track,
+      )
+    })
+
+    it('rejects a cut whose file was reset meanwhile, and a queued one without running it', async () => {
+      const session = loadedSession()
+      vi.mocked(openFfmpeg).mockResolvedValue(session)
+      const store = useSourceFileStore()
+      await store.load(file)
+      const held = holdNextCall(session)
+      const first = store.cutTrack({ startSeconds: 0, endSeconds: 10, tags })
+      const second = store.cutTrack({ startSeconds: 10, endSeconds: 20, tags })
+      await vi.waitFor(() => {
+        expect(cutRuns(session)).toHaveLength(1)
+      })
+
+      store.reset()
+      held.release?.()
+
+      await expect(first).rejects.toBeInstanceOf(FileReplacedError)
+      await expect(second).rejects.toBeInstanceOf(FileReplacedError)
+      expect(cutRuns(session)).toHaveLength(1)
+    })
+
+    it('stops the running call through the session, and the next cut still runs', async () => {
+      const session = loadedSession()
+      vi.mocked(openFfmpeg).mockResolvedValue(session)
+      const store = useSourceFileStore()
+      await store.load(file)
+      session.run.mockImplementationOnce(
+        async () =>
+          new Promise((_, reject) => {
+            session.interrupt.mockImplementationOnce(() => {
+              reject(new Error('ffmpeg was stopped'))
+            })
+          }),
+      )
+      const cut = store.cutTrack({ startSeconds: 0, endSeconds: 10, tags })
+      await vi.waitFor(() => {
+        expect(cutRuns(session)).toHaveLength(1)
+      })
+
+      store.stopCuts()
+
+      await expect(cut).rejects.toThrow('ffmpeg was stopped')
+      expect(session.close).not.toHaveBeenCalled()
+      await expect(store.cutTrack({ startSeconds: 10, endSeconds: 20, tags })).resolves.toEqual(
+        track,
+      )
+    })
+
+    it('rejects a cut queued behind a clip without running it, and a later cut still runs', async () => {
+      const session = loadedSession()
+      vi.mocked(openFfmpeg).mockResolvedValue(session)
+      const store = useSourceFileStore()
+      await store.load(file)
+      // The clip hangs until the session is interrupted, as a slow decode would.
+      session.run.mockImplementationOnce(
+        async () =>
+          new Promise((_, reject) => {
+            session.interrupt.mockImplementationOnce(() => {
+              reject(new Error('ffmpeg was stopped'))
+            })
+          }),
+      )
+      const clip = store.clip(20)
+      const queued = store.cutTrack({ startSeconds: 0, endSeconds: 10, tags })
+      const alsoQueued = store.cutTrack({ startSeconds: 10, endSeconds: 20, tags })
+      await vi.waitFor(() => {
+        expect(session.run.mock.calls.filter(([command]) => command.includes('wav'))).toHaveLength(
+          1,
+        )
+      })
+
+      store.stopCuts()
+
+      await expect(clip).rejects.toThrow('ffmpeg was stopped')
+      await expect(queued).rejects.toThrow('ffmpeg was stopped')
+      await expect(alsoQueued).rejects.toThrow('ffmpeg was stopped')
+      expect(cutRuns(session)).toHaveLength(0)
+      await expect(
+        store.cutTrack({ startSeconds: 20, endSeconds: undefined, tags }),
+      ).resolves.toEqual(track)
+      expect(cutRuns(session)).toHaveLength(1)
+    })
+
+    it('does nothing to stop a cut when no file is open', () => {
+      const store = useSourceFileStore()
+
+      expect(() => {
+        store.stopCuts()
+      }).not.toThrow()
+    })
+  })
 })

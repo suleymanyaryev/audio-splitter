@@ -1,4 +1,5 @@
 import type { FfmpegSession } from '@/shared/api/ffmpeg/ffmpeg.ts'
+import { roundToMillisecond } from '@/shared/lib/time/round-to-millisecond.ts'
 
 const OUTPUT_PATH = '/clip.wav'
 
@@ -16,17 +17,11 @@ const REACH_SECONDS = 4
 const PRE_ROLL_SECONDS = 1
 
 /*
-Seconds go on the command line, and back to the caller, rounded to the millisecond: 329.05 − 4 is
-325.04999999999995 in floats, and the clip's start is also what the playhead adds to the audio's
-`currentTime`, so the caller must get the number the command used.
-*/
-const toMilliseconds = (seconds: number) => Math.round(seconds * 1000) / 1000
-
-/*
 Decodes the 8 s around a split (4 s either side, less where the file ends) to a WAV: 16-bit PCM at
 the file's own rate and channel count, which every browser plays exactly, unlike a VBR MP3 it
 seeks in (docs/concepts/06-seeking-compressed-audio.md). `startSeconds` is the file time of the
-clip's first sample, so the playhead is `startSeconds + currentTime`.
+clip's first sample, so the playhead is `startSeconds + currentTime`: it is the rounded number
+the command used, and the caller gets that one.
 
 The pre-roll is the room before the start, up to 1 s, so a clip at 0 s has none. The `-ss` before
 `-i` jumps near the spot; the `-ss` after it is exact and drops the pre-roll from the output.
@@ -36,16 +31,16 @@ export async function decodeClip(
   splitSeconds: number,
   durationSeconds: number,
 ): Promise<{ wav: Uint8Array; startSeconds: number; lengthSeconds: number }> {
-  const startSeconds = toMilliseconds(Math.max(0, splitSeconds - REACH_SECONDS))
-  const endSeconds = toMilliseconds(Math.min(durationSeconds, splitSeconds + REACH_SECONDS))
-  const lengthSeconds = toMilliseconds(endSeconds - startSeconds)
+  const startSeconds = roundToMillisecond(Math.max(0, splitSeconds - REACH_SECONDS))
+  const endSeconds = roundToMillisecond(Math.min(durationSeconds, splitSeconds + REACH_SECONDS))
+  const lengthSeconds = roundToMillisecond(endSeconds - startSeconds)
   const preRoll = Math.min(PRE_ROLL_SECONDS, startSeconds)
 
   const cut =
     preRoll > 0
       ? [
           '-ss',
-          String(toMilliseconds(startSeconds - preRoll)),
+          String(roundToMillisecond(startSeconds - preRoll)),
           '-i',
           ffmpeg.inputPath,
           '-ss',

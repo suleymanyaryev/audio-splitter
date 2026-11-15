@@ -5,6 +5,7 @@ import { enableAutoUnmount, mount } from '@vue/test-utils'
 import { useSourceFileStore } from '@/entities/source-file/model/source-file.ts'
 import { useSplitStore } from '@/entities/split/model/split.ts'
 import { useAuditionStore } from '@/widgets/split-zoom/model/audition.ts'
+import { useExportTracksStore } from '@/widgets/track-strip/model/export-tracks.ts'
 import ReviewPage from '../ReviewPage.vue'
 
 enableAutoUnmount(afterEach)
@@ -22,6 +23,7 @@ function curveWithTwoGaps() {
 
 function mountPage() {
   const sourceFile = useSourceFileStore()
+  sourceFile.status = 'ready'
   sourceFile.durationSeconds = 100
   sourceFile.loudnessWindowSeconds = 0.05
   sourceFile.loudness = curveWithTwoGaps()
@@ -42,6 +44,14 @@ function auditionButton(wrapper: ReturnType<typeof mount>) {
     .findAll('button')
     .find((candidate) => ['Play across split', 'Stop'].includes(candidate.text()))
   if (!button) throw new Error('no audition button')
+  return button
+}
+
+function exportButton(wrapper: ReturnType<typeof mount>) {
+  const button = wrapper
+    .findAll('button')
+    .find((candidate) => candidate.text() === 'Export to folder…')
+  if (!button) throw new Error('no Export button')
   return button
 }
 
@@ -141,6 +151,46 @@ describe('ReviewPage', () => {
       wrapper.unmount()
 
       expect(stop).toHaveBeenCalled()
+    })
+  })
+
+  describe('the export button', () => {
+    it('is enabled once the file is ready', () => {
+      const wrapper = mountPage()
+
+      expect(exportButton(wrapper).attributes('disabled')).toBeUndefined()
+    })
+
+    it('is disabled while the file is not ready', async () => {
+      const wrapper = mountPage()
+      useSourceFileStore().status = 'loading'
+      await wrapper.vm.$nextTick()
+
+      expect(exportButton(wrapper).attributes('disabled')).toBeDefined()
+    })
+
+    it('is disabled while an export runs', async () => {
+      const wrapper = mountPage()
+      useExportTracksStore().status = 'running'
+      await wrapper.vm.$nextTick()
+
+      expect(exportButton(wrapper).attributes('disabled')).toBeDefined()
+    })
+
+    it('stops the audition, then starts the export', async () => {
+      const wrapper = mountPage()
+      const order: string[] = []
+      vi.spyOn(useAuditionStore(), 'stop').mockImplementation(() => {
+        order.push('stop')
+      })
+      vi.spyOn(useExportTracksStore(), 'start').mockImplementation(() => {
+        order.push('start')
+        return Promise.resolve()
+      })
+
+      await exportButton(wrapper).trigger('click')
+
+      expect(order).toEqual(['stop', 'start'])
     })
   })
 })

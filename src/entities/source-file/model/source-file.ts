@@ -8,6 +8,7 @@ import {
   loudnessWindowSeconds as windowSecondsAt,
 } from '@/shared/lib/audio/loudness-builder.ts'
 import { createPeaksBuilder } from '@/shared/lib/audio/peaks-builder.ts'
+import { cutTrack as cutTrackIn, type TrackCut } from '../api/cut-track.ts'
 import { decodeClip } from '../api/decode-clip.ts'
 import { decodeSlice, sliceCount } from '../api/decode-slice.ts'
 import { probe, type SupportedFormat } from '../api/probe.ts'
@@ -20,17 +21,27 @@ export type LoadFailure =
 // Exported so a caller can tell this rejection (nothing to report) from a clip that really failed.
 export class FileReplacedError extends Error {
   constructor() {
-    super('The file was replaced before the clip was ready')
+    super('The file was replaced before the result was ready')
     this.name = 'FileReplacedError'
   }
 }
 
-// Waits for a clip's end however it ends: its caller gets the error, and the next clip goes on.
+// The message of `FfmpegSession.interrupt`'s rejection, which a cut stopped in the queue shares.
+const STOPPED_MESSAGE = 'ffmpeg was stopped'
+
+// What a call on the open session works with.
+interface ReadyFile {
+  open: FfmpegSession
+  duration: number
+  format: SupportedFormat
+}
+
+// Waits for a call's end however it ends: its caller gets the error, and the next call goes on.
 async function settled(promise: Promise<unknown>) {
   try {
     await promise
   } catch {
-    // Reported to the caller of that clip.
+    // Reported to the caller of that call.
   }
 }
 
@@ -69,10 +80,15 @@ export const useSourceFileStore = defineStore('source-file', () => {
   */
   let session: FfmpegSession | undefined
   /*
-  The end of the latest clip call. One ffmpeg worker runs one command at a time, and the
-  session's log buffer belongs to one call, so each clip waits for the one before it.
+  The end of the latest clip or cut call. One ffmpeg worker runs one command at a time, and the
+  session's log buffer belongs to one call, so each call waits for the one before it.
   */
-  let clipQueue: Promise<unknown> = Promise.resolve()
+  let callQueue: Promise<unknown> = Promise.resolve()
+  /*
+  Counts `stopCuts` calls: a cut remembers the count it was asked at, and a changed count when its
+  turn comes means it was stopped while it waited.
+  */
+  let stopCount = 0
 
   function reset() {
     currentLoad++
@@ -159,28 +175,59 @@ export const useSourceFileStore = defineStore('source-file', () => {
   }
 
   /*
-  Decodes the 8 s around a split in the open session. A clip whose file was reset or replaced
-  while it waited or decoded rejects, because the audio it would hand back is the old file's.
+  Runs `work` on the open session once the calls before it are done. A call whose file was reset
+  or replaced while it waited or ran rejects, because what it would hand back is the old file's.
   */
-  async function clip(splitSeconds: number) {
+  async function inSession<T>(work: (ready: ReadyFile) => Promise<T>) {
     const open = session
     const duration = durationSeconds.value
-    if (!open || duration === null || status.value !== 'ready') {
-      throw new Error('No file is ready to play')
+    const kind = format.value
+    if (!open || duration === null || kind === null || status.value !== 'ready') {
+      throw new Error('No file is ready')
     }
     const thisLoad = currentLoad
     const isStale = () => thisLoad !== currentLoad
-    const previous = clipQueue
+    const previous = callQueue
 
     const turn = (async () => {
       await previous
       if (isStale()) throw new FileReplacedError()
-      const decoded = await decodeClip(open, splitSeconds, duration)
+      const result = await work({ open, duration, format: kind })
       if (isStale()) throw new FileReplacedError()
-      return decoded
+      return result
     })()
-    clipQueue = settled(turn)
+    callQueue = settled(turn)
     return turn
+  }
+
+  // Decodes the 8 s around a split in the open session.
+  async function clip(splitSeconds: number) {
+    return inSession(({ open, duration }) => decodeClip(open, splitSeconds, duration))
+  }
+
+  /*
+  Copies one track out of the file in the open session, in the file's own format, and gives the
+  new file's bytes. `endSeconds` is undefined for the last track. Each cut counts toward the
+  session's 20-call reload budget like any other call. A cut asked for before `stopCuts` and not
+  yet started when it is called rejects with that call's error, without running.
+  */
+  async function cutTrack(track: Omit<TrackCut, 'format'>) {
+    const askedAt = stopCount
+    return inSession(({ open, format: kind }) => {
+      if (stopCount !== askedAt) throw new Error(STOPPED_MESSAGE)
+      return cutTrackIn(open, { format: kind, ...track })
+    })
+  }
+
+  /*
+  Stops the export's cuts: the call that is running, a cut or an audition clip, rejects at once
+  and the session starts a fresh worker for its next call, and every cut still waiting in the
+  queue rejects when its turn comes, without running (it may be waiting behind that clip). Clips
+  asked for meanwhile are left alone, and so are cuts asked for after this call.
+  */
+  function stopCuts() {
+    stopCount++
+    session?.interrupt()
   }
 
   function fail(what: LoadFailure) {
@@ -201,6 +248,8 @@ export const useSourceFileStore = defineStore('source-file', () => {
     sliceTotal,
     load,
     clip,
+    cutTrack,
+    stopCuts,
     cancel,
     reset,
   }
