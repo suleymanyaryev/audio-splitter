@@ -1,0 +1,17 @@
+// TSConfig for the Playwright specs: Node runs the spec itself, and the functions it hands to
+// `page.evaluate` run in the browser, so the DOM library types both.
+{
+  "extends": "@tsconfig/node24/tsconfig.json",
+  "include": ["./**/*.ts"],
+  "compilerOptions": {
+    "lib": ["ES2024", "DOM", "DOM.Iterable", "DOM.AsyncIterable"],
+    "module": "preserve",
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "erasableSyntaxOnly": true,
+    "verbatimModuleSyntax": true,
+    "types": ["node"],
+    "noEmit": true,
+    "tsBuildInfoFile": "../node_modules/.tmp/tsconfig.e2e.tsbuildinfo"
+  }
+}

@@ -20,6 +20,12 @@ export interface FfmpegSession {
   run(command: string[], timeoutMs: number): Promise<FfmpegRun>
   // Hands an output file to the page and deletes it inside ffmpeg, so only one copy stays.
   takeFile(path: string): Promise<Uint8Array>
+  /*
+  Stops the command that is running: it rejects at once with "ffmpeg was stopped", and the worker
+  is terminated, because that is the only way to stop ffmpeg. The session stays usable: the next
+  `run` starts a fresh worker. With no command running it does nothing.
+  */
+  interrupt(): void
   close(): void
 }
 
@@ -92,6 +98,8 @@ export async function openFfmpeg(file: File): Promise<FfmpegSession> {
   const markTerminated = () => {
     hasLostWorker = true
   }
+  // Rejects the command in flight, if any, with the interrupt's own message.
+  let stopRun: ((error: Error) => void) | undefined
 
   async function startWorker() {
     const worker = new FFmpeg()
@@ -143,14 +151,43 @@ export async function openFfmpeg(file: File): Promise<FfmpegSession> {
       }
       calls++
       log = []
-      const exitCode = await watched(
-        ffmpeg,
-        ffmpeg.exec(command),
-        timeoutMs,
-        'the command',
-        markTerminated,
-      )
-      return { exitCode, log }
+      const stopper = new AbortController()
+      stopRun = (error) => {
+        stopper.abort(error)
+      }
+      const stopped = new Promise<never>((_, reject) => {
+        stopper.signal.addEventListener(
+          'abort',
+          () => {
+            reject(stopper.signal.reason as Error)
+          },
+          { once: true },
+        )
+      })
+      try {
+        const exitCode = await watched(
+          ffmpeg,
+          Promise.race([ffmpeg.exec(command), stopped]),
+          timeoutMs,
+          'the command',
+          markTerminated,
+        )
+        return { exitCode, log }
+      } finally {
+        stopRun = undefined
+      }
+    },
+
+    interrupt() {
+      if (!stopRun) return
+      /*
+      Rejects before it terminates, as the watchdog does: terminating rejects the pending call
+      with a message of its own, and the first rejection is the one the caller sees.
+      */
+      stopRun(new Error('ffmpeg was stopped'))
+      stopRun = undefined
+      markTerminated()
+      ffmpeg.terminate()
     },
 
     async takeFile(path) {

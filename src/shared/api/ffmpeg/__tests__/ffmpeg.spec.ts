@@ -40,6 +40,36 @@ async function timeoutFirstCall() {
   return session
 }
 
+// What a run settled as: "answered", or the error as text.
+async function outcomeOf(run: Promise<unknown>) {
+  try {
+    await run
+    return 'answered'
+  } catch (error) {
+    return String(error)
+  }
+}
+
+/*
+The first worker's next call hangs until the worker is terminated, then fails with the message
+ffmpeg.wasm gives a call that terminate cut off.
+*/
+async function startHungRun() {
+  const session = await openFfmpeg(file)
+  workers[0]?.exec?.mockReturnValue(
+    new Promise((_, reject) => {
+      workers[0]?.terminate?.mockImplementation(() => {
+        reject(new Error('called FFmpeg.terminate()'))
+      })
+    }),
+  )
+  const outcome = outcomeOf(session.run(['-version'], 60_000))
+  await vi.waitFor(() => {
+    expect(workers[0]?.exec).toHaveBeenCalledOnce()
+  })
+  return { session, outcome }
+}
+
 describe('openFfmpeg', () => {
   beforeEach(() => {
     workers.length = 0
@@ -131,6 +161,74 @@ describe('openFfmpeg', () => {
 
       await expect(session.run(['-version'], 1000)).rejects.toThrow('closed')
       expect(workers).toHaveLength(1)
+    })
+  })
+
+  describe('interrupt', () => {
+    it('terminates the worker and rejects the running call with its own message', async () => {
+      const { session, outcome } = await startHungRun()
+
+      session.interrupt()
+
+      expect(await outcome).toBe('Error: ffmpeg was stopped')
+      expect(workers[0]?.terminate).toHaveBeenCalledOnce()
+    })
+
+    it('starts a fresh worker for the next run, with the file mounted again', async () => {
+      const { session, outcome } = await startHungRun()
+      session.interrupt()
+      await outcome
+
+      await session.run(['-version'], 1000)
+
+      expect(workers).toHaveLength(2)
+      expect(workers[1]?.mount).toHaveBeenCalledWith(
+        'WORKERFS',
+        { blobs: [{ name: 'source.m4a', data: file }] },
+        '/in',
+      )
+      expect(workers[1]?.exec).toHaveBeenCalledOnce()
+    })
+
+    it('keeps the fresh worker for the runs after it', async () => {
+      const { session, outcome } = await startHungRun()
+      session.interrupt()
+      await outcome
+
+      await session.run(['-version'], 1000)
+      await session.run(['-version'], 1000)
+
+      expect(workers).toHaveLength(2)
+      expect(workers[1]?.exec).toHaveBeenCalledTimes(2)
+    })
+
+    it('does nothing while no call is running, so the next run keeps its worker', async () => {
+      const session = await openFfmpeg(file)
+      await session.run(['-version'], 1000)
+
+      session.interrupt()
+      await session.run(['-version'], 1000)
+
+      expect(workers).toHaveLength(1)
+      expect(workers[0]?.terminate).not.toHaveBeenCalled()
+      expect(workers[0]?.exec).toHaveBeenCalledTimes(2)
+    })
+
+    it('does not stop a call that started after the interrupt', async () => {
+      const { session, outcome } = await startHungRun()
+      session.interrupt()
+      await outcome
+
+      await expect(session.run(['-version'], 1000)).resolves.toMatchObject({ exitCode: 0 })
+    })
+
+    it('does nothing once the session is closed', async () => {
+      const session = await openFfmpeg(file)
+      session.close()
+
+      session.interrupt()
+
+      expect(workers[0]?.terminate).toHaveBeenCalledOnce()
     })
   })
 

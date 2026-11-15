@@ -13,12 +13,15 @@ import { zoomTitle } from '@/widgets/split-zoom/lib/zoom-title.ts'
 import { useAuditionStore } from '@/widgets/split-zoom/model/audition.ts'
 import SplitZoom from '@/widgets/split-zoom/ui/SplitZoom.vue'
 import TrackList from '@/widgets/track-list/ui/TrackList.vue'
+import { useExportTracksStore } from '@/widgets/track-strip/model/export-tracks.ts'
+import ExportDialog from '@/widgets/track-strip/ui/ExportDialog.vue'
 import TrackStrip from '@/widgets/track-strip/ui/TrackStrip.vue'
 
 /*
 The review screen: each panel at its fixed canvas height, with the controls it holds. Every panel
 is filled; "Play across split" plays the selected split's clip (and reads "Stop" while it loads or
-plays), and only export, which needs a later milestone, stays disabled until then.
+plays), and "Export to folder…" starts the export, whose overlay (`ExportDialog`) locks the page
+while it runs.
 
 The page mounts only once the source file is ready (src/app/App.vue), which is when the split store
 looks for the gaps in its loudness curve, once; the split store cannot import the source-file store.
@@ -26,6 +29,7 @@ looks for the gaps in its loudness curve, once; the split store cannot import th
 const sourceFile = useSourceFileStore()
 const split = useSplitStore()
 const audition = useAuditionStore()
+const exporter = useExportTracksStore()
 
 const { loudness, loudnessWindowSeconds, durationSeconds } = sourceFile
 if (loudness && loudnessWindowSeconds !== null && durationSeconds !== null) {
@@ -36,6 +40,12 @@ onUnmounted(() => {
   audition.stop()
   split.reset()
 })
+
+// A clip must not play over the export, which locks the page.
+function exportTracks() {
+  audition.stop()
+  void exporter.start()
+}
 
 // A new split is selected and its handle takes the keyboard, ready for the arrow keys.
 const zoom = useTemplateRef('zoom')
@@ -92,12 +102,19 @@ const title = computed(() => zoomTitle(split.selectedSplit?.seconds ?? null, spl
 
     <UiPanel :title="`Tracks (${split.tracks.length})`" class="col-span-12">
       <template #actions>
-        <UiButton variant="primary" size="lg" disabled>
+        <UiButton
+          variant="primary"
+          size="lg"
+          :disabled="sourceFile.status !== 'ready' || exporter.isRunning"
+          @click="exportTracks"
+        >
           <Download class="size-4 shrink-0" />
           Export to folder…
         </UiButton>
       </template>
       <TrackStrip />
     </UiPanel>
+
+    <ExportDialog />
   </main>
 </template>
