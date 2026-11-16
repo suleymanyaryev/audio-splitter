@@ -149,7 +149,7 @@ One screen each, plain words, worked numbers from a real 1 h file.
 
 ## What's next
 
-v1 is complete. v2 is being planned in the same form as v1, one audio concept per milestone. The candidates are the items under "Not in v1" above, led by helping with playlists that repeat.
+v1 is complete, released as 1.0.0; what changes from here is in [CHANGELOG.md](CHANGELOG.md). v2 is being planned in the same form as v1, one audio concept per milestone. The candidates are the items under "Not in v1" above, led by helping with playlists that repeat.
 
 ## Licence
 
