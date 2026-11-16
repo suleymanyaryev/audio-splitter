@@ -2,6 +2,10 @@
 
 Browser-only Vue 3 + Vite + TypeScript app that proposes split points in long audio files; nothing is uploaded. Scope and milestones: `docs/audio-splitter-milestones.md`. pnpm only, Node 24 via `mise.toml`. `README.md` is for people (why the project exists, how v1 works) and links here for the detail.
 
+## Changelog
+
+A user-visible change adds its line under `## [Unreleased]` in `CHANGELOG.md`, in the same commit. The version rules and the release steps are at the top of that file.
+
 ## Checks
 
 The baseline is green: `pnpm typecheck`, `pnpm test`, `pnpm lint`, `pnpm knip` and `pnpm build` exit 0 on a clean tree. A failure in any of them is caused by the current work: fix it.
