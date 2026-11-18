@@ -129,6 +129,63 @@ describe('ReviewPage', () => {
     })
   })
 
+  describe('Add split in the Range view', () => {
+    it('is disabled while there is no mark, and enabled once there is room at the mark', async () => {
+      const wrapper = await mountPageWithRange()
+      const split = useSplitStore()
+      expect(addSplitButton(wrapper).attributes('disabled')).toBeDefined()
+
+      split.placeMark(15)
+      await wrapper.vm.$nextTick()
+
+      expect(addSplitButton(wrapper).attributes('disabled')).toBeUndefined()
+    })
+
+    it('is disabled within a second of a split, whatever the zoom window says', async () => {
+      const wrapper = await mountPageWithRange()
+      const split = useSplitStore()
+      split.setRange(15, 30)
+
+      // The split at 21 s is 0.5 s away. Split 1 is selected, so the window's centre is on it too:
+      // it is the mark's own rule that disables the button.
+      split.placeMark(20.5)
+      await wrapper.vm.$nextTick()
+
+      expect(split.canAddSplitAtMark).toBe(false)
+      expect(addSplitButton(wrapper).attributes('disabled')).toBeDefined()
+    })
+
+    it('adds a split at the mark, and stays in the Range view with the mark and nothing selected', async () => {
+      const wrapper = await mountPageWithRange()
+      const split = useSplitStore()
+      split.placeMark(15)
+      const selectedId = split.selectedSplitId
+      await wrapper.vm.$nextTick()
+
+      await addSplitButton(wrapper).trigger('click')
+
+      expect(split.splits.map((point) => point.seconds)).toEqual([15, 21, 71.5])
+      expect(split.view).toBe('range')
+      expect(split.selectedSplitId).toBe(selectedId)
+      expect(split.markSeconds).toBe(15)
+      expect(split.editCount).toBe(1)
+      expect(wrapper.find('[aria-label="Waveform of the range"]').exists()).toBe(true)
+      // A split within a second of the mark now, so it cannot be added twice.
+      expect(addSplitButton(wrapper).attributes('disabled')).toBeDefined()
+    })
+
+    it('comes before the "Back to range start" and range buttons', async () => {
+      const wrapper = await mountPageWithRange()
+
+      const labels = wrapper
+        .findAll('button')
+        .map((button) => button.attributes('aria-label') ?? button.text())
+
+      expect(labels.indexOf('Add split')).toBeLessThan(labels.indexOf('Back to range start'))
+      expect(labels.indexOf('Back to range start')).toBeLessThan(labels.indexOf('Play'))
+    })
+  })
+
   describe('the audition button', () => {
     it('reads "Play across split" and is enabled while a split is selected', () => {
       const wrapper = mountPage()
@@ -217,14 +274,14 @@ describe('ReviewPage', () => {
       expect(panelTitle(wrapper)).toBe('0:00:10.00 – 0:00:20.00 · 0:10.00')
     })
 
-    it('leaves the zoom view’s buttons out of the Range view', async () => {
+    it('leaves the audition button out of the Range view', async () => {
       const wrapper = mountPage()
 
       useSplitStore().setRange(10, 20)
       await wrapper.vm.$nextTick()
 
       const labels = wrapper.findAll('button').map((button) => button.text())
-      expect(labels).not.toContain('Add split')
+      expect(labels).toContain('Add split')
       expect(labels).not.toContain('Play across split')
     })
 

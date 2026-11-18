@@ -23,12 +23,14 @@ import TrackStrip from '@/widgets/track-strip/ui/TrackStrip.vue'
 
 /*
 The review screen: each panel at its fixed canvas height, with the controls it holds. Every panel
-is filled; "Play across split" plays the selected split's clip (and reads "Stop" while it loads or
-plays), the Range view's "Play" plays the range (and reads "Stop" while it is decoded and "Pause"
-while it plays) and "Back to range start" beside it moves the playhead to the range's start. "Export to
-folder…" starts the export, whose overlay (`ExportDialog`) locks the page while it runs. The zoom panel shows the zoom view or, once the user has dragged out a range,
-the Range view, as the split store's `view` says; its `Split | Range` control is that view, and the
-buttons of each view are only there while that view is.
+is filled; "Export to folder…" starts the export, whose overlay (`ExportDialog`) locks the page while
+it runs. The zoom panel shows the zoom view or, once the user has dragged out a range, the Range
+view, as the split store's `view` says, and its `Split | Range` control is that view. "Add split"
+is in both views and follows the view: at the window's centre in the zoom view, at the mark in the
+Range view. The zoom view has "Play across split", which plays the selected split's clip (and reads
+"Stop" while it loads or plays). The Range view has "Play", which plays the range (and reads "Stop"
+while it is decoded and "Pause" while it plays), and "Back to range start" beside it, which moves
+the playhead to the range's start.
 
 The page mounts only once the source file is ready (src/app/App.vue), which is when the split store
 looks for the gaps in its loudness curve, once; the split store cannot import the source-file store.
@@ -54,12 +56,23 @@ function exportTracks() {
   void exporter.start()
 }
 
-// A new split is selected and its handle takes the keyboard, ready for the arrow keys.
+/*
+In the zoom view a new split is selected and its handle takes the keyboard, ready for the arrow
+keys. In the Range view it goes at the mark and nothing else changes: the user stays where they are.
+*/
 const zoom = useTemplateRef('zoom')
 function addSplit() {
+  if (split.view === 'range') {
+    split.addSplitAtMark()
+    return
+  }
   split.addSplit()
   void zoom.value?.focusHandle()
 }
+
+const canAddSplit = computed(() =>
+  split.view === 'range' ? split.canAddSplitAtMark : split.canAddSplit,
+)
 
 // The panel's title is its largest type: the selected split's time, or the range's start, end
 // and length.
@@ -109,12 +122,7 @@ watch(
     <UiPanel :title="title" headline class="col-span-8">
       <template #actions>
         <UiSegmentedControl v-model="view" label="Panel view" :options="viewOptions" />
-        <UiButton
-          v-if="split.view === 'split'"
-          size="sm"
-          :disabled="!split.canAddSplit"
-          @click="addSplit"
-        >
+        <UiButton size="sm" :disabled="!canAddSplit" @click="addSplit">
           <Plus class="size-4 shrink-0" />
           Add split
         </UiButton>

@@ -48,16 +48,17 @@ It matches the decode times above, so nothing else in the press is slow. Pausing
 
 ## Where it lives in the code
 
-Filled in as each ticket lands. Existing modules are linked, new ones are named.
+Existing modules are linked, new ones are named.
 
 - [`src/entities/source-file/api/decode-clip.ts`](../../src/entities/source-file/api/decode-clip.ts): the clip command for a start and a length, instead of a split time.
 - [`src/entities/source-file/model/source-file.ts`](../../src/entities/source-file/model/source-file.ts): the `clip` call follows the same change.
-- [`src/entities/split/model/split.ts`](../../src/entities/split/model/split.ts): holds the range (`setRange`) and the panel's view (`view`, `showView`); the mark and "add split at the mark" are still to come.
+- [`src/entities/split/model/split.ts`](../../src/entities/split/model/split.ts): holds the range (`setRange`), the mark (`placeMark`, `markSeconds`) and the panel's view (`view`, `showView`); `addSplitAtMark` adds a split at the mark, without selecting it, by the same 1 s rule as `addSplit` (`canAddSplitAtMark`).
 - [`src/widgets/source-waveform/ui/SourceWaveform.vue`](../../src/widgets/source-waveform/ui/SourceWaveform.vue): the overlay, drawn from the live drag or the held range.
 - [`src/widgets/source-waveform/lib/use-range-drag.ts`](../../src/widgets/source-waveform/lib/use-range-drag.ts): tells a click from a drag (4 px), captures the pointer and reports the live range.
 - [`src/entities/split/lib/range-between.ts`](../../src/entities/split/lib/range-between.ts) and [`config/range-limits.ts`](../../src/entities/split/config/range-limits.ts): the range a drag makes, held to the file and to 10 min from the press, and the 1 s minimum.
 - [`src/widgets/split-zoom/model/audition.ts`](../../src/widgets/split-zoom/model/audition.ts): the one player, for the audition and for the range. The range's `toggleRange` decodes it on the first press and keeps the WAV, so a pause and a replay set `currentTime` inside it and decode nothing; `seekRange`, `backToRangeStart`, `grabPlayhead` and `dropPlayhead` move the playhead the same way.
 - [`src/widgets/split-zoom/ui/SplitZoom.vue`](../../src/widgets/split-zoom/ui/SplitZoom.vue): the zoom view the Range view sits beside.
-- [`src/widgets/split-zoom/ui/RangeView.vue`](../../src/widgets/split-zoom/ui/RangeView.vue): the range stretched across the zoom panel, drawn from the peaks already held. Its `lib/range-window.ts` turns the range into the centre and length the zoom view's bar, land and axis helpers take, and `lib/range-title.ts` writes the title. It draws the playhead and takes Space and Home; `lib/use-range-press.ts` is its pointer handling, which for now takes hold of the playhead (a press within 6 px) and drags it, and the mark is still to come.
+- [`src/widgets/split-zoom/ui/RangeView.vue`](../../src/widgets/split-zoom/ui/RangeView.vue): the range stretched across the zoom panel, drawn from the peaks already held. Its `lib/range-window.ts` turns the range into the centre and length the zoom view's bar, land and axis helpers take, and `lib/range-title.ts` writes the title. It draws the playhead and takes Space and Home; `lib/use-range-press.ts` is its pointer handling, in the order playhead (within 6 px, dragged), then a split line (within 6 px, selected), then the mark (placed). Left and Right move the mark and Enter adds a split at it.
+- [`src/shared/lib/canvas/dash-pattern.ts`](../../src/shared/lib/canvas/dash-pattern.ts): the dash of the mark, shared with the silence threshold.
 - [`src/shared/ui/UiSegmentedControl.vue`](../../src/shared/ui/UiSegmentedControl.vue): the `Split | Range` control.
-- [`src/pages/review/ui/ReviewPage.vue`](../../src/pages/review/ui/ReviewPage.vue): swaps the zoom view and the Range view on the store's view, and holds the `Split | Range` control; its Play button reads "Stop", "Pause" or "Play", with "Back to range start" beside it; "Add split" in the Range view is still to come.
+- [`src/pages/review/ui/ReviewPage.vue`](../../src/pages/review/ui/ReviewPage.vue): swaps the zoom view and the Range view on the store's view, and holds the `Split | Range` control; its Play button reads "Stop", "Pause" or "Play", with "Back to range start" beside it, and its "Add split" follows the view (at the window's centre in the zoom view, at the mark in the Range view).

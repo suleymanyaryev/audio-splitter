@@ -6,9 +6,10 @@ import { useRangePress } from '../use-range-press.ts'
 const LEFT = 100
 
 // What the handlers read from a pointer event, without a browser's PointerEvent.
-function pointerAt(canvasX: number) {
+function pointerAt(canvasX: number, button = 0) {
   const setPointerCapture = vi.fn()
   const event = {
+    button,
     clientX: LEFT + canvasX,
     pointerId: 5,
     currentTarget: {
@@ -19,14 +20,28 @@ function pointerAt(canvasX: number) {
   return { event, setPointerCapture }
 }
 
-// The playhead is at x = 450; a pointer at x is x / 10 seconds.
-function pressOf(playheadX: number | null) {
+/*
+The playhead is at x = 450; a pointer at x is x / 10 seconds. The split lines are at the x given,
+none by default.
+*/
+function pressOf(playheadX: number | null, splitXs: number[] = []) {
   const seconds = vi.fn((x: number) => x / 10)
   const grab = vi.fn()
   const move = vi.fn()
   const drop = vi.fn()
-  const press = useRangePress({ playheadX: () => playheadX, seconds, grab, move, drop })
-  return { ...press, seconds, grab, move, drop }
+  const selectSplit = vi.fn()
+  const placeMark = vi.fn()
+  const press = useRangePress({
+    playheadX: () => playheadX,
+    splitXs: () => splitXs,
+    seconds,
+    grab,
+    move,
+    drop,
+    selectSplit,
+    placeMark,
+  })
+  return { ...press, seconds, grab, move, drop, selectSplit, placeMark }
 }
 
 describe('useRangePress', () => {
@@ -99,6 +114,94 @@ describe('useRangePress', () => {
 
       press.onPointerMove(pointerAt(300).event)
       expect(press.overPlayhead.value).toBe(false)
+    })
+  })
+
+  describe('a split line', () => {
+    it('is selected by a press within 6 px of it, by its index, and places no mark', () => {
+      const press = pressOf(450, [100, 300, 700])
+      const down = pointerAt(305)
+
+      press.onPointerDown(down.event)
+
+      expect(press.selectSplit).toHaveBeenCalledExactlyOnceWith(1)
+      expect(press.placeMark).not.toHaveBeenCalled()
+      expect(press.grab).not.toHaveBeenCalled()
+      expect(down.setPointerCapture).not.toHaveBeenCalled()
+      expect(press.dragging.value).toBe(false)
+    })
+
+    it('is not selected by a press 7 px away', () => {
+      const press = pressOf(450, [300])
+
+      press.onPointerDown(pointerAt(307).event)
+
+      expect(press.selectSplit).not.toHaveBeenCalled()
+    })
+
+    it('is the nearer one when two are within reach', () => {
+      const press = pressOf(450, [300, 304])
+
+      press.onPointerDown(pointerAt(303).event)
+
+      expect(press.selectSplit).toHaveBeenCalledExactlyOnceWith(1)
+    })
+
+    it('loses to the playhead when both are within 6 px', () => {
+      const press = pressOf(450, [452])
+
+      press.onPointerDown(pointerAt(451).event)
+
+      expect(press.grab).toHaveBeenCalledOnce()
+      expect(press.selectSplit).not.toHaveBeenCalled()
+      expect(press.placeMark).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('a press of another button than the primary one', () => {
+    it('takes hold of nothing and places nothing', () => {
+      const press = pressOf(450, [300])
+
+      for (const x of [450, 300, 100]) press.onPointerDown(pointerAt(x, 2).event)
+
+      expect(press.grab).not.toHaveBeenCalled()
+      expect(press.selectSplit).not.toHaveBeenCalled()
+      expect(press.placeMark).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('the mark', () => {
+    it('is placed by a press away from the playhead and the split lines, at that time', () => {
+      const press = pressOf(450, [100])
+
+      press.onPointerDown(pointerAt(250).event)
+
+      expect(press.placeMark).toHaveBeenCalledExactlyOnceWith(25)
+      expect(press.selectSplit).not.toHaveBeenCalled()
+      expect(press.grab).not.toHaveBeenCalled()
+    })
+
+    it('is placed with no split lines and no playhead, too', () => {
+      const press = pressOf(null)
+
+      press.onPointerDown(pointerAt(250).event)
+
+      expect(press.placeMark).toHaveBeenCalledExactlyOnceWith(25)
+    })
+
+    it('does not start a drag: later moves and the release do nothing', () => {
+      const press = pressOf(450)
+      const down = pointerAt(250)
+
+      press.onPointerDown(down.event)
+      press.onPointerMove(pointerAt(300).event)
+      press.onPointerEnd()
+
+      expect(down.setPointerCapture).not.toHaveBeenCalled()
+      expect(press.dragging.value).toBe(false)
+      expect(press.move).not.toHaveBeenCalled()
+      expect(press.drop).not.toHaveBeenCalled()
+      expect(press.placeMark).toHaveBeenCalledOnce()
     })
   })
 })
