@@ -6,6 +6,7 @@ import { DEFAULT_MINIMUM_GAP_SECONDS, DEFAULT_OFFSET_DB } from '../config/defaul
 import { MAX_TRACK_NAME_LENGTH } from '../config/track-name.ts'
 import { ZOOM_WINDOW_SECONDS } from '../config/zoom-window.ts'
 import { findGaps, splitsOf, type Gap } from '../lib/find-gaps.ts'
+import { rangeBetween, type TimeRange } from '../lib/range-between.ts'
 
 /*
 A split stays at least this far from its neighbours and from the file's start and end. Moves are
@@ -52,6 +53,10 @@ At most one split is selected, by id. The zoom window is `ZOOM_WINDOW_SECONDS` w
 `moveZoomTo`. A split can only be moved inside the window, which never follows the move. A split
 is added at the window's centre, and `editCount` says how many things the user changed since the
 last detection.
+
+The range (GLOSSARY.md) is view state beside the window's centre: a stretch the user dragged out on
+the whole-file view, or none. It belongs to the file, not to the detection, so a setting change and
+the edits leave it alone; `reset` clears it.
 */
 export const useSplitStore = defineStore('split', () => {
   const curve = shallowRef<Float32Array | null>(null)
@@ -65,6 +70,7 @@ export const useSplitStore = defineStore('split', () => {
   const selectedSplitId = ref<number | null>(null)
   // With nothing to centre on, the window starts at 0:00.
   const zoomCentreSeconds = ref(ZOOM_WINDOW_SECONDS / 2)
+  const range = ref<TimeRange | null>(null)
   let nextSplitId = 0
   /*
   What the user changed since the last detection, counted as things changed, not actions: a split
@@ -207,6 +213,19 @@ export const useSplitStore = defineStore('split', () => {
   }
 
   /*
+  Makes the range the user dragged from `anchorSeconds` (where the press began) to `pointerSeconds`,
+  held to the file and to 10 min from the anchor. A range under 1 s is refused (false) and the one
+  held stays: the caller treats the drag as a click.
+  */
+  function setRange(anchorSeconds: number, pointerSeconds: number) {
+    if (timing.value === null) return false
+    const made = rangeBetween(anchorSeconds, pointerSeconds, timing.value.durationSeconds)
+    if (made === null) return false
+    range.value = made
+    return true
+  }
+
+  /*
   Moves a split to `seconds`, held to the nearest limit: 1 s from its neighbours and from the
   file's ends, and inside the zoom window. A split already outside its limits (it is not in the
   window, or its neighbours are too close for both) stays where it is rather than jumping.
@@ -288,6 +307,7 @@ export const useSplitStore = defineStore('split', () => {
     clearEdits()
     selectedSplitId.value = null
     zoomCentreSeconds.value = ZOOM_WINDOW_SECONDS / 2
+    range.value = null
     nextSplitId = 0
   }
 
@@ -301,6 +321,7 @@ export const useSplitStore = defineStore('split', () => {
     selectedSplit,
     selectedSplitIndex,
     zoomCentreSeconds,
+    range,
     canAddSplit,
     editCount,
     hasEdits,
@@ -312,6 +333,7 @@ export const useSplitStore = defineStore('split', () => {
     selectTrack,
     isTrackSelected,
     moveZoomTo,
+    setRange,
     moveSplit,
     addSplit,
     deleteSplit,

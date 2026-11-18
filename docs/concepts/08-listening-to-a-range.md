@@ -44,8 +44,10 @@ Filled in as each ticket lands. Existing modules are linked, new ones are named.
 
 - [`src/entities/source-file/api/decode-clip.ts`](../../src/entities/source-file/api/decode-clip.ts): the clip command for a start and a length, instead of a split time.
 - [`src/entities/source-file/model/source-file.ts`](../../src/entities/source-file/model/source-file.ts): the `clip` call follows the same change.
-- [`src/entities/split/model/split.ts`](../../src/entities/split/model/split.ts): the range, the mark, the panel's view and "add split at the mark".
-- [`src/widgets/source-waveform/ui/SourceWaveform.vue`](../../src/widgets/source-waveform/ui/SourceWaveform.vue): the drag that makes a range, and its overlay.
+- [`src/entities/split/model/split.ts`](../../src/entities/split/model/split.ts): holds the range (`setRange`); the mark, the panel's view and "add split at the mark" are still to come.
+- [`src/widgets/source-waveform/ui/SourceWaveform.vue`](../../src/widgets/source-waveform/ui/SourceWaveform.vue): the overlay, drawn from the live drag or the held range.
+- [`src/widgets/source-waveform/lib/use-range-drag.ts`](../../src/widgets/source-waveform/lib/use-range-drag.ts): tells a click from a drag (4 px), captures the pointer and reports the live range.
+- [`src/entities/split/lib/range-between.ts`](../../src/entities/split/lib/range-between.ts) and [`config/range-limits.ts`](../../src/entities/split/config/range-limits.ts): the range a drag makes, held to the file and to 10 min from the press, and the 1 s minimum.
 - [`src/widgets/split-zoom/model/audition.ts`](../../src/widgets/split-zoom/model/audition.ts): becomes the one player, for the audition and for the range.
 - [`src/widgets/split-zoom/ui/SplitZoom.vue`](../../src/widgets/split-zoom/ui/SplitZoom.vue): the zoom view the Range view sits beside.
 - The Range view, its playhead and mark pointer handling, and its axis, title and bars helpers: new files in `src/widgets/split-zoom/`.

@@ -50,6 +50,14 @@ function editedStore() {
   return store
 }
 
+// A range does not depend on the splits; 60 s with two of them will do.
+function loadedStore() {
+  const curve = farGaps()
+  const store = useSplitStore()
+  store.detect(curve, timing(curve))
+  return store
+}
+
 const selectedTracks = (store: ReturnType<typeof useSplitStore>) =>
   store.tracks.map((track) => store.isTrackSelected(track))
 
@@ -961,6 +969,94 @@ describe('the split store', () => {
       store.reset()
 
       expect(store.editCount).toBe(0)
+    })
+  })
+
+  describe('the range', () => {
+    it('starts with no range', () => {
+      expect(loadedStore().range).toBeNull()
+    })
+
+    it('holds the range dragged from an anchor to a pointer, earlier time first', () => {
+      const store = loadedStore()
+
+      expect(store.setRange(30, 12)).toBe(true)
+
+      expect(store.range).toEqual({ startSeconds: 12, endSeconds: 30 })
+    })
+
+    it('holds the range to the file’s ends', () => {
+      const store = loadedStore()
+
+      store.setRange(50, 90)
+
+      expect(store.range).toEqual({ startSeconds: 50, endSeconds: 60 })
+    })
+
+    it('stops the range at 10 min from the anchor', () => {
+      const curve = curveOf([LOUD, 40_000])
+      const store = useSplitStore()
+      // 2000 s of file.
+      store.detect(curve, timing(curve))
+
+      store.setRange(100, 1900)
+
+      expect(store.range).toEqual({ startSeconds: 100, endSeconds: 700 })
+    })
+
+    it('refuses a range under 1 s and leaves the range it had', () => {
+      const store = loadedStore()
+      store.setRange(10, 20)
+
+      expect(store.setRange(30, 30.4)).toBe(false)
+
+      expect(store.range).toEqual({ startSeconds: 10, endSeconds: 20 })
+    })
+
+    it('replaces the range with a new one', () => {
+      const store = loadedStore()
+      store.setRange(10, 20)
+
+      store.setRange(40, 55)
+
+      expect(store.range).toEqual({ startSeconds: 40, endSeconds: 55 })
+    })
+
+    it('refuses a range before a file is analysed', () => {
+      const store = useSplitStore()
+
+      expect(store.setRange(10, 20)).toBe(false)
+
+      expect(store.range).toBeNull()
+    })
+
+    it('keeps the range when a setting changes, and when splits are edited', () => {
+      const store = loadedStore()
+      store.setRange(10, 20)
+
+      store.setMinimumGapLength(3)
+      store.setSilenceThreshold(-40)
+      store.addSplit()
+      store.moveZoomTo(5)
+
+      expect(store.range).toEqual({ startSeconds: 10, endSeconds: 20 })
+    })
+
+    it('does not count as an edit', () => {
+      const store = loadedStore()
+
+      store.setRange(10, 20)
+
+      expect(store.editCount).toBe(0)
+    })
+
+    it('is forgotten on reset', () => {
+      const store = loadedStore()
+      store.setRange(10, 20)
+
+      store.reset()
+
+      expect(store.range).toBeNull()
     })
   })
 

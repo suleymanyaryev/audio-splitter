@@ -17,6 +17,10 @@ Versions follow [Semantic Versioning](https://semver.org/) applied to the produc
 
 ## [Unreleased]
 
+### Added
+
+- Dragging across the whole-file waveform marks out a stretch of the file, from 1 second to 10 minutes, with a light overlay that stays until the next drag. A click still selects a split or moves the zoom window, and so does a drag under 1 second.
+
 ## [1.0.0] - 2026-11-15
 
 The first release: milestones 0 to 7.
