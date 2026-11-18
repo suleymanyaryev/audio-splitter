@@ -19,7 +19,8 @@ The baseline is green: `pnpm typecheck`, `pnpm test`, `pnpm lint`, `pnpm knip` a
 - Run Checkpoint and Final only at their points, and skip a check whose inputs haven't changed since it last passed.
 - `pnpm test:e2e` runs in Final only when the plan names a real browser flow that unit tests can't cover. The `test:changed` suggestion for changed e2e inputs is a hint, not a gate.
 - Browser work (checking a flow by hand, debugging a failing e2e spec with `--debug=cli`) goes through the `playwright-cli` skill. Playwright runs the installed Google Chrome (`channel: 'chrome'`); the project needs no `playwright install` browser download.
-- `lint:fix`, `knip:fix` and `format` rewrite files; `verify` writes `dist/`. The other scripts are read-only.
+- `pnpm cpd` (jscpd, config in `.jscpd.json`) is an audit, not a gate: run it on request or when planning a refactor, never in the tiers. It lists duplicated blocks in `src/` (specs excluded) and exits 0 whatever it finds; the report goes to `.cache/jscpd/`. Triage each clone as extract, leave or a misplaced slice boundary.
+- `lint:fix`, `knip:fix` and `format` rewrite files; `verify` writes `dist/`; `cpd` writes `.cache/jscpd/`. The other scripts are read-only.
 - Report one line per command actually run (`pnpm typecheck -> pass`, `pnpm test:changed -> fail: 2 in peaks.spec.ts, fixed`).
 
 ### Changed checks

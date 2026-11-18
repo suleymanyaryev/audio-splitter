@@ -19,6 +19,7 @@
     "lint:changed": "node scripts/run-changed-check.ts lint --changed-lines",
     "knip": "knip",
     "knip:fix": "knip --fix",
+    "cpd": "jscpd",
     "verify": "pnpm typecheck && pnpm test && pnpm build-only",
     "format": "prettier --write src/ scripts/"
   },
@@ -52,6 +53,7 @@
     "eslint-plugin-unicorn": "77.0.0",
     "eslint-plugin-vue": "~10.11.0",
     "jiti": "^2.7.0",
+    "jscpd": "^5.4.3",
     "jsdom": "^30.0.1",
     "knip": "^6.44.1",
     "npm-run-all2": "^9.0.3",

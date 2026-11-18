@@ -1,0 +1,7 @@
+{
+  "path": ["src"],
+  "ignore": ["**/__tests__/**"],
+  "reporters": ["console", "json"],
+  "output": ".cache/jscpd",
+  "gitignore": true
+}
