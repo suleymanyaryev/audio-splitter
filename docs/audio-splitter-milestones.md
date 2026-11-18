@@ -190,6 +190,26 @@ The real samples (`samples/sample1.{m4a,mp3,opus}`, 1 h 01 min, git-ignored) are
 
 ---
 
+## Milestone 8: Listening to a range
+
+Spec and tickets: [`.scratch/select-section-and-play/spec.md`](../.scratch/select-section-and-play/spec.md).
+
+**Concept.** A WAV is PCM behind a 44-byte header, so it grows with its length (about 176 KB per second at 44.1 kHz stereo 16-bit, 106 MB for 10 min, hence the limit), and a time in it is a byte that can be computed, so pausing and seeking are exact where a VBR MP3 seeks seconds off. Note: `docs/concepts/08-listening-to-a-range.md`.
+
+**Build.**
+
+- The clip command takes a start and a length instead of a split time; the audition asks for 4 s either side, as now.
+- A drag on the whole-file view makes a range (1 s to 10 min, held to the file), drawn as an overlay; a click keeps selecting a split or moving the zoom window.
+- The Range view beside the zoom view, with a `Split | Range` control in the panel's title row: the range's waveform, lands and splits, a playhead and a mark.
+- The audition store becomes the one player: play, pause, resume without decoding again, drag the playhead, back to the range's start.
+- "Add split" at the mark, without leaving the Range view or stopping the sound.
+
+**Try it.** Drag a range late in a long file in each format, listen, drag the playhead, mark a track start and add a split. A 10 min range late in the 3 h MP3 shows the longest wait.
+
+**Left for later.** Adjusting a range's edges, looping, moving a split in the Range view, exporting a range, ranges longer than 10 min.
+
+---
+
 ## Not in v1
 
 Ruled out on the [map](../.scratch/audio-splitter/map.md); each returns only as a fresh effort.

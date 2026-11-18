@@ -44,8 +44,16 @@ _Avoid_: Viewport, zoom range, visible range
 Hearing the 8 seconds across the selected split (4 before it, 4 after) to judge where the cut falls. The user starts and stops it with "Play across split"; moving or changing the selection ends it.
 _Avoid_: Preview, playback
 
+**Range**:
+A stretch of the source file, 1 s to 10 min, that the user drags out on the whole-file view to listen to. Hearing it is "playing the range", not an audition.
+_Avoid_: Selection, section, region
+
+**Mark**:
+The spot in a range where "Add split" puts a split.
+_Avoid_: Cursor, marker
+
 **Playhead**:
-The 1 px line in the zoom view that marks the point in the source file being heard during an audition.
+The 1 px line that marks the point being heard, or where playback will resume: in the zoom view during an audition, and in the Range view always.
 _Avoid_: Cursor, scrubber, position marker
 
 **Loudness curve**:
