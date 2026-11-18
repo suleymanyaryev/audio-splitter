@@ -21,7 +21,8 @@
     "knip:fix": "knip --fix",
     "cpd": "jscpd",
     "verify": "pnpm typecheck && pnpm test && pnpm build-only",
-    "format": "prettier --write src/ scripts/"
+    "format": "prettier --write src/ scripts/",
+    "depcruise": "depcruise src --output-type err-long"
   },
   "dependencies": {
     "@ffmpeg/core": "0.12.10",
@@ -43,6 +44,7 @@
     "@vue/eslint-config-typescript": "^14.9.0",
     "@vue/test-utils": "^2.5.0",
     "@vue/tsconfig": "^0.9.1",
+    "dependency-cruiser": "^18.8.0",
     "eslint": "^10.10.0",
     "eslint-config-prettier": "^10.1.8",
     "eslint-import-resolver-typescript": "^4.4.5",

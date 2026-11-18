@@ -8,19 +8,20 @@ A user-visible change adds its line under `## [Unreleased]` in `CHANGELOG.md`, i
 
 ## Checks
 
-The baseline is green: `pnpm typecheck`, `pnpm test`, `pnpm lint`, `pnpm knip` and `pnpm build` exit 0 on a clean tree. A failure in any of them is caused by the current work: fix it.
+The baseline is green: `pnpm typecheck`, `pnpm test`, `pnpm lint`, `pnpm knip`, `pnpm depcruise` and `pnpm build` exit 0 on a clean tree. A failure in any of them is caused by the current work: fix it.
 
 | Tier           | When                                           | Run                                                             |
 | -------------- | ---------------------------------------------- | --------------------------------------------------------------- |
 | **Task**       | After each edit loop                           | `pnpm vitest run <touched specs or dirs>` + `pnpm lint:changed` |
 | **Checkpoint** | End of a task-list section, or before a commit | `pnpm test:changed`, `pnpm lint:changed`, `pnpm typecheck`      |
-| **Final**      | Once, before handover or PR                    | `pnpm verify`, `pnpm lint`, `pnpm knip`                         |
+| **Final**      | Once, before handover or PR                    | `pnpm verify`, `pnpm lint`, `pnpm knip`, `pnpm depcruise`       |
 
 - Run Checkpoint and Final only at their points, and skip a check whose inputs haven't changed since it last passed.
 - `pnpm test:e2e` runs in Final only when the plan names a real browser flow that unit tests can't cover. The `test:changed` suggestion for changed e2e inputs is a hint, not a gate.
 - Browser work (checking a flow by hand, debugging a failing e2e spec with `--debug=cli`) goes through the `playwright-cli` skill. Playwright runs the installed Google Chrome (`channel: 'chrome'`); the project needs no `playwright install` browser download.
 - `pnpm cpd` (jscpd, config in `.jscpd.json`) is an audit, not a gate: run it on request or when planning a refactor, never in the tiers. It lists duplicated blocks in `src/` (specs excluded) and exits 0 whatever it finds; the report goes to `.cache/jscpd/`. Triage each clone as extract, leave or a misplaced slice boundary.
-- `lint:fix`, `knip:fix` and `format` rewrite files; `verify` writes `dist/`; `cpd` writes `.cache/jscpd/`. The other scripts are read-only.
+- `pnpm depcruise` (dependency-cruiser, config in `.dependency-cruiser.mjs`) fails on an import cycle in `src/`; type-only imports never count. It reads the whole graph, so it belongs to Final alone. A finding prints its fix.
+- `lint:fix`, `knip:fix` and `format` rewrite files; `verify` writes `dist/`; `cpd` writes `.cache/jscpd/`; `depcruise` keeps its cache in `.cache/dependency-cruiser/`. The other scripts are read-only.
 - Report one line per command actually run (`pnpm typecheck -> pass`, `pnpm test:changed -> fail: 2 in peaks.spec.ts, fixed`).
 
 ### Changed checks
