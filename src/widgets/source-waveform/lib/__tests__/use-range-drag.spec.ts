@@ -7,12 +7,14 @@ import { useRangeDrag, type RangeDragSource } from '../use-range-drag.ts'
 const LEFT = 100
 
 // What the handlers read from a pointer event, without a browser's PointerEvent.
-function pointerAt(canvasX: number, button = 0, pointerId = 7) {
+// `buttons` is the buttons held: 1 while the main one is down, 0 once the pointer is only hovering.
+function pointerAt(canvasX: number, button = 0, pointerId = 7, buttons = 1) {
   const setPointerCapture = vi.fn()
   const event = {
     clientX: LEFT + canvasX,
     pointerId,
     button,
+    buttons,
     currentTarget: {
       getBoundingClientRect: () => ({ left: LEFT }),
       setPointerCapture,
@@ -223,5 +225,33 @@ describe('useRangeDrag', () => {
     expect(drag.liveRange.value).toBeNull()
     expect(drag.commit).not.toHaveBeenCalled()
     expect(drag.click).not.toHaveBeenCalled()
+  })
+
+  describe('a release the browser never sent (a context menu over a Ctrl-click, say)', () => {
+    it('drops the press on a move with no button held, with neither a range nor a click', () => {
+      const drag = dragOf()
+      drag.onPointerDown(pointerAt(300).event)
+      drag.onPointerMove(pointerAt(500).event)
+
+      drag.onPointerMove(pointerAt(600, 0, 7, 0).event)
+      drag.onPointerMove(pointerAt(700).event)
+      drag.onPointerUp(pointerAt(700).event)
+
+      expect(drag.liveRange.value).toBeNull()
+      expect(drag.commit).not.toHaveBeenCalled()
+      expect(drag.click).not.toHaveBeenCalled()
+    })
+
+    it('lets the same pointer press again, starting a new press there', () => {
+      const drag = dragOf()
+      drag.onPointerDown(pointerAt(300).event)
+
+      const again = pointerAt(800)
+      drag.onPointerDown(again.event)
+      drag.onPointerUp(pointerAt(800).event)
+
+      expect(again.setPointerCapture).toHaveBeenCalledWith(7)
+      expect(drag.click).toHaveBeenCalledExactlyOnceWith(800)
+    })
   })
 })

@@ -1352,6 +1352,18 @@ describe('the split store', () => {
       expect(store.view).toBe('range')
     })
 
+    it('stays on the range view when the selected split is deleted, with its neighbour selected', () => {
+      const store = loadedStore()
+      store.setRange(10, 20)
+      const neighbour = store.splits[1]!
+
+      store.deleteSplit(store.selectedSplitId!)
+
+      expect(store.view).toBe('range')
+      expect(store.selectedSplit).toBe(neighbour)
+      expect(store.zoomCentreSeconds).toBe(neighbour.seconds)
+    })
+
     it('goes back to the split view on reset', () => {
       const store = loadedStore()
       store.setRange(10, 20)

@@ -323,8 +323,9 @@ export const useSplitStore = defineStore('split', () => {
     if (!wasSelected) return
     // The split now at this index is the next one; the last split falls back to the previous.
     const neighbour = splits.value[index] ?? splits.value[index - 1]
-    if (neighbour === undefined) selectedSplitId.value = null
-    else selectSplit(neighbour.id)
+    selectedSplitId.value = neighbour?.id ?? null
+    // Not `selectSplit`: a delete is no choice of split, so the Range view stays shown and playing.
+    if (neighbour !== undefined) zoomCentreSeconds.value = neighbour.seconds
   }
 
   /*

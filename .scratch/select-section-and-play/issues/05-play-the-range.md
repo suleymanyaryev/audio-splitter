@@ -4,7 +4,7 @@
 
 **Blocked by:** 02 (Clip by start and length), 04 (The Range view).
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 Spec: `.scratch/select-section-and-play/spec.md` (stories 24–25, 48–52, 54, 56–60)
 

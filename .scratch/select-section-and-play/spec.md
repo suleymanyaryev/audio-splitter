@@ -1,6 +1,6 @@
 # Listening to a range
 
-Status: ready-for-agent
+Status: resolved
 
 Milestone 8. Vocabulary is in `GLOSSARY.md`; this spec adds **Range** and **Mark** and widens **Playhead** (see Further Notes).
 

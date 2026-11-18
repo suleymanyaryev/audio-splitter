@@ -4,7 +4,7 @@
 
 **Blocked by:** 01 (Concept note and glossary), 02 (Clip by start and length), which settles the 10 min limit.
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 Spec: `.scratch/select-section-and-play/spec.md` (stories 1–12)
 

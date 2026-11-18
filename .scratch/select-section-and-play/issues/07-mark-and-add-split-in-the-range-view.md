@@ -4,7 +4,7 @@
 
 **Blocked by:** 04 (The Range view).
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 Spec: `.scratch/select-section-and-play/spec.md` (stories 32–47)
 

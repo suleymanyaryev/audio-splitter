@@ -246,6 +246,7 @@ watch(
       @pointermove="onPointerMove"
       @pointerup="onPointerEnd"
       @pointercancel="onPointerEnd"
+      @lostpointercapture="onPointerEnd"
     >
       <canvas ref="canvas" class="block size-full" aria-label="Waveform of the range" />
     </div>

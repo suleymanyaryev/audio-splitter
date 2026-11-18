@@ -4,7 +4,7 @@
 
 **Blocked by:** 03 (Drag a range on the whole-file view).
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 Spec: `.scratch/select-section-and-play/spec.md` (stories 13–23, 61–62)
 

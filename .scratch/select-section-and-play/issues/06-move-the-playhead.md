@@ -4,7 +4,7 @@
 
 **Blocked by:** 05 (Play the range).
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 Spec: `.scratch/select-section-and-play/spec.md` (stories 26–31, 53, 55)
 

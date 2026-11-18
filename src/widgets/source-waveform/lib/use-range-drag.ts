@@ -46,8 +46,12 @@ export function useRangeDrag({ timeAt, rangeBetween, commit, click }: RangeDragS
   }
 
   function onPointerDown(event: PointerEvent) {
-    // A second press while one is held would move the anchor under a drag.
-    if (pressX !== null || event.button !== 0) return
+    if (event.button !== 0) return
+    /*
+    Another pointer's press would move the anchor under a drag. The same pointer pressing again
+    means its release never came, so that press is over and this one starts afresh.
+    */
+    if (pressX !== null && event.pointerId !== pressPointerId) return
     pressPointerId = event.pointerId
     pressX = pointerX(event)
     anchorSeconds = timeAt(pressX)
@@ -57,6 +61,11 @@ export function useRangeDrag({ timeAt, rangeBetween, commit, click }: RangeDragS
 
   function onPointerMove(event: PointerEvent) {
     if (pressX === null || event.pointerId !== pressPointerId) return
+    // No button held: the release never came (Chrome drops it under a context menu), so drop the press.
+    if (event.buttons === 0) {
+      resetPress()
+      return
+    }
     const x = pointerX(event)
     // Once a drag, always a drag: coming back to the press must not turn it into a click.
     if (!isDragging && Math.abs(x - pressX) < DRAG_THRESHOLD_PX) return

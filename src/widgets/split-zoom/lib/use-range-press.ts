@@ -58,6 +58,8 @@ export function useRangePress({
   function onPointerDown(event: PointerEvent) {
     // Only the primary button: a right-click opens the browser's menu, not a mark.
     if (event.button !== 0) return
+    // A press while the playhead is held: the release never came, or a second finger. Let go first.
+    onPointerEnd()
     const x = pointerX(event)
     const playhead = playheadX()
     if (playhead !== null && isNear(x, playhead)) {
@@ -76,6 +78,11 @@ export function useRangePress({
     const x = pointerX(event)
     if (!dragging.value) {
       overPlayhead.value = isNear(x, playheadX())
+      return
+    }
+    // No button held: the release never came (Chrome drops it under a context menu), so let go.
+    if (event.buttons === 0) {
+      onPointerEnd()
       return
     }
     move(seconds(x - grabOffset))

@@ -196,6 +196,7 @@ watch(
       @pointermove="onPointerMove"
       @pointerup="onPointerUp"
       @pointercancel="onPointerCancel"
+      @lostpointercapture="onPointerCancel"
     />
     <div class="mt-1 flex justify-between text-xs text-muted">
       <span v-for="(time, index) in axisTimes" :key="index">{{ time }}</span>

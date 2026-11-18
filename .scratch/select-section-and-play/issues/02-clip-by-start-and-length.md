@@ -4,7 +4,7 @@
 
 **Blocked by:** 01 (Concept note and glossary).
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 Spec: `.scratch/select-section-and-play/spec.md`
 

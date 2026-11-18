@@ -24,13 +24,17 @@ function setup(prepare: (split: ReturnType<typeof useSplitStore>) => void = () =
   return { audition, split, toggleRange, backToRangeStart, wrapper }
 }
 
-// jsdom has no PointerEvent: a mouse event of that name, with the pointer's id.
+/*
+jsdom has no PointerEvent: a mouse event of that name, with the pointer's id. The main button is
+held from the press to the release, as a move during a drag reports it.
+*/
 async function pointer(
   view: { element: Element },
   type: 'pointerdown' | 'pointermove' | 'pointerup',
   clientX: number,
 ) {
-  const event = new MouseEvent(type, { clientX, bubbles: true })
+  const buttons = type === 'pointerup' ? 0 : 1
+  const event = new MouseEvent(type, { clientX, buttons, bubbles: true })
   Object.defineProperty(event, 'pointerId', { value: 1 })
   view.element.dispatchEvent(event)
   await nextTick()

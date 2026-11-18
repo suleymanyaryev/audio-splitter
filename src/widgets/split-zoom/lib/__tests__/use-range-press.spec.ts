@@ -6,10 +6,12 @@ import { useRangePress } from '../use-range-press.ts'
 const LEFT = 100
 
 // What the handlers read from a pointer event, without a browser's PointerEvent.
-function pointerAt(canvasX: number, button = 0) {
+// `buttons` is the buttons held: 1 while the main one is down, 0 once the pointer is only hovering.
+function pointerAt(canvasX: number, button = 0, buttons = 1) {
   const setPointerCapture = vi.fn()
   const event = {
     button,
+    buttons,
     clientX: LEFT + canvasX,
     pointerId: 5,
     currentTarget: {
@@ -95,6 +97,32 @@ describe('useRangePress', () => {
       expect(press.dragging.value).toBe(false)
       expect(press.drop).toHaveBeenCalledOnce()
       expect(press.move).not.toHaveBeenCalled()
+    })
+
+    it('is dropped by a move with no button held, when the release never came', () => {
+      const press = pressOf(450)
+      press.onPointerDown(pointerAt(450).event)
+
+      press.onPointerMove(pointerAt(600, 0, 0).event)
+      press.onPointerMove(pointerAt(650).event)
+
+      expect(press.dragging.value).toBe(false)
+      expect(press.drop).toHaveBeenCalledOnce()
+      expect(press.move).not.toHaveBeenCalled()
+    })
+
+    it('is dropped by a second press before that press does its own work', () => {
+      const press = pressOf(450)
+      press.onPointerDown(pointerAt(450).event)
+
+      press.onPointerDown(pointerAt(200).event)
+
+      expect(press.drop).toHaveBeenCalledOnce()
+      expect(press.dragging.value).toBe(false)
+      expect(press.placeMark).toHaveBeenCalledExactlyOnceWith(20)
+      expect(press.drop.mock.invocationCallOrder[0]).toBeLessThan(
+        press.placeMark.mock.invocationCallOrder[0]!,
+      )
     })
 
     it('is not dropped by a release that took hold of nothing', () => {
