@@ -50,6 +50,22 @@ function editedStore() {
   return store
 }
 
+// A range does not depend on the splits; 60 s with two of them will do.
+function loadedStore() {
+  const curve = farGaps()
+  const store = useSplitStore()
+  store.detect(curve, timing(curve))
+  return store
+}
+
+// A store with the range of 10 s to 30 s and the mark placed.
+function markedStore(markSeconds: number) {
+  const store = loadedStore()
+  store.setRange(10, 30)
+  store.placeMark(markSeconds)
+  return store
+}
+
 const selectedTracks = (store: ReturnType<typeof useSplitStore>) =>
   store.tracks.map((track) => store.isTrackSelected(track))
 
@@ -961,6 +977,400 @@ describe('the split store', () => {
       store.reset()
 
       expect(store.editCount).toBe(0)
+    })
+  })
+
+  describe('the range', () => {
+    it('starts with no range', () => {
+      expect(loadedStore().range).toBeNull()
+    })
+
+    it('holds the range dragged from an anchor to a pointer, earlier time first', () => {
+      const store = loadedStore()
+
+      expect(store.setRange(30, 12)).toBe(true)
+
+      expect(store.range).toEqual({ startSeconds: 12, endSeconds: 30 })
+    })
+
+    it('holds the range to the file’s ends', () => {
+      const store = loadedStore()
+
+      store.setRange(50, 90)
+
+      expect(store.range).toEqual({ startSeconds: 50, endSeconds: 60 })
+    })
+
+    it('stops the range at 10 min from the anchor', () => {
+      const curve = curveOf([LOUD, 40_000])
+      const store = useSplitStore()
+      // 2000 s of file.
+      store.detect(curve, timing(curve))
+
+      store.setRange(100, 1900)
+
+      expect(store.range).toEqual({ startSeconds: 100, endSeconds: 700 })
+    })
+
+    it('refuses a range under 1 s and leaves the range it had', () => {
+      const store = loadedStore()
+      store.setRange(10, 20)
+
+      expect(store.setRange(30, 30.4)).toBe(false)
+
+      expect(store.range).toEqual({ startSeconds: 10, endSeconds: 20 })
+    })
+
+    it('replaces the range with a new one', () => {
+      const store = loadedStore()
+      store.setRange(10, 20)
+
+      store.setRange(40, 55)
+
+      expect(store.range).toEqual({ startSeconds: 40, endSeconds: 55 })
+    })
+
+    it('refuses a range before a file is analysed', () => {
+      const store = useSplitStore()
+
+      expect(store.setRange(10, 20)).toBe(false)
+
+      expect(store.range).toBeNull()
+    })
+
+    it('keeps the range when a setting changes, and when splits are edited', () => {
+      const store = loadedStore()
+      store.setRange(10, 20)
+
+      store.setMinimumGapLength(3)
+      store.setSilenceThreshold(-40)
+      store.addSplit()
+      store.moveZoomTo(5)
+
+      expect(store.range).toEqual({ startSeconds: 10, endSeconds: 20 })
+    })
+
+    it('does not count as an edit', () => {
+      const store = loadedStore()
+
+      store.setRange(10, 20)
+
+      expect(store.editCount).toBe(0)
+    })
+
+    it('is forgotten on reset', () => {
+      const store = loadedStore()
+      store.setRange(10, 20)
+
+      store.reset()
+
+      expect(store.range).toBeNull()
+    })
+  })
+
+  describe('the mark', () => {
+    it('is none on a new range, and placed inside the range', () => {
+      const store = loadedStore()
+      store.setRange(10, 20)
+      expect(store.markSeconds).toBeNull()
+
+      store.placeMark(14.25)
+
+      expect(store.markSeconds).toBe(14.25)
+    })
+
+    it('is held inside the range, at its ends', () => {
+      const store = loadedStore()
+      store.setRange(10, 20)
+
+      store.placeMark(4)
+      expect(store.markSeconds).toBe(10)
+
+      store.placeMark(31)
+      expect(store.markSeconds).toBe(20)
+    })
+
+    it('is not placed without a range', () => {
+      const store = loadedStore()
+
+      store.placeMark(14)
+
+      expect(store.markSeconds).toBeNull()
+    })
+
+    it('is cleared by a new range, but not by a refused one', () => {
+      const store = loadedStore()
+      store.setRange(10, 20)
+      store.placeMark(14)
+
+      store.setRange(30, 30.4)
+      expect(store.markSeconds).toBe(14)
+
+      store.setRange(12, 25)
+      expect(store.markSeconds).toBeNull()
+    })
+
+    it('is kept while the split view is shown, and through setting changes and edits', () => {
+      const store = loadedStore()
+      store.setRange(10, 20)
+      store.placeMark(14)
+
+      store.showView('split')
+      store.showView('range')
+      store.setMinimumGapLength(3)
+      store.moveZoomTo(5)
+
+      expect(store.markSeconds).toBe(14)
+    })
+
+    it('is forgotten on reset', () => {
+      const store = loadedStore()
+      store.setRange(10, 20)
+      store.placeMark(14)
+
+      store.reset()
+
+      expect(store.markSeconds).toBeNull()
+    })
+
+    it('does not count as an edit', () => {
+      const store = loadedStore()
+      store.setRange(10, 20)
+
+      store.placeMark(14)
+
+      expect(store.editCount).toBe(0)
+    })
+  })
+
+  describe('whether a split can be added at the mark', () => {
+    // The splits are at 22 s and 42 s of a 60 s file.
+    it('is false before detection, with no range and with no mark', () => {
+      expect(useSplitStore().canAddSplitAtMark).toBe(false)
+
+      const store = loadedStore()
+      expect(store.canAddSplitAtMark).toBe(false)
+
+      store.setRange(10, 30)
+      expect(store.canAddSplitAtMark).toBe(false)
+    })
+
+    it('is true on open ground', () => {
+      const store = loadedStore()
+      store.setRange(10, 30)
+
+      store.placeMark(15)
+
+      expect(store.canAddSplitAtMark).toBe(true)
+    })
+
+    it('is false within 1 s of a split, and true at exactly 1 s', () => {
+      const store = loadedStore()
+      store.setRange(10, 30)
+
+      store.placeMark(22.5)
+      expect(store.canAddSplitAtMark).toBe(false)
+
+      store.placeMark(21.1)
+      expect(store.canAddSplitAtMark).toBe(false)
+
+      store.placeMark(23)
+      expect(store.canAddSplitAtMark).toBe(true)
+
+      store.placeMark(21)
+      expect(store.canAddSplitAtMark).toBe(true)
+    })
+
+    it('is false within 1 s of the file’s start and end, and true at exactly 1 s', () => {
+      const store = loadedStore()
+      store.setRange(0, 10)
+      store.placeMark(0.5)
+      expect(store.canAddSplitAtMark).toBe(false)
+      store.placeMark(1)
+      expect(store.canAddSplitAtMark).toBe(true)
+
+      store.setRange(50, 60)
+      store.placeMark(59.5)
+      expect(store.canAddSplitAtMark).toBe(false)
+      store.placeMark(59)
+      expect(store.canAddSplitAtMark).toBe(true)
+    })
+  })
+
+  describe('adding a split at the mark', () => {
+    it('adds an unnamed split at the mark, in time order', () => {
+      const store = markedStore(15)
+
+      store.addSplitAtMark()
+
+      expect(store.splits.map((split) => split.seconds)).toEqual([
+        15,
+        expect.closeTo(22, 9),
+        expect.closeTo(42, 9),
+      ])
+      expect(store.splits[0]!.name).toBeNull()
+      expect(store.tracks.map((track) => track.name)).toEqual(['1', '2', '3', '4'])
+    })
+
+    it('does not select it, move the zoom window or leave the range view', () => {
+      const store = markedStore(15)
+      const selectedId = store.selectedSplitId
+      const centre = store.zoomCentreSeconds
+
+      store.addSplitAtMark()
+
+      expect(store.selectedSplitId).toBe(selectedId)
+      expect(store.zoomCentreSeconds).toBe(centre)
+      expect(store.view).toBe('range')
+    })
+
+    it('keeps the mark and the range', () => {
+      const store = markedStore(15)
+
+      store.addSplitAtMark()
+
+      expect(store.markSeconds).toBe(15)
+      expect(store.range).toEqual({ startSeconds: 10, endSeconds: 30 })
+    })
+
+    it('counts as one added-split edit, and none once it is deleted again', () => {
+      const store = markedStore(15)
+
+      store.addSplitAtMark()
+      expect(store.editCount).toBe(1)
+
+      store.deleteSplit(store.splits[0]!.id)
+      expect(store.editCount).toBe(0)
+    })
+
+    it('does nothing with no room for it, and again at the same mark', () => {
+      const store = markedStore(22.5)
+      store.addSplitAtMark()
+      expect(store.splits).toHaveLength(2)
+
+      store.placeMark(15)
+      store.addSplitAtMark()
+      store.addSplitAtMark()
+      expect(store.splits).toHaveLength(3)
+      expect(store.editCount).toBe(1)
+    })
+
+    it('does nothing with no mark', () => {
+      const store = loadedStore()
+      store.setRange(10, 30)
+
+      store.addSplitAtMark()
+
+      expect(store.splits).toHaveLength(2)
+    })
+  })
+
+  describe('the panel view', () => {
+    it('starts on the split view', () => {
+      expect(loadedStore().view).toBe('split')
+    })
+
+    it('switches to the range view when a range is made', () => {
+      const store = loadedStore()
+
+      store.setRange(10, 20)
+
+      expect(store.view).toBe('range')
+    })
+
+    it('stays where it is when a range is refused', () => {
+      const store = loadedStore()
+
+      store.setRange(30, 30.4)
+
+      expect(store.view).toBe('split')
+    })
+
+    it('switches to the range view on request once there is a range, and back', () => {
+      const store = loadedStore()
+      store.setRange(10, 20)
+      store.showView('split')
+
+      store.showView('range')
+      expect(store.view).toBe('range')
+
+      store.showView('split')
+      expect(store.view).toBe('split')
+    })
+
+    it('refuses the range view while there is no range', () => {
+      const store = loadedStore()
+
+      store.showView('range')
+
+      expect(store.view).toBe('split')
+    })
+
+    it('switches back to the split view when a split is selected', () => {
+      const store = loadedStore()
+      store.setRange(10, 20)
+
+      store.selectSplit(store.splits[1]!.id)
+
+      expect(store.view).toBe('split')
+    })
+
+    it('switches back to the split view when a track is selected', () => {
+      const store = loadedStore()
+      store.setRange(10, 20)
+
+      store.selectTrack(store.tracks[1]!)
+
+      expect(store.view).toBe('split')
+    })
+
+    it('switches back to the split view when the zoom window is moved', () => {
+      const store = loadedStore()
+      store.setRange(10, 20)
+
+      store.moveZoomTo(5)
+
+      expect(store.view).toBe('split')
+    })
+
+    it('keeps the range while the split view is shown', () => {
+      const store = loadedStore()
+      store.setRange(10, 20)
+
+      store.moveZoomTo(5)
+
+      expect(store.range).toEqual({ startSeconds: 10, endSeconds: 20 })
+    })
+
+    it('is left alone by a setting change and by edits that select nothing', () => {
+      const store = loadedStore()
+      store.setRange(10, 20)
+
+      store.setMinimumGapLength(3)
+      store.setSilenceThreshold(-40)
+
+      expect(store.view).toBe('range')
+    })
+
+    it('stays on the range view when the selected split is deleted, with its neighbour selected', () => {
+      const store = loadedStore()
+      store.setRange(10, 20)
+      const neighbour = store.splits[1]!
+
+      store.deleteSplit(store.selectedSplitId!)
+
+      expect(store.view).toBe('range')
+      expect(store.selectedSplit).toBe(neighbour)
+      expect(store.zoomCentreSeconds).toBe(neighbour.seconds)
+    })
+
+    it('goes back to the split view on reset', () => {
+      const store = loadedStore()
+      store.setRange(10, 20)
+
+      store.reset()
+
+      expect(store.view).toBe('split')
     })
   })
 

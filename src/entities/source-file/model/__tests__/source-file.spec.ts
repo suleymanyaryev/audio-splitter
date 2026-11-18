@@ -393,13 +393,13 @@ describe('the source-file store', () => {
       expect(second.close).not.toHaveBeenCalled()
     })
 
-    it('decodes the clip around a split in the open session and gives its bytes and start', async () => {
+    it('decodes a clip of the given start and length in the open session and gives its bytes and start', async () => {
       const session = loadedSession()
       vi.mocked(openFfmpeg).mockResolvedValue(session)
       const store = useSourceFileStore()
       await store.load(file)
 
-      const clip = await store.clip(15)
+      const clip = await store.clip(11, 8)
 
       expect(clip).toEqual({ wav, startSeconds: 11, lengthSeconds: 8 })
       expect(clipRuns(session)).toHaveLength(1)
@@ -409,7 +409,7 @@ describe('the source-file store', () => {
     it('rejects a clip before a file is ready', async () => {
       const store = useSourceFileStore()
 
-      await expect(store.clip(15)).rejects.toThrow('No file is ready')
+      await expect(store.clip(11, 8)).rejects.toThrow('No file is ready')
     })
 
     it('rejects a clip while the file is still loading', async () => {
@@ -422,7 +422,7 @@ describe('the source-file store', () => {
         expect(session.run).toHaveBeenCalled()
       })
 
-      await expect(store.clip(15)).rejects.toThrow('No file is ready')
+      await expect(store.clip(11, 8)).rejects.toThrow('No file is ready')
     })
 
     it('runs clips one at a time, in the order they were pressed', async () => {
@@ -442,8 +442,8 @@ describe('the source-file store', () => {
           }),
       )
 
-      const first = store.clip(10)
-      const second = store.clip(20)
+      const first = store.clip(6, 8)
+      const second = store.clip(16, 8)
       await vi.waitFor(() => {
         expect(clipRuns(session)).toHaveLength(1)
       })
@@ -464,8 +464,8 @@ describe('the source-file store', () => {
       await store.load(file)
       session.run.mockResolvedValueOnce({ exitCode: 1, log: ['Invalid data'] })
 
-      await expect(store.clip(10)).rejects.toThrow('Invalid data')
-      await expect(store.clip(20)).resolves.toMatchObject({ startSeconds: 16 })
+      await expect(store.clip(6, 8)).rejects.toThrow('Invalid data')
+      await expect(store.clip(16, 8)).resolves.toMatchObject({ startSeconds: 16 })
     })
 
     it('rejects a queued clip whose file was reset meanwhile, without decoding', async () => {
@@ -483,8 +483,8 @@ describe('the source-file store', () => {
             }
           }),
       )
-      const first = store.clip(10)
-      const second = store.clip(20)
+      const first = store.clip(6, 8)
+      const second = store.clip(16, 8)
       await vi.waitFor(() => {
         expect(clipRuns(session)).toHaveLength(1)
       })
@@ -504,7 +504,7 @@ describe('the source-file store', () => {
 
       store.reset()
 
-      await expect(store.clip(15)).rejects.toThrow('No file is ready')
+      await expect(store.clip(11, 8)).rejects.toThrow('No file is ready')
     })
   })
 
@@ -566,7 +566,7 @@ describe('the source-file store', () => {
       const held = holdNextCall(session)
 
       const cut = store.cutTrack({ startSeconds: 0, endSeconds: 10, tags })
-      const clip = store.clip(20)
+      const clip = store.clip(16, 8)
       await vi.waitFor(() => {
         expect(cutRuns(session)).toHaveLength(1)
       })
@@ -655,7 +655,7 @@ describe('the source-file store', () => {
             })
           }),
       )
-      const clip = store.clip(20)
+      const clip = store.clip(16, 8)
       const queued = store.cutTrack({ startSeconds: 0, endSeconds: 10, tags })
       const alsoQueued = store.cutTrack({ startSeconds: 10, endSeconds: 20, tags })
       await vi.waitFor(() => {

@@ -26,18 +26,36 @@ function curveOf(...runs: [number, number][]) {
 */
 const farGaps = () => curveOf([LOUD, 400], [QUIET, 80], [LOUD, 320], [QUIET, 80], [LOUD, 320])
 
-// The clip around a split at `seconds`: 4 s before to 4 s after, as the source-file store makes it.
-const clipAround = (seconds: number): Clip => ({
+// The clip the source-file store gives for a stretch: the bytes, and the start and length it really has.
+const clipOf = (startSeconds: number, lengthSeconds: number): Clip => ({
   wav: Uint8Array.of(1, 2, 3),
-  startSeconds: seconds - 4,
-  lengthSeconds: 8,
+  startSeconds,
+  lengthSeconds,
 })
+
+// The 8 s an audition of the first split, at 22 s, asks for: 4 s before to 4 s after.
+const clipAroundFirstSplit = (): Clip => clipOf(18, 8)
 
 async function playing() {
   const parts = setUp()
   parts.audition.toggle()
   await flush()
   expect(parts.audition.status).toBe('playing')
+  return parts
+}
+
+// The range of 10 s to 30 s: 20 s of the file, and the split at 22 s inside it.
+function setUpRange() {
+  const parts = setUp()
+  parts.split.setRange(10, 30)
+  return parts
+}
+
+async function playingRange() {
+  const parts = setUpRange()
+  parts.audition.toggleRange()
+  await flush()
+  expect(parts.audition.rangeStatus).toBe('playing')
   return parts
 }
 
@@ -86,7 +104,9 @@ describe('the audition store', () => {
     vi.stubGlobal('URL', Object.assign(URL, { createObjectURL, revokeObjectURL }))
     clip = vi
       .spyOn(useSourceFileStore(), 'clip')
-      .mockImplementation(async (seconds) => clipAround(seconds))
+      .mockImplementation(async (startSeconds, lengthSeconds) =>
+        clipOf(startSeconds, lengthSeconds),
+      )
   })
 
   afterEach(() => {
@@ -110,12 +130,12 @@ describe('the audition store', () => {
 
     audition.toggle()
 
-    expect(clip).toHaveBeenCalledExactlyOnceWith(22)
+    expect(clip).toHaveBeenCalledExactlyOnceWith(18, 8)
     expect(audition.status).toBe('loading')
     expect(audition.isActive).toBe(true)
     expect(play).not.toHaveBeenCalled()
 
-    pending.resolve(clipAround(22))
+    pending.resolve(clipAroundFirstSplit())
     await flush()
 
     expect(audition.status).toBe('playing')
@@ -126,6 +146,35 @@ describe('the audition store', () => {
     expect(blob.size).toBe(3)
     expect(audio().getAttribute('src')).toBe('blob:clip-1')
     expect(audio().currentTime).toBe(0)
+  })
+
+  it('asks for less than 8 s when the split is under 4 s from the start of the file', () => {
+    // Quiet from 1 s to 5 s, so the only split is at 3 s.
+    const split = useSplitStore()
+    split.detect(curveOf([LOUD, 20], [QUIET, 80], [LOUD, 1100]), {
+      windowSeconds: 0.05,
+      durationSeconds: 60,
+    })
+    const audition = useAuditionStore()
+
+    audition.toggle()
+
+    // 0 to 7 s: 4 s after the split, and only 3 s before it, because the file starts.
+    expect(clip).toHaveBeenCalledExactlyOnceWith(0, 7)
+  })
+
+  it('still asks for 8 s when the split is under 4 s from the end of the file, which ffmpeg then cuts short', () => {
+    // Quiet from 55 s to 59 s, so the only split is at 57 s, in a file of 60 s.
+    const split = useSplitStore()
+    split.detect(curveOf([LOUD, 1100], [QUIET, 80], [LOUD, 20]), {
+      windowSeconds: 0.05,
+      durationSeconds: 60,
+    })
+    const audition = useAuditionStore()
+
+    audition.toggle()
+
+    expect(clip).toHaveBeenCalledExactlyOnceWith(53, 8)
   })
 
   it('does nothing without a selected split', () => {
@@ -184,7 +233,7 @@ describe('the audition store', () => {
     audition.toggle()
     expect(audition.status).toBe('idle')
 
-    pending.resolve(clipAround(22))
+    pending.resolve(clipAroundFirstSplit())
     await flush()
 
     expect(play).not.toHaveBeenCalled()
@@ -201,13 +250,13 @@ describe('the audition store', () => {
     audition.toggle() // press 1, loading
     audition.toggle() // stop
     audition.toggle() // press 2, loading
-    first.resolve(clipAround(22))
+    first.resolve(clipAroundFirstSplit())
     await flush()
 
     expect(audition.status).toBe('loading')
     expect(play).not.toHaveBeenCalled()
 
-    second.resolve(clipAround(22))
+    second.resolve(clipAroundFirstSplit())
     await flush()
 
     expect(audition.status).toBe('playing')
@@ -290,7 +339,7 @@ describe('the audition store', () => {
 
       split.selectSplit(split.splits[1]!.id)
       expect(audition.status).toBe('idle')
-      pending.resolve(clipAround(22))
+      pending.resolve(clipAroundFirstSplit())
       await flush()
 
       expect(play).not.toHaveBeenCalled()
@@ -367,6 +416,572 @@ describe('the audition store', () => {
       audition.stop()
 
       expect(audition.failure).toBeNull()
+    })
+  })
+
+  describe('playing the range', () => {
+    it('starts with the playhead at the start of the range and nothing playing', () => {
+      const { audition } = setUpRange()
+
+      expect(audition.rangeStatus).toBe('idle')
+      expect(audition.rangePlayheadSeconds()).toBe(10)
+    })
+
+    it('has no playhead without a range, and does nothing when asked to play', () => {
+      const { audition } = setUp()
+
+      audition.toggleRange()
+
+      expect(audition.rangePlayheadSeconds()).toBeNull()
+      expect(audition.rangeStatus).toBe('idle')
+      expect(clip).not.toHaveBeenCalled()
+    })
+
+    it('asks for the range’s start and length and plays the WAV from its start', async () => {
+      const { audition } = setUpRange()
+      const pending = deferred<Clip>()
+      clip.mockReturnValueOnce(pending.promise)
+
+      audition.toggleRange()
+
+      expect(clip).toHaveBeenCalledExactlyOnceWith(10, 20)
+      expect(audition.rangeStatus).toBe('loading')
+      expect(play).not.toHaveBeenCalled()
+
+      pending.resolve(clipOf(10, 20))
+      await flush()
+
+      expect(audition.rangeStatus).toBe('playing')
+      expect(play).toHaveBeenCalledOnce()
+      expect(createObjectURL.mock.calls[0]![0].type).toBe('audio/wav')
+      expect(audio().currentTime).toBe(0)
+    })
+
+    it('leaves the split audition’s state alone', async () => {
+      const { audition } = await playingRange()
+
+      expect(audition.status).toBe('idle')
+      expect(audition.isActive).toBe(false)
+      expect(audition.playheadSeconds()).toBeNull()
+    })
+
+    it('puts the playhead at the clip start plus the element time, within the clip', async () => {
+      const { audition } = await playingRange()
+
+      audio().currentTime = 4.5
+      expect(audition.rangePlayheadSeconds()).toBe(14.5)
+      // The element can report a hair past the end before `ended` arrives.
+      audio().currentTime = 20.01
+      expect(audition.rangePlayheadSeconds()).toBe(30)
+    })
+
+    it('pauses on a second press, and the playhead holds where the sound stopped', async () => {
+      const { audition } = await playingRange()
+      audio().currentTime = 4
+      pause.mockClear()
+
+      audition.toggleRange()
+      // The element's clock keeps whatever it had; the playhead must not follow it any more.
+      audio().currentTime = 9
+
+      expect(audition.rangeStatus).toBe('paused')
+      expect(pause).toHaveBeenCalled()
+      expect(audition.rangePlayheadSeconds()).toBe(14)
+      expect(revokeObjectURL).not.toHaveBeenCalled()
+    })
+
+    it('resumes from the playhead at once, without decoding the range again', async () => {
+      const { audition } = await playingRange()
+      audio().currentTime = 4
+      audition.toggleRange()
+
+      audition.toggleRange()
+      await flush()
+
+      expect(audition.rangeStatus).toBe('playing')
+      expect(clip).toHaveBeenCalledOnce()
+      expect(createObjectURL).toHaveBeenCalledOnce()
+      expect(play).toHaveBeenCalledTimes(2)
+      expect(audio().currentTime).toBe(4)
+    })
+
+    it('stops at the end of the range, with the playhead back at its start', async () => {
+      const { audition } = await playingRange()
+      audio().currentTime = 20
+
+      audio().dispatchEvent(new Event('ended'))
+
+      expect(audition.rangeStatus).toBe('idle')
+      expect(audition.rangePlayheadSeconds()).toBe(10)
+    })
+
+    it('plays the range again from its start after the end, without decoding again', async () => {
+      const { audition } = await playingRange()
+      audio().currentTime = 20
+      audio().dispatchEvent(new Event('ended'))
+
+      audition.toggleRange()
+      await flush()
+
+      expect(audition.rangeStatus).toBe('playing')
+      expect(clip).toHaveBeenCalledOnce()
+      expect(audio().currentTime).toBe(0)
+    })
+
+    it('reads "stop" while decoding: a press then takes it back and the clip is dropped', async () => {
+      const { audition } = setUpRange()
+      const pending = deferred<Clip>()
+      clip.mockReturnValueOnce(pending.promise)
+      audition.toggleRange()
+
+      audition.toggleRange()
+      expect(audition.rangeStatus).toBe('idle')
+
+      pending.resolve(clipOf(10, 20))
+      await flush()
+
+      expect(play).not.toHaveBeenCalled()
+      expect(createObjectURL).not.toHaveBeenCalled()
+      expect(audition.rangeStatus).toBe('idle')
+    })
+
+    it('drops a clip that arrives after a new range was drawn', async () => {
+      const { audition, split } = setUpRange()
+      const pending = deferred<Clip>()
+      clip.mockReturnValueOnce(pending.promise)
+      audition.toggleRange()
+
+      split.setRange(40, 50)
+      pending.resolve(clipOf(10, 20))
+      await flush()
+
+      expect(play).not.toHaveBeenCalled()
+      expect(audition.rangeStatus).toBe('idle')
+      expect(audition.rangePlayheadSeconds()).toBe(40)
+    })
+
+    it('stops and lets go of the decoded range when a new range is drawn', async () => {
+      const { audition, split } = await playingRange()
+      audio().currentTime = 4
+
+      split.setRange(40, 50)
+
+      expect(audition.rangeStatus).toBe('idle')
+      expect(pause).toHaveBeenCalled()
+      expect(revokeObjectURL).toHaveBeenCalledExactlyOnceWith('blob:clip-1')
+      expect(audition.rangePlayheadSeconds()).toBe(40)
+    })
+
+    it('decodes the new range, not the old one, on the next press', async () => {
+      const { audition, split } = await playingRange()
+      split.setRange(40, 50)
+
+      audition.toggleRange()
+      await flush()
+
+      expect(clip).toHaveBeenLastCalledWith(40, 10)
+      expect(clip).toHaveBeenCalledTimes(2)
+    })
+
+    it('lets go of the decoded range when the range is cleared', async () => {
+      const { audition, split } = await playingRange()
+
+      split.reset()
+
+      expect(audition.rangeStatus).toBe('idle')
+      expect(revokeObjectURL).toHaveBeenCalledExactlyOnceWith('blob:clip-1')
+      expect(audition.rangePlayheadSeconds()).toBeNull()
+    })
+
+    describe('stop()', () => {
+      it('pauses a playing range where it is, keeping the decoded range', async () => {
+        const { audition } = await playingRange()
+        audio().currentTime = 6
+
+        audition.stop()
+
+        expect(audition.rangeStatus).toBe('paused')
+        expect(audition.rangePlayheadSeconds()).toBe(16)
+        expect(revokeObjectURL).not.toHaveBeenCalled()
+      })
+
+      it('takes back a range that is still decoding', async () => {
+        const { audition } = setUpRange()
+        const pending = deferred<Clip>()
+        clip.mockReturnValueOnce(pending.promise)
+        audition.toggleRange()
+
+        audition.stop()
+        pending.resolve(clipOf(10, 20))
+        await flush()
+
+        expect(audition.rangeStatus).toBe('idle')
+        expect(play).not.toHaveBeenCalled()
+      })
+
+      it('leaves a paused range paused, and an idle one idle', async () => {
+        const { audition } = await playingRange()
+        audition.toggleRange()
+
+        audition.stop()
+        expect(audition.rangeStatus).toBe('paused')
+
+        const idle = setUpRange().audition
+        idle.stop()
+        expect(idle.rangeStatus).toBe('idle')
+      })
+    })
+
+    describe('moving the playhead', () => {
+      it('seeks inside the WAV while the range plays, and goes on playing', async () => {
+        const { audition } = await playingRange()
+        const element = audio()
+        play.mockClear()
+
+        audition.seekRange(25)
+
+        // The WAV starts at the range's start, 10 s: the place is an offset in it.
+        expect(element.currentTime).toBe(15)
+        expect(audition.rangeStatus).toBe('playing')
+        expect(audition.rangePlayheadSeconds()).toBe(25)
+        expect(play).not.toHaveBeenCalled()
+        expect(clip).toHaveBeenCalledOnce()
+      })
+
+      it('moves the playhead of a paused range and leaves it paused, with Play starting there', async () => {
+        const { audition } = await playingRange()
+        audition.toggleRange()
+        play.mockClear()
+
+        audition.seekRange(12.5)
+
+        expect(audition.rangeStatus).toBe('paused')
+        expect(audition.rangePlayheadSeconds()).toBe(12.5)
+        expect(play).not.toHaveBeenCalled()
+
+        audition.toggleRange()
+        await flush()
+
+        expect(audio().currentTime).toBe(2.5)
+        expect(clip).toHaveBeenCalledOnce()
+      })
+
+      it('moves the playhead of a range not yet played, and the first Play decodes it and starts there', async () => {
+        const { audition } = setUpRange()
+
+        audition.seekRange(20)
+
+        expect(audition.rangeStatus).toBe('idle')
+        expect(audition.rangePlayheadSeconds()).toBe(20)
+        expect(clip).not.toHaveBeenCalled()
+
+        audition.toggleRange()
+        await flush()
+
+        expect(audition.rangeStatus).toBe('playing')
+        expect(audio().currentTime).toBe(10)
+      })
+
+      it('sets where playback starts when the clip arrives, if moved during the decode', async () => {
+        const { audition } = setUpRange()
+        const pending = deferred<Clip>()
+        clip.mockReturnValueOnce(pending.promise)
+        audition.toggleRange()
+
+        audition.seekRange(16)
+
+        expect(audition.rangeStatus).toBe('loading')
+        expect(audition.rangePlayheadSeconds()).toBe(16)
+        expect(play).not.toHaveBeenCalled()
+
+        pending.resolve(clipOf(10, 20))
+        await flush()
+
+        expect(audition.rangeStatus).toBe('playing')
+        expect(audio().currentTime).toBe(6)
+      })
+
+      it('plays from the start when the playhead was left at the very end', async () => {
+        const { audition } = await playingRange()
+        audition.toggleRange()
+        audition.seekRange(30)
+        expect(audition.rangePlayheadSeconds()).toBe(30)
+
+        audition.toggleRange()
+        await flush()
+
+        expect(audition.rangeStatus).toBe('playing')
+        expect(audio().currentTime).toBe(0)
+      })
+
+      it('holds the playhead to the range', async () => {
+        const { audition } = setUpRange()
+
+        audition.seekRange(3)
+        expect(audition.rangePlayheadSeconds()).toBe(10)
+
+        audition.seekRange(99)
+        expect(audition.rangePlayheadSeconds()).toBe(30)
+      })
+
+      it('does nothing without a range', () => {
+        const { audition } = setUp()
+
+        audition.seekRange(5)
+        audition.backToRangeStart()
+
+        expect(audition.rangePlayheadSeconds()).toBeNull()
+      })
+
+      describe('back to the start', () => {
+        it('moves a playing range to its start and keeps it playing', async () => {
+          const { audition } = await playingRange()
+          const element = audio()
+          element.currentTime = 9
+          play.mockClear()
+
+          audition.backToRangeStart()
+
+          expect(element.currentTime).toBe(0)
+          expect(audition.rangeStatus).toBe('playing')
+          expect(audition.rangePlayheadSeconds()).toBe(10)
+          expect(play).not.toHaveBeenCalled()
+        })
+
+        it('moves a paused range to its start and leaves it paused', async () => {
+          const { audition } = await playingRange()
+          audio().currentTime = 9
+          audition.toggleRange()
+
+          audition.backToRangeStart()
+
+          expect(audition.rangeStatus).toBe('paused')
+          expect(audition.rangePlayheadSeconds()).toBe(10)
+        })
+      })
+
+      describe('pausing for a drag', () => {
+        it('pauses a playing range on the grab and resumes it from the drop', async () => {
+          const { audition } = await playingRange()
+          play.mockClear()
+
+          audition.grabPlayhead()
+          expect(audition.rangeStatus).toBe('paused')
+
+          audition.seekRange(18)
+          audition.seekRange(22)
+          expect(audition.rangeStatus).toBe('paused')
+          expect(audition.rangePlayheadSeconds()).toBe(22)
+          expect(play).not.toHaveBeenCalled()
+
+          audition.dropPlayhead()
+          await flush()
+
+          expect(audition.rangeStatus).toBe('playing')
+          expect(audio().currentTime).toBe(12)
+          expect(play).toHaveBeenCalledOnce()
+          expect(clip).toHaveBeenCalledOnce()
+        })
+
+        it('leaves a paused range paused after the drop', async () => {
+          const { audition } = await playingRange()
+          audition.toggleRange()
+          play.mockClear()
+
+          audition.grabPlayhead()
+          audition.seekRange(20)
+          audition.dropPlayhead()
+          await flush()
+
+          expect(audition.rangeStatus).toBe('paused')
+          expect(audition.rangePlayheadSeconds()).toBe(20)
+          expect(play).not.toHaveBeenCalled()
+        })
+
+        it('leaves an idle range idle, and one still decoding decoding', async () => {
+          const { audition } = setUpRange()
+          audition.grabPlayhead()
+          audition.seekRange(15)
+          audition.dropPlayhead()
+          expect(audition.rangeStatus).toBe('idle')
+
+          const pending = deferred<Clip>()
+          clip.mockReturnValueOnce(pending.promise)
+          audition.toggleRange()
+          audition.grabPlayhead()
+          audition.seekRange(18)
+          audition.dropPlayhead()
+
+          expect(audition.rangeStatus).toBe('loading')
+          pending.resolve(clipOf(10, 20))
+          await flush()
+          expect(audio().currentTime).toBe(8)
+        })
+
+        it('does not resume a range that a new range replaced during the drag', async () => {
+          const { audition, split } = await playingRange()
+          audition.grabPlayhead()
+          play.mockClear()
+
+          split.setRange(30, 40)
+          audition.dropPlayhead()
+          await flush()
+
+          expect(audition.rangeStatus).toBe('idle')
+          expect(play).not.toHaveBeenCalled()
+        })
+
+        it('does not resume a second time from a drop with no grab', async () => {
+          const { audition } = await playingRange()
+          audition.grabPlayhead()
+          audition.dropPlayhead()
+          audition.toggleRange()
+          play.mockClear()
+
+          audition.dropPlayhead()
+          await flush()
+
+          expect(audition.rangeStatus).toBe('paused')
+          expect(play).not.toHaveBeenCalled()
+        })
+      })
+    })
+
+    describe('and the split audition, which stop each other', () => {
+      it('stops the range, keeping its playhead, and lets go of its clip, when the audition plays', async () => {
+        const { audition } = await playingRange()
+        audio().currentTime = 4
+
+        audition.toggle()
+
+        expect(audition.rangeStatus).toBe('idle')
+        expect(audition.status).toBe('loading')
+        expect(audition.rangePlayheadSeconds()).toBe(14)
+        expect(revokeObjectURL).toHaveBeenCalledExactlyOnceWith('blob:clip-1')
+      })
+
+      it('lets go of a paused range’s clip when the audition plays', async () => {
+        const { audition } = await playingRange()
+        audition.toggleRange()
+
+        audition.toggle()
+        await flush()
+
+        expect(revokeObjectURL).toHaveBeenCalledWith('blob:clip-1')
+        expect(audition.status).toBe('playing')
+        expect(audition.rangeStatus).toBe('idle')
+      })
+
+      it('stops the audition, and lets go of its clip, when the range plays', async () => {
+        const { audition } = setUpRange()
+        audition.toggle()
+        await flush()
+        expect(audition.status).toBe('playing')
+
+        audition.toggleRange()
+
+        expect(audition.status).toBe('idle')
+        expect(audition.isActive).toBe(false)
+        expect(audition.rangeStatus).toBe('loading')
+        expect(revokeObjectURL).toHaveBeenCalledExactlyOnceWith('blob:clip-1')
+      })
+
+      it('decodes the range again after the audition took its clip away', async () => {
+        const { audition } = await playingRange()
+        audition.toggle()
+        await flush()
+
+        audition.toggleRange()
+        await flush()
+
+        expect(clip).toHaveBeenCalledTimes(3)
+        expect(clip).toHaveBeenLastCalledWith(10, 20)
+        expect(audition.rangeStatus).toBe('playing')
+      })
+
+      it('stops the audition when a range is made while it plays', async () => {
+        const { audition, split } = setUp()
+        audition.toggle()
+        await flush()
+
+        split.setRange(10, 30)
+
+        expect(audition.status).toBe('idle')
+        expect(audition.playheadSeconds()).toBeNull()
+      })
+    })
+
+    describe('failures', () => {
+      it('says why the range could not be made and goes idle', async () => {
+        const { audition } = setUpRange()
+        clip.mockRejectedValueOnce(new Error('Invalid data found'))
+
+        audition.toggleRange()
+        await flush()
+
+        expect(audition.rangeStatus).toBe('idle')
+        expect(audition.failure).toBe("Couldn't play this range: Invalid data found")
+      })
+
+      it('stays silent when the file was replaced before the range was ready', async () => {
+        const { audition } = setUpRange()
+        clip.mockRejectedValueOnce(new FileReplacedError())
+
+        audition.toggleRange()
+        await flush()
+
+        expect(audition.rangeStatus).toBe('idle')
+        expect(audition.failure).toBeNull()
+      })
+
+      it('ignores the failure of a press that was taken back', async () => {
+        const { audition } = setUpRange()
+        const pending = deferred<Clip>()
+        clip.mockReturnValueOnce(pending.promise)
+        audition.toggleRange()
+        audition.toggleRange()
+
+        pending.reject(new Error('Invalid data found'))
+        await flush()
+
+        expect(audition.failure).toBeNull()
+      })
+
+      it('treats a refused play() as a failure and lets go of the clip', async () => {
+        const { audition } = setUpRange()
+        play.mockRejectedValueOnce(new DOMException('Not allowed', 'NotAllowedError'))
+
+        audition.toggleRange()
+        await flush()
+
+        expect(audition.rangeStatus).toBe('idle')
+        expect(audition.failure).toBe("Couldn't play this range: Not allowed")
+        expect(revokeObjectURL).toHaveBeenCalledExactlyOnceWith('blob:clip-1')
+      })
+
+      it('clears the failure on the next press', async () => {
+        const { audition } = setUpRange()
+        clip.mockRejectedValueOnce(new Error('Invalid data found'))
+        audition.toggleRange()
+        await flush()
+
+        audition.toggleRange()
+
+        expect(audition.failure).toBeNull()
+        expect(audition.rangeStatus).toBe('loading')
+      })
+
+      it('clears the failure when a new range is drawn', async () => {
+        const { audition, split } = setUpRange()
+        clip.mockRejectedValueOnce(new Error('Invalid data found'))
+        audition.toggleRange()
+        await flush()
+        expect(audition.failure).not.toBeNull()
+
+        split.setRange(40, 50)
+
+        expect(audition.failure).toBeNull()
+      })
     })
   })
 

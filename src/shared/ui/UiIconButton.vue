@@ -2,7 +2,7 @@
 const { size = 'md' } = defineProps<{
   // Required: the icon alone gives a screen reader nothing to read.
   label: string
-  // `md` is 36 px; `sm` (32 px) is for table rows.
+  // `md` is 36 px; `sm` (32 px) is for table rows and title rows.
   size?: 'sm' | 'md'
 }>()
 </script>

@@ -6,6 +6,7 @@ import { DEFAULT_MINIMUM_GAP_SECONDS, DEFAULT_OFFSET_DB } from '../config/defaul
 import { MAX_TRACK_NAME_LENGTH } from '../config/track-name.ts'
 import { ZOOM_WINDOW_SECONDS } from '../config/zoom-window.ts'
 import { findGaps, splitsOf, type Gap } from '../lib/find-gaps.ts'
+import { rangeBetween, type TimeRange } from '../lib/range-between.ts'
 
 /*
 A split stays at least this far from its neighbours and from the file's start and end. Moves are
@@ -32,6 +33,9 @@ export interface Track {
   startSplit: Split | null
 }
 
+// Which view the zoom panel shows: the 20 s zoom view, or the Range view (GLOSSARY.md: Range).
+export type PanelView = 'split' | 'range'
+
 export interface CurveTiming {
   windowSeconds: number
   durationSeconds: number
@@ -52,6 +56,14 @@ At most one split is selected, by id. The zoom window is `ZOOM_WINDOW_SECONDS` w
 `moveZoomTo`. A split can only be moved inside the window, which never follows the move. A split
 is added at the window's centre, and `editCount` says how many things the user changed since the
 last detection.
+
+The range (GLOSSARY.md) is view state beside the window's centre: a stretch the user dragged out on
+the whole-file view, or none. It belongs to the file, not to the detection, so a setting change and
+the edits leave it alone; `reset` clears it. The panel shows the range's view after a new range and
+the zoom view again as soon as the user selects a split or moves the window, since both are about
+the zoom view; the range stays while the zoom view is shown. The mark is a spot inside the range,
+placed by the user, cleared by a new range and kept otherwise; `addSplitAtMark` adds a split there
+without selecting it, so the user stays in the Range view.
 */
 export const useSplitStore = defineStore('split', () => {
   const curve = shallowRef<Float32Array | null>(null)
@@ -65,6 +77,10 @@ export const useSplitStore = defineStore('split', () => {
   const selectedSplitId = ref<number | null>(null)
   // With nothing to centre on, the window starts at 0:00.
   const zoomCentreSeconds = ref(ZOOM_WINDOW_SECONDS / 2)
+  const range = ref<TimeRange | null>(null)
+  // The spot in the range where "Add split" puts a split (GLOSSARY.md), or none.
+  const markSeconds = ref<number | null>(null)
+  const view = ref<PanelView>('split')
   let nextSplitId = 0
   /*
   What the user changed since the last detection, counted as things changed, not actions: a split
@@ -120,23 +136,30 @@ export const useSplitStore = defineStore('split', () => {
   const hasEdits = computed(() => editCount.value > 0)
 
   /*
-  Room for a new split at the window's centre: 1 s from every split and from the file's ends, as
-  `moveSplit` keeps them.
+  Room for a new split at a time: 1 s from every split and from the file's ends, as `moveSplit`
+  keeps them.
   */
-  const canAddSplit = computed(() => {
+  function hasRoomFor(seconds: number) {
     if (timing.value === null) return false
-    const centre = zoomCentreSeconds.value
-    const isClearOf = (seconds: number) =>
-      Math.abs(seconds - centre) >= MINIMUM_DISTANCE_SECONDS - LIMIT_TOLERANCE
+    const isClearOf = (other: number) =>
+      Math.abs(other - seconds) >= MINIMUM_DISTANCE_SECONDS - LIMIT_TOLERANCE
     // The window is not clamped to the file, so its centre can lie outside it.
-    const isInside = centre > 0 && centre < timing.value.durationSeconds
+    const isInside = seconds > 0 && seconds < timing.value.durationSeconds
     return (
       isInside &&
       isClearOf(0) &&
       isClearOf(timing.value.durationSeconds) &&
       splits.value.every((split) => isClearOf(split.seconds))
     )
-  })
+  }
+
+  // "Add split" in the zoom view puts the split at the window's centre.
+  const canAddSplit = computed(() => hasRoomFor(zoomCentreSeconds.value))
+
+  // "Add split" in the Range view puts it at the mark, when there is one.
+  const canAddSplitAtMark = computed(
+    () => markSeconds.value !== null && hasRoomFor(markSeconds.value),
+  )
 
   // Finds the gaps again and replaces all splits and all track names with the proposed ones.
   function findAgain() {
@@ -186,6 +209,7 @@ export const useSplitStore = defineStore('split', () => {
     if (split === undefined) return
     selectedSplitId.value = split.id
     zoomCentreSeconds.value = split.seconds
+    view.value = 'split'
   }
 
   /*
@@ -204,6 +228,38 @@ export const useSplitStore = defineStore('split', () => {
   function moveZoomTo(seconds: number) {
     zoomCentreSeconds.value = seconds
     selectedSplitId.value = null
+    view.value = 'split'
+  }
+
+  /*
+  Makes the range the user dragged from `anchorSeconds` (where the press began) to `pointerSeconds`,
+  held to the file and to 10 min from the anchor. A range under 1 s is refused (false) and the one
+  held stays: the caller treats the drag as a click.
+  */
+  function setRange(anchorSeconds: number, pointerSeconds: number) {
+    if (timing.value === null) return false
+    const made = rangeBetween(anchorSeconds, pointerSeconds, timing.value.durationSeconds)
+    if (made === null) return false
+    range.value = made
+    // A mark belongs to the range it was placed in.
+    markSeconds.value = null
+    view.value = 'range'
+    return true
+  }
+
+  // Places the mark, held inside the range: a split is never added outside the stretch on show.
+  function placeMark(seconds: number) {
+    if (range.value === null) return
+    markSeconds.value = Math.min(
+      Math.max(seconds, range.value.startSeconds),
+      range.value.endSeconds,
+    )
+  }
+
+  // The Range view needs a range to show: asked for with none, the panel stays where it is.
+  function showView(next: PanelView) {
+    if (next === 'range' && range.value === null) return
+    view.value = next
   }
 
   /*
@@ -233,14 +289,26 @@ export const useSplitStore = defineStore('split', () => {
   }
 
   // The new split is unnamed, so its track takes its number from its place.
-  function addSplit() {
-    if (!canAddSplit.value) return
-    const seconds = zoomCentreSeconds.value
+  function insertSplit(seconds: number) {
     const index = splits.value.findIndex((candidate) => candidate.seconds > seconds)
     const split: Split = { id: nextSplitId++, seconds, name: null }
     splits.value.splice(index === -1 ? splits.value.length : index, 0, split)
     addedIds.value.add(split.id)
-    selectSplit(split.id)
+    return split
+  }
+
+  function addSplit() {
+    if (!canAddSplit.value) return
+    selectSplit(insertSplit(zoomCentreSeconds.value).id)
+  }
+
+  /*
+  A split where the mark is, for the user who is listening in the Range view: it is not selected,
+  so the view, the playback and the mark stay as they are.
+  */
+  function addSplitAtMark() {
+    if (markSeconds.value === null || !canAddSplitAtMark.value) return
+    insertSplit(markSeconds.value)
   }
 
   function deleteSplit(id: number) {
@@ -255,8 +323,9 @@ export const useSplitStore = defineStore('split', () => {
     if (!wasSelected) return
     // The split now at this index is the next one; the last split falls back to the previous.
     const neighbour = splits.value[index] ?? splits.value[index - 1]
-    if (neighbour === undefined) selectedSplitId.value = null
-    else selectSplit(neighbour.id)
+    selectedSplitId.value = neighbour?.id ?? null
+    // Not `selectSplit`: a delete is no choice of split, so the Range view stays shown and playing.
+    if (neighbour !== undefined) zoomCentreSeconds.value = neighbour.seconds
   }
 
   /*
@@ -288,6 +357,9 @@ export const useSplitStore = defineStore('split', () => {
     clearEdits()
     selectedSplitId.value = null
     zoomCentreSeconds.value = ZOOM_WINDOW_SECONDS / 2
+    range.value = null
+    markSeconds.value = null
+    view.value = 'split'
     nextSplitId = 0
   }
 
@@ -301,7 +373,11 @@ export const useSplitStore = defineStore('split', () => {
     selectedSplit,
     selectedSplitIndex,
     zoomCentreSeconds,
+    range,
+    markSeconds,
+    view,
     canAddSplit,
+    canAddSplitAtMark,
     editCount,
     hasEdits,
     tracks,
@@ -312,8 +388,12 @@ export const useSplitStore = defineStore('split', () => {
     selectTrack,
     isTrackSelected,
     moveZoomTo,
+    setRange,
+    placeMark,
+    showView,
     moveSplit,
     addSplit,
+    addSplitAtMark,
     deleteSplit,
     renameTrack,
     reset,

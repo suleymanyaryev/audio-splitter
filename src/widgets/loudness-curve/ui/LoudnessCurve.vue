@@ -4,6 +4,7 @@ import { computed, useTemplateRef, watch } from 'vue'
 import { useSourceFileStore } from '@/entities/source-file/model/source-file.ts'
 import { useSplitStore } from '@/entities/split/model/split.ts'
 import { CANVAS_FONT } from '@/shared/lib/canvas/canvas-text.ts'
+import { DASH_PATTERN } from '@/shared/lib/canvas/dash-pattern.ts'
 import { drawLands, drawSplitLines } from '@/shared/lib/canvas/draw-lands-and-splits.ts'
 import { landSpans } from '@/shared/lib/canvas/land-spans.ts'
 import { prepareCanvas } from '@/shared/lib/canvas/prepare-canvas.ts'
@@ -28,11 +29,10 @@ import ReplaceEditsDialog from './ReplaceEditsDialog.vue'
 // DESIGN.md: the area under the curve is filled at 14 % alpha.
 const FILL_ALPHA = 0.14
 /*
-DESIGN.md: the threshold is a 1.5 px line dashed 5 px on, 4 px off, with its label on a plate
+DESIGN.md: the threshold is a 1.5 px line dashed (`DASH_PATTERN`), with its label on a plate
 (text width + 8 px) at the left and an 18 × 10 px handle at the right edge.
 */
 const THRESHOLD_LINE_WIDTH = 1.5
-const THRESHOLD_DASH = [5, 4]
 const PLATE_PADDING = 4
 
 const sourceFile = useSourceFileStore()
@@ -77,7 +77,7 @@ function drawThreshold(
 
   context.strokeStyle = color
   context.lineWidth = THRESHOLD_LINE_WIDTH
-  context.setLineDash(THRESHOLD_DASH)
+  context.setLineDash(DASH_PATTERN)
   context.beginPath()
   context.moveTo(0, y)
   context.lineTo(width, y)

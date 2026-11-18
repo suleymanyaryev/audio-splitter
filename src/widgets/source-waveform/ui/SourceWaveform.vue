@@ -3,6 +3,7 @@ import { computed, useTemplateRef, watch } from 'vue'
 
 import { useSourceFileStore } from '@/entities/source-file/model/source-file.ts'
 import { ZOOM_WINDOW_SECONDS } from '@/entities/split/config/zoom-window.ts'
+import { rangeBetween } from '@/entities/split/lib/range-between.ts'
 import { useSplitStore } from '@/entities/split/model/split.ts'
 import { mergePeaks } from '@/shared/lib/audio/merge-peaks.ts'
 import { CANVAS_FONT } from '@/shared/lib/canvas/canvas-text.ts'
@@ -15,12 +16,16 @@ import { timeToX, xToTime } from '@/shared/lib/canvas/time-axis.ts'
 import { useCanvasRedraw } from '@/shared/lib/canvas/use-canvas-redraw.ts'
 import { formatDuration } from '@/shared/lib/time/format-duration.ts'
 import { CHIP_DIAMETER, placeSplitNumbers } from '../lib/place-split-numbers.ts'
+import { useRangeDrag } from '../lib/use-range-drag.ts'
 import { zoomOutline } from '../lib/zoom-outline.ts'
 
 // DESIGN.md: a 22 px band above the waveform carries the split numbers.
 const NUMBER_BAND_HEIGHT = 22
 // DESIGN.md: the zoom window's outline is 1.5 px, in ink.
 const OUTLINE_WIDTH = 1.5
+// The range's overlay is ink at about 10 % with 1 px edges (docs/concepts/08-listening-to-a-range.md).
+const RANGE_FILL_ALPHA = 0.1
+const RANGE_EDGE_WIDTH = 1
 
 const sourceFile = useSourceFileStore()
 const split = useSplitStore()
@@ -59,21 +64,44 @@ function draw() {
     waveHeight,
   )
 
+  // The range under the split lines, so the splits inside it stay readable; the live one while dragging.
+  const shownRange = liveRange.value ?? split.range
+  if (shownRange !== null) {
+    const rangeLeft = timeToX(shownRange.startSeconds, duration, width)
+    const rangeRight = timeToX(shownRange.endSeconds, duration, width)
+    context.fillStyle = style.getPropertyValue('--color-ink')
+    context.globalAlpha = RANGE_FILL_ALPHA
+    context.fillRect(rangeLeft, waveTop, rangeRight - rangeLeft, waveHeight)
+    context.globalAlpha = 1
+    context.fillRect(rangeLeft - RANGE_EDGE_WIDTH / 2, waveTop, RANGE_EDGE_WIDTH, waveHeight)
+    context.fillRect(rangeRight - RANGE_EDGE_WIDTH / 2, waveTop, RANGE_EDGE_WIDTH, waveHeight)
+  }
+
   const splitColor = style.getPropertyValue('--color-split')
   const lineXs = split.splits.map((point) => timeToX(point.seconds, duration, width))
   const selectedIndex = split.selectedSplitIndex
   drawSplitLines(context, lineXs, splitColor, waveTop, waveHeight, selectedIndex)
 
-  // The stretch the zoom view shows, outlined inside the wave area so the stroke is not cut off.
-  const { left, right } = zoomOutline(split.zoomCentreSeconds, ZOOM_WINDOW_SECONDS, duration, width)
-  context.strokeStyle = style.getPropertyValue('--color-ink')
-  context.lineWidth = OUTLINE_WIDTH
-  context.strokeRect(
-    left + OUTLINE_WIDTH / 2,
-    waveTop + OUTLINE_WIDTH / 2,
-    Math.max(0, right - left - OUTLINE_WIDTH),
-    waveHeight - OUTLINE_WIDTH,
-  )
+  /*
+  The stretch the zoom view shows, outlined inside the wave area so the stroke is not cut off. While
+  the Range view is shown the zoom view is not, and the range's overlay is the only outline.
+  */
+  if (split.view === 'split') {
+    const { left, right } = zoomOutline(
+      split.zoomCentreSeconds,
+      ZOOM_WINDOW_SECONDS,
+      duration,
+      width,
+    )
+    context.strokeStyle = style.getPropertyValue('--color-ink')
+    context.lineWidth = OUTLINE_WIDTH
+    context.strokeRect(
+      left + OUTLINE_WIDTH / 2,
+      waveTop + OUTLINE_WIDTH / 2,
+      Math.max(0, right - left - OUTLINE_WIDTH),
+      waveHeight - OUTLINE_WIDTH,
+    )
+  }
 
   // Split k is the split where track k + 1 starts; as many numbers as fit the band without touching.
   context.font = CANVAS_FONT
@@ -109,20 +137,36 @@ function draw() {
 /*
 A click within reach of a split's line selects it, which centres the zoom window on it. A click
 anywhere else moves the window there with nothing selected, which is how a gap that was missed is
-found.
+found. `x` is the press's place on the canvas, in its pixels.
 */
-function onClick(event: MouseEvent) {
+function onClick(x: number) {
   const element = canvas.value
   const duration = sourceFile.durationSeconds
   if (!element || duration === null) return
-  const { left, width } = element.getBoundingClientRect()
-  const x = event.clientX - left
+  const { width } = element.getBoundingClientRect()
   const lineXs = split.splits.map((point) => timeToX(point.seconds, duration, width))
   const hit = hitTestSplit(x, lineXs)
   const hitSplit = hit === null ? undefined : split.splits[hit]
   if (hitSplit === undefined) split.moveZoomTo(xToTime(x, duration, width))
   else split.selectSplit(hitSplit.id)
 }
+
+// The canvas's width and the file's length: what turns the pointer's pixels into times.
+function canvasAxis() {
+  const duration = sourceFile.durationSeconds ?? 0
+  return { duration, width: canvas.value?.getBoundingClientRect().width ?? 0 }
+}
+
+const { liveRange, onPointerDown, onPointerMove, onPointerUp, onPointerCancel } = useRangeDrag({
+  timeAt: (x) => {
+    const { duration, width } = canvasAxis()
+    return xToTime(x, duration, width)
+  },
+  rangeBetween: (anchorSeconds, pointerSeconds) =>
+    rangeBetween(anchorSeconds, pointerSeconds, canvasAxis().duration),
+  commit: (anchorSeconds, pointerSeconds) => split.setRange(anchorSeconds, pointerSeconds),
+  click: onClick,
+})
 
 // The split numbers are canvas text, so the first draw is repeated once Manrope has loaded.
 useCanvasRedraw(canvas, draw)
@@ -134,6 +178,9 @@ watch(
     split.splits.map((point) => point.seconds),
     split.selectedSplitId,
     split.zoomCentreSeconds,
+    split.view,
+    split.range,
+    liveRange.value,
   ],
   draw,
 )
@@ -145,7 +192,11 @@ watch(
       ref="canvas"
       class="block h-30 w-full cursor-pointer"
       aria-label="Waveform of the whole file"
-      @click="onClick"
+      @pointerdown="onPointerDown"
+      @pointermove="onPointerMove"
+      @pointerup="onPointerUp"
+      @pointercancel="onPointerCancel"
+      @lostpointercapture="onPointerCancel"
     />
     <div class="mt-1 flex justify-between text-xs text-muted">
       <span v-for="(time, index) in axisTimes" :key="index">{{ time }}</span>
