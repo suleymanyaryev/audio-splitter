@@ -1,11 +1,13 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, useTemplateRef, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, useTemplateRef, watch } from 'vue'
 
 import { useSourceFileStore } from '@/entities/source-file/model/source-file.ts'
 import { ZOOM_WINDOW_SECONDS } from '@/entities/split/config/zoom-window.ts'
 import { useSplitStore } from '@/entities/split/model/split.ts'
-import { redrawWhenFontsLoad } from '@/shared/lib/canvas/canvas-text.ts'
 import { drawSplitLines } from '@/shared/lib/canvas/draw-lands-and-splits.ts'
+import { BAR_PITCH, drawPeakBars } from '@/shared/lib/canvas/draw-peak-bars.ts'
+import { prepareCanvas } from '@/shared/lib/canvas/prepare-canvas.ts'
+import { useCanvasRedraw } from '@/shared/lib/canvas/use-canvas-redraw.ts'
 import { zoomTimeToX } from '@/shared/lib/canvas/zoom-axis.ts'
 import { formatHundredths } from '@/shared/lib/time/format-hundredths.ts'
 import { draggedTime } from '../lib/dragged-time.ts'
@@ -25,9 +27,6 @@ or stops it, as the "Play across split" button does (ticket 14); while it plays 
 shows where the sound is, and a failure to play is said in a line at the bottom of the view.
 */
 
-// DESIGN.md: bars 2 px wide on a 3 px pitch.
-const BAR_WIDTH = 2
-const BAR_PITCH = 3
 // DESIGN.md: the whole canvas is framed in 1.5 px ink; the run-out line is 1 px.
 const FRAME_WIDTH = 1.5
 const RUN_OUT_WIDTH = 1
@@ -108,18 +107,10 @@ function onKeydown(event: KeyboardEvent) {
 }
 
 function draw() {
-  const element = canvas.value
   const peaks = sourceFile.peaks
-  const context = element?.getContext('2d')
-  if (!element || !peaks || !context) return
-
-  // Draw at the screen's real pixel density so bars stay sharp on a Retina display.
-  const { width, height } = element.getBoundingClientRect()
-  const scale = globalThis.devicePixelRatio || 1
-  element.width = Math.round(width * scale)
-  element.height = Math.round(height * scale)
-  context.setTransform(scale, 0, 0, scale, 0, 0)
-  context.clearRect(0, 0, width, height)
+  const prepared = peaks && canvas.value ? prepareCanvas(canvas.value) : null
+  if (!peaks || !prepared) return
+  const { context, width, height } = prepared
 
   const style = getComputedStyle(document.documentElement)
   const centre = split.zoomCentreSeconds
@@ -128,14 +119,7 @@ function draw() {
   const halfHeight = middle - FRAME_WIDTH
 
   const bars = zoomBars(peaks, centre, ZOOM_WINDOW_SECONDS, width, BAR_PITCH)
-  context.fillStyle = style.getPropertyValue('--color-wave')
-  for (let bar = 0; bar < bars.length / 2; bar++) {
-    const min = bars[bar * 2] ?? 0
-    const max = bars[bar * 2 + 1] ?? 0
-    const top = middle - max * halfHeight
-    const bottom = middle - min * halfHeight
-    context.fillRect(bar * BAR_PITCH, top, BAR_WIDTH, bottom - top)
-  }
+  drawPeakBars(context, bars, style.getPropertyValue('--color-wave'), middle, halfHeight)
 
   // Lands cover the bars; a gap is near-silence, not nothing, so a flat line runs through it.
   const landColor = style.getPropertyValue('--color-land')
@@ -218,22 +202,9 @@ watch(
   },
 )
 
-const resizeObserver = new ResizeObserver(draw)
-const darkScheme = globalThis.matchMedia('(prefers-color-scheme: dark)')
+useCanvasRedraw(canvas, draw)
 
-onMounted(() => {
-  if (canvas.value) resizeObserver.observe(canvas.value)
-  // The colour tokens change with the colour scheme, and a canvas does not repaint itself.
-  darkScheme.addEventListener('change', draw)
-  draw()
-  redrawWhenFontsLoad(draw)
-})
-
-onBeforeUnmount(() => {
-  resizeObserver.disconnect()
-  darkScheme.removeEventListener('change', draw)
-  stopFrames()
-})
+onBeforeUnmount(stopFrames)
 
 watch(
   () => [

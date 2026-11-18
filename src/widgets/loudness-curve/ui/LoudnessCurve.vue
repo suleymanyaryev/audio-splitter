@@ -1,12 +1,14 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, useTemplateRef, watch } from 'vue'
+import { computed, useTemplateRef, watch } from 'vue'
 
 import { useSourceFileStore } from '@/entities/source-file/model/source-file.ts'
 import { useSplitStore } from '@/entities/split/model/split.ts'
-import { CANVAS_FONT, redrawWhenFontsLoad } from '@/shared/lib/canvas/canvas-text.ts'
+import { CANVAS_FONT } from '@/shared/lib/canvas/canvas-text.ts'
 import { drawLands, drawSplitLines } from '@/shared/lib/canvas/draw-lands-and-splits.ts'
 import { landSpans } from '@/shared/lib/canvas/land-spans.ts'
+import { prepareCanvas } from '@/shared/lib/canvas/prepare-canvas.ts'
 import { timeToX } from '@/shared/lib/canvas/time-axis.ts'
+import { useCanvasRedraw } from '@/shared/lib/canvas/use-canvas-redraw.ts'
 import { formatDuration } from '@/shared/lib/time/format-duration.ts'
 import { formatDecibels } from '../lib/format-readout.ts'
 import { mergeLoudness } from '../lib/merge-loudness.ts'
@@ -101,18 +103,10 @@ function drawThreshold(
 }
 
 function draw() {
-  const element = canvas.value
   const loudness = sourceFile.loudness
-  const context = element?.getContext('2d')
-  if (!element || !loudness || !context) return
-
-  // Draw at the screen's real pixel density so the line stays sharp on a Retina display.
-  const { width, height } = element.getBoundingClientRect()
-  const scale = globalThis.devicePixelRatio || 1
-  element.width = Math.round(width * scale)
-  element.height = Math.round(height * scale)
-  context.setTransform(scale, 0, 0, scale, 0, 0)
-  context.clearRect(0, 0, width, height)
+  const prepared = loudness && canvas.value ? prepareCanvas(canvas.value) : null
+  if (!loudness || !prepared) return
+  const { context, width, height } = prepared
 
   const style = getComputedStyle(document.documentElement)
   const duration = sourceFile.durationSeconds ?? 0
@@ -160,22 +154,8 @@ function draw() {
   drawThreshold(context, style, width, height)
 }
 
-const resizeObserver = new ResizeObserver(draw)
-const darkScheme = globalThis.matchMedia('(prefers-color-scheme: dark)')
-
-onMounted(() => {
-  if (canvas.value) resizeObserver.observe(canvas.value)
-  // The colour tokens change with the colour scheme, and a canvas does not repaint itself.
-  darkScheme.addEventListener('change', draw)
-  draw()
-  // The threshold label is canvas text, which Manrope has to be loaded for.
-  redrawWhenFontsLoad(draw)
-})
-
-onBeforeUnmount(() => {
-  resizeObserver.disconnect()
-  darkScheme.removeEventListener('change', draw)
-})
+// The threshold label is canvas text, so the first draw is repeated once Manrope has loaded.
+useCanvasRedraw(canvas, draw)
 
 watch(
   () => [
