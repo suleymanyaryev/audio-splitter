@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, useTemplateRef, watch } from 'vue'
+import { computed, nextTick, useTemplateRef, watch } from 'vue'
 
 import { useSourceFileStore } from '@/entities/source-file/model/source-file.ts'
 import { ZOOM_WINDOW_SECONDS } from '@/entities/split/config/zoom-window.ts'
@@ -11,6 +11,7 @@ import { useCanvasRedraw } from '@/shared/lib/canvas/use-canvas-redraw.ts'
 import { zoomTimeToX } from '@/shared/lib/canvas/zoom-axis.ts'
 import { formatHundredths } from '@/shared/lib/time/format-hundredths.ts'
 import { draggedTime } from '../lib/dragged-time.ts'
+import { usePlayheadFrames } from '../lib/use-playhead-frames.ts'
 import { useSplitDrag } from '../lib/use-split-drag.ts'
 import { zoomBars } from '../lib/zoom-bars.ts'
 import { landSpansInWindow, outsideFileSpans } from '../lib/zoom-spans.ts'
@@ -171,40 +172,10 @@ function draw() {
   context.strokeRect(FRAME_WIDTH / 2, FRAME_WIDTH / 2, width - FRAME_WIDTH, height - FRAME_WIDTH)
 }
 
-/*
-The playhead moves with the audio, which Vue does not see, so while the clip plays the view
-redraws on every animation frame: about 300 bars and a few lines, cheap. When playback ends the
-loop stops and one more draw takes the line away.
-*/
-const playheadLoop: { frameId: number | undefined } = { frameId: undefined }
-
-function onFrame() {
-  if (audition.status !== 'playing') return
-  playheadLoop.frameId = requestAnimationFrame(onFrame)
-  draw()
-}
-
-function stopFrames() {
-  if (playheadLoop.frameId === undefined) return
-  cancelAnimationFrame(playheadLoop.frameId)
-  playheadLoop.frameId = undefined
-}
-
-watch(
-  () => audition.status,
-  (status) => {
-    stopFrames()
-    if (status === 'playing') {
-      playheadLoop.frameId = requestAnimationFrame(onFrame)
-    } else {
-      draw()
-    }
-  },
-)
+// The playhead moves with the audio, which Vue does not see: draw on every frame while it plays.
+usePlayheadFrames(() => audition.status === 'playing', draw)
 
 useCanvasRedraw(canvas, draw)
-
-onBeforeUnmount(stopFrames)
 
 watch(
   () => [

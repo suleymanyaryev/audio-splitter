@@ -38,6 +38,14 @@ The longest wait is the MP3, late in the 3 h file: about 2 s, below the 3 s the 
 
 **The limit and the timeout.** The 10 min limit holds: the slowest decode is 2.1 s. The clip's 30 s watchdog also holds, at about 14 times the slowest decode, and is still short enough that a call that really hangs fails while the user waits.
 
+**From the press of Play to sound.** Checked by hand in the same browser on the same 3 h files, with a 10 min range from 10,400 s (held to 11,000 s) made by dragging on the whole-file view, on 2026-11-18. The time is from the click on Play to the element playing, so it includes the clip call, the blob and `play()`:
+
+| `.m4a` | `.mp3` | `.opus` |
+| ------ | ------ | ------- |
+| 0.69 s | 1.94 s | 1.16 s  |
+
+It matches the decode times above, so nothing else in the press is slow. Pausing and pressing Play again took 2 to 5 ms in all three: the WAV is held, so the press sets `currentTime` and calls `play()`, and ffmpeg is not asked again.
+
 ## Where it lives in the code
 
 Filled in as each ticket lands. Existing modules are linked, new ones are named.
@@ -48,8 +56,8 @@ Filled in as each ticket lands. Existing modules are linked, new ones are named.
 - [`src/widgets/source-waveform/ui/SourceWaveform.vue`](../../src/widgets/source-waveform/ui/SourceWaveform.vue): the overlay, drawn from the live drag or the held range.
 - [`src/widgets/source-waveform/lib/use-range-drag.ts`](../../src/widgets/source-waveform/lib/use-range-drag.ts): tells a click from a drag (4 px), captures the pointer and reports the live range.
 - [`src/entities/split/lib/range-between.ts`](../../src/entities/split/lib/range-between.ts) and [`config/range-limits.ts`](../../src/entities/split/config/range-limits.ts): the range a drag makes, held to the file and to 10 min from the press, and the 1 s minimum.
-- [`src/widgets/split-zoom/model/audition.ts`](../../src/widgets/split-zoom/model/audition.ts): becomes the one player, for the audition and for the range.
+- [`src/widgets/split-zoom/model/audition.ts`](../../src/widgets/split-zoom/model/audition.ts): the one player, for the audition and for the range. The range's `toggleRange` decodes it on the first press and keeps the WAV, so a pause and a replay set `currentTime` inside it and decode nothing.
 - [`src/widgets/split-zoom/ui/SplitZoom.vue`](../../src/widgets/split-zoom/ui/SplitZoom.vue): the zoom view the Range view sits beside.
-- [`src/widgets/split-zoom/ui/RangeView.vue`](../../src/widgets/split-zoom/ui/RangeView.vue): the range stretched across the zoom panel, drawn from the peaks already held. Its `lib/range-window.ts` turns the range into the centre and length the zoom view's bar, land and axis helpers take, and `lib/range-title.ts` writes the title. Its playhead and mark pointer handling are new files in the same widget, still to come.
+- [`src/widgets/split-zoom/ui/RangeView.vue`](../../src/widgets/split-zoom/ui/RangeView.vue): the range stretched across the zoom panel, drawn from the peaks already held. Its `lib/range-window.ts` turns the range into the centre and length the zoom view's bar, land and axis helpers take, and `lib/range-title.ts` writes the title. It draws the playhead and takes Space; its pointer handling for the playhead and the mark is still to come.
 - [`src/shared/ui/UiSegmentedControl.vue`](../../src/shared/ui/UiSegmentedControl.vue): the `Split | Range` control.
-- [`src/pages/review/ui/ReviewPage.vue`](../../src/pages/review/ui/ReviewPage.vue): swaps the zoom view and the Range view on the store's view, and holds the `Split | Range` control; "Add split", "Back to range start" and Play/Pause for the Range view are still to come.
+- [`src/pages/review/ui/ReviewPage.vue`](../../src/pages/review/ui/ReviewPage.vue): swaps the zoom view and the Range view on the store's view, and holds the `Split | Range` control; its Play button reads "Stop", "Pause" or "Play"; "Add split" and "Back to range start" are still to come.

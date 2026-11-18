@@ -32,6 +32,13 @@ function mountPage() {
   return mount(ReviewPage, { attachTo: document.body })
 }
 
+async function mountPageWithRange() {
+  const wrapper = mountPage()
+  useSplitStore().setRange(10, 20)
+  await wrapper.vm.$nextTick()
+  return wrapper
+}
+
 function addSplitButton(wrapper: ReturnType<typeof mount>) {
   const button = wrapper.findAll('button').find((candidate) => candidate.text() === 'Add split')
   if (!button) throw new Error('no Add split button')
@@ -44,6 +51,15 @@ function auditionButton(wrapper: ReturnType<typeof mount>) {
     .findAll('button')
     .find((candidate) => ['Play across split', 'Stop'].includes(candidate.text()))
   if (!button) throw new Error('no audition button')
+  return button
+}
+
+// The primary button of the Range view's title row: "Play", "Pause" or "Stop".
+function rangeButton(wrapper: ReturnType<typeof mount>) {
+  const button = wrapper
+    .findAll('button')
+    .find((candidate) => ['Play', 'Pause', 'Stop'].includes(candidate.text()))
+  if (!button) throw new Error('no range button')
   return button
 }
 
@@ -243,6 +259,50 @@ describe('ReviewPage', () => {
       await wrapper.vm.$nextTick()
 
       expect(stop).toHaveBeenCalled()
+    })
+  })
+
+  describe('the range button', () => {
+    it('reads "Play" and is enabled while the range is idle', async () => {
+      const wrapper = await mountPageWithRange()
+
+      expect(rangeButton(wrapper).text()).toBe('Play')
+      expect(rangeButton(wrapper).attributes('disabled')).toBeUndefined()
+    })
+
+    it('is not there in the Split view, where the audition button is', () => {
+      const wrapper = mountPage()
+
+      expect(wrapper.findAll('button').map((button) => button.text())).not.toContain('Play')
+    })
+
+    it('calls the player when clicked', async () => {
+      const wrapper = await mountPageWithRange()
+      const toggleRange = vi.spyOn(useAuditionStore(), 'toggleRange').mockImplementation(() => {})
+
+      await rangeButton(wrapper).trigger('click')
+
+      expect(toggleRange).toHaveBeenCalledTimes(1)
+    })
+
+    it('reads "Stop" while the range is decoded, "Pause" while it plays and "Play" when paused', async () => {
+      const wrapper = await mountPageWithRange()
+      const audition = useAuditionStore()
+      const playIcon = rangeButton(wrapper).get('svg').classes()
+
+      audition.rangeStatus = 'loading'
+      await wrapper.vm.$nextTick()
+      expect(rangeButton(wrapper).text()).toBe('Stop')
+      expect(rangeButton(wrapper).attributes('disabled')).toBeUndefined()
+
+      audition.rangeStatus = 'playing'
+      await wrapper.vm.$nextTick()
+      expect(rangeButton(wrapper).text()).toBe('Pause')
+      expect(rangeButton(wrapper).get('svg').classes()).not.toEqual(playIcon)
+
+      audition.rangeStatus = 'paused'
+      await wrapper.vm.$nextTick()
+      expect(rangeButton(wrapper).text()).toBe('Play')
     })
   })
 

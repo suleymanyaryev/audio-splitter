@@ -1,6 +1,6 @@
 # Architecture
 
-The [README](../README.md#architecture) shows the pipeline and the layers. This page goes one level down: how the stores pass data to each other, how the one ffmpeg session is shared, and how the load, audition and export flows run. The folder-by-folder map is in [AGENTS.md](../AGENTS.md#code-layout); the words are defined in [GLOSSARY.md](../GLOSSARY.md).
+The [README](../README.md#architecture) shows the pipeline and the layers. This page goes one level down: how the stores pass data to each other, how the one ffmpeg session is shared, and how the load, player and export flows run. The folder-by-folder map is in [AGENTS.md](../AGENTS.md#code-layout); the words are defined in [GLOSSARY.md](../GLOSSARY.md).
 
 The diagrams are drawn from the code. When a change alters what one of them shows (a store's status, a step in a flow, who calls whom), the diagram changes in the same commit.
 
@@ -12,26 +12,26 @@ Four Pinia setup stores hold all state, in memory only. Two are entities; two be
 | --------------- | ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `source-file`   | `entities/source-file` | The file, its format and duration, peaks, loudness curve, slice progress, load failure, the ffmpeg session                                                                                         |
 | `split`         | `entities/split`       | The silence threshold and minimum gap length, the gaps, the splits with their track names, the derived tracks, the selected split, the zoom window, the range and the panel's view, the edit count |
-| `audition`      | `widgets/split-zoom`   | Whether a clip is loading or playing, its failure, the playhead position                                                                                                                           |
+| `audition`      | `widgets/split-zoom`   | Whether the audition's clip and the range's are loading, playing or paused, the failure, the range's resting place                                                                                 |
 | `export-tracks` | `widgets/track-strip`  | The export's status, the track in hand, the counts, the subfolder's name, the failure                                                                                                              |
 
 ```mermaid
 flowchart LR
   sourceFile[("source-file")]
   split[("split")]
-  audition[("audition")]
+  audition[("audition<br/>(the player)")]
   exporter[("export-tracks")]
   reviewPage["ReviewPage"]
 
   sourceFile -- "loudness curve,<br/>once on mount" --> reviewPage
   reviewPage -- "detect(curve)" --> split
-  split -- "selected split<br/>(a change stops the audition)" --> audition
+  split -- "selected split, range<br/>(a change stops the audition,<br/>a new range stops the range)" --> audition
   audition -- "clip(start, length)" --> sourceFile
   split -- "tracks and names,<br/>fixed when the export starts" --> exporter
   exporter -- "cutTrack(track)<br/>stopCuts()" --> sourceFile
 ```
 
-- **`split` can't import `source-file`**, because two slices of one layer never import each other. `ReviewPage` reads the curve and hands it to `split.detect` when it mounts, and `split` keeps a reference to it to find the gaps again when a setting changes. When the page unmounts, it stops the audition and resets `split`.
+- **`split` can't import `source-file`**, because two slices of one layer never import each other. `ReviewPage` reads the curve and hands it to `split.detect` when it mounts, and `split` keeps a reference to it to find the gaps again when a setting changes. When the page unmounts, it stops the player and resets `split`.
 - **Widgets read the entity stores directly.** Every widget reads `split` for the splits, tracks and selection; all but the track list also read `source-file`, for the peaks, the curve, the duration or the session's calls.
 - **A setting change replaces every split and name.** With edits made, the loudness panel's replace guard holds the change back and asks first; "Replace" applies it and clears the edit count. "New file" asks the same way in `App.vue`.
 
@@ -43,7 +43,7 @@ flowchart LR
 - **A fresh worker every 20 calls.** ffmpeg ends each call by throwing, and its small call stack wears down; measured failures started at the 75th call. Before the 21st call (and after any terminated worker) the session starts a fresh worker and mounts the file again, which takes under 100 ms. Callers never see it.
 - **`interrupt()` stops the running command.** It rejects the call with "ffmpeg was stopped" and terminates the worker; the next call starts a fresh one.
 
-The `source-file` store opens the session when a load starts and keeps it open once the file is ready. After that, audition clips and export cuts go through `inSession`, a promise queue that runs one call at a time, because one worker runs one command and the session's log belongs to one call. A call whose file was reset or replaced while it waited rejects with `FileReplacedError`, so a result from the old file never reaches the new one.
+The `source-file` store opens the session when a load starts and keeps it open once the file is ready. After that, audition and range clips and export cuts go through `inSession`, a promise queue that runs one call at a time, because one worker runs one command and the session's log belongs to one call. A call whose file was reset or replaced while it waited rejects with `FileReplacedError`, so a result from the old file never reaches the new one.
 
 ## Load
 
@@ -94,9 +94,11 @@ stateDiagram-v2
 
 `App.vue` shows the load page in `empty`, `loading` and `failed`, and the review page in `ready`. A failure names the step ("slice 41 of 62") and ffmpeg's last log line.
 
-## Audition
+## Player
 
-"Play across split" and Space on the zoom view's handle both call `toggle`. The `source-file` store decodes the 8 s around the selected split (a start and a length: the split ±4 s) to WAV (`-c:a pcm_s16le -f wav`, with the same 1 s pre-roll as a slice), and one hidden `<audio>` element plays it from a blob URL. The zoom view draws the playhead each animation frame from the element's `currentTime` plus the clip's start.
+One store, `audition`, is the one player: a hidden `<audio>` element plays a WAV the `source-file` store decodes (a start and a length, `-c:a pcm_s16le -f wav`, with the same 1 s pre-roll as a slice), and at most one decoded stretch is held. It has two kinds of listening, each with its own status, and starting one stops the other.
+
+**The audition** is the 8 s across the selected split (the split ±4 s). "Play across split" and Space on the zoom view's handle both call `toggle`. The zoom view draws the playhead each animation frame from the element's `currentTime` plus the clip's start.
 
 ```mermaid
 stateDiagram-v2
@@ -106,9 +108,30 @@ stateDiagram-v2
   loading --> idle: toggle, or the selection changed
   loading --> idle: clip failed, failure shown
   playing --> idle: clip ended, toggle, or the selection changed
+  playing --> idle: play refused, failure shown
+  loading --> idle: the range plays, or a new range
+  playing --> idle: the range plays, or a new range
 ```
 
-Every press takes a number, and a clip that arrives for an older press is dropped, so a stopped press or a changed selection never starts sound later. "The selection changed" covers moving the selected split, selecting another, deselecting, deleting and a setting change; a synchronous watcher on the split store stops the audition at once.
+**The range** is the stretch the user dragged out (note 08). The Range view's Play button and Space both call `toggleRange`. The whole range is decoded once and kept, so a pause costs nothing: playing again sets the element's `currentTime` inside the WAV, which is exact, and plays at once. The Range view draws the playhead each animation frame while it plays, and at its resting place otherwise: the range's start for a new range and after the end.
+
+```mermaid
+stateDiagram-v2
+  [*] --> idle
+  idle --> loading: toggleRange, no WAV held
+  idle --> playing: toggleRange, WAV held
+  loading --> playing: range decoded
+  loading --> idle: toggleRange, stop, a new range, or the audition plays
+  loading --> idle: decode failed, failure shown
+  playing --> idle: play refused, failure shown
+  playing --> paused: toggleRange, or stop (a view change, the export)
+  paused --> playing: toggleRange
+  playing --> idle: range ended, playhead back at the start
+  paused --> idle: a new range, or the audition plays
+  playing --> idle: a new range, or the audition plays
+```
+
+Every press takes a number, and a clip that arrives for an older press is dropped, so a stopped press, a changed selection or a new range never starts sound later. "The selection changed" covers moving the selected split, selecting another, deselecting, deleting and a setting change; a synchronous watcher on the split store stops the audition at once. A second synchronous watcher on the range stops all sound, drops the decoded range and puts the playhead at the new range's start. The page stops the player on a view change, when the export starts and when it unmounts: a range that plays is paused, so its playhead stays where it was.
 
 ## Export
 
@@ -122,7 +145,7 @@ sequenceDiagram
   participant session as ffmpeg session
 
   User->>page: Export to folder…
-  page->>page: stop the audition
+  page->>page: stop the player
   page->>exporter: start()
   exporter->>folder: showDirectoryPicker, same id every time
   alt picker closed

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onUnmounted, useTemplateRef, watch } from 'vue'
-import { Download, Play, Plus, Square } from 'lucide-vue-next'
+import { Download, Pause, Play, Plus, Square } from 'lucide-vue-next'
 
 import { useSourceFileStore } from '@/entities/source-file/model/source-file.ts'
 import { useSplitStore, type PanelView } from '@/entities/split/model/split.ts'
@@ -23,10 +23,11 @@ import TrackStrip from '@/widgets/track-strip/ui/TrackStrip.vue'
 /*
 The review screen: each panel at its fixed canvas height, with the controls it holds. Every panel
 is filled; "Play across split" plays the selected split's clip (and reads "Stop" while it loads or
-plays), and "Export to folder…" starts the export, whose overlay (`ExportDialog`) locks the page
-while it runs. The zoom panel shows the zoom view or, once the user has dragged out a range, the
-Range view, as the split store's `view` says; its `Split | Range` control is that view, and the
-buttons for the zoom view are only there while the zoom view is.
+plays), the Range view's "Play" plays the range (and reads "Stop" while it is decoded and "Pause"
+while it plays), and "Export to folder…" starts the export, whose overlay (`ExportDialog`) locks the
+page while it runs. The zoom panel shows the zoom view or, once the user has dragged out a range,
+the Range view, as the split store's `view` says; its `Split | Range` control is that view, and the
+buttons of each view are only there while that view is.
 
 The page mounts only once the source file is ready (src/app/App.vue), which is when the split store
 looks for the gaps in its loudness curve, once; the split store cannot import the source-file store.
@@ -66,6 +67,10 @@ const title = computed(() =>
     ? rangeTitle(split.range)
     : zoomTitle(split.selectedSplit?.seconds ?? null, split.splits.length),
 )
+
+// "Stop" while the range is being decoded, so a press can take it back; "Pause" while it plays.
+const RANGE_BUTTON_LABELS = { idle: 'Play', loading: 'Stop', playing: 'Pause', paused: 'Play' }
+const rangeButtonLabel = computed(() => RANGE_BUTTON_LABELS[audition.rangeStatus])
 
 const view = computed<PanelView>({
   get: () => split.view,
@@ -113,7 +118,28 @@ watch(
           Add split
         </UiButton>
         <UiButton
-          v-if="split.view === 'split'"
+          v-if="split.view === 'range'"
+          variant="primary"
+          size="sm"
+          @click="audition.toggleRange()"
+        >
+          <Square
+            v-if="audition.rangeStatus === 'loading'"
+            class="size-4 shrink-0"
+            fill="currentColor"
+            :stroke-width="0"
+          />
+          <Pause
+            v-else-if="audition.rangeStatus === 'playing'"
+            class="size-4 shrink-0"
+            fill="currentColor"
+            :stroke-width="0"
+          />
+          <Play v-else class="size-4 shrink-0" fill="currentColor" :stroke-width="0" />
+          {{ rangeButtonLabel }}
+        </UiButton>
+        <UiButton
+          v-else
           variant="primary"
           size="sm"
           :disabled="split.selectedSplit === null && !audition.isActive"

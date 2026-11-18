@@ -330,7 +330,7 @@ Every kit component lives in `src/shared/ui/` as `Ui<Name>.vue` (`UiButton`, `Ui
 
 **Motion.** `transition-colors duration-100` on buttons and icon buttons; nothing else animates.
 
-**Icons.** `lucide-vue-next`, 16 px (`size-4`), stroke width 2, round caps and joins, `shrink-0`, coloured `currentColor`. Play and Square (stop) are drawn filled (`fill="currentColor"`, no stroke). Icons used so far: Play, Square, ChevronsLeft, ChevronsRight (step 3 s), Trash2 (delete split), Plus (add split), Download (export). Unicode glyphs are never icons; typographic separators such as the middle dot and the minus sign are text.
+**Icons.** `lucide-vue-next`, 16 px (`size-4`), stroke width 2, round caps and joins, `shrink-0`, coloured `currentColor`. Play, Pause and Square (stop) are drawn filled (`fill="currentColor"`, no stroke). Icons used so far: Play, Pause, Square, ChevronsLeft, ChevronsRight (step 3 s), Trash2 (delete split), Plus (add split), Download (export). Unicode glyphs are never icons; typographic separators such as the middle dot and the minus sign are text.
 
 ### Buttons
 
@@ -338,7 +338,7 @@ Character: firm and quiet; ink does the talking, colour only for danger.
 
 - **Base:** `inline-flex h-9 cursor-pointer items-center gap-2 rounded-control px-3.5 text-sm font-semibold whitespace-nowrap transition-colors duration-100 disabled:cursor-not-allowed disabled:opacity-40`. Icon before the label, except a "forward" step where it follows. Every variant but inverse adds `focus-visible:focus-ring`.
 - **Primary:** `bg-ink text-surface enabled:hover:bg-wave`. One per panel at most; it is the panel's main action.
-  The zoom panel's "Play across split" reads "Stop", with a filled Square in place of the Play icon, while a clip is loading or playing.
+  The zoom panel's "Play across split" reads "Stop", with a filled Square in place of the Play icon, while a clip is loading or playing. The Range view's primary button is "Play"; it reads "Stop" (filled Square) while the range is decoded and "Pause" (filled Pause) while it plays.
 - **Primary lg:** primary plus `h-10 px-5 text-base`. Reserved for the Export action; no other button is large.
 - **Small (`sm`):** base with `h-8 px-3` in place of `h-9 px-3.5`. For actions in a panel title row and in table rows (for example "Add split").
 - **Secondary:** `border border-edge bg-surface text-ink enabled:hover:border-ink enabled:hover:bg-land/40`.
@@ -430,7 +430,7 @@ The whole-file waveform, the loudness curve and the zoom view are hand-drawn can
 - **Zoom window (whole-file view):** the stretch shown in the zoom view, outlined in 1.5px `ink`, the height of the wave area. It matches the zoom view's own frame.
 - **Loudness curve:** a 1.5px `wave` line, with the area under it filled in `wave` at 14% alpha; lands run the full canvas height behind it.
 - **Silence threshold:** a dashed line (5px dash, 4px gap, 1.5px) in `split` across the full width. Its label ("−35 dB") is drawn in `split` on a `surface`-coloured plate (text width + 8px, 17px tall) above the line at the left, for contrast where it crosses the fill and lands. A drag handle (18 × 10 px, `split`) sits on the line at the right edge.
-- **Range view:** the zoom panel's other view, the same 160 px frame in 1.5px `ink`. The range is stretched across the whole canvas, whatever its length, in `wave` bars on the same pitch; each gap is a `land` band at its true width (the Land Rule's 12 px minimum is for whole-file views) over the bars, with split lines through the full height, the selected split 3px. No run-out line.
+- **Range view:** the zoom panel's other view, the same 160 px frame in 1.5px `ink`. The range is stretched across the whole canvas, whatever its length, in `wave` bars on the same pitch; each gap is a `land` band at its true width (the Land Rule's 12 px minimum is for whole-file views) over the bars, with split lines through the full height, the selected split 3px. No run-out line. A 1px `ink` playhead marks where the range is heard or resumes, drawn at all times over the split lines and under the frame, snapped to a whole pixel; a failure to play is one line of `text-muted` status at the bottom centre, as in the zoom view.
 - **Range overlay (whole-file view):** `ink` at 10% alpha over the wave area, with 1px `ink` edges, drawn over the lands and under the split lines. It stays in both views of the zoom panel; the zoom window's outline is drawn only while the zoom view is shown.
 - **Zoom view:** the gap is one `land` band; through it runs a flat 1px `wave` run-out line at the centre (near-silence, not nothing). The split is a 3px `split` line with a 14 × 10 px drag handle at its top. The whole canvas is framed in 1.5px `ink`. While a clip plays, a 1px `ink` playhead marks the audio's place, drawn over the split lines and under the frame. A failure to play is one line of `text-muted` status at the bottom centre, in the style of the empty-state status.
 

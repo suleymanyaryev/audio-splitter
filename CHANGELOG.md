@@ -19,6 +19,7 @@ Versions follow [Semantic Versioning](https://semver.org/) applied to the produc
 
 ### Added
 
+- The range plays: a Play button in the Range view's title row decodes the range and plays it (it reads "Stop" while it is decoded and "Pause" while it plays), and so does Space on the Range view. A 1 px playhead shows where it is, or where it resumes: at the range's start for a new range. Pausing and playing again start at once, and at the range's end the sound stops and the playhead goes back to the start. Only one thing plays at a time: the range and "Play across split" stop each other, and playback stops when the view changes, a new range is dragged, the export starts or the page is left.
 - Dragging across the whole-file waveform marks out a stretch of the file, from 1 second to 10 minutes, with a light overlay that stays until the next drag. A click still selects a split or moves the zoom window, and so does a drag under 1 second.
 - A dragged-out range fills the zoom panel as its own view, with the range's waveform, gaps and splits stretched across it and its start, end and length as the title. A `Split | Range` control in the panel's title row switches between the zoom view and the range; selecting a split or moving the zoom window goes back to the zoom view, and the zoom window's outline shows on the whole-file view only while the zoom view is shown.
 
