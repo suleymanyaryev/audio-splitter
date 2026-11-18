@@ -26,12 +26,15 @@ function curveOf(...runs: [number, number][]) {
 */
 const farGaps = () => curveOf([LOUD, 400], [QUIET, 80], [LOUD, 320], [QUIET, 80], [LOUD, 320])
 
-// The clip around a split at `seconds`: 4 s before to 4 s after, as the source-file store makes it.
-const clipAround = (seconds: number): Clip => ({
+// The clip the source-file store gives for a stretch: the bytes, and the start and length it really has.
+const clipOf = (startSeconds: number, lengthSeconds: number): Clip => ({
   wav: Uint8Array.of(1, 2, 3),
-  startSeconds: seconds - 4,
-  lengthSeconds: 8,
+  startSeconds,
+  lengthSeconds,
 })
+
+// The 8 s an audition of the first split, at 22 s, asks for: 4 s before to 4 s after.
+const clipAroundFirstSplit = (): Clip => clipOf(18, 8)
 
 async function playing() {
   const parts = setUp()
@@ -86,7 +89,9 @@ describe('the audition store', () => {
     vi.stubGlobal('URL', Object.assign(URL, { createObjectURL, revokeObjectURL }))
     clip = vi
       .spyOn(useSourceFileStore(), 'clip')
-      .mockImplementation(async (seconds) => clipAround(seconds))
+      .mockImplementation(async (startSeconds, lengthSeconds) =>
+        clipOf(startSeconds, lengthSeconds),
+      )
   })
 
   afterEach(() => {
@@ -110,12 +115,12 @@ describe('the audition store', () => {
 
     audition.toggle()
 
-    expect(clip).toHaveBeenCalledExactlyOnceWith(22)
+    expect(clip).toHaveBeenCalledExactlyOnceWith(18, 8)
     expect(audition.status).toBe('loading')
     expect(audition.isActive).toBe(true)
     expect(play).not.toHaveBeenCalled()
 
-    pending.resolve(clipAround(22))
+    pending.resolve(clipAroundFirstSplit())
     await flush()
 
     expect(audition.status).toBe('playing')
@@ -126,6 +131,35 @@ describe('the audition store', () => {
     expect(blob.size).toBe(3)
     expect(audio().getAttribute('src')).toBe('blob:clip-1')
     expect(audio().currentTime).toBe(0)
+  })
+
+  it('asks for less than 8 s when the split is under 4 s from the start of the file', () => {
+    // Quiet from 1 s to 5 s, so the only split is at 3 s.
+    const split = useSplitStore()
+    split.detect(curveOf([LOUD, 20], [QUIET, 80], [LOUD, 1100]), {
+      windowSeconds: 0.05,
+      durationSeconds: 60,
+    })
+    const audition = useAuditionStore()
+
+    audition.toggle()
+
+    // 0 to 7 s: 4 s after the split, and only 3 s before it, because the file starts.
+    expect(clip).toHaveBeenCalledExactlyOnceWith(0, 7)
+  })
+
+  it('still asks for 8 s when the split is under 4 s from the end of the file, which ffmpeg then cuts short', () => {
+    // Quiet from 55 s to 59 s, so the only split is at 57 s, in a file of 60 s.
+    const split = useSplitStore()
+    split.detect(curveOf([LOUD, 1100], [QUIET, 80], [LOUD, 20]), {
+      windowSeconds: 0.05,
+      durationSeconds: 60,
+    })
+    const audition = useAuditionStore()
+
+    audition.toggle()
+
+    expect(clip).toHaveBeenCalledExactlyOnceWith(53, 8)
   })
 
   it('does nothing without a selected split', () => {
@@ -184,7 +218,7 @@ describe('the audition store', () => {
     audition.toggle()
     expect(audition.status).toBe('idle')
 
-    pending.resolve(clipAround(22))
+    pending.resolve(clipAroundFirstSplit())
     await flush()
 
     expect(play).not.toHaveBeenCalled()
@@ -201,13 +235,13 @@ describe('the audition store', () => {
     audition.toggle() // press 1, loading
     audition.toggle() // stop
     audition.toggle() // press 2, loading
-    first.resolve(clipAround(22))
+    first.resolve(clipAroundFirstSplit())
     await flush()
 
     expect(audition.status).toBe('loading')
     expect(play).not.toHaveBeenCalled()
 
-    second.resolve(clipAround(22))
+    second.resolve(clipAroundFirstSplit())
     await flush()
 
     expect(audition.status).toBe('playing')
@@ -290,7 +324,7 @@ describe('the audition store', () => {
 
       split.selectSplit(split.splits[1]!.id)
       expect(audition.status).toBe('idle')
-      pending.resolve(clipAround(22))
+      pending.resolve(clipAroundFirstSplit())
       await flush()
 
       expect(play).not.toHaveBeenCalled()

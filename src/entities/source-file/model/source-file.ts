@@ -200,9 +200,11 @@ export const useSourceFileStore = defineStore('source-file', () => {
     return turn
   }
 
-  // Decodes the 8 s around a split in the open session.
-  async function clip(splitSeconds: number) {
-    return inSession(({ open, duration }) => decodeClip(open, splitSeconds, duration))
+  // Decodes `lengthSeconds` from `startSeconds` in the open session, less where the file ends.
+  async function clip(startSeconds: number, lengthSeconds: number) {
+    return inSession(({ open, duration }) =>
+      decodeClip(open, startSeconds, lengthSeconds, duration),
+    )
   }
 
   /*

@@ -26,7 +26,7 @@ flowchart LR
   sourceFile -- "loudness curve,<br/>once on mount" --> reviewPage
   reviewPage -- "detect(curve)" --> split
   split -- "selected split<br/>(a change stops the audition)" --> audition
-  audition -- "clip(split)" --> sourceFile
+  audition -- "clip(start, length)" --> sourceFile
   split -- "tracks and names,<br/>fixed when the export starts" --> exporter
   exporter -- "cutTrack(track)<br/>stopCuts()" --> sourceFile
 ```
@@ -96,7 +96,7 @@ stateDiagram-v2
 
 ## Audition
 
-"Play across split" and Space on the zoom view's handle both call `toggle`. The `source-file` store decodes the 8 s around the selected split to WAV (`-c:a pcm_s16le -f wav`, with the same 1 s pre-roll as a slice), and one hidden `<audio>` element plays it from a blob URL. The zoom view draws the playhead each animation frame from the element's `currentTime` plus the clip's start.
+"Play across split" and Space on the zoom view's handle both call `toggle`. The `source-file` store decodes the 8 s around the selected split (a start and a length: the split ±4 s) to WAV (`-c:a pcm_s16le -f wav`, with the same 1 s pre-roll as a slice), and one hidden `<audio>` element plays it from a blob URL. The zoom view draws the playhead each animation frame from the element's `currentTime` plus the clip's start.
 
 ```mermaid
 stateDiagram-v2

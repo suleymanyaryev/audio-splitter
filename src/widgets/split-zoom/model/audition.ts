@@ -4,6 +4,9 @@ import { defineStore } from 'pinia'
 import { FileReplacedError, useSourceFileStore } from '@/entities/source-file/model/source-file.ts'
 import { useSplitStore } from '@/entities/split/model/split.ts'
 
+// How far the audition reaches either side of the split.
+const REACH_SECONDS = 4
+
 /*
 Hearing the selected split: one hidden `<audio>` element plays the 8 s WAV the source-file store
 decodes around it (tickets 14 and 19: every format goes through ffmpeg, because Chrome seeks a VBR
@@ -71,6 +74,7 @@ export const useAuditionStore = defineStore('audition', () => {
   }
 
   async function start(splitSeconds: number) {
+    const startSeconds = Math.max(0, splitSeconds - REACH_SECONDS)
     const thisPress = ++press
     const isStale = () => thisPress !== press
     failure.value = null
@@ -78,7 +82,7 @@ export const useAuditionStore = defineStore('audition', () => {
 
     let clip
     try {
-      clip = await sourceFile.clip(splitSeconds)
+      clip = await sourceFile.clip(startSeconds, splitSeconds + REACH_SECONDS - startSeconds)
     } catch (error) {
       if (isStale()) return
       // The file was replaced: this page is going away, so there is nothing to tell the user.

@@ -16,7 +16,7 @@ Milestone 6 plays the 8 s across a split. This milestone plays any stretch the u
 
 **What a pause means once the audio is PCM.** In the compressed file a pause in the middle of a frame is awkward: the decoder cannot start inside one (a frame holds 1,152 samples, 26.12 ms of MP3, and each depends on the ones before it). In PCM every sample frame stands alone, so a pause can fall between any two of them and resume from there with no decoding. That is why resuming costs nothing: the app keeps the WAV and the element's position, and does not call ffmpeg again.
 
-**What it costs.** Native ffmpeg 8.1, a 10 min range, median of 5 runs, written to a file. The browser's ffmpeg.wasm is slower; ticket 02 measures it.
+**What it costs.** Native ffmpeg 8.1, a 10 min range, median of 5 runs, written to a file. The browser's number follows below.
 
 | Range starts at | `.m4a` | `.mp3` | `.opus` |
 | --------------- | ------ | ------ | ------- |
@@ -24,7 +24,19 @@ Milestone 6 plays the 8 s across a split. This milestone plays any stretch the u
 | 1,500 s         | 0.57 s | 0.62 s | 1.09 s  |
 | 3,000 s         | 0.59 s | 0.67 s | 1.05 s  |
 
-The `.mp3` grows with position, as in note 06, because ffmpeg finds its spot by reading from the start; here it adds about 0.1 s over 3,000 s. `.opus` takes about twice as long as the other two; it also writes 9 % more samples (48,000 per second). In ffmpeg.wasm: _to be measured in ticket 02: a 10 min range late in the 3 h MP3, and each format on `sample1`_.
+The `.mp3` grows with position, as in note 06, because ffmpeg finds its spot by reading from the start; here it adds about 0.1 s over 3,000 s. `.opus` takes about twice as long as the other two; it also writes 9 % more samples (48,000 per second).
+
+**In the browser.** The same clip command in Chrome with the real ffmpeg.wasm, on the 3 h files (`sample3h`, `sample1` three times), measured on 2026-11-18 on an Apple M4 Pro with 24 GB, `pnpm dev`, through the source-file store's `clip` call after the file had loaded. Three runs of a 10 min range at 10,400 s (the range ends at 11,000 s of 11,058 s), then one run each earlier in the file:
+
+| Range of 600 s starts at | `.m4a`         | `.mp3`         | `.opus`        |
+| ------------------------ | -------------- | -------------- | -------------- |
+| 100 s                    | 0.64 s         | 0.75 s         | 1.10 s         |
+| 5,000 s                  | 0.65 s         | 1.32 s         | 1.07 s         |
+| 10,400 s                 | 0.65 to 0.67 s | 1.98 to 2.08 s | 1.06 to 1.11 s |
+
+The longest wait is the MP3, late in the 3 h file: about 2 s, below the 3 s the spec expected, and it grows with position (0.75 s, 1.32 s, 2.0 s) as it did natively. `.m4a` and `.opus` do not depend on the position. For comparison, the 8 s audition clip at 10,400 s took 1.25 s as `.mp3` and 20 ms as `.m4a` or `.opus`: nearly all of the MP3's wait is finding the spot, and the 10 min range pays it once. The WAV the store returns is exactly 105,840,078 bytes (`.m4a`, `.mp3`) or 115,200,078 bytes (`.opus`), as computed above.
+
+**The limit and the timeout.** The 10 min limit holds: the slowest decode is 2.1 s. The clip's 30 s watchdog also holds, at about 14 times the slowest decode, and is still short enough that a call that really hangs fails while the user waits.
 
 ## Where it lives in the code
 
