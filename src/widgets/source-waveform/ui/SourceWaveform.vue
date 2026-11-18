@@ -82,16 +82,26 @@ function draw() {
   const selectedIndex = split.selectedSplitIndex
   drawSplitLines(context, lineXs, splitColor, waveTop, waveHeight, selectedIndex)
 
-  // The stretch the zoom view shows, outlined inside the wave area so the stroke is not cut off.
-  const { left, right } = zoomOutline(split.zoomCentreSeconds, ZOOM_WINDOW_SECONDS, duration, width)
-  context.strokeStyle = style.getPropertyValue('--color-ink')
-  context.lineWidth = OUTLINE_WIDTH
-  context.strokeRect(
-    left + OUTLINE_WIDTH / 2,
-    waveTop + OUTLINE_WIDTH / 2,
-    Math.max(0, right - left - OUTLINE_WIDTH),
-    waveHeight - OUTLINE_WIDTH,
-  )
+  /*
+  The stretch the zoom view shows, outlined inside the wave area so the stroke is not cut off. While
+  the Range view is shown the zoom view is not, and the range's overlay is the only outline.
+  */
+  if (split.view === 'split') {
+    const { left, right } = zoomOutline(
+      split.zoomCentreSeconds,
+      ZOOM_WINDOW_SECONDS,
+      duration,
+      width,
+    )
+    context.strokeStyle = style.getPropertyValue('--color-ink')
+    context.lineWidth = OUTLINE_WIDTH
+    context.strokeRect(
+      left + OUTLINE_WIDTH / 2,
+      waveTop + OUTLINE_WIDTH / 2,
+      Math.max(0, right - left - OUTLINE_WIDTH),
+      waveHeight - OUTLINE_WIDTH,
+    )
+  }
 
   // Split k is the split where track k + 1 starts; as many numbers as fit the band without touching.
   context.font = CANVAS_FONT
@@ -168,6 +178,7 @@ watch(
     split.splits.map((point) => point.seconds),
     split.selectedSplitId,
     split.zoomCentreSeconds,
+    split.view,
     split.range,
     liveRange.value,
   ],

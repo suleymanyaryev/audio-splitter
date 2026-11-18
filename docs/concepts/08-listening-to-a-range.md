@@ -44,11 +44,12 @@ Filled in as each ticket lands. Existing modules are linked, new ones are named.
 
 - [`src/entities/source-file/api/decode-clip.ts`](../../src/entities/source-file/api/decode-clip.ts): the clip command for a start and a length, instead of a split time.
 - [`src/entities/source-file/model/source-file.ts`](../../src/entities/source-file/model/source-file.ts): the `clip` call follows the same change.
-- [`src/entities/split/model/split.ts`](../../src/entities/split/model/split.ts): holds the range (`setRange`); the mark, the panel's view and "add split at the mark" are still to come.
+- [`src/entities/split/model/split.ts`](../../src/entities/split/model/split.ts): holds the range (`setRange`) and the panel's view (`view`, `showView`); the mark and "add split at the mark" are still to come.
 - [`src/widgets/source-waveform/ui/SourceWaveform.vue`](../../src/widgets/source-waveform/ui/SourceWaveform.vue): the overlay, drawn from the live drag or the held range.
 - [`src/widgets/source-waveform/lib/use-range-drag.ts`](../../src/widgets/source-waveform/lib/use-range-drag.ts): tells a click from a drag (4 px), captures the pointer and reports the live range.
 - [`src/entities/split/lib/range-between.ts`](../../src/entities/split/lib/range-between.ts) and [`config/range-limits.ts`](../../src/entities/split/config/range-limits.ts): the range a drag makes, held to the file and to 10 min from the press, and the 1 s minimum.
 - [`src/widgets/split-zoom/model/audition.ts`](../../src/widgets/split-zoom/model/audition.ts): becomes the one player, for the audition and for the range.
 - [`src/widgets/split-zoom/ui/SplitZoom.vue`](../../src/widgets/split-zoom/ui/SplitZoom.vue): the zoom view the Range view sits beside.
-- The Range view, its playhead and mark pointer handling, and its axis, title and bars helpers: new files in `src/widgets/split-zoom/`.
-- [`src/pages/review/ui/ReviewPage.vue`](../../src/pages/review/ui/ReviewPage.vue): the `Split | Range` control, "Add split", "Back to range start" and Play/Pause in the title row.
+- [`src/widgets/split-zoom/ui/RangeView.vue`](../../src/widgets/split-zoom/ui/RangeView.vue): the range stretched across the zoom panel, drawn from the peaks already held. Its `lib/range-window.ts` turns the range into the centre and length the zoom view's bar, land and axis helpers take, and `lib/range-title.ts` writes the title. Its playhead and mark pointer handling are new files in the same widget, still to come.
+- [`src/shared/ui/UiSegmentedControl.vue`](../../src/shared/ui/UiSegmentedControl.vue): the `Split | Range` control.
+- [`src/pages/review/ui/ReviewPage.vue`](../../src/pages/review/ui/ReviewPage.vue): swaps the zoom view and the Range view on the store's view, and holds the `Split | Range` control; "Add split", "Back to range start" and Play/Pause for the Range view are still to come.

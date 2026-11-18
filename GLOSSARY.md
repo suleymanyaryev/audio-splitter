@@ -48,6 +48,10 @@ _Avoid_: Preview, playback
 A stretch of the source file, 1 s to 10 min, that the user drags out on the whole-file view to listen to. Hearing it is "playing the range", not an audition.
 _Avoid_: Selection, section, region
 
+**Range view**:
+The zoom panel's other view: the range stretched across the whole panel, with its gaps and splits, in place of the zoom view. A `Split | Range` control switches between the two; selecting a split or moving the zoom window switches back.
+_Avoid_: Range panel, overview
+
 **Mark**:
 The spot in a range where "Add split" puts a split.
 _Avoid_: Cursor, marker

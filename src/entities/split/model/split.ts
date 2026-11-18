@@ -33,6 +33,9 @@ export interface Track {
   startSplit: Split | null
 }
 
+// Which view the zoom panel shows: the 20 s zoom view, or the Range view (GLOSSARY.md: Range).
+export type PanelView = 'split' | 'range'
+
 export interface CurveTiming {
   windowSeconds: number
   durationSeconds: number
@@ -56,7 +59,9 @@ last detection.
 
 The range (GLOSSARY.md) is view state beside the window's centre: a stretch the user dragged out on
 the whole-file view, or none. It belongs to the file, not to the detection, so a setting change and
-the edits leave it alone; `reset` clears it.
+the edits leave it alone; `reset` clears it. The panel shows the range's view after a new range and
+the zoom view again as soon as the user selects a split or moves the window, since both are about
+the zoom view; the range stays while the zoom view is shown.
 */
 export const useSplitStore = defineStore('split', () => {
   const curve = shallowRef<Float32Array | null>(null)
@@ -71,6 +76,7 @@ export const useSplitStore = defineStore('split', () => {
   // With nothing to centre on, the window starts at 0:00.
   const zoomCentreSeconds = ref(ZOOM_WINDOW_SECONDS / 2)
   const range = ref<TimeRange | null>(null)
+  const view = ref<PanelView>('split')
   let nextSplitId = 0
   /*
   What the user changed since the last detection, counted as things changed, not actions: a split
@@ -192,6 +198,7 @@ export const useSplitStore = defineStore('split', () => {
     if (split === undefined) return
     selectedSplitId.value = split.id
     zoomCentreSeconds.value = split.seconds
+    view.value = 'split'
   }
 
   /*
@@ -210,6 +217,7 @@ export const useSplitStore = defineStore('split', () => {
   function moveZoomTo(seconds: number) {
     zoomCentreSeconds.value = seconds
     selectedSplitId.value = null
+    view.value = 'split'
   }
 
   /*
@@ -222,7 +230,14 @@ export const useSplitStore = defineStore('split', () => {
     const made = rangeBetween(anchorSeconds, pointerSeconds, timing.value.durationSeconds)
     if (made === null) return false
     range.value = made
+    view.value = 'range'
     return true
+  }
+
+  // The Range view needs a range to show: asked for with none, the panel stays where it is.
+  function showView(next: PanelView) {
+    if (next === 'range' && range.value === null) return
+    view.value = next
   }
 
   /*
@@ -308,6 +323,7 @@ export const useSplitStore = defineStore('split', () => {
     selectedSplitId.value = null
     zoomCentreSeconds.value = ZOOM_WINDOW_SECONDS / 2
     range.value = null
+    view.value = 'split'
     nextSplitId = 0
   }
 
@@ -322,6 +338,7 @@ export const useSplitStore = defineStore('split', () => {
     selectedSplitIndex,
     zoomCentreSeconds,
     range,
+    view,
     canAddSplit,
     editCount,
     hasEdits,
@@ -334,6 +351,7 @@ export const useSplitStore = defineStore('split', () => {
     isTrackSelected,
     moveZoomTo,
     setRange,
+    showView,
     moveSplit,
     addSplit,
     deleteSplit,

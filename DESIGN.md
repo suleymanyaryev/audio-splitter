@@ -322,7 +322,7 @@ Borders are 1px: hairline for panels and row rules, control edge for controls, v
 
 ## Components
 
-Every kit component lives in `src/shared/ui/` as `Ui<Name>.vue` (`UiButton`, `UiIconButton`, `UiTextField`, `UiSlider`, `UiPanel`, `UiProgressBar`, `UiDialog`; the prefix keeps a kit component from reading like a native element) and is a Reka UI 2 primitive (or a native element) styled with Tailwind 4 utilities on the tokens below. Classes are given exactly; `focus-ring` is the custom utility defined in the token block.
+Every kit component lives in `src/shared/ui/` as `Ui<Name>.vue` (`UiButton`, `UiIconButton`, `UiTextField`, `UiSlider`, `UiSegmentedControl`, `UiPanel`, `UiProgressBar`, `UiDialog`; the prefix keeps a kit component from reading like a native element) and is a Reka UI 2 primitive (or a native element) styled with Tailwind 4 utilities on the tokens below. Classes are given exactly; `focus-ring` is the custom utility defined in the token block.
 
 **Focus.** Every interactive element shows `focus-visible:focus-ring`: a 2px solid ink outline at 2px offset. On the vinyl band the ring uses `on-vinyl`. On a track block (clicking one selects its split) it uses `on-track`.
 
@@ -367,6 +367,14 @@ Reka `SliderRoot` / `SliderTrack` / `SliderRange` / `SliderThumb`; focus and ARI
 - **Track:** `relative h-1 w-full rounded-full bg-hairline`. **Range:** `absolute h-1 rounded-full bg-ink` (Reka sets its ends).
 - **Thumb:** `block size-4 cursor-grab rounded-full border-2 border-surface bg-ink not-data-disabled:hover:size-5 data-disabled:cursor-not-allowed focus-visible:focus-ring` (Reka positions the thumb; no manual translate). Hover grows it from 16 to 20 px; keyboard focus adds the ink ring.
 - **Readout:** the current value sits to the right in Label style (`w-18 text-right font-semibold whitespace-nowrap text-ink`, e.g. "1.0 s", "−31.7 dB"; 72 px keeps "−31.7 dB" on one line and stops the track from shifting as the value changes); the setting's name sits to the left in `muted`, `whitespace-nowrap`.
+
+### SegmentedControl
+
+Reka `RadioGroupRoot` / `RadioGroupItem`: a choice of one among a few views, such as the zoom panel's `Split | Range`. Exactly one option is always chosen; arrow keys move between options, and a disabled option cannot be chosen.
+
+- **Root:** `inline-flex h-8 items-center gap-0.5 rounded-control border border-edge bg-surface p-0.5`, `aria-label` names the control. 32 px tall, as a small button, for a panel's title row.
+- **Option:** `h-full cursor-pointer rounded-control border border-transparent px-3 text-sm font-semibold whitespace-nowrap text-ink transition-colors duration-100 focus-visible:focus-ring enabled:hover:bg-land/40 disabled:cursor-not-allowed disabled:opacity-40`.
+- **Chosen:** `border-ink bg-land/50`: state carried by ink and border, as the selected track block is, never by a filled button, so the panel's one primary button stays the one filled control.
 
 ### Panel
 
@@ -422,6 +430,8 @@ The whole-file waveform, the loudness curve and the zoom view are hand-drawn can
 - **Zoom window (whole-file view):** the stretch shown in the zoom view, outlined in 1.5px `ink`, the height of the wave area. It matches the zoom view's own frame.
 - **Loudness curve:** a 1.5px `wave` line, with the area under it filled in `wave` at 14% alpha; lands run the full canvas height behind it.
 - **Silence threshold:** a dashed line (5px dash, 4px gap, 1.5px) in `split` across the full width. Its label ("−35 dB") is drawn in `split` on a `surface`-coloured plate (text width + 8px, 17px tall) above the line at the left, for contrast where it crosses the fill and lands. A drag handle (18 × 10 px, `split`) sits on the line at the right edge.
+- **Range view:** the zoom panel's other view, the same 160 px frame in 1.5px `ink`. The range is stretched across the whole canvas, whatever its length, in `wave` bars on the same pitch; each gap is a `land` band at its true width (the Land Rule's 12 px minimum is for whole-file views) over the bars, with split lines through the full height, the selected split 3px. No run-out line.
+- **Range overlay (whole-file view):** `ink` at 10% alpha over the wave area, with 1px `ink` edges, drawn over the lands and under the split lines. It stays in both views of the zoom panel; the zoom window's outline is drawn only while the zoom view is shown.
 - **Zoom view:** the gap is one `land` band; through it runs a flat 1px `wave` run-out line at the centre (near-silence, not nothing). The split is a 3px `split` line with a 14 × 10 px drag handle at its top. The whole canvas is framed in 1.5px `ink`. While a clip plays, a 1px `ink` playhead marks the audio's place, drawn over the split lines and under the frame. A failure to play is one line of `text-muted` status at the bottom centre, in the style of the empty-state status.
 
 ### Named Rules

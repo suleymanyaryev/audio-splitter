@@ -1060,6 +1060,103 @@ describe('the split store', () => {
     })
   })
 
+  describe('the panel view', () => {
+    it('starts on the split view', () => {
+      expect(loadedStore().view).toBe('split')
+    })
+
+    it('switches to the range view when a range is made', () => {
+      const store = loadedStore()
+
+      store.setRange(10, 20)
+
+      expect(store.view).toBe('range')
+    })
+
+    it('stays where it is when a range is refused', () => {
+      const store = loadedStore()
+
+      store.setRange(30, 30.4)
+
+      expect(store.view).toBe('split')
+    })
+
+    it('switches to the range view on request once there is a range, and back', () => {
+      const store = loadedStore()
+      store.setRange(10, 20)
+      store.showView('split')
+
+      store.showView('range')
+      expect(store.view).toBe('range')
+
+      store.showView('split')
+      expect(store.view).toBe('split')
+    })
+
+    it('refuses the range view while there is no range', () => {
+      const store = loadedStore()
+
+      store.showView('range')
+
+      expect(store.view).toBe('split')
+    })
+
+    it('switches back to the split view when a split is selected', () => {
+      const store = loadedStore()
+      store.setRange(10, 20)
+
+      store.selectSplit(store.splits[1]!.id)
+
+      expect(store.view).toBe('split')
+    })
+
+    it('switches back to the split view when a track is selected', () => {
+      const store = loadedStore()
+      store.setRange(10, 20)
+
+      store.selectTrack(store.tracks[1]!)
+
+      expect(store.view).toBe('split')
+    })
+
+    it('switches back to the split view when the zoom window is moved', () => {
+      const store = loadedStore()
+      store.setRange(10, 20)
+
+      store.moveZoomTo(5)
+
+      expect(store.view).toBe('split')
+    })
+
+    it('keeps the range while the split view is shown', () => {
+      const store = loadedStore()
+      store.setRange(10, 20)
+
+      store.moveZoomTo(5)
+
+      expect(store.range).toEqual({ startSeconds: 10, endSeconds: 20 })
+    })
+
+    it('is left alone by a setting change and by edits that select nothing', () => {
+      const store = loadedStore()
+      store.setRange(10, 20)
+
+      store.setMinimumGapLength(3)
+      store.setSilenceThreshold(-40)
+
+      expect(store.view).toBe('range')
+    })
+
+    it('goes back to the split view on reset', () => {
+      const store = loadedStore()
+      store.setRange(10, 20)
+
+      store.reset()
+
+      expect(store.view).toBe('split')
+    })
+  })
+
   it('forgets everything on reset', () => {
     const curve = twoGaps()
     const store = useSplitStore()

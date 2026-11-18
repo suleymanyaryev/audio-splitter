@@ -55,6 +55,18 @@ function exportButton(wrapper: ReturnType<typeof mount>) {
   return button
 }
 
+function viewOption(wrapper: ReturnType<typeof mount>, name: 'Split' | 'Range') {
+  const option = wrapper
+    .get('[role="radiogroup"][aria-label="Panel view"]')
+    .findAll('[role="radio"]')
+    .find((candidate) => candidate.text() === name)
+  if (!option) throw new Error(`no ${name} option`)
+  return option
+}
+
+// The panel's title: the zoom view's time, or the range's start, end and length.
+const panelTitle = (wrapper: ReturnType<typeof mount>) => wrapper.get('h2.text-lg').text()
+
 describe('ReviewPage', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
@@ -149,6 +161,86 @@ describe('ReviewPage', () => {
       const stop = vi.spyOn(useAuditionStore(), 'stop')
 
       wrapper.unmount()
+
+      expect(stop).toHaveBeenCalled()
+    })
+  })
+
+  describe('the Split | Range control', () => {
+    it('starts on Split, with Range disabled while there is no range', () => {
+      const wrapper = mountPage()
+
+      expect(viewOption(wrapper, 'Split').attributes('aria-checked')).toBe('true')
+      expect(viewOption(wrapper, 'Range').attributes('disabled')).toBeDefined()
+    })
+
+    it('shows the zoom view and its buttons, and no Range view, on Split', () => {
+      const wrapper = mountPage()
+
+      expect(wrapper.find('[aria-label="Zoomed waveform of the split"]').exists()).toBe(true)
+      expect(wrapper.find('[aria-label="Waveform of the range"]').exists()).toBe(false)
+      expect(addSplitButton(wrapper).exists()).toBe(true)
+      expect(auditionButton(wrapper).exists()).toBe(true)
+    })
+
+    it('swaps in the Range view, titled by the range, when a range is made', async () => {
+      const wrapper = mountPage()
+
+      useSplitStore().setRange(10, 20)
+      await wrapper.vm.$nextTick()
+
+      expect(viewOption(wrapper, 'Range').attributes('aria-checked')).toBe('true')
+      expect(viewOption(wrapper, 'Range').attributes('disabled')).toBeUndefined()
+      expect(wrapper.find('[aria-label="Waveform of the range"]').exists()).toBe(true)
+      expect(wrapper.find('[aria-label="Zoomed waveform of the split"]').exists()).toBe(false)
+      expect(panelTitle(wrapper)).toBe('0:00:10.00 – 0:00:20.00 · 0:10.00')
+    })
+
+    it('leaves the zoom view’s buttons out of the Range view', async () => {
+      const wrapper = mountPage()
+
+      useSplitStore().setRange(10, 20)
+      await wrapper.vm.$nextTick()
+
+      const labels = wrapper.findAll('button').map((button) => button.text())
+      expect(labels).not.toContain('Add split')
+      expect(labels).not.toContain('Play across split')
+    })
+
+    it('switches between the two views with the control, keeping the range', async () => {
+      const wrapper = mountPage()
+      const split = useSplitStore()
+      split.setRange(10, 20)
+      await wrapper.vm.$nextTick()
+
+      await viewOption(wrapper, 'Split').trigger('click')
+      expect(split.view).toBe('split')
+      expect(wrapper.find('[aria-label="Zoomed waveform of the split"]').exists()).toBe(true)
+      expect(panelTitle(wrapper)).toBe('0:00:21.00')
+
+      await viewOption(wrapper, 'Range').trigger('click')
+      expect(split.view).toBe('range')
+      expect(split.range).toEqual({ startSeconds: 10, endSeconds: 20 })
+      expect(wrapper.find('[aria-label="Waveform of the range"]').exists()).toBe(true)
+    })
+
+    it('goes back to Split when a track row selects a split', async () => {
+      const wrapper = mountPage()
+      useSplitStore().setRange(10, 20)
+      await wrapper.vm.$nextTick()
+
+      await wrapper.get('[aria-label^="Select track 3"]').trigger('click')
+
+      expect(viewOption(wrapper, 'Split').attributes('aria-checked')).toBe('true')
+      expect(panelTitle(wrapper)).toBe('0:01:11.50')
+    })
+
+    it('stops the audition when the view changes', async () => {
+      const wrapper = mountPage()
+      const stop = vi.spyOn(useAuditionStore(), 'stop')
+
+      useSplitStore().setRange(10, 20)
+      await wrapper.vm.$nextTick()
 
       expect(stop).toHaveBeenCalled()
     })

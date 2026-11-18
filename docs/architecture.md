@@ -8,12 +8,12 @@ The diagrams are drawn from the code. When a change alters what one of them show
 
 Four Pinia setup stores hold all state, in memory only. Two are entities; two belong to the widget that owns the behaviour.
 
-| Store           | Slice                  | Holds                                                                                                                                                              |
-| --------------- | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `source-file`   | `entities/source-file` | The file, its format and duration, peaks, loudness curve, slice progress, load failure, the ffmpeg session                                                         |
-| `split`         | `entities/split`       | The silence threshold and minimum gap length, the gaps, the splits with their track names, the derived tracks, the selected split, the zoom window, the edit count |
-| `audition`      | `widgets/split-zoom`   | Whether a clip is loading or playing, its failure, the playhead position                                                                                           |
-| `export-tracks` | `widgets/track-strip`  | The export's status, the track in hand, the counts, the subfolder's name, the failure                                                                              |
+| Store           | Slice                  | Holds                                                                                                                                                                                              |
+| --------------- | ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `source-file`   | `entities/source-file` | The file, its format and duration, peaks, loudness curve, slice progress, load failure, the ffmpeg session                                                                                         |
+| `split`         | `entities/split`       | The silence threshold and minimum gap length, the gaps, the splits with their track names, the derived tracks, the selected split, the zoom window, the range and the panel's view, the edit count |
+| `audition`      | `widgets/split-zoom`   | Whether a clip is loading or playing, its failure, the playhead position                                                                                                                           |
+| `export-tracks` | `widgets/track-strip`  | The export's status, the track in hand, the counts, the subfolder's name, the failure                                                                                                              |
 
 ```mermaid
 flowchart LR
