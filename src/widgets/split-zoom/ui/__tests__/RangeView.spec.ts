@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 
+import { nextTick } from 'vue'
 import { enableAutoUnmount, mount } from '@vue/test-utils'
 import { useSourceFileStore } from '@/entities/source-file/model/source-file.ts'
 import { useSplitStore } from '@/entities/split/model/split.ts'
@@ -16,7 +17,32 @@ function setup() {
   split.setRange(10, 20)
   const audition = useAuditionStore()
   const toggleRange = vi.spyOn(audition, 'toggleRange').mockImplementation(() => {})
-  return { audition, toggleRange, wrapper: mount(RangeView) }
+  const backToRangeStart = vi.spyOn(audition, 'backToRangeStart').mockImplementation(() => {})
+  const wrapper = mount(RangeView)
+  return { audition, toggleRange, backToRangeStart, wrapper }
+}
+
+// jsdom has no PointerEvent: a mouse event of that name, with the pointer's id.
+async function pointer(
+  view: { element: Element },
+  type: 'pointerdown' | 'pointermove' | 'pointerup',
+  clientX: number,
+) {
+  const event = new MouseEvent(type, { clientX, bubbles: true })
+  Object.defineProperty(event, 'pointerId', { value: 1 })
+  view.element.dispatchEvent(event)
+  await nextTick()
+}
+
+// The view is 1,000 px wide, from the page's left edge: the range's 10 s is 100 px a second.
+function measured(wrapper: ReturnType<typeof setup>['wrapper']) {
+  const view = wrapper.get('[role="group"]')
+  vi.spyOn(view.element, 'getBoundingClientRect').mockReturnValue({
+    left: 0,
+    width: 1000,
+  } as DOMRect)
+  view.element.setPointerCapture = vi.fn()
+  return view
 }
 
 describe('RangeView', () => {
@@ -62,6 +88,75 @@ describe('RangeView', () => {
       await wrapper.get('[role="group"]').trigger('keydown', { key: 'Enter' })
 
       expect(toggleRange).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('Home', () => {
+    it('moves the playhead to the range’s start, and is not a page scroll', async () => {
+      const { backToRangeStart, wrapper } = setup()
+      const event = new KeyboardEvent('keydown', { key: 'Home', bubbles: true, cancelable: true })
+
+      wrapper.get('[role="group"]').element.dispatchEvent(event)
+
+      expect(backToRangeStart).toHaveBeenCalledTimes(1)
+      expect(event.defaultPrevented).toBe(true)
+    })
+  })
+
+  describe('dragging the playhead', () => {
+    it('takes hold of the playhead at the range’s start, moves it with the pointer and lets go', async () => {
+      const { audition, wrapper } = setup()
+      const grab = vi.spyOn(audition, 'grabPlayhead')
+      const seek = vi.spyOn(audition, 'seekRange')
+      const drop = vi.spyOn(audition, 'dropPlayhead')
+      const view = measured(wrapper)
+
+      await pointer(view, 'pointerdown', 4)
+      await pointer(view, 'pointermove', 504)
+      await pointer(view, 'pointerup', 504)
+
+      expect(grab).toHaveBeenCalledOnce()
+      // Grabbed 4 px right of the line, so the line stays 4 px left of the pointer.
+      expect(seek).toHaveBeenLastCalledWith(15)
+      expect(audition.rangePlayheadSeconds()).toBe(15)
+      expect(drop).toHaveBeenCalledOnce()
+    })
+
+    it('holds the playhead to the range when the pointer goes past its ends', async () => {
+      const { audition, wrapper } = setup()
+      const view = measured(wrapper)
+
+      await pointer(view, 'pointerdown', 0)
+      await pointer(view, 'pointermove', 1400)
+      expect(audition.rangePlayheadSeconds()).toBe(20)
+
+      await pointer(view, 'pointermove', -300)
+      expect(audition.rangePlayheadSeconds()).toBe(10)
+    })
+
+    it('leaves a press away from the playhead alone', async () => {
+      const { audition, wrapper } = setup()
+      const grab = vi.spyOn(audition, 'grabPlayhead')
+      const view = measured(wrapper)
+
+      await pointer(view, 'pointerdown', 300)
+      await pointer(view, 'pointermove', 600)
+
+      expect(grab).not.toHaveBeenCalled()
+      expect(audition.rangePlayheadSeconds()).toBe(10)
+    })
+
+    it('shows the resize cursor over the playhead and while it is dragged', async () => {
+      const { wrapper } = setup()
+      const view = measured(wrapper)
+
+      expect(view.classes()).not.toContain('cursor-ew-resize')
+
+      await pointer(view, 'pointermove', 3)
+      expect(view.classes()).toContain('cursor-ew-resize')
+
+      await pointer(view, 'pointermove', 400)
+      expect(view.classes()).not.toContain('cursor-ew-resize')
     })
   })
 

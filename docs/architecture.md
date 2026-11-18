@@ -113,7 +113,7 @@ stateDiagram-v2
   playing --> idle: the range plays, or a new range
 ```
 
-**The range** is the stretch the user dragged out (note 08). The Range view's Play button and Space both call `toggleRange`. The whole range is decoded once and kept, so a pause costs nothing: playing again sets the element's `currentTime` inside the WAV, which is exact, and plays at once. The Range view draws the playhead each animation frame while it plays, and at its resting place otherwise: the range's start for a new range and after the end.
+**The range** is the stretch the user dragged out (note 08). The Range view's Play button and Space both call `toggleRange`. The whole range is decoded once and kept, so a pause costs nothing: playing again sets the element's `currentTime` inside the WAV, which is exact, and plays at once. The Range view draws the playhead each animation frame while it plays, and at its resting place otherwise: the range's start for a new range and after the end. The playhead moves without changing the status: `seekRange` sets `currentTime` while the range plays, and the resting place otherwise (which `toggleRange`, or the clip still being decoded, starts from); a drag of it goes through `grabPlayhead`, which pauses a playing range, and `dropPlayhead`, which plays it on only if it was playing.
 
 ```mermaid
 stateDiagram-v2
@@ -126,6 +126,8 @@ stateDiagram-v2
   playing --> idle: play refused, failure shown
   playing --> paused: toggleRange, or stop (a view change, the export)
   paused --> playing: toggleRange
+  playing --> paused: grabPlayhead, a drag of the playhead
+  paused --> playing: dropPlayhead, if it was playing when grabbed
   playing --> idle: range ended, playhead back at the start
   paused --> idle: a new range, or the audition plays
   playing --> idle: a new range, or the audition plays

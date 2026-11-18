@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { computed, onUnmounted, useTemplateRef, watch } from 'vue'
-import { Download, Pause, Play, Plus, Square } from 'lucide-vue-next'
+import { Download, Pause, Play, Plus, SkipBack, Square } from 'lucide-vue-next'
 
 import { useSourceFileStore } from '@/entities/source-file/model/source-file.ts'
 import { useSplitStore, type PanelView } from '@/entities/split/model/split.ts'
 import UiButton from '@/shared/ui/UiButton.vue'
+import UiIconButton from '@/shared/ui/UiIconButton.vue'
 import UiPanel from '@/shared/ui/UiPanel.vue'
 import UiSegmentedControl from '@/shared/ui/UiSegmentedControl.vue'
 import LoudnessCurve from '@/widgets/loudness-curve/ui/LoudnessCurve.vue'
@@ -24,8 +25,8 @@ import TrackStrip from '@/widgets/track-strip/ui/TrackStrip.vue'
 The review screen: each panel at its fixed canvas height, with the controls it holds. Every panel
 is filled; "Play across split" plays the selected split's clip (and reads "Stop" while it loads or
 plays), the Range view's "Play" plays the range (and reads "Stop" while it is decoded and "Pause"
-while it plays), and "Export to folder…" starts the export, whose overlay (`ExportDialog`) locks the
-page while it runs. The zoom panel shows the zoom view or, once the user has dragged out a range,
+while it plays) and "Back to range start" beside it moves the playhead to the range's start. "Export to
+folder…" starts the export, whose overlay (`ExportDialog`) locks the page while it runs. The zoom panel shows the zoom view or, once the user has dragged out a range,
 the Range view, as the split store's `view` says; its `Split | Range` control is that view, and the
 buttons of each view are only there while that view is.
 
@@ -117,6 +118,14 @@ watch(
           <Plus class="size-4 shrink-0" />
           Add split
         </UiButton>
+        <UiIconButton
+          v-if="split.view === 'range'"
+          size="sm"
+          label="Back to range start"
+          @click="audition.backToRangeStart()"
+        >
+          <SkipBack class="size-4 shrink-0" />
+        </UiIconButton>
         <UiButton
           v-if="split.view === 'range'"
           variant="primary"

@@ -7,9 +7,10 @@ import { drawLands, drawSplitLines } from '@/shared/lib/canvas/draw-lands-and-sp
 import { BAR_PITCH, drawPeakBars } from '@/shared/lib/canvas/draw-peak-bars.ts'
 import { prepareCanvas } from '@/shared/lib/canvas/prepare-canvas.ts'
 import { useCanvasRedraw } from '@/shared/lib/canvas/use-canvas-redraw.ts'
-import { zoomTimeToX } from '@/shared/lib/canvas/zoom-axis.ts'
+import { zoomTimeToX, zoomXToTime } from '@/shared/lib/canvas/zoom-axis.ts'
 import { rangeWindow } from '../lib/range-window.ts'
 import { usePlayheadFrames } from '../lib/use-playhead-frames.ts'
+import { useRangePress } from '../lib/use-range-press.ts'
 import { zoomBars } from '../lib/zoom-bars.ts'
 import { landSpansInWindow } from '../lib/zoom-spans.ts'
 import { useAuditionStore } from '../model/audition.ts'
@@ -23,9 +24,11 @@ on the same axis. The panel's `Split | Range` control only offers this view whil
 
 A 1 px ink playhead is drawn at all times: at the range's start for a new range, then where the
 range is heard or where it resumes. While the range plays it is drawn on every animation frame. The
-view takes the keyboard, and Space plays or pauses the range, as the panel's button does (a held key
-is ignored, so it does not start and stop the sound over and over). A failure to play is said in a
-line at the bottom of the view.
+playhead can be dragged along the range (`lib/use-range-press.ts`: a press within 6 px takes it, and a
+playing range is paused for the drag and played on from the drop). The view takes the keyboard, and
+Space plays or pauses the range, as the panel's button does (a held key is ignored, so it does not
+start and stop the sound over and over), and Home takes the playhead back to the range's start. A
+failure to play is said in a line at the bottom of the view.
 */
 
 // DESIGN.md: the whole canvas is framed in 1.5 px ink, as in the zoom view.
@@ -37,6 +40,7 @@ const sourceFile = useSourceFileStore()
 const split = useSplitStore()
 const audition = useAuditionStore()
 const canvas = useTemplateRef('canvas')
+const frame = useTemplateRef('frame')
 
 function draw() {
   const peaks = sourceFile.peaks
@@ -90,11 +94,49 @@ function draw() {
   context.strokeRect(FRAME_WIDTH / 2, FRAME_WIDTH / 2, width - FRAME_WIDTH, height - FRAME_WIDTH)
 }
 
+function frameWidth() {
+  return frame.value?.getBoundingClientRect().width ?? 0
+}
+
+// The range's map onto the view's current width, for the pointer; null without a range.
+function axis() {
+  const range = split.range
+  return range === null ? null : { ...rangeWindow(range), width: frameWidth() }
+}
+
+const { overPlayhead, dragging, onPointerDown, onPointerMove, onPointerEnd } = useRangePress({
+  playheadX: () => {
+    const map = axis()
+    const playhead = audition.rangePlayheadSeconds()
+    return map === null || playhead === null
+      ? null
+      : zoomTimeToX(playhead, map.centreSeconds, map.windowSeconds, map.width)
+  },
+  seconds: (x) => {
+    const map = axis()
+    // Without a range there is no playhead to take hold of, so this is not asked.
+    return map === null ? 0 : zoomXToTime(x, map.centreSeconds, map.windowSeconds, map.width)
+  },
+  grab: () => {
+    audition.grabPlayhead()
+  },
+  move: (seconds) => {
+    audition.seekRange(seconds)
+  },
+  drop: () => {
+    audition.dropPlayhead()
+  },
+})
+
 function onKeydown(event: KeyboardEvent) {
-  if (event.key !== ' ') return
-  // Never a page scroll, and a held key must not start and stop the sound over and over.
-  event.preventDefault()
-  if (!event.repeat) audition.toggleRange()
+  // Never a page scroll; a held Space must not start and stop the sound over and over.
+  if (event.key === ' ') {
+    event.preventDefault()
+    if (!event.repeat) audition.toggleRange()
+  } else if (event.key === 'Home') {
+    event.preventDefault()
+    audition.backToRangeStart()
+  }
 }
 
 usePlayheadFrames(() => audition.rangeStatus === 'playing', draw)
@@ -116,11 +158,17 @@ watch(
 
 <template>
   <div
+    ref="frame"
     tabindex="0"
     role="group"
     aria-label="Range"
     class="relative h-40 select-none focus-visible:focus-ring"
+    :class="{ 'cursor-ew-resize': overPlayhead || dragging }"
     @keydown="onKeydown"
+    @pointerdown="onPointerDown"
+    @pointermove="onPointerMove"
+    @pointerup="onPointerEnd"
+    @pointercancel="onPointerEnd"
   >
     <canvas ref="canvas" class="block size-full" aria-label="Waveform of the range" />
     <p

@@ -63,6 +63,11 @@ function rangeButton(wrapper: ReturnType<typeof mount>) {
   return button
 }
 
+// The icon button left of the range button.
+function backButton(wrapper: ReturnType<typeof mount>) {
+  return wrapper.get('button[aria-label="Back to range start"]')
+}
+
 function exportButton(wrapper: ReturnType<typeof mount>) {
   const button = wrapper
     .findAll('button')
@@ -259,6 +264,42 @@ describe('ReviewPage', () => {
       await wrapper.vm.$nextTick()
 
       expect(stop).toHaveBeenCalled()
+    })
+  })
+
+  describe('the "Back to range start" button', () => {
+    it('is an icon button just left of the range button, enabled whatever the player is doing', async () => {
+      const wrapper = await mountPageWithRange()
+      const audition = useAuditionStore()
+      const labels = wrapper
+        .findAll('button')
+        .map((button) => button.attributes('aria-label') ?? button.text())
+
+      expect(labels.indexOf('Back to range start')).toBe(labels.indexOf('Play') - 1)
+      expect(backButton(wrapper).text()).toBe('')
+
+      for (const status of ['loading', 'playing', 'paused'] as const) {
+        audition.rangeStatus = status
+        await wrapper.vm.$nextTick()
+        expect(backButton(wrapper).attributes('disabled')).toBeUndefined()
+      }
+    })
+
+    it('is not there in the Split view', () => {
+      const wrapper = mountPage()
+
+      expect(wrapper.find('button[aria-label="Back to range start"]').exists()).toBe(false)
+    })
+
+    it('moves the playhead to the range’s start when clicked', async () => {
+      const wrapper = await mountPageWithRange()
+      const backToRangeStart = vi
+        .spyOn(useAuditionStore(), 'backToRangeStart')
+        .mockImplementation(() => {})
+
+      await backButton(wrapper).trigger('click')
+
+      expect(backToRangeStart).toHaveBeenCalledTimes(1)
     })
   })
 

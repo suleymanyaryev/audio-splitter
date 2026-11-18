@@ -21,8 +21,11 @@ adds `paused`. The Range view's button and Space key call `toggleRange`. The who
 once and kept: a pause only stops the element and keeps the place, so playing again sets
 `currentTime` inside the WAV (exact, where a compressed file is not) and plays at once. The range's
 playhead is `rangePlayheadSeconds`: the sound while it plays and the resting place otherwise, which
-is the range's start for a new range and after the range has ended. The two kinds stop each other,
-and a new range stops and releases whatever is held.
+is the range's start for a new range and after the range has ended. The playhead moves without a
+new decode: `seekRange` sets `currentTime` while the range plays and the resting place otherwise
+(which the next play, or a clip still being decoded, starts from), and a drag of it pauses a playing
+range (`grabPlayhead`) and plays it on from the drop (`dropPlayhead`). The two kinds stop each
+other, and a new range stops and releases whatever is held.
 
 Every press takes a number, and a clip that arrives for an older number is dropped: a press that
 was stopped, or a selection or range that changed while ffmpeg was working, must never start sound
@@ -57,6 +60,8 @@ export const useAuditionStore = defineStore('audition', () => {
   let clipLengthSeconds = 0
   // Whether the held WAV is the range's, which a press can play again without decoding.
   let isRangeHeld = false
+  // Whether the range was playing when the playhead was grabbed, so the drop plays it on.
+  let shouldResume = false
 
   function release() {
     if (element !== undefined) {
@@ -68,6 +73,11 @@ export const useAuditionStore = defineStore('audition', () => {
     if (url !== undefined) URL.revokeObjectURL(url)
     url = undefined
     isRangeHeld = false
+  }
+
+  // Where a time in the file is in the held WAV, clamped: the range's WAV starts at its start.
+  function offsetOf(seconds: number) {
+    return Math.min(Math.max(seconds - clipStartSeconds, 0), clipLengthSeconds)
   }
 
   // Where the range's sound is in the file, clamped: the element can report a hair past the end.
@@ -220,12 +230,16 @@ export const useAuditionStore = defineStore('audition', () => {
     const isStale = () => thisPress !== press
     failure.value = null
     letGoOfAudition()
-    // Where in the held WAV the playhead is; a range's WAV starts at the range's start.
-    const offset = () =>
-      Math.min(
-        Math.max((restingSeconds.value ?? range.startSeconds) - clipStartSeconds, 0),
-        clipLengthSeconds,
-      )
+    /*
+    Read when the sound starts, so a playhead moved while the clip was decoded counts. A playhead
+    left at the very end has nothing to play from, so it plays from the start, as a media element
+    does when it is played after its end.
+    */
+    const offset = () => {
+      const place = restingSeconds.value
+      const hasRoom = place !== null && place < range.endSeconds
+      return offsetOf(hasRoom ? place : range.startSeconds)
+    }
 
     if (isRangeHeld) {
       audioElement().currentTime = offset()
@@ -259,6 +273,41 @@ export const useAuditionStore = defineStore('audition', () => {
     if (rangeStatus.value === 'loading') stop()
     else if (rangeStatus.value === 'playing') pauseRange()
     else void playRange(range)
+  }
+
+  /*
+  Moves the range's playhead to a time, held to the range. While the range plays, the sound jumps
+  there at once (an exact `currentTime` inside the WAV) and goes on; otherwise only the resting
+  place moves, which a later play, or the clip still being decoded, starts from.
+  */
+  function seekRange(seconds: number) {
+    const range = splitStore.range
+    if (range === null) return
+    const target = Math.min(Math.max(seconds, range.startSeconds), range.endSeconds)
+    if (rangeStatus.value === 'playing') audioElement().currentTime = offsetOf(target)
+    else restingSeconds.value = target
+  }
+
+  function backToRangeStart() {
+    const range = splitStore.range
+    if (range !== null) seekRange(range.startSeconds)
+  }
+
+  /*
+  A drag of the playhead pauses a playing range, so the sound does not jump under the pointer, and
+  `dropPlayhead` plays it on from where the playhead was dropped. A paused or idle range stays so.
+  */
+  function grabPlayhead() {
+    shouldResume = rangeStatus.value === 'playing'
+    if (shouldResume) pauseRange()
+  }
+
+  function dropPlayhead() {
+    // Only a range still paused is played on: a new range or the audition may have taken over.
+    const canResume = shouldResume && rangeStatus.value === 'paused'
+    shouldResume = false
+    const range = splitStore.range
+    if (canResume && range !== null) void playRange(range)
   }
 
   /*
@@ -322,6 +371,10 @@ export const useAuditionStore = defineStore('audition', () => {
     isActive,
     toggle,
     toggleRange,
+    seekRange,
+    backToRangeStart,
+    grabPlayhead,
+    dropPlayhead,
     stop,
     playheadSeconds,
     rangePlayheadSeconds,
