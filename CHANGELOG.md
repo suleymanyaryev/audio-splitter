@@ -13,7 +13,7 @@ Versions follow [Semantic Versioning](https://semver.org/) applied to the produc
 ## Keeping it
 
 - Each user-visible change adds a line under `## [Unreleased]` in the same commit, in one of Keep a Changelog's groups: Added, Changed, Deprecated, Removed, Fixed, Security. Write what the user notices, not how the code changed. Refactors, tests, tooling and docs get no entry.
-- A release renames `## [Unreleased]` to `## [X.Y.Z] - YYYY-MM-DD`, opens a fresh `## [Unreleased]` above it, sets `version` in `package.json`, and tags the commit `vX.Y.Z`.
+- A release renames `## [Unreleased]` to `## [X.Y.Z] - YYYY-MM-DD`, opens a fresh `## [Unreleased]` above it, sets `version` in `package.json`, and tags the commit `vX.Y.Z`. Pushing a `v*` tag that is on `main` publishes that commit to GitHub Pages (`.github/workflows/deploy.yml`).
 
 ## [Unreleased]
 
