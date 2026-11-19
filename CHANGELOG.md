@@ -17,6 +17,8 @@ Versions follow [Semantic Versioning](https://semver.org/) applied to the produc
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-11-20
+
 ### Added
 
 - Each track row in the Track list has a merge button, "Remove track N", that removes the track: the splits at both its ends go, so the previous track, it and the next become one track, the first track merging into the next and the last into the previous. The removed track's name goes with it: the merged track keeps the previous track's name, or the next track's when the first track is removed. There is no confirmation, and no button when there is only one track. Each deleted split counts as an edit, as deleting it from its row does. If the removed track was selected, the merged track is selected; any other selection stays.
@@ -52,5 +54,6 @@ The first release: milestones 0 to 7.
 - A question before a setting change ("Replace your edits?") or "New file" ("Discard your edits?") throws edits away.
 - "Export to folder…": every track written by stream copy, without re-encoding, into a new subfolder named after the source file (`name (2)/` the second time). Files are named `01.m4a` or `01 Name.m4a` and tagged with title, track number and album. Cancel keeps the tracks already written.
 
-[unreleased]: https://github.com/suleymanyaryev/audio-splitter/compare/v1.0.0...HEAD
+[unreleased]: https://github.com/suleymanyaryev/audio-splitter/compare/v1.0.1...HEAD
+[1.0.1]: https://github.com/suleymanyaryev/audio-splitter/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/suleymanyaryev/audio-splitter/releases/tag/v1.0.0
