@@ -46,9 +46,8 @@ jobs:
           pnpm typecheck
           pnpm test
 
-      # The site is served from /<repo>/, so every asset URL needs that prefix.
       - name: Build
-        run: pnpm build-only --base="/${{ github.event.repository.name }}/"
+        run: pnpm build-only
 
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
