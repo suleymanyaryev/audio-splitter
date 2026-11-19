@@ -36,16 +36,18 @@ The baseline is green: `pnpm typecheck`, `pnpm test`, `pnpm lint`, `pnpm knip`, 
 
 A subset of Feature-Sliced Design ([ADR 0001](docs/adr/0001-fsd-subset.md)): layers `app` → `pages` → `widgets` → `entities` → `shared`, no `features`. A layer imports only the layers after it, and two slices of one layer never import each other. `eslint-plugin-boundaries` enforces both inside `pnpm lint` (`app/boundaries` in `eslint.config.ts`).
 
+The list below says where, not what: one line per slice on what it is for, never what it does. It changes only when a slice is added, removed or renamed; a new file or behaviour inside a slice leaves it as it is, and lives in specs, code comments, `CHANGELOG.md` and `docs/architecture.md`.
+
 - `src/app/`: `main.ts` (the Vite entry), `App.vue` (the header band; switches between the two pages on the `source-file` store's status, no router) and `styles/main.css` (DESIGN.md's tokens, the Manrope font)
-- `src/pages/load/`: `LoadPage.vue`: choose or drop a file, the analysis progress with Cancel, the load failure
-- `src/pages/review/`: `ReviewPage.vue`: the five panels, their title-row actions, and the wiring between stores (detection on mount, reset on unmount)
-- `src/widgets/source-waveform/`: The whole-file waveform: split numbers, the zoom window's outline, the range overlay; a click selects or moves the zoom window, a drag makes a range
-- `src/widgets/loudness-curve/`: The loudness curve with its draggable threshold, the two setting sliders, and the replace-your-edits guard
-- `src/widgets/split-zoom/`: The zoom panel's two views, `SplitZoom` (move and audition a split) and `RangeView` (play, scrub, mark a range); `model/audition.ts` is the one player
-- `src/widgets/track-list/`: The tracks as a table with inline-edited names; a row selects the split its track starts at
-- `src/widgets/track-strip/`: The tracks as proportional blocks, and the export: `model/export-tracks.ts`, `ui/ExportDialog.vue`, the folder API, file-name and tag helpers
-- `src/entities/source-file/`: The loaded file's store (format, duration, peaks, loudness, progress) and its open ffmpeg session; `api/` holds one ffmpeg command per job
-- `src/entities/split/`: The splits and what derives from them (gaps, tracks and names, selection, zoom window, range, mark, view, edit count); tuned constants in `config/`
+- `src/pages/load/`: `LoadPage.vue`: choosing a file and the analysis that follows
+- `src/pages/review/`: `ReviewPage.vue`: the review screen's panels and actions, and the wiring between stores
+- `src/widgets/source-waveform/`: The whole-file waveform and what the pointer does on it
+- `src/widgets/loudness-curve/`: The loudness curve, its settings, and the replace-your-edits guard
+- `src/widgets/split-zoom/`: The zoom panel's two views, `SplitZoom` and `RangeView`, and `model/audition.ts`, the one player
+- `src/widgets/track-list/`: The tracks as a table
+- `src/widgets/track-strip/`: The tracks as proportional blocks, and the export to a folder
+- `src/entities/source-file/`: The loaded file, its analysis and its open ffmpeg session; `api/` holds one ffmpeg command per job
+- `src/entities/split/`: The splits and what derives from them (gaps, tracks, selection, range); tuned constants in `config/`
 - `src/shared/api/ffmpeg/`: The ffmpeg.wasm session (`ffmpeg.ts`) and `__tests__/fake-ffmpeg.ts`, its stand-in in specs
 - `src/shared/lib/audio/`: Hand-written signal maths, one file per idea: downmix, peaks, loudness, median
 - `src/shared/lib/time/`: Time formatting (`h:mm:ss`, `h:mm:ss.cc`) and millisecond rounding for ffmpeg command lines
@@ -54,7 +56,6 @@ A subset of Feature-Sliced Design ([ADR 0001](docs/adr/0001-fsd-subset.md)): lay
 - `e2e/`: Playwright: `export.spec.ts` exports each supported format and reads the files back
 - `e2e/fixtures/`: The committed 30 s fixtures per supported format plus a Vorbis `.ogg`, and `make-fixtures.sh`, which made them
 
-- This list says where, not what: one line per slice on what it is for. A change edits it only when it adds, removes or renames a slice; what the code does lives in specs, code comments, `CHANGELOG.md` and `docs/architecture.md`.
 - Slice folders are kebab-case, `.vue` files PascalCase. A segment folder (`ui`, `model`, `lib`, `api`, `config`) exists only when it holds a file.
 - No `index.ts` public APIs: import the file itself, with its extension (`@/shared/ui/UiButton.vue`).
 - Imports across slices or layers use `@/`; imports inside a slice are relative.
