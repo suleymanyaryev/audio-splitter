@@ -124,7 +124,7 @@ pnpm dev        # then open the printed URL in Chrome
 
 `pnpm verify` type-checks, runs the unit specs and builds. `pnpm lint`, `pnpm knip` and `pnpm test:e2e` complete the checks. The committed 30 s fixtures in `e2e/fixtures/` (three tone bursts, two silences) are quick files to try by hand.
 
-Contributing, or handing the repo to a coding agent? [AGENTS.md](AGENTS.md) has the folder-by-folder map, the check tiers and the conventions.
+Contributing, or handing the repo to a coding agent? [AGENTS.md](AGENTS.md) has the slice map, the check tiers and the conventions, and [`.agents/skills/`](.agents/skills/) the project's patterns (canvases, ffmpeg calls, stores, the doc sync before a commit) as agent skills.
 
 ## Documentation
 
@@ -139,6 +139,7 @@ One screen each, plain words, worked numbers from a real 1 h file.
 5. [Time on screen](docs/concepts/05-time-on-screen.md): time to pixels and back, one array at two resolutions.
 6. [Seeking compressed audio](docs/concepts/06-seeking-compressed-audio.md): frames, VBR, why `<audio>` seeks MP3 wrong, WAV.
 7. [Cutting without re-encoding](docs/concepts/07-cutting-without-re-encoding.md): stream copy, cut grain, priming, tags.
+8. [Listening to a range](docs/concepts/08-listening-to-a-range.md): sample frames, byte rate, why a range stops at 10 min.
 
 ### Planning record
 

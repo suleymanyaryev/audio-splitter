@@ -46,7 +46,7 @@ The real samples (`samples/sample1.{m4a,mp3,opus}`, 1 h 01 min, git-ignored) are
 - `prettier-plugin-tailwindcss` and `eslint-plugin-boundaries` (layer direction, no imports between slices of one layer).
 - The whole `shared/ui` kit with its variants, sizes (`sm`, `lg`) and states: `Button`, `IconButton`, `Slider`, `TextField` (with the inline variant), `Panel`, `ProgressBar`, `Dialog` (Reka `AlertDialog`). The `Dialog`'s look is designed here within DESIGN.md's rules (flat, hairline, no shadow) ([Review-screen interaction design][13]).
 - Refresh the stale `.impeccable/design.json` with an impeccable documenter pass.
-- Write the "Code layout" section in `AGENTS.md`, describing only folders that now exist. Replace the create-vue `README.md` with a pointer to `AGENTS.md`.
+- Write the "Code layout" section in `AGENTS.md`: one line per slice that now exists, saying what it is for. Replace the create-vue `README.md` with a pointer to `AGENTS.md`.
 
 **Try it.** An empty load page and an empty review page, both built from the kit, in light and dark.
 
