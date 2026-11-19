@@ -25,8 +25,8 @@ flowchart LR
 
   sourceFile -- "loudness curve,<br/>once on mount" --> reviewPage
   reviewPage -- "detect(curve)" --> split
-  split -- "selected split, range<br/>(a change stops the audition,<br/>a new range stops the range)" --> audition
-  audition -- "clip(start, length)" --> sourceFile
+  split -- "selected split, range, selected track, view<br/>(a change of the selected split stops the audition,<br/>a new range stops the stretch, and so does<br/>a track change outside the Range view)" --> audition
+  audition -- "clip(start, length, signal?)" --> sourceFile
   split -- "tracks and names,<br/>fixed when the export starts" --> exporter
   exporter -- "cutTrack(track)<br/>stopCuts()" --> sourceFile
 ```
@@ -110,8 +110,8 @@ stateDiagram-v2
   loading --> idle: clip failed, failure shown
   playing --> idle: clip ended, toggle, or the selection changed
   playing --> idle: play refused, failure shown
-  loading --> idle: the range plays, or a new range
-  playing --> idle: the range plays, or a new range
+  loading --> idle: a stretch plays, a new range, or the selected track changes
+  playing --> idle: a stretch plays, a new range, or the selected track changes
 ```
 
 **The stretch** is the range the user dragged out (note 08) or the selected track. The Range view's and the Track view's Play button and Space both call `toggleStretch(stretch)`: the player plays a stretch (a start and an end the caller hands in: the range as it is, a track as its whole extent). It reads the split store only to word a failure and to stop when the range or the selected track changes. A stretch of 10 min or less is one window: decoded once and kept, tied to the stretch it was decoded for (a different stretch, a range after a track or the other way round, releases it and decodes its own), so a pause costs nothing: playing again sets the element's `currentTime` inside the WAV, which is exact, and plays at once. Both views draw the playhead each animation frame while it plays, and at its resting place otherwise: the stretch's start for a new stretch and after the end. The resting place names the stretch it belongs to, so a view of another stretch never draws it. The playhead moves without changing the status: `seekStretch` sets `currentTime` while the stretch plays, and the resting place otherwise (which `toggleStretch`, or the clip still being decoded, starts from); a drag of it goes through `grabPlayhead`, which pauses a playing stretch, and `dropPlayhead`, which plays it on only if it was playing.
@@ -124,7 +124,7 @@ stateDiagram-v2
   idle --> loading: toggleStretch, no WAV held
   idle --> playing: toggleStretch, WAV held
   loading --> playing: stretch's window decoded
-  loading --> idle: toggleStretch, stop, a new range, another track, or the audition plays
+  loading --> idle: toggleStretch, stop, a new range, a track change, or the audition plays
   loading --> idle: decode failed, failure shown
   playing --> idle: play refused, failure shown
   playing --> paused: toggleStretch, or stop (a view change, the export)
@@ -134,11 +134,13 @@ stateDiagram-v2
   playing --> idle: the stretch's last window ended, playhead back at the start
   playing --> playing: a window ended, the window ahead plays on
   playing --> loading: seekStretch outside the held window, or a window ended before the one ahead was decoded
-  paused --> idle: a new range, another track, or the audition plays
-  playing --> idle: a new range, another track, or the audition plays
+  paused --> idle: a new range, a track change, or the audition plays
+  playing --> idle: a new range, a track change, or the audition plays
 ```
 
-Every press takes a number, and a clip that arrives for an older press is dropped, so a stopped press, a changed selection or a new range never starts sound later. "The selection changed" covers moving the selected split, selecting another, deselecting, deleting and a setting change; a synchronous watcher on the split store stops the audition at once. A second synchronous watcher on the range, and a third on the selected track (its identity, start and end, so a split that moves elsewhere changes nothing), stop all sound, drop the decoded stretch and put the playhead at the new stretch's start. The page stops the player on a view change, when the export starts and when it unmounts: a stretch that plays is paused, so its playhead stays where it was.
+A track change is another selected track, none, or the selected track's start or end moving (a split deleted, moved or added at its edge, a neighbour removed). It stops the stretch in every view but the Range view, where the stretch is the range: a split added at the mark shortens the selected track, and the range plays on.
+
+Every press takes a number, and a clip that arrives for an older press is dropped, so a stopped press, a changed selection or a new range never starts sound later. "The selection changed" covers moving the selected split, selecting another, deselecting, deleting and a setting change; a synchronous watcher on the split store stops the audition at once. A second synchronous watcher on the range, and a third on the selected track (its identity, start and end, so a split that moves elsewhere changes nothing; it does nothing while the Range view is shown), stop all sound, drop the decoded stretch and put the playhead at the new stretch's start. The page stops the player on a view change, when the export starts and when it unmounts: a stretch that plays is paused, so its playhead stays where it was.
 
 ## Export
 
@@ -152,7 +154,7 @@ sequenceDiagram
   participant session as ffmpeg session
 
   User->>page: Export to folder…
-  page->>page: stop the player
+  page->>page: stop the player (and the decode of the window ahead, so no cut waits behind it)
   page->>exporter: start()
   exporter->>folder: showDirectoryPicker, same id every time
   alt picker closed
