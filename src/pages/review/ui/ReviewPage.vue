@@ -84,7 +84,16 @@ const title = computed(() =>
 
 // "Stop" while the range is being decoded, so a press can take it back; "Pause" while it plays.
 const RANGE_BUTTON_LABELS = { idle: 'Play', loading: 'Stop', playing: 'Pause', paused: 'Play' }
-const rangeButtonLabel = computed(() => RANGE_BUTTON_LABELS[audition.rangeStatus])
+const rangeButtonLabel = computed(() => RANGE_BUTTON_LABELS[audition.stretchStatus])
+
+// The Range view's two buttons play the range as the stretch; with no range there is nothing to play.
+function backToRangeStart() {
+  if (split.range !== null) audition.backToStretchStart(split.range)
+}
+
+function toggleRange() {
+  if (split.range !== null) audition.toggleStretch(split.range)
+}
 
 const view = computed<PanelView>({
   get: () => split.view,
@@ -130,24 +139,19 @@ watch(
           v-if="split.view === 'range'"
           size="sm"
           label="Back to range start"
-          @click="audition.backToRangeStart()"
+          @click="backToRangeStart"
         >
           <SkipBack class="size-4 shrink-0" />
         </UiIconButton>
-        <UiButton
-          v-if="split.view === 'range'"
-          variant="primary"
-          size="sm"
-          @click="audition.toggleRange()"
-        >
+        <UiButton v-if="split.view === 'range'" variant="primary" size="sm" @click="toggleRange">
           <Square
-            v-if="audition.rangeStatus === 'loading'"
+            v-if="audition.stretchStatus === 'loading'"
             class="size-4 shrink-0"
             fill="currentColor"
             :stroke-width="0"
           />
           <Pause
-            v-else-if="audition.rangeStatus === 'playing'"
+            v-else-if="audition.stretchStatus === 'playing'"
             class="size-4 shrink-0"
             fill="currentColor"
             :stroke-width="0"

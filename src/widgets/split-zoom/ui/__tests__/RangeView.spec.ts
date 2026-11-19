@@ -18,8 +18,8 @@ function setup(prepare: (split: ReturnType<typeof useSplitStore>) => void = () =
   split.setRange(10, 20)
   prepare(split)
   const audition = useAuditionStore()
-  const toggleRange = vi.spyOn(audition, 'toggleRange').mockImplementation(() => {})
-  const backToRangeStart = vi.spyOn(audition, 'backToRangeStart').mockImplementation(() => {})
+  const toggleRange = vi.spyOn(audition, 'toggleStretch').mockImplementation(() => {})
+  const backToRangeStart = vi.spyOn(audition, 'backToStretchStart').mockImplementation(() => {})
   const wrapper = mount(RangeView)
   return { audition, split, toggleRange, backToRangeStart, wrapper }
 }
@@ -139,7 +139,7 @@ describe('RangeView', () => {
 
     it('start from the playhead when there is no mark yet, and are not a page scroll', async () => {
       const { audition, split, wrapper } = setup()
-      audition.seekRange(12)
+      audition.seekStretch(split.range!, 12)
       const event = new KeyboardEvent('keydown', {
         key: 'ArrowRight',
         bubbles: true,
@@ -264,9 +264,9 @@ describe('RangeView', () => {
 
   describe('dragging the playhead', () => {
     it('takes hold of the playhead at the range’s start, moves it with the pointer and lets go', async () => {
-      const { audition, wrapper } = setup()
+      const { audition, split, wrapper } = setup()
       const grab = vi.spyOn(audition, 'grabPlayhead')
-      const seek = vi.spyOn(audition, 'seekRange')
+      const seek = vi.spyOn(audition, 'seekStretch')
       const drop = vi.spyOn(audition, 'dropPlayhead')
       const view = measured(wrapper)
 
@@ -276,25 +276,25 @@ describe('RangeView', () => {
 
       expect(grab).toHaveBeenCalledOnce()
       // Grabbed 4 px right of the line, so the line stays 4 px left of the pointer.
-      expect(seek).toHaveBeenLastCalledWith(15)
-      expect(audition.rangePlayheadSeconds()).toBe(15)
+      expect(seek).toHaveBeenLastCalledWith(split.range, 15)
+      expect(audition.stretchPlayheadSeconds(split.range!)).toBe(15)
       expect(drop).toHaveBeenCalledOnce()
     })
 
     it('holds the playhead to the range when the pointer goes past its ends', async () => {
-      const { audition, wrapper } = setup()
+      const { audition, split, wrapper } = setup()
       const view = measured(wrapper)
 
       await pointer(view, 'pointerdown', 0)
       await pointer(view, 'pointermove', 1400)
-      expect(audition.rangePlayheadSeconds()).toBe(20)
+      expect(audition.stretchPlayheadSeconds(split.range!)).toBe(20)
 
       await pointer(view, 'pointermove', -300)
-      expect(audition.rangePlayheadSeconds()).toBe(10)
+      expect(audition.stretchPlayheadSeconds(split.range!)).toBe(10)
     })
 
     it('does not take hold of the playhead from a press away from it', async () => {
-      const { audition, wrapper } = setup()
+      const { audition, split, wrapper } = setup()
       const grab = vi.spyOn(audition, 'grabPlayhead')
       const view = measured(wrapper)
 
@@ -302,7 +302,7 @@ describe('RangeView', () => {
       await pointer(view, 'pointermove', 600)
 
       expect(grab).not.toHaveBeenCalled()
-      expect(audition.rangePlayheadSeconds()).toBe(10)
+      expect(audition.stretchPlayheadSeconds(split.range!)).toBe(10)
     })
 
     it('shows the resize cursor over the playhead and while it is dragged', async () => {

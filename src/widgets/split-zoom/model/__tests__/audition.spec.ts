@@ -53,10 +53,15 @@ function setUpRange() {
 
 async function playingRange() {
   const parts = setUpRange()
-  parts.audition.toggleRange()
+  parts.audition.toggleStretch(rangeStretch())
   await flush()
-  expect(parts.audition.rangeStatus).toBe('playing')
+  expect(parts.audition.stretchStatus).toBe('playing')
   return parts
+}
+
+// The range the split store holds, as the stretch the player is asked to play.
+function rangeStretch() {
+  return useSplitStore().range!
 }
 
 // A promise the test settles by hand, to hold a clip back while something else happens.
@@ -423,18 +428,8 @@ describe('the audition store', () => {
     it('starts with the playhead at the start of the range and nothing playing', () => {
       const { audition } = setUpRange()
 
-      expect(audition.rangeStatus).toBe('idle')
-      expect(audition.rangePlayheadSeconds()).toBe(10)
-    })
-
-    it('has no playhead without a range, and does nothing when asked to play', () => {
-      const { audition } = setUp()
-
-      audition.toggleRange()
-
-      expect(audition.rangePlayheadSeconds()).toBeNull()
-      expect(audition.rangeStatus).toBe('idle')
-      expect(clip).not.toHaveBeenCalled()
+      expect(audition.stretchStatus).toBe('idle')
+      expect(audition.stretchPlayheadSeconds(rangeStretch())).toBe(10)
     })
 
     it('asks for the range’s start and length and plays the WAV from its start', async () => {
@@ -442,16 +437,16 @@ describe('the audition store', () => {
       const pending = deferred<Clip>()
       clip.mockReturnValueOnce(pending.promise)
 
-      audition.toggleRange()
+      audition.toggleStretch(rangeStretch())
 
       expect(clip).toHaveBeenCalledExactlyOnceWith(10, 20)
-      expect(audition.rangeStatus).toBe('loading')
+      expect(audition.stretchStatus).toBe('loading')
       expect(play).not.toHaveBeenCalled()
 
       pending.resolve(clipOf(10, 20))
       await flush()
 
-      expect(audition.rangeStatus).toBe('playing')
+      expect(audition.stretchStatus).toBe('playing')
       expect(play).toHaveBeenCalledOnce()
       expect(createObjectURL.mock.calls[0]![0].type).toBe('audio/wav')
       expect(audio().currentTime).toBe(0)
@@ -469,10 +464,10 @@ describe('the audition store', () => {
       const { audition } = await playingRange()
 
       audio().currentTime = 4.5
-      expect(audition.rangePlayheadSeconds()).toBe(14.5)
+      expect(audition.stretchPlayheadSeconds(rangeStretch())).toBe(14.5)
       // The element can report a hair past the end before `ended` arrives.
       audio().currentTime = 20.01
-      expect(audition.rangePlayheadSeconds()).toBe(30)
+      expect(audition.stretchPlayheadSeconds(rangeStretch())).toBe(30)
     })
 
     it('pauses on a second press, and the playhead holds where the sound stopped', async () => {
@@ -480,25 +475,25 @@ describe('the audition store', () => {
       audio().currentTime = 4
       pause.mockClear()
 
-      audition.toggleRange()
+      audition.toggleStretch(rangeStretch())
       // The element's clock keeps whatever it had; the playhead must not follow it any more.
       audio().currentTime = 9
 
-      expect(audition.rangeStatus).toBe('paused')
+      expect(audition.stretchStatus).toBe('paused')
       expect(pause).toHaveBeenCalled()
-      expect(audition.rangePlayheadSeconds()).toBe(14)
+      expect(audition.stretchPlayheadSeconds(rangeStretch())).toBe(14)
       expect(revokeObjectURL).not.toHaveBeenCalled()
     })
 
     it('resumes from the playhead at once, without decoding the range again', async () => {
       const { audition } = await playingRange()
       audio().currentTime = 4
-      audition.toggleRange()
+      audition.toggleStretch(rangeStretch())
 
-      audition.toggleRange()
+      audition.toggleStretch(rangeStretch())
       await flush()
 
-      expect(audition.rangeStatus).toBe('playing')
+      expect(audition.stretchStatus).toBe('playing')
       expect(clip).toHaveBeenCalledOnce()
       expect(createObjectURL).toHaveBeenCalledOnce()
       expect(play).toHaveBeenCalledTimes(2)
@@ -511,8 +506,8 @@ describe('the audition store', () => {
 
       audio().dispatchEvent(new Event('ended'))
 
-      expect(audition.rangeStatus).toBe('idle')
-      expect(audition.rangePlayheadSeconds()).toBe(10)
+      expect(audition.stretchStatus).toBe('idle')
+      expect(audition.stretchPlayheadSeconds(rangeStretch())).toBe(10)
     })
 
     it('plays the range again from its start after the end, without decoding again', async () => {
@@ -520,11 +515,28 @@ describe('the audition store', () => {
       audio().currentTime = 20
       audio().dispatchEvent(new Event('ended'))
 
-      audition.toggleRange()
+      audition.toggleStretch(rangeStretch())
       await flush()
 
-      expect(audition.rangeStatus).toBe('playing')
+      expect(audition.stretchStatus).toBe('playing')
       expect(clip).toHaveBeenCalledOnce()
+      expect(audio().currentTime).toBe(0)
+    })
+
+    it('releases the held WAV and decodes again for a different stretch, from its start', async () => {
+      const { audition } = await playingRange()
+      audio().currentTime = 4
+      audition.toggleStretch(rangeStretch())
+      expect(audition.stretchStatus).toBe('paused')
+
+      const other = { startSeconds: 12, endSeconds: 18 }
+      audition.toggleStretch(other)
+      await flush()
+
+      expect(clip).toHaveBeenCalledTimes(2)
+      expect(clip).toHaveBeenLastCalledWith(12, 6)
+      expect(revokeObjectURL).toHaveBeenCalledOnce()
+      expect(audition.stretchStatus).toBe('playing')
       expect(audio().currentTime).toBe(0)
     })
 
@@ -532,32 +544,32 @@ describe('the audition store', () => {
       const { audition } = setUpRange()
       const pending = deferred<Clip>()
       clip.mockReturnValueOnce(pending.promise)
-      audition.toggleRange()
+      audition.toggleStretch(rangeStretch())
 
-      audition.toggleRange()
-      expect(audition.rangeStatus).toBe('idle')
+      audition.toggleStretch(rangeStretch())
+      expect(audition.stretchStatus).toBe('idle')
 
       pending.resolve(clipOf(10, 20))
       await flush()
 
       expect(play).not.toHaveBeenCalled()
       expect(createObjectURL).not.toHaveBeenCalled()
-      expect(audition.rangeStatus).toBe('idle')
+      expect(audition.stretchStatus).toBe('idle')
     })
 
     it('drops a clip that arrives after a new range was drawn', async () => {
       const { audition, split } = setUpRange()
       const pending = deferred<Clip>()
       clip.mockReturnValueOnce(pending.promise)
-      audition.toggleRange()
+      audition.toggleStretch(rangeStretch())
 
       split.setRange(40, 50)
       pending.resolve(clipOf(10, 20))
       await flush()
 
       expect(play).not.toHaveBeenCalled()
-      expect(audition.rangeStatus).toBe('idle')
-      expect(audition.rangePlayheadSeconds()).toBe(40)
+      expect(audition.stretchStatus).toBe('idle')
+      expect(audition.stretchPlayheadSeconds(rangeStretch())).toBe(40)
     })
 
     it('stops and lets go of the decoded range when a new range is drawn', async () => {
@@ -566,17 +578,17 @@ describe('the audition store', () => {
 
       split.setRange(40, 50)
 
-      expect(audition.rangeStatus).toBe('idle')
+      expect(audition.stretchStatus).toBe('idle')
       expect(pause).toHaveBeenCalled()
       expect(revokeObjectURL).toHaveBeenCalledExactlyOnceWith('blob:clip-1')
-      expect(audition.rangePlayheadSeconds()).toBe(40)
+      expect(audition.stretchPlayheadSeconds(rangeStretch())).toBe(40)
     })
 
     it('decodes the new range, not the old one, on the next press', async () => {
       const { audition, split } = await playingRange()
       split.setRange(40, 50)
 
-      audition.toggleRange()
+      audition.toggleStretch(rangeStretch())
       await flush()
 
       expect(clip).toHaveBeenLastCalledWith(40, 10)
@@ -588,9 +600,10 @@ describe('the audition store', () => {
 
       split.reset()
 
-      expect(audition.rangeStatus).toBe('idle')
+      expect(audition.stretchStatus).toBe('idle')
       expect(revokeObjectURL).toHaveBeenCalledExactlyOnceWith('blob:clip-1')
-      expect(audition.rangePlayheadSeconds()).toBeNull()
+      // The playhead of a stretch with no place kept is its start.
+      expect(audition.stretchPlayheadSeconds({ startSeconds: 10, endSeconds: 30 })).toBe(10)
     })
 
     describe('stop()', () => {
@@ -600,8 +613,8 @@ describe('the audition store', () => {
 
         audition.stop()
 
-        expect(audition.rangeStatus).toBe('paused')
-        expect(audition.rangePlayheadSeconds()).toBe(16)
+        expect(audition.stretchStatus).toBe('paused')
+        expect(audition.stretchPlayheadSeconds(rangeStretch())).toBe(16)
         expect(revokeObjectURL).not.toHaveBeenCalled()
       })
 
@@ -609,26 +622,26 @@ describe('the audition store', () => {
         const { audition } = setUpRange()
         const pending = deferred<Clip>()
         clip.mockReturnValueOnce(pending.promise)
-        audition.toggleRange()
+        audition.toggleStretch(rangeStretch())
 
         audition.stop()
         pending.resolve(clipOf(10, 20))
         await flush()
 
-        expect(audition.rangeStatus).toBe('idle')
+        expect(audition.stretchStatus).toBe('idle')
         expect(play).not.toHaveBeenCalled()
       })
 
       it('leaves a paused range paused, and an idle one idle', async () => {
         const { audition } = await playingRange()
-        audition.toggleRange()
+        audition.toggleStretch(rangeStretch())
 
         audition.stop()
-        expect(audition.rangeStatus).toBe('paused')
+        expect(audition.stretchStatus).toBe('paused')
 
         const idle = setUpRange().audition
         idle.stop()
-        expect(idle.rangeStatus).toBe('idle')
+        expect(idle.stretchStatus).toBe('idle')
       })
     })
 
@@ -638,28 +651,28 @@ describe('the audition store', () => {
         const element = audio()
         play.mockClear()
 
-        audition.seekRange(25)
+        audition.seekStretch(rangeStretch(), 25)
 
         // The WAV starts at the range's start, 10 s: the place is an offset in it.
         expect(element.currentTime).toBe(15)
-        expect(audition.rangeStatus).toBe('playing')
-        expect(audition.rangePlayheadSeconds()).toBe(25)
+        expect(audition.stretchStatus).toBe('playing')
+        expect(audition.stretchPlayheadSeconds(rangeStretch())).toBe(25)
         expect(play).not.toHaveBeenCalled()
         expect(clip).toHaveBeenCalledOnce()
       })
 
       it('moves the playhead of a paused range and leaves it paused, with Play starting there', async () => {
         const { audition } = await playingRange()
-        audition.toggleRange()
+        audition.toggleStretch(rangeStretch())
         play.mockClear()
 
-        audition.seekRange(12.5)
+        audition.seekStretch(rangeStretch(), 12.5)
 
-        expect(audition.rangeStatus).toBe('paused')
-        expect(audition.rangePlayheadSeconds()).toBe(12.5)
+        expect(audition.stretchStatus).toBe('paused')
+        expect(audition.stretchPlayheadSeconds(rangeStretch())).toBe(12.5)
         expect(play).not.toHaveBeenCalled()
 
-        audition.toggleRange()
+        audition.toggleStretch(rangeStretch())
         await flush()
 
         expect(audio().currentTime).toBe(2.5)
@@ -669,16 +682,16 @@ describe('the audition store', () => {
       it('moves the playhead of a range not yet played, and the first Play decodes it and starts there', async () => {
         const { audition } = setUpRange()
 
-        audition.seekRange(20)
+        audition.seekStretch(rangeStretch(), 20)
 
-        expect(audition.rangeStatus).toBe('idle')
-        expect(audition.rangePlayheadSeconds()).toBe(20)
+        expect(audition.stretchStatus).toBe('idle')
+        expect(audition.stretchPlayheadSeconds(rangeStretch())).toBe(20)
         expect(clip).not.toHaveBeenCalled()
 
-        audition.toggleRange()
+        audition.toggleStretch(rangeStretch())
         await flush()
 
-        expect(audition.rangeStatus).toBe('playing')
+        expect(audition.stretchStatus).toBe('playing')
         expect(audio().currentTime).toBe(10)
       })
 
@@ -686,51 +699,42 @@ describe('the audition store', () => {
         const { audition } = setUpRange()
         const pending = deferred<Clip>()
         clip.mockReturnValueOnce(pending.promise)
-        audition.toggleRange()
+        audition.toggleStretch(rangeStretch())
 
-        audition.seekRange(16)
+        audition.seekStretch(rangeStretch(), 16)
 
-        expect(audition.rangeStatus).toBe('loading')
-        expect(audition.rangePlayheadSeconds()).toBe(16)
+        expect(audition.stretchStatus).toBe('loading')
+        expect(audition.stretchPlayheadSeconds(rangeStretch())).toBe(16)
         expect(play).not.toHaveBeenCalled()
 
         pending.resolve(clipOf(10, 20))
         await flush()
 
-        expect(audition.rangeStatus).toBe('playing')
+        expect(audition.stretchStatus).toBe('playing')
         expect(audio().currentTime).toBe(6)
       })
 
       it('plays from the start when the playhead was left at the very end', async () => {
         const { audition } = await playingRange()
-        audition.toggleRange()
-        audition.seekRange(30)
-        expect(audition.rangePlayheadSeconds()).toBe(30)
+        audition.toggleStretch(rangeStretch())
+        audition.seekStretch(rangeStretch(), 30)
+        expect(audition.stretchPlayheadSeconds(rangeStretch())).toBe(30)
 
-        audition.toggleRange()
+        audition.toggleStretch(rangeStretch())
         await flush()
 
-        expect(audition.rangeStatus).toBe('playing')
+        expect(audition.stretchStatus).toBe('playing')
         expect(audio().currentTime).toBe(0)
       })
 
       it('holds the playhead to the range', async () => {
         const { audition } = setUpRange()
 
-        audition.seekRange(3)
-        expect(audition.rangePlayheadSeconds()).toBe(10)
+        audition.seekStretch(rangeStretch(), 3)
+        expect(audition.stretchPlayheadSeconds(rangeStretch())).toBe(10)
 
-        audition.seekRange(99)
-        expect(audition.rangePlayheadSeconds()).toBe(30)
-      })
-
-      it('does nothing without a range', () => {
-        const { audition } = setUp()
-
-        audition.seekRange(5)
-        audition.backToRangeStart()
-
-        expect(audition.rangePlayheadSeconds()).toBeNull()
+        audition.seekStretch(rangeStretch(), 99)
+        expect(audition.stretchPlayheadSeconds(rangeStretch())).toBe(30)
       })
 
       describe('back to the start', () => {
@@ -740,23 +744,23 @@ describe('the audition store', () => {
           element.currentTime = 9
           play.mockClear()
 
-          audition.backToRangeStart()
+          audition.backToStretchStart(rangeStretch())
 
           expect(element.currentTime).toBe(0)
-          expect(audition.rangeStatus).toBe('playing')
-          expect(audition.rangePlayheadSeconds()).toBe(10)
+          expect(audition.stretchStatus).toBe('playing')
+          expect(audition.stretchPlayheadSeconds(rangeStretch())).toBe(10)
           expect(play).not.toHaveBeenCalled()
         })
 
         it('moves a paused range to its start and leaves it paused', async () => {
           const { audition } = await playingRange()
           audio().currentTime = 9
-          audition.toggleRange()
+          audition.toggleStretch(rangeStretch())
 
-          audition.backToRangeStart()
+          audition.backToStretchStart(rangeStretch())
 
-          expect(audition.rangeStatus).toBe('paused')
-          expect(audition.rangePlayheadSeconds()).toBe(10)
+          expect(audition.stretchStatus).toBe('paused')
+          expect(audition.stretchPlayheadSeconds(rangeStretch())).toBe(10)
         })
       })
 
@@ -766,18 +770,18 @@ describe('the audition store', () => {
           play.mockClear()
 
           audition.grabPlayhead()
-          expect(audition.rangeStatus).toBe('paused')
+          expect(audition.stretchStatus).toBe('paused')
 
-          audition.seekRange(18)
-          audition.seekRange(22)
-          expect(audition.rangeStatus).toBe('paused')
-          expect(audition.rangePlayheadSeconds()).toBe(22)
+          audition.seekStretch(rangeStretch(), 18)
+          audition.seekStretch(rangeStretch(), 22)
+          expect(audition.stretchStatus).toBe('paused')
+          expect(audition.stretchPlayheadSeconds(rangeStretch())).toBe(22)
           expect(play).not.toHaveBeenCalled()
 
-          audition.dropPlayhead()
+          audition.dropPlayhead(rangeStretch())
           await flush()
 
-          expect(audition.rangeStatus).toBe('playing')
+          expect(audition.stretchStatus).toBe('playing')
           expect(audio().currentTime).toBe(12)
           expect(play).toHaveBeenCalledOnce()
           expect(clip).toHaveBeenCalledOnce()
@@ -785,34 +789,34 @@ describe('the audition store', () => {
 
         it('leaves a paused range paused after the drop', async () => {
           const { audition } = await playingRange()
-          audition.toggleRange()
+          audition.toggleStretch(rangeStretch())
           play.mockClear()
 
           audition.grabPlayhead()
-          audition.seekRange(20)
-          audition.dropPlayhead()
+          audition.seekStretch(rangeStretch(), 20)
+          audition.dropPlayhead(rangeStretch())
           await flush()
 
-          expect(audition.rangeStatus).toBe('paused')
-          expect(audition.rangePlayheadSeconds()).toBe(20)
+          expect(audition.stretchStatus).toBe('paused')
+          expect(audition.stretchPlayheadSeconds(rangeStretch())).toBe(20)
           expect(play).not.toHaveBeenCalled()
         })
 
         it('leaves an idle range idle, and one still decoding decoding', async () => {
           const { audition } = setUpRange()
           audition.grabPlayhead()
-          audition.seekRange(15)
-          audition.dropPlayhead()
-          expect(audition.rangeStatus).toBe('idle')
+          audition.seekStretch(rangeStretch(), 15)
+          audition.dropPlayhead(rangeStretch())
+          expect(audition.stretchStatus).toBe('idle')
 
           const pending = deferred<Clip>()
           clip.mockReturnValueOnce(pending.promise)
-          audition.toggleRange()
+          audition.toggleStretch(rangeStretch())
           audition.grabPlayhead()
-          audition.seekRange(18)
-          audition.dropPlayhead()
+          audition.seekStretch(rangeStretch(), 18)
+          audition.dropPlayhead(rangeStretch())
 
-          expect(audition.rangeStatus).toBe('loading')
+          expect(audition.stretchStatus).toBe('loading')
           pending.resolve(clipOf(10, 20))
           await flush()
           expect(audio().currentTime).toBe(8)
@@ -824,24 +828,24 @@ describe('the audition store', () => {
           play.mockClear()
 
           split.setRange(30, 40)
-          audition.dropPlayhead()
+          audition.dropPlayhead(rangeStretch())
           await flush()
 
-          expect(audition.rangeStatus).toBe('idle')
+          expect(audition.stretchStatus).toBe('idle')
           expect(play).not.toHaveBeenCalled()
         })
 
         it('does not resume a second time from a drop with no grab', async () => {
           const { audition } = await playingRange()
           audition.grabPlayhead()
-          audition.dropPlayhead()
-          audition.toggleRange()
+          audition.dropPlayhead(rangeStretch())
+          audition.toggleStretch(rangeStretch())
           play.mockClear()
 
-          audition.dropPlayhead()
+          audition.dropPlayhead(rangeStretch())
           await flush()
 
-          expect(audition.rangeStatus).toBe('paused')
+          expect(audition.stretchStatus).toBe('paused')
           expect(play).not.toHaveBeenCalled()
         })
       })
@@ -854,22 +858,22 @@ describe('the audition store', () => {
 
         audition.toggle()
 
-        expect(audition.rangeStatus).toBe('idle')
+        expect(audition.stretchStatus).toBe('idle')
         expect(audition.status).toBe('loading')
-        expect(audition.rangePlayheadSeconds()).toBe(14)
+        expect(audition.stretchPlayheadSeconds(rangeStretch())).toBe(14)
         expect(revokeObjectURL).toHaveBeenCalledExactlyOnceWith('blob:clip-1')
       })
 
       it('lets go of a paused range’s clip when the audition plays', async () => {
         const { audition } = await playingRange()
-        audition.toggleRange()
+        audition.toggleStretch(rangeStretch())
 
         audition.toggle()
         await flush()
 
         expect(revokeObjectURL).toHaveBeenCalledWith('blob:clip-1')
         expect(audition.status).toBe('playing')
-        expect(audition.rangeStatus).toBe('idle')
+        expect(audition.stretchStatus).toBe('idle')
       })
 
       it('stops the audition, and lets go of its clip, when the range plays', async () => {
@@ -878,11 +882,11 @@ describe('the audition store', () => {
         await flush()
         expect(audition.status).toBe('playing')
 
-        audition.toggleRange()
+        audition.toggleStretch(rangeStretch())
 
         expect(audition.status).toBe('idle')
         expect(audition.isActive).toBe(false)
-        expect(audition.rangeStatus).toBe('loading')
+        expect(audition.stretchStatus).toBe('loading')
         expect(revokeObjectURL).toHaveBeenCalledExactlyOnceWith('blob:clip-1')
       })
 
@@ -891,12 +895,12 @@ describe('the audition store', () => {
         audition.toggle()
         await flush()
 
-        audition.toggleRange()
+        audition.toggleStretch(rangeStretch())
         await flush()
 
         expect(clip).toHaveBeenCalledTimes(3)
         expect(clip).toHaveBeenLastCalledWith(10, 20)
-        expect(audition.rangeStatus).toBe('playing')
+        expect(audition.stretchStatus).toBe('playing')
       })
 
       it('stops the audition when a range is made while it plays', async () => {
@@ -916,10 +920,10 @@ describe('the audition store', () => {
         const { audition } = setUpRange()
         clip.mockRejectedValueOnce(new Error('Invalid data found'))
 
-        audition.toggleRange()
+        audition.toggleStretch(rangeStretch())
         await flush()
 
-        expect(audition.rangeStatus).toBe('idle')
+        expect(audition.stretchStatus).toBe('idle')
         expect(audition.failure).toBe("Couldn't play this range: Invalid data found")
       })
 
@@ -927,10 +931,10 @@ describe('the audition store', () => {
         const { audition } = setUpRange()
         clip.mockRejectedValueOnce(new FileReplacedError())
 
-        audition.toggleRange()
+        audition.toggleStretch(rangeStretch())
         await flush()
 
-        expect(audition.rangeStatus).toBe('idle')
+        expect(audition.stretchStatus).toBe('idle')
         expect(audition.failure).toBeNull()
       })
 
@@ -938,8 +942,8 @@ describe('the audition store', () => {
         const { audition } = setUpRange()
         const pending = deferred<Clip>()
         clip.mockReturnValueOnce(pending.promise)
-        audition.toggleRange()
-        audition.toggleRange()
+        audition.toggleStretch(rangeStretch())
+        audition.toggleStretch(rangeStretch())
 
         pending.reject(new Error('Invalid data found'))
         await flush()
@@ -951,10 +955,10 @@ describe('the audition store', () => {
         const { audition } = setUpRange()
         play.mockRejectedValueOnce(new DOMException('Not allowed', 'NotAllowedError'))
 
-        audition.toggleRange()
+        audition.toggleStretch(rangeStretch())
         await flush()
 
-        expect(audition.rangeStatus).toBe('idle')
+        expect(audition.stretchStatus).toBe('idle')
         expect(audition.failure).toBe("Couldn't play this range: Not allowed")
         expect(revokeObjectURL).toHaveBeenCalledExactlyOnceWith('blob:clip-1')
       })
@@ -962,19 +966,19 @@ describe('the audition store', () => {
       it('clears the failure on the next press', async () => {
         const { audition } = setUpRange()
         clip.mockRejectedValueOnce(new Error('Invalid data found'))
-        audition.toggleRange()
+        audition.toggleStretch(rangeStretch())
         await flush()
 
-        audition.toggleRange()
+        audition.toggleStretch(rangeStretch())
 
         expect(audition.failure).toBeNull()
-        expect(audition.rangeStatus).toBe('loading')
+        expect(audition.stretchStatus).toBe('loading')
       })
 
       it('clears the failure when a new range is drawn', async () => {
         const { audition, split } = setUpRange()
         clip.mockRejectedValueOnce(new Error('Invalid data found'))
-        audition.toggleRange()
+        audition.toggleStretch(rangeStretch())
         await flush()
         expect(audition.failure).not.toBeNull()
 

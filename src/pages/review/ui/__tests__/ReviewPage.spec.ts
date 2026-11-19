@@ -336,7 +336,7 @@ describe('ReviewPage', () => {
       expect(backButton(wrapper).text()).toBe('')
 
       for (const status of ['loading', 'playing', 'paused'] as const) {
-        audition.rangeStatus = status
+        audition.stretchStatus = status
         await wrapper.vm.$nextTick()
         expect(backButton(wrapper).attributes('disabled')).toBeUndefined()
       }
@@ -351,7 +351,7 @@ describe('ReviewPage', () => {
     it('moves the playhead to the range’s start when clicked', async () => {
       const wrapper = await mountPageWithRange()
       const backToRangeStart = vi
-        .spyOn(useAuditionStore(), 'backToRangeStart')
+        .spyOn(useAuditionStore(), 'backToStretchStart')
         .mockImplementation(() => {})
 
       await backButton(wrapper).trigger('click')
@@ -376,7 +376,7 @@ describe('ReviewPage', () => {
 
     it('calls the player when clicked', async () => {
       const wrapper = await mountPageWithRange()
-      const toggleRange = vi.spyOn(useAuditionStore(), 'toggleRange').mockImplementation(() => {})
+      const toggleRange = vi.spyOn(useAuditionStore(), 'toggleStretch').mockImplementation(() => {})
 
       await rangeButton(wrapper).trigger('click')
 
@@ -388,17 +388,17 @@ describe('ReviewPage', () => {
       const audition = useAuditionStore()
       const playIcon = rangeButton(wrapper).get('svg').classes()
 
-      audition.rangeStatus = 'loading'
+      audition.stretchStatus = 'loading'
       await wrapper.vm.$nextTick()
       expect(rangeButton(wrapper).text()).toBe('Stop')
       expect(rangeButton(wrapper).attributes('disabled')).toBeUndefined()
 
-      audition.rangeStatus = 'playing'
+      audition.stretchStatus = 'playing'
       await wrapper.vm.$nextTick()
       expect(rangeButton(wrapper).text()).toBe('Pause')
       expect(rangeButton(wrapper).get('svg').classes()).not.toEqual(playIcon)
 
-      audition.rangeStatus = 'paused'
+      audition.stretchStatus = 'paused'
       await wrapper.vm.$nextTick()
       expect(rangeButton(wrapper).text()).toBe('Play')
     })

@@ -107,13 +107,11 @@ function draw() {
   The playhead goes over the split lines and the mark, which it must stay readable against, and
   under the frame, so the frame stays the outermost line of the canvas.
   */
-  const playhead = audition.rangePlayheadSeconds()
-  if (playhead !== null) {
-    const x = zoomTimeToX(playhead, centreSeconds, windowSeconds, width)
-    context.fillStyle = style.getPropertyValue('--color-ink')
-    // Snapped to a whole CSS pixel so the line is not smeared over two.
-    context.fillRect(Math.round(x - PLAYHEAD_WIDTH / 2), 0, PLAYHEAD_WIDTH, height)
-  }
+  const playhead = audition.stretchPlayheadSeconds(range)
+  const x = zoomTimeToX(playhead, centreSeconds, windowSeconds, width)
+  context.fillStyle = style.getPropertyValue('--color-ink')
+  // Snapped to a whole CSS pixel so the line is not smeared over two.
+  context.fillRect(Math.round(x - PLAYHEAD_WIDTH / 2), 0, PLAYHEAD_WIDTH, height)
 
   context.strokeStyle = style.getPropertyValue('--color-ink')
   context.lineWidth = FRAME_WIDTH
@@ -133,10 +131,15 @@ function axis() {
 const { overPlayhead, dragging, onPointerDown, onPointerMove, onPointerEnd } = useRangePress({
   playheadX: () => {
     const map = axis()
-    const playhead = audition.rangePlayheadSeconds()
-    return map === null || playhead === null
+    const range = split.range
+    return map === null || range === null
       ? null
-      : zoomTimeToX(playhead, map.centreSeconds, map.windowSeconds, map.width)
+      : zoomTimeToX(
+          audition.stretchPlayheadSeconds(range),
+          map.centreSeconds,
+          map.windowSeconds,
+          map.width,
+        )
   },
   splitXs: () => {
     const map = axis()
@@ -156,10 +159,10 @@ const { overPlayhead, dragging, onPointerDown, onPointerMove, onPointerEnd } = u
     audition.grabPlayhead()
   },
   move: (seconds) => {
-    audition.seekRange(seconds)
+    if (split.range !== null) audition.seekStretch(split.range, seconds)
   },
   drop: () => {
-    audition.dropPlayhead()
+    if (split.range !== null) audition.dropPlayhead(split.range)
   },
   selectSplit: (index) => {
     const selected = split.splits[index]
@@ -174,7 +177,9 @@ const { overPlayhead, dragging, onPointerDown, onPointerMove, onPointerEnd } = u
 
 // With no mark yet, the arrow keys start from the playhead, so the keyboard can place one.
 function moveMark(direction: -1 | 1, isShifted: boolean) {
-  const from = split.markSeconds ?? audition.rangePlayheadSeconds()
+  const from =
+    split.markSeconds ??
+    (split.range === null ? null : audition.stretchPlayheadSeconds(split.range))
   if (from === null) return
   const step = isShifted ? SHIFT_MARK_STEP_SECONDS : MARK_STEP_SECONDS
   split.placeMark(roundToMillisecond(from + direction * step))
@@ -186,7 +191,7 @@ function onKeydown(event: KeyboardEvent) {
   switch (event.key) {
     case ' ': {
       // A held key must not start and stop the sound, or add splits, over and over.
-      if (!event.repeat) audition.toggleRange()
+      if (!event.repeat && split.range !== null) audition.toggleStretch(split.range)
       break
     }
     case 'Enter': {
@@ -194,7 +199,7 @@ function onKeydown(event: KeyboardEvent) {
       break
     }
     case 'Home': {
-      audition.backToRangeStart()
+      if (split.range !== null) audition.backToStretchStart(split.range)
       break
     }
     case 'ArrowLeft':
@@ -210,7 +215,7 @@ function onKeydown(event: KeyboardEvent) {
   event.preventDefault()
 }
 
-usePlayheadFrames(() => audition.rangeStatus === 'playing', draw)
+usePlayheadFrames(() => audition.stretchStatus === 'playing', draw)
 
 useCanvasRedraw(canvas, draw)
 
@@ -222,7 +227,7 @@ watch(
     split.splits.map((point) => point.seconds),
     split.selectedSplit?.id,
     split.markSeconds,
-    audition.rangePlayheadSeconds(),
+    split.range === null ? null : audition.stretchPlayheadSeconds(split.range),
   ],
   draw,
 )

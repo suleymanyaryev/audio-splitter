@@ -11,7 +11,7 @@ Four Pinia setup stores hold all state, in memory only. Two are entities; two be
 | Store           | Slice                  | Holds                                                                                                                                                                                                        |
 | --------------- | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `source-file`   | `entities/source-file` | The file, its format and duration, peaks, loudness curve, slice progress, load failure, the ffmpeg session                                                                                                   |
-| `split`         | `entities/split`       | The silence threshold and minimum gap length, the gaps, the splits with their track names, the derived tracks, the selected split, the zoom window, the range, the mark and the panel's view, the edit count |
+| `split`         | `entities/split`       | The silence threshold and minimum gap length, the gaps, the splits with their track names, the derived tracks, the one selection (a split, a track or nothing; the selected split is derived from it), the zoom window, the range, the mark and the panel's view, the edit count |
 | `audition`      | `widgets/split-zoom`   | Whether the audition's clip and the range's are loading, playing or paused, the failure, the range's resting place                                                                                           |
 | `export-tracks` | `widgets/track-strip`  | The export's status, the track in hand, the counts, the subfolder's name, the failure                                                                                                                        |
 
@@ -113,19 +113,19 @@ stateDiagram-v2
   playing --> idle: the range plays, or a new range
 ```
 
-**The range** is the stretch the user dragged out (note 08). The Range view's Play button and Space both call `toggleRange`. The whole range is decoded once and kept, so a pause costs nothing: playing again sets the element's `currentTime` inside the WAV, which is exact, and plays at once. The Range view draws the playhead each animation frame while it plays, and at its resting place otherwise: the range's start for a new range and after the end. The playhead moves without changing the status: `seekRange` sets `currentTime` while the range plays, and the resting place otherwise (which `toggleRange`, or the clip still being decoded, starts from); a drag of it goes through `grabPlayhead`, which pauses a playing range, and `dropPlayhead`, which plays it on only if it was playing.
+**The range** is the stretch the user dragged out (note 08). The Range view's Play button and Space both call `toggleStretch(range)`: the player plays a stretch (a start and an end the caller hands in; today only the range), so it reads no store for it. The whole stretch is decoded once and kept, tied to the stretch it was decoded for (a different stretch releases it and decodes its own), so a pause costs nothing: playing again sets the element's `currentTime` inside the WAV, which is exact, and plays at once. The Range view draws the playhead each animation frame while it plays, and at its resting place otherwise: the range's start for a new range and after the end. The playhead moves without changing the status: `seekStretch` sets `currentTime` while the range plays, and the resting place otherwise (which `toggleStretch`, or the clip still being decoded, starts from); a drag of it goes through `grabPlayhead`, which pauses a playing range, and `dropPlayhead`, which plays it on only if it was playing.
 
 ```mermaid
 stateDiagram-v2
   [*] --> idle
-  idle --> loading: toggleRange, no WAV held
-  idle --> playing: toggleRange, WAV held
+  idle --> loading: toggleStretch, no WAV held
+  idle --> playing: toggleStretch, WAV held
   loading --> playing: range decoded
-  loading --> idle: toggleRange, stop, a new range, or the audition plays
+  loading --> idle: toggleStretch, stop, a new range, or the audition plays
   loading --> idle: decode failed, failure shown
   playing --> idle: play refused, failure shown
-  playing --> paused: toggleRange, or stop (a view change, the export)
-  paused --> playing: toggleRange
+  playing --> paused: toggleStretch, or stop (a view change, the export)
+  paused --> playing: toggleStretch
   playing --> paused: grabPlayhead, a drag of the playhead
   paused --> playing: dropPlayhead, if it was playing when grabbed
   playing --> idle: range ended, playhead back at the start
