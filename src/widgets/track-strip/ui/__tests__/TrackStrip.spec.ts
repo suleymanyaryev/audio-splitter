@@ -20,8 +20,14 @@ async function mountStrip() {
   return wrapper
 }
 
+// The track blocks: the items of the list that carry a track's name and length.
 function blocks(wrapper: ReturnType<typeof mount>) {
-  return wrapper.findAll('li')
+  return wrapper.findAll('li[aria-label]')
+}
+
+// The split items between them, as the buttons that select a split.
+function splitItems(wrapper: ReturnType<typeof mount>) {
+  return wrapper.findAll('button[aria-label^="Split "]')
 }
 
 async function mountWithTwoGaps() {
@@ -33,8 +39,8 @@ async function mountWithTwoGaps() {
 describe('TrackStrip', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
-    // jsdom measures nothing: the strip is 1012 px wide, which after two 6 px lands leaves 1000 px.
-    vi.spyOn(Element.prototype, 'clientWidth', 'get').mockReturnValue(1012)
+    // jsdom measures nothing: the strip is 1016 px wide, which after two 8 px split items leaves 1000 px.
+    vi.spyOn(Element.prototype, 'clientWidth', 'get').mockReturnValue(1016)
   })
 
   afterEach(() => {
@@ -70,13 +76,13 @@ describe('TrackStrip', () => {
 
     expect(blocks(wrapper)).toHaveLength(1)
     expect(blocks(wrapper)[0]?.text()).toBe('10:00:20')
-    expect(blocks(wrapper)[0]?.attributes('style')).toContain('width: 1012px')
+    expect(blocks(wrapper)[0]?.attributes('style')).toContain('width: 1016px')
   })
 
   it('drops the length, then the name, of blocks too narrow for them, keeping both in the title', async () => {
     useSplitStore().detect(curveWithTwoGaps(), { windowSeconds: 0.05, durationSeconds: 100 })
-    // 112 px leaves 100 px for the three tracks: 21, 50.5 and 28.5 px.
-    vi.spyOn(Element.prototype, 'clientWidth', 'get').mockReturnValue(112)
+    // 116 px leaves 100 px for the three tracks: 21, 50.5 and 28.5 px.
+    vi.spyOn(Element.prototype, 'clientWidth', 'get').mockReturnValue(116)
 
     const wrapper = await mountStrip()
 
@@ -167,6 +173,103 @@ describe('TrackStrip', () => {
       const { wrapper } = await mountWithTwoGaps()
 
       expect(blocks(wrapper)[1]?.get('button').text()).toBe('20:00:50')
+    })
+  })
+  describe('split items', () => {
+    it('puts one between every two blocks, and none at the ends', async () => {
+      const { wrapper } = await mountWithTwoGaps()
+
+      const order = wrapper
+        .findAll('ol > li')
+        .map((item) => (item.attributes('aria-label') === undefined ? 'split' : 'block'))
+
+      expect(order).toEqual(['block', 'split', 'block', 'split', 'block'])
+    })
+
+    it('has none for a single track', async () => {
+      useSplitStore().detect(new Float32Array(400).fill(-10), {
+        windowSeconds: 0.05,
+        durationSeconds: 20,
+      })
+
+      const wrapper = await mountStrip()
+
+      expect(splitItems(wrapper)).toHaveLength(0)
+    })
+
+    it('is 8 px wide', async () => {
+      const { wrapper } = await mountWithTwoGaps()
+
+      const items = wrapper.findAll('ol > li:not([aria-label])')
+
+      expect(items.map((item) => item.attributes('style'))).toEqual(['width: 8px;', 'width: 8px;'])
+    })
+
+    it('names the split and its time', async () => {
+      const { wrapper } = await mountWithTwoGaps()
+
+      expect(splitItems(wrapper).map((item) => item.attributes('aria-label'))).toEqual([
+        'Split 1, 0:00:21.00',
+        'Split 2, 0:01:11.50',
+      ])
+    })
+
+    it('selects the split when clicked, and shows the zoom view centred on it', async () => {
+      const { split, wrapper } = await mountWithTwoGaps()
+      split.selectTrack(split.tracks[0]!)
+      expect(split.view).toBe('track')
+
+      await splitItems(wrapper)[1]?.trigger('click')
+
+      expect(split.selectedSplit?.seconds).toBe(71.5)
+      expect(split.selectedTrack).toBeNull()
+      expect(split.view).toBe('split')
+      expect(split.zoomCentreSeconds).toBe(71.5)
+    })
+
+    it('is current when its split is selected, and only then', async () => {
+      const { split, wrapper } = await mountWithTwoGaps()
+
+      // Detection selects the first split.
+      expect(splitItems(wrapper).map((item) => item.attributes('aria-current'))).toEqual([
+        'true',
+        undefined,
+      ])
+
+      split.selectSplit(split.splits[1]!.id)
+      await wrapper.vm.$nextTick()
+      expect(splitItems(wrapper).map((item) => item.attributes('aria-current'))).toEqual([
+        undefined,
+        'true',
+      ])
+
+      split.selectTrack(split.tracks[1]!)
+      await wrapper.vm.$nextTick()
+      expect(wrapper.findAll('button[aria-current]')).toHaveLength(0)
+    })
+
+    it('is land at rest and vermilion when hovered, focused or selected', async () => {
+      const { wrapper } = await mountWithTwoGaps()
+      const [selected, other] = splitItems(wrapper)
+
+      expect(selected?.classes()).toContain('bg-split')
+      expect(other?.classes()).not.toContain('bg-split')
+      expect(other?.classes()).toContain('hover:bg-split')
+      expect(other?.classes()).toContain('focus-visible:bg-split')
+    })
+
+    it('follows a split that is added', async () => {
+      const { split, wrapper } = await mountWithTwoGaps()
+
+      split.selectSplit(split.splits[0]!.id)
+      split.moveZoomTo(45)
+      split.addSplit()
+      await wrapper.vm.$nextTick()
+
+      expect(splitItems(wrapper)).toHaveLength(3)
+      expect(splitItems(wrapper).map((item) => item.attributes('aria-label')?.slice(0, 7))).toEqual(
+        ['Split 1', 'Split 2', 'Split 3'],
+      )
     })
   })
 })

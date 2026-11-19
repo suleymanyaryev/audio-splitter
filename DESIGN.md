@@ -261,7 +261,7 @@ A near-monochrome palette of ink, paper and groove greys with one hot accent tha
 
 ### Named Rules
 
-**The Centre-Label Rule.** Vermilion marks a split, the silence threshold, a destructive action, an invalid value, or the centre-label mark in the header, and nothing else: not hover, not selection, not links, not emphasis, not a progress fill.
+**The Centre-Label Rule.** Vermilion marks a split, the silence threshold, a destructive action, an invalid value, or the centre-label mark in the header, and nothing else: not hover, not selection, not links, not emphasis, not a progress fill. A split item in the track strip is a split, so it takes vermilion when it is hovered, focused or selected.
 
 **The Vinyl Band Rule.** The header band is vinyl black with on-vinyl text in both themes; its tokens never take dark-mode overrides.
 
@@ -298,7 +298,7 @@ Manrope ships as one committed variable woff2 file in `src/app/styles/fonts/` (S
 
 Desktop Chrome only. The page is the ground with panels laid on it: 16px (`lg`) outer padding, 16px gutters between panels, 16px padding inside each panel. Panels span the width in a 12-column grid; how the review screen arranges its panels is decided by its own ticket, not by this system.
 
-Spacing uses Tailwind's default 4 px unit. Reused steps: 4px (axis labels under a canvas, the strip's inner gaps), 6px (land gaps between track blocks, table row padding), 8px (icon-to-label and between buttons in a group), 12px (panel title row to content, label to control), 16px (panel padding, gutters, header gaps), 24px (between a panel title and a control in the same header row).
+Spacing uses Tailwind's default 4 px unit. Reused steps: 4px (axis labels under a canvas, the strip's inner gaps), 6px (table row padding), 8px (icon-to-label and between buttons in a group, the strip's split items), 12px (panel title row to content, label to control), 16px (panel padding, gutters, header gaps), 24px (between a panel title and a control in the same header row).
 
 Inside a panel the title row comes first: the title on the left, metadata or the panel's action on the right, baseline-aligned for text and centre-aligned when it holds a control. Canvas views run the full content width of their panel; their time axis sits directly underneath as three to five caption-size times spread edge to edge.
 
@@ -404,8 +404,9 @@ Reka `AlertDialog`: the confirm before a setting change or "New file" replaces e
 
 ### Track strip and track blocks
 
-- **Strip:** `flex h-14 gap-1.5 rounded-control bg-land`: the land shows between blocks, so each 6px gap is a land.
-- **Block:** an `li`, `min-w-0 flex-none rounded-control border-2 bg-track text-on-track`, with an inline pixel width from `layoutTrackBlocks`: proportional to the track's duration, after the 6px lands between blocks, and never under 4px (a very short track stays a visible sliver, and the others share what is left). Every block carries its name and length in `title` and `aria-label`. The `li` holds one inner element, `flex size-full min-w-0 flex-col justify-center gap-0.5 text-left`, which lays out the text.
+- **Strip:** `flex h-14 rounded-control bg-land`, with no gap: a split item sits between every two blocks, and the land shows through it at rest.
+- **Split item:** an `li` 8px wide (`SPLIT_ITEM_PX`, the whole height of the strip) holding one `button`, `block size-full cursor-pointer rounded-control hover:bg-split focus-visible:bg-split focus-visible:outline-none`: transparent over the land at rest, `split` when hovered, focused or selected (`bg-split`), so a split reads as a split here as everywhere else. Vermilion on the land is 3.3:1 in light and 3.8:1 in dark, so the fill alone is the focus indicator. `aria-label` and `title` "Split N, h:mm:ss.cc" (N is the number the whole-file view shows), `aria-current="true"` while the split is selected. A click selects the split and shows the zoom view centred on it. None before the first block or after the last.
+- **Block:** an `li`, `min-w-0 flex-none rounded-control border-2 bg-track text-on-track`, with an inline pixel width from `layoutTrackBlocks`: proportional to the track's duration, after the 8px split items between blocks, and never under 12px (a very short track keeps a block that can be clicked, and the others share what is left; on a strip with so many tracks that the minimums do not fit, the blocks are equal and narrower). Every block carries its name and length in `title` and `aria-label`. The `li` holds one inner element, `flex size-full min-w-0 flex-col justify-center gap-0.5 text-left`, which lays out the text.
 - **Selected:** the selected track's block (a click on a block selects its track) has `aria-current="true"` and a 2px `on-track` border; every other block has a 2px transparent one, so nothing shifts.
 - **Button:** every block, the first included, has a `button` as its inner element, with `cursor-pointer` and the on-track focus ring inside the block (`focus-visible:outline-2 focus-visible:-outline-offset-4 focus-visible:outline-on-track`).
 - **Text by width:** from 32px a block shows its name in Label (`truncate font-semibold`, `text-sm`); from 72px it also shows the duration below in Caption (`truncate text-xs`), both in full `on-track`. Padding on the `li` follows what the block shows: `px-2.5` with name and duration, `px-1` with the name only, none for a sliver, which is a plain `track` block with no text.
