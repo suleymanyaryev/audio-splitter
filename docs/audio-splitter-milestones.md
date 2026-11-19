@@ -210,6 +210,23 @@ Spec and tickets: [`.scratch/select-section-and-play/spec.md`](../.scratch/selec
 
 ---
 
+## Milestone 9: Tracks and splits, apart
+
+Spec and tickets: [`.scratch/split-markers-ranges-and-tracks-separation/spec.md`](../.scratch/split-markers-ranges-and-tracks-separation/spec.md).
+
+**Concept.** A track and a split are two things, selected one at a time: a track is a stretch heard end to end, a split is a point moved inside a 20 s window. The player already plays a stretch from a start to an end (milestone 8), so a track is one more stretch to hand it.
+
+**Build.**
+
+- The split store holds one selection (a split, a track or nothing); the selected track is derived from the live tracks, so it follows its splits.
+- Selecting a track, the first included, from the strip, the Track list or a name field shows the Track view beside the zoom view and the Range view, with a `Split | Track | Range` control; the whole-file view outlines the selected track.
+
+**Try it.** Select the first track and a track late in a long file in each format; see the outline on the whole-file view, and switch between the three views.
+
+**Left for later.** Listening to a track, splits as items of their own in the strip and the list, and removing a track (the rest of the milestone's tickets).
+
+---
+
 ## Not in v1
 
 Ruled out on the [map](../.scratch/audio-splitter/map.md); each returns only as a fresh effort.

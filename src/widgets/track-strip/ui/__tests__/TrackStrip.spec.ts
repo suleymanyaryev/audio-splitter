@@ -102,28 +102,38 @@ describe('TrackStrip', () => {
   })
 
   describe('selecting a track', () => {
-    it('selects the split where a track starts when its block is clicked', async () => {
+    it('selects the track when its block is clicked', async () => {
       const { split, wrapper } = await mountWithTwoGaps()
 
       await blocks(wrapper)[2]?.get('button').trigger('click')
 
-      expect(split.selectedSplit?.seconds).toBeCloseTo(71.5)
+      expect(split.selectedTrack?.number).toBe(3)
+      expect(split.selectedSplit).toBeNull()
     })
 
-    it('selects nothing for the first block, which starts with the file', async () => {
+    it('makes every block a button, the first included, which selects its track', async () => {
       const { split, wrapper } = await mountWithTwoGaps()
-      const before = split.selectedSplit?.id
 
-      await blocks(wrapper)[0]?.trigger('click')
+      expect(blocks(wrapper).map((block) => block.find('button').exists())).toEqual([
+        true,
+        true,
+        true,
+      ])
 
-      expect(blocks(wrapper)[0]?.find('button').exists()).toBe(false)
-      expect(split.selectedSplit?.id).toBe(before)
+      await blocks(wrapper)[0]?.get('button').trigger('click')
+
+      expect(split.selectedTrack?.number).toBe(1)
     })
 
-    it('marks the block of the selected split as current, in a 2 px on-track border', async () => {
-      const { wrapper } = await mountWithTwoGaps()
+    it('marks the block of the selected track as current, in a 2 px on-track border', async () => {
+      const { split, wrapper } = await mountWithTwoGaps()
 
-      // Detection selects split 1, where track 2 starts.
+      // Detection selects split 1, which is no track.
+      expect(wrapper.findAll('li[aria-current]')).toHaveLength(0)
+
+      split.selectTrack(split.tracks[1]!)
+      await wrapper.vm.$nextTick()
+
       expect(blocks(wrapper).map((block) => block.attributes('aria-current'))).toEqual([
         undefined,
         'true',
@@ -133,10 +143,21 @@ describe('TrackStrip', () => {
       expect(blocks(wrapper)[0]?.classes()).not.toContain('border-on-track')
     })
 
-    it('marks no block when the window was moved without a selection', async () => {
+    it('marks the first block when the first track is selected', async () => {
       const { split, wrapper } = await mountWithTwoGaps()
 
-      split.moveZoomTo(50)
+      split.selectTrack(split.tracks[0]!)
+      await wrapper.vm.$nextTick()
+
+      expect(blocks(wrapper)[0]?.attributes('aria-current')).toBe('true')
+    })
+
+    it('marks no block when a split is selected', async () => {
+      const { split, wrapper } = await mountWithTwoGaps()
+      split.selectTrack(split.tracks[1]!)
+      await wrapper.vm.$nextTick()
+
+      split.selectSplit(split.splits[0]!.id)
       await wrapper.vm.$nextTick()
 
       expect(wrapper.findAll('li[aria-current]')).toHaveLength(0)

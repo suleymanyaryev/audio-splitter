@@ -235,58 +235,70 @@ describe('TrackList', () => {
       expect(split.hasEdits).toBe(false)
     })
 
-    it('selects the split where the track starts when its field is focused', async () => {
+    it('selects the track when its field is focused', async () => {
       const { split, wrapper } = mountWithTwoGaps()
 
       await nameField(wrapper, 3).trigger('focus')
 
-      expect(split.selectedSplit?.seconds).toBeCloseTo(71.5)
+      expect(split.selectedTrack?.number).toBe(3)
     })
 
-    it('selects nothing when the first track field is focused', async () => {
+    it('selects the first track when its field is focused', async () => {
       const { split, wrapper } = mountWithTwoGaps()
-      const before = split.selectedSplit?.id
 
       await nameField(wrapper, 1).trigger('focus')
 
-      expect(split.selectedSplit?.id).toBe(before)
+      expect(split.selectedTrack?.number).toBe(1)
     })
   })
 
   describe('selecting a track', () => {
-    it('selects the split where a track starts when its row is clicked', async () => {
+    it('selects the track when its row is clicked', async () => {
       const { split, wrapper } = mountWithTwoGaps()
 
       await wrapper.findAll('tbody tr')[2]?.trigger('click')
 
-      expect(split.selectedSplit?.seconds).toBeCloseTo(71.5)
+      expect(split.selectedTrack?.number).toBe(3)
+      expect(split.selectedSplit).toBeNull()
     })
 
-    it('selects nothing for the first track, which starts with the file', async () => {
+    it('selects the first track when its row is clicked', async () => {
       const { split, wrapper } = mountWithTwoGaps()
-      const before = split.selectedSplit?.id
 
       await wrapper.findAll('tbody tr')[0]?.trigger('click')
 
-      expect(split.selectedSplit?.id).toBe(before)
-      expect(wrapper.findAll('tbody tr')[0]?.find('button').exists()).toBe(false)
+      expect(split.selectedTrack?.number).toBe(1)
     })
 
-    it('can be selected from the keyboard through a button in the number cell', async () => {
+    it('can be selected from the keyboard through a button in the number cell, the first row too', async () => {
       const { split, wrapper } = mountWithTwoGaps()
 
       const button = wrapper.findAll('tbody tr')[2]?.get('button')
       await button?.trigger('click')
 
       expect(button?.attributes('aria-label')).toBe('Select track 3, starts at 0:01:11.50')
-      expect(split.selectedSplit?.seconds).toBeCloseTo(71.5)
+      expect(split.selectedTrack?.number).toBe(3)
+
+      const first = wrapper.findAll('tbody tr')[0]?.get('button')
+      await first?.trigger('click')
+
+      expect(first?.attributes('aria-label')).toBe('Select track 1, starts at 0:00:00.00')
+      expect(split.selectedTrack?.number).toBe(1)
     })
 
-    it('marks the row of the selected split as current, in the selected-row style', async () => {
-      const { wrapper } = mountWithTwoGaps()
+    it('marks the row of the selected track as current, in the selected-row style', async () => {
+      const { split, wrapper } = mountWithTwoGaps()
       const rows = wrapper.findAll('tbody tr')
 
-      // Detection selects split 1, where track 2 starts.
+      // Detection selects split 1, which is no track.
+      expect(rows.map((row) => row.attributes('aria-current'))).toEqual([
+        undefined,
+        undefined,
+        undefined,
+      ])
+
+      await rows[1]?.trigger('click')
+
       expect(rows.map((row) => row.attributes('aria-current'))).toEqual([
         undefined,
         'true',
@@ -295,19 +307,22 @@ describe('TrackList', () => {
       expect(rows[1]?.classes()).toEqual(expect.arrayContaining(['bg-land/50', 'font-semibold']))
       expect(rows[0]?.classes()).not.toContain('bg-land/50')
 
-      await rows[2]?.trigger('click')
+      split.selectTrack(split.tracks[0]!)
+      await wrapper.vm.$nextTick()
 
       expect(rows.map((row) => row.attributes('aria-current'))).toEqual([
-        undefined,
-        undefined,
         'true',
+        undefined,
+        undefined,
       ])
     })
 
-    it('marks no row when the window was moved without a selection', async () => {
+    it('marks no row when a split is selected', async () => {
       const { split, wrapper } = mountWithTwoGaps()
+      split.selectTrack(split.tracks[1]!)
+      await wrapper.vm.$nextTick()
 
-      split.moveZoomTo(50)
+      split.selectSplit(split.splits[1]!.id)
       await wrapper.vm.$nextTick()
 
       expect(wrapper.findAll('tbody tr[aria-current]')).toHaveLength(0)
@@ -317,12 +332,23 @@ describe('TrackList', () => {
       const { split, wrapper } = mountWithTwoGaps()
       scrollIntoView.mockClear()
 
-      const second = split.splits[1]
-      if (second) split.selectSplit(second.id)
+      split.selectTrack(split.tracks[2]!)
       await wrapper.vm.$nextTick()
 
       expect(scrollIntoView).toHaveBeenCalledWith({ block: 'nearest' })
       expect(scrollIntoView.mock.contexts.at(-1)).toBe(wrapper.findAll('tbody tr')[2]?.element)
+    })
+
+    it('keeps the selected row in view when the selected track changes in place', async () => {
+      const { split, wrapper } = mountWithTwoGaps()
+      split.selectTrack(split.tracks[1]!)
+      await wrapper.vm.$nextTick()
+      scrollIntoView.mockClear()
+
+      split.selectTrack(split.tracks[0]!)
+      await wrapper.vm.$nextTick()
+
+      expect(scrollIntoView.mock.contexts.at(-1)).toBe(wrapper.findAll('tbody tr')[0]?.element)
     })
   })
 })

@@ -10,9 +10,8 @@ The tracks as proportional blocks on a land ground, one per track, with their na
 Widths come from `layoutTrackBlocks`, which needs the strip's pixel width, and which also decides
 whether a block is wide enough for its name and length.
 
-A track starts at a split, so a click on its block selects that split, and the block of the
-selected split's track is marked with a 2 px `on-track` border (DESIGN.md's "Selected" bullet). The
-first track starts with the file: its block selects nothing and is not a button.
+Every block is a button that selects its track, the first included, and the block of the selected
+track is marked with a 2 px `on-track` border (DESIGN.md's "Selected" bullet).
 */
 const split = useSplitStore()
 
@@ -60,24 +59,18 @@ const blocks = computed(() => {
       ]"
       :style="{ width: `${block.widthPx}px` }"
     >
-      <!-- A block is a button when it starts at a split. The ring is inside the block, in on-track:
-      outside it would sit on the land, and the on-track colour has no contrast there. -->
-      <component
-        :is="block.track.startSplit === null ? 'div' : 'button'"
-        :type="block.track.startSplit === null ? undefined : 'button'"
-        class="flex size-full min-w-0 flex-col justify-center gap-0.5 text-left"
-        :class="
-          block.track.startSplit === null
-            ? ''
-            : 'cursor-pointer focus-visible:outline-2 focus-visible:-outline-offset-4 focus-visible:outline-on-track'
-        "
+      <!-- The ring is inside the block, in on-track: outside it would sit on the land, and the
+      on-track colour has no contrast there. -->
+      <button
+        type="button"
+        class="flex size-full min-w-0 cursor-pointer flex-col justify-center gap-0.5 text-left focus-visible:outline-2 focus-visible:-outline-offset-4 focus-visible:outline-on-track"
         @click="split.selectTrack(block.track)"
       >
         <template v-if="block.showName">
           <span class="truncate text-sm font-semibold">{{ block.track.name }}</span>
           <span v-if="block.showLength" class="truncate text-xs">{{ block.length }}</span>
         </template>
-      </component>
+      </button>
     </li>
   </ol>
 </template>

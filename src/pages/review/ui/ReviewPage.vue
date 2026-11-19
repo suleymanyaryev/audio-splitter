@@ -12,10 +12,12 @@ import LoudnessCurve from '@/widgets/loudness-curve/ui/LoudnessCurve.vue'
 import LoudnessSettings from '@/widgets/loudness-curve/ui/LoudnessSettings.vue'
 import SourceWaveform from '@/widgets/source-waveform/ui/SourceWaveform.vue'
 import { rangeTitle } from '@/widgets/split-zoom/lib/range-title.ts'
+import { trackTitle } from '@/widgets/split-zoom/lib/track-title.ts'
 import { zoomTitle } from '@/widgets/split-zoom/lib/zoom-title.ts'
 import { useAuditionStore } from '@/widgets/split-zoom/model/audition.ts'
 import RangeView from '@/widgets/split-zoom/ui/RangeView.vue'
 import SplitZoom from '@/widgets/split-zoom/ui/SplitZoom.vue'
+import TrackView from '@/widgets/split-zoom/ui/TrackView.vue'
 import TrackList from '@/widgets/track-list/ui/TrackList.vue'
 import { useExportTracksStore } from '@/widgets/track-strip/model/export-tracks.ts'
 import ExportDialog from '@/widgets/track-strip/ui/ExportDialog.vue'
@@ -24,10 +26,12 @@ import TrackStrip from '@/widgets/track-strip/ui/TrackStrip.vue'
 /*
 The review screen: each panel at its fixed canvas height, with the controls it holds. Every panel
 is filled; "Export to folder…" starts the export, whose overlay (`ExportDialog`) locks the page while
-it runs. The zoom panel shows the zoom view or, once the user has dragged out a range, the Range
-view, as the split store's `view` says, and its `Split | Range` control is that view. "Add split"
-is in both views and follows the view: at the window's centre in the zoom view, at the mark in the
-Range view. The zoom view has "Play across split", which plays the selected split's clip (and reads
+it runs. The zoom panel shows the zoom view, the Track view of the selected track or, once the user
+has dragged out a range, the Range view, as the split store's `view` says, and its
+`Split | Track | Range` control is that view, each segment disabled while it has nothing to show.
+"Add split" is in the zoom view and the Range view and follows the view: at the window's centre in
+the zoom view, at the mark in the Range view. The Track view has the control alone: no split is
+added there. The zoom view has "Play across split", which plays the selected split's clip (and reads
 "Stop" while it loads or plays). The Range view has "Play", which plays the range (and reads "Stop"
 while it is decoded and "Pause" while it plays), and "Back to range start" beside it, which moves
 the playhead to the range's start.
@@ -74,13 +78,15 @@ const canAddSplit = computed(() =>
   split.view === 'range' ? split.canAddSplitAtMark : split.canAddSplit,
 )
 
-// The panel's title is its largest type: the selected split's time, or the range's start, end
-// and length.
-const title = computed(() =>
-  split.view === 'range' && split.range !== null
-    ? rangeTitle(split.range)
-    : zoomTitle(split.selectedSplit?.seconds ?? null, split.splits.length),
-)
+// The panel's title is its largest type: the selected split's time, the selected track's name, start
+// and end, or the range's start, end and length.
+const title = computed(() => {
+  if (split.view === 'track' && split.selectedTrack !== null) return trackTitle(split.selectedTrack)
+  const range = split.view === 'range' ? split.range : null
+  return range === null
+    ? zoomTitle(split.selectedSplit?.seconds ?? null, split.splits.length)
+    : rangeTitle(range)
+})
 
 // "Stop" while the range is being decoded, so a press can take it back; "Pause" while it plays.
 const RANGE_BUTTON_LABELS = { idle: 'Play', loading: 'Stop', playing: 'Pause', paused: 'Play' }
@@ -103,6 +109,7 @@ const view = computed<PanelView>({
 })
 const viewOptions = computed(() => [
   { value: 'split' as const, label: 'Split' },
+  { value: 'track' as const, label: 'Track', disabled: split.selectedTrack === null },
   { value: 'range' as const, label: 'Range', disabled: split.range === null },
 ])
 
@@ -131,7 +138,12 @@ watch(
     <UiPanel :title="title" headline class="col-span-8">
       <template #actions>
         <UiSegmentedControl v-model="view" label="Panel view" :options="viewOptions" />
-        <UiButton size="sm" :disabled="!canAddSplit" @click="addSplit">
+        <UiButton
+          v-if="split.view !== 'track'"
+          size="sm"
+          :disabled="!canAddSplit"
+          @click="addSplit"
+        >
           <Plus class="size-4 shrink-0" />
           Add split
         </UiButton>
@@ -160,7 +172,7 @@ watch(
           {{ rangeButtonLabel }}
         </UiButton>
         <UiButton
-          v-else
+          v-else-if="split.view === 'split'"
           variant="primary"
           size="sm"
           :disabled="split.selectedSplit === null && !audition.isActive"
@@ -177,6 +189,7 @@ watch(
         </UiButton>
       </template>
       <RangeView v-if="split.view === 'range'" />
+      <TrackView v-else-if="split.view === 'track'" />
       <SplitZoom v-else ref="zoom" />
     </UiPanel>
 

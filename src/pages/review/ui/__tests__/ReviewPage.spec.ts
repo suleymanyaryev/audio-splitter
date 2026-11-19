@@ -32,6 +32,13 @@ function mountPage() {
   return mount(ReviewPage, { attachTo: document.body })
 }
 
+// The page with the track of that number selected, as a click on its row's number button does.
+async function mountPageWithTrack(number: number) {
+  const wrapper = mountPage()
+  await wrapper.get(`[aria-label^="Select track ${number}"]`).trigger('click')
+  return wrapper
+}
+
 async function mountPageWithRange() {
   const wrapper = mountPage()
   useSplitStore().setRange(10, 20)
@@ -76,7 +83,7 @@ function exportButton(wrapper: ReturnType<typeof mount>) {
   return button
 }
 
-function viewOption(wrapper: ReturnType<typeof mount>, name: 'Split' | 'Range') {
+function viewOption(wrapper: ReturnType<typeof mount>, name: 'Split' | 'Track' | 'Range') {
   const option = wrapper
     .get('[role="radiogroup"][aria-label="Panel view"]')
     .findAll('[role="radio"]')
@@ -85,7 +92,7 @@ function viewOption(wrapper: ReturnType<typeof mount>, name: 'Split' | 'Range') 
   return option
 }
 
-// The panel's title: the zoom view's time, or the range's start, end and length.
+// The panel's title: the zoom view's time, the track's name and ends, or the range's.
 const panelTitle = (wrapper: ReturnType<typeof mount>) => wrapper.get('h2.text-lg').text()
 
 describe('ReviewPage', () => {
@@ -244,11 +251,12 @@ describe('ReviewPage', () => {
     })
   })
 
-  describe('the Split | Range control', () => {
-    it('starts on Split, with Range disabled while there is no range', () => {
+  describe('the Split | Track | Range control', () => {
+    it('starts on Split, with Track and Range disabled while there is nothing to show', () => {
       const wrapper = mountPage()
 
       expect(viewOption(wrapper, 'Split').attributes('aria-checked')).toBe('true')
+      expect(viewOption(wrapper, 'Track').attributes('disabled')).toBeDefined()
       expect(viewOption(wrapper, 'Range').attributes('disabled')).toBeDefined()
     })
 
@@ -302,15 +310,102 @@ describe('ReviewPage', () => {
       expect(wrapper.find('[aria-label="Waveform of the range"]').exists()).toBe(true)
     })
 
-    it('goes back to Split when a track row selects a split', async () => {
+    it('goes back to Split when a split is selected', async () => {
       const wrapper = mountPage()
-      useSplitStore().setRange(10, 20)
+      const split = useSplitStore()
+      split.setRange(10, 20)
       await wrapper.vm.$nextTick()
 
-      await wrapper.get('[aria-label^="Select track 3"]').trigger('click')
+      split.selectSplit(split.splits[1]!.id)
+      await wrapper.vm.$nextTick()
 
       expect(viewOption(wrapper, 'Split').attributes('aria-checked')).toBe('true')
       expect(panelTitle(wrapper)).toBe('0:01:11.50')
+    })
+
+    describe('the Track view', () => {
+      it('swaps in the Track view, titled by the track, when a track is selected', async () => {
+        const wrapper = await mountPageWithTrack(3)
+
+        expect(viewOption(wrapper, 'Track').attributes('aria-checked')).toBe('true')
+        expect(viewOption(wrapper, 'Track').attributes('disabled')).toBeUndefined()
+        expect(wrapper.find('[aria-label="Waveform of the track"]').exists()).toBe(true)
+        expect(wrapper.find('[aria-label="Zoomed waveform of the split"]').exists()).toBe(false)
+        expect(panelTitle(wrapper)).toBe('3 · 0:01:11.50 – 0:01:40.00')
+      })
+
+      it('shows the first track too', async () => {
+        const wrapper = await mountPageWithTrack(1)
+
+        expect(wrapper.find('[aria-label="Waveform of the track"]').exists()).toBe(true)
+        expect(panelTitle(wrapper)).toBe('1 · 0:00:00.00 – 0:00:21.00')
+      })
+
+      it('has the control alone in its title row: no "Add split", no play button', async () => {
+        const wrapper = await mountPageWithTrack(2)
+
+        const labels = wrapper.findAll('button').map((button) => button.text())
+        expect(labels).not.toContain('Add split')
+        expect(labels).not.toContain('Play across split')
+        expect(labels).not.toContain('Play')
+      })
+
+      it('shows the zoom window where it was, with no split selected, on Split', async () => {
+        const wrapper = mountPage()
+        const split = useSplitStore()
+        split.moveZoomTo(50)
+        await wrapper.get('[aria-label^="Select track 3"]').trigger('click')
+
+        await viewOption(wrapper, 'Split').trigger('click')
+
+        expect(wrapper.find('[aria-label="Zoomed waveform of the split"]').exists()).toBe(true)
+        expect(panelTitle(wrapper)).toBe('No split selected')
+        expect(split.zoomCentreSeconds).toBe(50)
+        expect(split.selectedSplit).toBeNull()
+        expect(viewOption(wrapper, 'Track').attributes('disabled')).toBeUndefined()
+      })
+
+      it('switches back to the Track view with the control, keeping the track', async () => {
+        const wrapper = await mountPageWithTrack(2)
+        await viewOption(wrapper, 'Split').trigger('click')
+
+        await viewOption(wrapper, 'Track').trigger('click')
+
+        expect(wrapper.find('[aria-label="Waveform of the track"]').exists()).toBe(true)
+        expect(panelTitle(wrapper)).toBe('2 · 0:00:21.00 – 0:01:11.50')
+      })
+
+      it('goes back to Split, with Track disabled, when a setting change clears the track', async () => {
+        const wrapper = await mountPageWithTrack(2)
+
+        useSplitStore().setMinimumGapLength(2.5)
+        await wrapper.vm.$nextTick()
+
+        expect(viewOption(wrapper, 'Split').attributes('aria-checked')).toBe('true')
+        expect(viewOption(wrapper, 'Track').attributes('disabled')).toBeDefined()
+      })
+
+      it('swaps to the Range view and back to the Track view through the control', async () => {
+        const wrapper = await mountPageWithTrack(2)
+        const split = useSplitStore()
+        split.setRange(10, 20)
+        await wrapper.vm.$nextTick()
+        expect(wrapper.find('[aria-label="Waveform of the range"]').exists()).toBe(true)
+
+        await viewOption(wrapper, 'Track').trigger('click')
+
+        expect(split.view).toBe('track')
+        expect(wrapper.find('[aria-label="Waveform of the track"]').exists()).toBe(true)
+      })
+
+      it('stops the audition when the view changes to the Track view', async () => {
+        const wrapper = mountPage()
+        const stop = vi.spyOn(useAuditionStore(), 'stop')
+
+        await wrapper.get('[aria-label^="Select track 3"]').trigger('click')
+
+        expect(stop).toHaveBeenCalled()
+      })
     })
 
     it('stops the audition when the view changes', async () => {

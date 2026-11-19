@@ -241,7 +241,7 @@ A near-monochrome palette of ink, paper and groove greys with one hot accent tha
 
 ### Neutral
 
-- **Vinyl Ink** (`ink`; dark: `ink-dark`): body text, panel titles, the primary button, the slider range and thumb, progress fill, the zoom window and zoom frame outlines, the Range view's playhead and mark, and the keyboard focus ring. 18.7:1 on white.
+- **Vinyl Ink** (`ink`; dark: `ink-dark`): body text, panel titles, the primary button, the slider range and thumb, progress fill, the zoom window and zoom frame outlines, the selected track's outline on the whole-file view, the Range view's and the Track view's playhead and the Range view's mark, and the keyboard focus ring. 18.7:1 on white.
 - **Label Grey** (`muted`; dark: `muted-dark`): secondary text, axis times, table headings, field labels and idle progress counts. Measured 6.29:1 (light) and 7.27:1 (dark).
 - **Sleeve Ground** (`ground`; dark: `ground-dark`): the page behind the panels.
 - **Sleeve Surface** (`surface`; dark: `surface-dark`): panels, inputs, secondary/danger/icon button fills, the plate behind the threshold label, and the primary button's text.
@@ -324,7 +324,7 @@ Borders are 1px: hairline for panels and row rules, control edge for controls, v
 
 Every kit component lives in `src/shared/ui/` as `Ui<Name>.vue` (`UiButton`, `UiIconButton`, `UiTextField`, `UiSlider`, `UiSegmentedControl`, `UiPanel`, `UiProgressBar`, `UiDialog`; the prefix keeps a kit component from reading like a native element) and is a Reka UI 2 primitive (or a native element) styled with Tailwind 4 utilities on the tokens below. Classes are given exactly; `focus-ring` is the custom utility defined in the token block.
 
-**Focus.** Every interactive element shows `focus-visible:focus-ring`: a 2px solid ink outline at 2px offset. On the vinyl band the ring uses `on-vinyl`. On a track block (clicking one selects its split) it uses `on-track`.
+**Focus.** Every interactive element shows `focus-visible:focus-ring`: a 2px solid ink outline at 2px offset. On the vinyl band the ring uses `on-vinyl`. On a track block (clicking one selects its track) it uses `on-track`.
 
 **Disabled.** Opacity 40% on the whole control and `cursor-not-allowed`; no colour change, no hover response (hover utilities are gated by `enabled:`).
 
@@ -370,7 +370,7 @@ Reka `SliderRoot` / `SliderTrack` / `SliderRange` / `SliderThumb`; focus and ARI
 
 ### SegmentedControl
 
-Reka `RadioGroupRoot` / `RadioGroupItem`: a choice of one among a few views, such as the zoom panel's `Split | Range`. Exactly one option is always chosen; arrow keys move between options, and a disabled option cannot be chosen.
+Reka `RadioGroupRoot` / `RadioGroupItem`: a choice of one among a few views, such as the zoom panel's `Split | Track | Range`. Exactly one option is always chosen; arrow keys move between options, and a disabled option cannot be chosen.
 
 - **Root:** `inline-flex h-8 items-center gap-0.5 rounded-control border border-edge bg-surface p-0.5`, `aria-label` names the control. 32 px tall, as a small button, for a panel's title row.
 - **Option:** `h-full cursor-pointer rounded-control border border-transparent px-3 text-sm font-semibold whitespace-nowrap text-ink transition-colors duration-100 focus-visible:focus-ring enabled:hover:bg-land/40 disabled:cursor-not-allowed disabled:opacity-40`.
@@ -406,17 +406,17 @@ Reka `AlertDialog`: the confirm before a setting change or "New file" replaces e
 
 - **Strip:** `flex h-14 gap-1.5 rounded-control bg-land`: the land shows between blocks, so each 6px gap is a land.
 - **Block:** an `li`, `min-w-0 flex-none rounded-control border-2 bg-track text-on-track`, with an inline pixel width from `layoutTrackBlocks`: proportional to the track's duration, after the 6px lands between blocks, and never under 4px (a very short track stays a visible sliver, and the others share what is left). Every block carries its name and length in `title` and `aria-label`. The `li` holds one inner element, `flex size-full min-w-0 flex-col justify-center gap-0.5 text-left`, which lays out the text.
-- **Selected:** the block of the selected split's track (a click on a block selects the split where its track starts) has `aria-current="true"` and a 2px `on-track` border; every other block has a 2px transparent one, so nothing shifts.
-- **Button:** a block that starts at a split has a `button` as its inner element, with `cursor-pointer` and the on-track focus ring inside the block (`focus-visible:outline-2 focus-visible:-outline-offset-4 focus-visible:outline-on-track`). The first block, which starts with the file, has a plain `div` there and selects nothing.
+- **Selected:** the selected track's block (a click on a block selects its track) has `aria-current="true"` and a 2px `on-track` border; every other block has a 2px transparent one, so nothing shifts.
+- **Button:** every block, the first included, has a `button` as its inner element, with `cursor-pointer` and the on-track focus ring inside the block (`focus-visible:outline-2 focus-visible:-outline-offset-4 focus-visible:outline-on-track`).
 - **Text by width:** from 32px a block shows its name in Label (`truncate font-semibold`, `text-sm`); from 72px it also shows the duration below in Caption (`truncate text-xs`), both in full `on-track`. Padding on the `li` follows what the block shows: `px-2.5` with name and duration, `px-1` with the name only, none for a sliver, which is a plain `track` block with no text.
 
 ### Split number and selected row
 
 - The selected split's number is a filled vermilion chip wherever it appears: `inline-flex size-5 items-center justify-center rounded-full bg-split text-xs font-bold text-on-split`. Other split numbers in lists are plain `text-muted` in the same 20px box.
 - Table rows are separated by `border-b border-hairline` with 6px vertical padding; the selected row takes `bg-land/50 font-semibold`.
-- **Track-list rows:** a row whose track starts at a split is clickable (`cursor-pointer hover:bg-land/40`) and its number cell holds a button (`size-5 rounded-control text-muted focus-visible:focus-ring`, `aria-label` "Select track N, starts at …"); the selected row is `aria-current="true"`. The number is the track's, so the selected row is marked by its tint and weight only, not by a chip. The first row has no button.
+- **Track-list rows:** a row is clickable (`cursor-pointer hover:bg-land/40`) and its number cell holds a button (`size-5 rounded-control text-muted focus-visible:focus-ring`, `aria-label` "Select track N, starts at …"); the selected row is `aria-current="true"`. The number is the track's, so the selected row is marked by its tint and weight only, not by a chip.
 - **Track-list table:** `w-full border-separate border-spacing-0 text-left text-sm` inside a 160px (`h-40`) box that scrolls inside itself. The heading row is Caption in weight 500 and `muted` (`text-xs font-medium text-muted`); each `th` is `sticky top-0 border-b border-hairline bg-surface py-1` (`pr-2` except the last, `w-12` for the number column), so the headings stay in view over the scrolling rows. Cells are `border-b border-hairline py-1.5` (`pr-2` except the last).
-- **Track-list columns:** number (`w-12`), name (the one flexible column, `w-full` with the inline `TextField` in a `max-w-0` cell so a long name is cut off, not wrapped), start and length (`whitespace-nowrap`, start `pr-4`), and a last cell holding the `sm` trash `IconButton` (`py-0.5`, so the 32px button sets the row height at 36px); the first row's last cell is empty. A name field is `aria-label` "Name of track N"; focusing it or clicking it selects the split where the track starts, like the row.
+- **Track-list columns:** number (`w-12`), name (the one flexible column, `w-full` with the inline `TextField` in a `max-w-0` cell so a long name is cut off, not wrapped), start and length (`whitespace-nowrap`, start `pr-4`), and a last cell holding the `sm` trash `IconButton` (`py-0.5`, so the 32px button sets the row height at 36px); the first row's last cell is empty. A name field is `aria-label` "Name of track N"; focusing it or clicking it selects the track, like the row.
 
 ### Canvas drawing rules (signature)
 
@@ -427,11 +427,12 @@ The whole-file waveform, the loudness curve and the zoom view are hand-drawn can
 - **Land:** a gap is a `land` band with no waveform in it. In whole-file views a 2 s gap is sub-pixel, so a land is drawn at least 12px wide, centred on its split. A land that is widened shifts inwards only as far as the canvas edge needs. A lead-in or run-out land has no split, so it grows from its canvas edge (a lead-in from the left, a run-out from the right). Widened neighbours may overlap: lands are one flat colour, so overlapping ones read as one band, and each split line stays at its own time.
 - **Split line:** `split`, 1.5px wide, the full height of the wave area. The selected split is 3px wide.
 - **Split numbers (whole-file view):** a 22px band above the waveform carries each split's number, centred on its line, in `split`. The selected split's number sits in a filled vermilion circle (20px) with the number in `on-split`.
-- **Zoom window (whole-file view):** the stretch shown in the zoom view, outlined in 1.5px `ink`, the height of the wave area. It matches the zoom view's own frame.
+- **Zoom window (whole-file view):** the stretch shown in the zoom view, outlined in 1.5px `ink`, the height of the wave area. It matches the zoom view's own frame. In the Track view the same outline is drawn on the selected track's stretch instead.
 - **Loudness curve:** a 1.5px `wave` line, with the area under it filled in `wave` at 14% alpha; lands run the full canvas height behind it.
 - **Silence threshold:** a dashed line (5px dash, 4px gap, 1.5px) in `split` across the full width. Its label ("−35 dB") is drawn in `split` on a `surface`-coloured plate (text width + 8px, 17px tall) above the line at the left, for contrast where it crosses the fill and lands. A drag handle (18 × 10 px, `split`) sits on the line at the right edge.
+- **Track view:** the zoom panel's view of the selected track, the same 160 px frame in 1.5px `ink` and drawn as the Range view is, with the track stretched across the whole canvas: `wave` bars, `land` bands at their true width, and the track's two end splits as 1.5px `split` lines on its edges. No split is selected here, and there is no mark. A 1px `ink` playhead rests at the track's start, snapped to a whole pixel, over the split lines and under the frame.
 - **Range view:** the zoom panel's other view, the same 160 px frame in 1.5px `ink`. The range is stretched across the whole canvas, whatever its length, in `wave` bars on the same pitch; each gap is a `land` band at its true width (the Land Rule's 12 px minimum is for whole-file views) over the bars, with split lines through the full height, the selected split 3px. No run-out line. The mark, where "Add split" puts a split, is a 1px `ink` line dashed like the silence threshold (5px dash, 4px gap), full height, under the playhead, snapped to a whole pixel, and never `split` red, which belongs to the split lines. A 1px `ink` playhead marks where the range is heard or resumes, drawn at all times over the split lines and under the frame, snapped to a whole pixel, and dragged by a press within 6 px of it (the pointer is `cursor-ew-resize` over it and while it is held); a failure to play is one line of `text-muted` status at the bottom centre, as in the zoom view.
-- **Range overlay (whole-file view):** `ink` at 10% alpha over the wave area, with 1px `ink` edges, drawn over the lands and under the split lines. It stays in both views of the zoom panel; the zoom window's outline is drawn only while the zoom view is shown.
+- **Range overlay (whole-file view):** `ink` at 10% alpha over the wave area, with 1px `ink` edges, drawn over the lands and under the split lines. It stays in all three views of the zoom panel; the zoom window's outline is drawn only while the zoom view is shown.
 - **Zoom view:** the gap is one `land` band; through it runs a flat 1px `wave` run-out line at the centre (near-silence, not nothing). The split is a 3px `split` line with a 14 × 10 px drag handle at its top. The whole canvas is framed in 1.5px `ink`. While a clip plays, a 1px `ink` playhead marks the audio's place, drawn over the split lines and under the frame. A failure to play is one line of `text-muted` status at the bottom centre, in the style of the empty-state status.
 
 ### Named Rules

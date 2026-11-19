@@ -14,18 +14,17 @@ split's position is read), length (whole seconds) and a trash button that delete
 the track starts (none on the first track). It is as tall as the zoom view's 160 px content area and
 scrolls inside itself, the heading row staying in view.
 
-A track starts at a split, so a click on its row selects that split, and the row of the selected
-split's track is marked and kept in view; focusing a name field selects that split too. The first
-track starts with the file and has no split: its row selects nothing. The number cell holds a
-button, so a row can be selected from the keyboard too. The box has 4 px of padding (undone by the
-negative margin) so the focus ring of a button at the left edge is not cut off by the scroll box.
+A click on a row selects its track, the first included, and the row of the selected track is marked
+and kept in view; focusing a name field selects the track too. The number cell holds a button, so a
+row can be selected from the keyboard too. The box has 4 px of padding (undone by the negative
+margin) so the focus ring of a button at the left edge is not cut off by the scroll box.
 */
 const split = useSplitStore()
 const list = useTemplateRef('list')
 
 // After the DOM has the new mark; `nearest` leaves a row that is already visible where it is.
 watch(
-  () => split.selectedSplit?.id,
+  () => split.selection,
   () => {
     list.value?.querySelector('[aria-current="true"]')?.scrollIntoView({ block: 'nearest' })
   },
@@ -60,25 +59,18 @@ watch(
           v-for="track in split.tracks"
           :key="track.number"
           :aria-current="split.isTrackSelected(track) ? 'true' : undefined"
-          class="scroll-mt-7"
-          :class="[
-            split.isTrackSelected(track) ? 'bg-land/50 font-semibold' : '',
-            track.startSplit !== null ? 'cursor-pointer hover:bg-land/40' : '',
-          ]"
+          class="cursor-pointer scroll-mt-7 hover:bg-land/40"
+          :class="split.isTrackSelected(track) ? 'bg-land/50 font-semibold' : ''"
           @click="split.selectTrack(track)"
         >
           <td class="border-b border-hairline py-1.5 pr-2">
             <button
-              v-if="track.startSplit !== null"
               type="button"
               :aria-label="`Select track ${track.number}, starts at ${formatHundredths(track.startSeconds)}`"
               class="inline-flex size-5 cursor-pointer items-center justify-center rounded-control text-muted focus-visible:focus-ring"
             >
               {{ track.number }}
             </button>
-            <span v-else class="inline-flex size-5 items-center justify-center text-muted">
-              {{ track.number }}
-            </span>
           </td>
           <td class="max-w-0 border-b border-hairline py-1.5 pr-3">
             <TrackNameField
