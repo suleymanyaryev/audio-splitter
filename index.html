@@ -2,12 +2,54 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8">
-    <link rel="icon" href="/favicon.ico">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Audio Splitter</title>
+    <title>Audio Splitter – Split long audio files into tracks</title>
+    <meta name="description" content="Split one long audio file into separate tracks. It proposes the cuts, you check them by eye and ear, and nothing is uploaded: it all runs in your browser.">
+    <link rel="canonical" href="https://suleymanyaryev.github.io/audio-splitter/">
+    <meta name="color-scheme" content="light dark">
+    <meta name="theme-color" content="#121212">
+
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+    <link rel="icon" href="/favicon.ico" sizes="48x48">
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+    <link rel="manifest" href="/site.webmanifest">
+
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="Audio Splitter">
+    <meta property="og:title" content="Audio Splitter – Split long audio files into tracks">
+    <meta property="og:description" content="One long audio file in, one file per track out. It proposes the cuts, you check them, and nothing is uploaded.">
+    <meta property="og:url" content="https://suleymanyaryev.github.io/audio-splitter/">
+    <meta property="og:image" content="https://suleymanyaryev.github.io/audio-splitter/og-image.png">
+    <meta property="og:image:type" content="image/png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:image:alt" content="Audio Splitter: a waveform cut into tracks by red split lines.">
+    <meta property="og:locale" content="en_US">
+
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Audio Splitter – Split long audio files into tracks">
+    <meta name="twitter:description" content="One long audio file in, one file per track out. It proposes the cuts, you check them, and nothing is uploaded.">
+    <meta name="twitter:image" content="https://suleymanyaryev.github.io/audio-splitter/og-image.png">
+    <meta name="twitter:image:alt" content="Audio Splitter: a waveform cut into tracks by red split lines.">
+
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "WebApplication",
+        "name": "Audio Splitter",
+        "url": "https://suleymanyaryev.github.io/audio-splitter/",
+        "description": "Splits one long audio file into separate tracks. Decoding, analysis and cutting run in the browser; the file is never uploaded.",
+        "applicationCategory": "MultimediaApplication",
+        "operatingSystem": "Any",
+        "browserRequirements": "Desktop Chrome (File System Access API)",
+        "inLanguage": "en",
+        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
+      }
+    </script>
   </head>
   <body>
     <div id="app"></div>
+    <noscript>Audio Splitter needs JavaScript to decode and cut audio in your browser.</noscript>
     <script type="module" src="/src/app/main.ts"></script>
   </body>
 </html>

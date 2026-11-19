@@ -32,6 +32,10 @@ Versions follow [Semantic Versioning](https://semver.org/) applied to the produc
 - Dragging across the whole-file waveform marks out a stretch of the file, from 1 second to 10 minutes, with a light overlay that stays until the next drag. A click still selects a split or moves the zoom window, and so does a drag under 1 second.
 - A dragged-out range fills the zoom panel as its own view, with the range's waveform, gaps and splits stretched across it and its start, end and length as the title. A `Split | Range` control in the panel's title row switches between the zoom view and the range; selecting a split or moving the zoom window goes back to the zoom view, and the zoom window's outline shows on the whole-file view only while the zoom view is shown.
 
+### Changed
+
+- The tab icon is the header's centre-label mark, a vermilion disc with a spindle hole on vinyl black, in place of the default icon. The page has a description, and a link to it shows a preview card with the title, a line about what the app does and a waveform cut into tracks.
+
 ## [1.0.0] - 2026-11-15
 
 The first release: milestones 0 to 7.
