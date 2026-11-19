@@ -12,7 +12,7 @@ Four Pinia setup stores hold all state, in memory only. Two are entities; two be
 | --------------- | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `source-file`   | `entities/source-file` | The file, its format and duration, peaks, loudness curve, slice progress, load failure, the ffmpeg session                                                                                                   |
 | `split`         | `entities/split`       | The silence threshold and minimum gap length, the gaps, the splits with their track names, the derived tracks, the one selection (a split, a track or nothing; the selected split and the selected track are derived from it), the zoom window, the range, the mark and the panel's view, the edit count |
-| `audition`      | `widgets/split-zoom`   | Whether the audition's clip and the range's are loading, playing or paused, the failure, the range's resting place                                                                                           |
+| `audition`      | `widgets/split-zoom`   | Whether the audition's clip and the stretch's (range or track) are loading, playing or paused, the failure, the stretch's resting place                                                                                           |
 | `export-tracks` | `widgets/track-strip`  | The export's status, the track in hand, the counts, the subfolder's name, the failure                                                                                                                        |
 
 ```mermaid
@@ -113,27 +113,27 @@ stateDiagram-v2
   playing --> idle: the range plays, or a new range
 ```
 
-**The range** is the stretch the user dragged out (note 08). The Range view's Play button and Space both call `toggleStretch(range)`: the player plays a stretch (a start and an end the caller hands in; today only the range), so it reads no store for it. The whole stretch is decoded once and kept, tied to the stretch it was decoded for (a different stretch releases it and decodes its own), so a pause costs nothing: playing again sets the element's `currentTime` inside the WAV, which is exact, and plays at once. The Range view draws the playhead each animation frame while it plays, and at its resting place otherwise: the range's start for a new range and after the end. The playhead moves without changing the status: `seekStretch` sets `currentTime` while the range plays, and the resting place otherwise (which `toggleStretch`, or the clip still being decoded, starts from); a drag of it goes through `grabPlayhead`, which pauses a playing range, and `dropPlayhead`, which plays it on only if it was playing.
+**The stretch** is the range the user dragged out (note 08) or the selected track. The Range view's and the Track view's Play button and Space both call `toggleStretch(stretch)`: the player plays a stretch (a start and an end the caller hands in: the range as it is, a track as `trackStretch(track)`, which holds a track over 10 min to its first 10 min until the moving window lands), so it reads no store for it. The whole stretch is decoded once and kept, tied to the stretch it was decoded for (a different stretch, a range after a track or the other way round, releases it and decodes its own), so a pause costs nothing: playing again sets the element's `currentTime` inside the WAV, which is exact, and plays at once. Both views draw the playhead each animation frame while it plays, and at its resting place otherwise: the stretch's start for a new stretch and after the end. The resting place names the stretch it belongs to, so a view of another stretch never draws it. The playhead moves without changing the status: `seekStretch` sets `currentTime` while the stretch plays, and the resting place otherwise (which `toggleStretch`, or the clip still being decoded, starts from); a drag of it goes through `grabPlayhead`, which pauses a playing stretch, and `dropPlayhead`, which plays it on only if it was playing.
 
 ```mermaid
 stateDiagram-v2
   [*] --> idle
   idle --> loading: toggleStretch, no WAV held
   idle --> playing: toggleStretch, WAV held
-  loading --> playing: range decoded
-  loading --> idle: toggleStretch, stop, a new range, or the audition plays
+  loading --> playing: stretch decoded
+  loading --> idle: toggleStretch, stop, a new range, another track, or the audition plays
   loading --> idle: decode failed, failure shown
   playing --> idle: play refused, failure shown
   playing --> paused: toggleStretch, or stop (a view change, the export)
   paused --> playing: toggleStretch
   playing --> paused: grabPlayhead, a drag of the playhead
   paused --> playing: dropPlayhead, if it was playing when grabbed
-  playing --> idle: range ended, playhead back at the start
-  paused --> idle: a new range, or the audition plays
-  playing --> idle: a new range, or the audition plays
+  playing --> idle: stretch ended, playhead back at the start
+  paused --> idle: a new range, another track, or the audition plays
+  playing --> idle: a new range, another track, or the audition plays
 ```
 
-Every press takes a number, and a clip that arrives for an older press is dropped, so a stopped press, a changed selection or a new range never starts sound later. "The selection changed" covers moving the selected split, selecting another, deselecting, deleting and a setting change; a synchronous watcher on the split store stops the audition at once. A second synchronous watcher on the range stops all sound, drops the decoded range and puts the playhead at the new range's start. The page stops the player on a view change, when the export starts and when it unmounts: a range that plays is paused, so its playhead stays where it was.
+Every press takes a number, and a clip that arrives for an older press is dropped, so a stopped press, a changed selection or a new range never starts sound later. "The selection changed" covers moving the selected split, selecting another, deselecting, deleting and a setting change; a synchronous watcher on the split store stops the audition at once. A second synchronous watcher on the range, and a third on the selected track (its identity, start and end, so a split that moves elsewhere changes nothing), stop all sound, drop the decoded stretch and put the playhead at the new stretch's start. The page stops the player on a view change, when the export starts and when it unmounts: a stretch that plays is paused, so its playhead stays where it was.
 
 ## Export
 

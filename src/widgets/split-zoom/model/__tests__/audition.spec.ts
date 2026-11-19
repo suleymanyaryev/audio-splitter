@@ -3,6 +3,7 @@ import { createPinia, setActivePinia } from 'pinia'
 
 import { FileReplacedError, useSourceFileStore } from '@/entities/source-file/model/source-file.ts'
 import { useSplitStore } from '@/entities/split/model/split.ts'
+import { trackStretch } from '../../lib/track-extent.ts'
 import { useAuditionStore } from '../audition.ts'
 
 interface Clip {
@@ -62,6 +63,34 @@ async function playingRange() {
 // The range the split store holds, as the stretch the player is asked to play.
 function rangeStretch() {
   return useSplitStore().range!
+}
+
+/*
+The store with the second track selected, 22 s to 42 s, as the Track view shows it, and the stretch
+the player is asked to play for it.
+*/
+function setUpTrack() {
+  const parts = setUp()
+  parts.split.selectTrack(parts.split.tracks[1]!)
+  return parts
+}
+
+const trackStretchOfSelection = () => trackStretch(useSplitStore().selectedTrack!)
+
+async function playingTrack() {
+  const parts = setUpTrack()
+  parts.audition.toggleStretch(trackStretchOfSelection())
+  await flush()
+  expect(parts.audition.stretchStatus).toBe('playing')
+  return parts
+}
+
+// A file of 1000 s with no split: one track longer than the 10 min the player decodes at a time.
+function setUpLongTrack() {
+  const split = useSplitStore()
+  split.detect(curveOf([LOUD, 20_000]), { windowSeconds: 0.05, durationSeconds: 1000 })
+  split.selectTrack(split.tracks[0]!)
+  return { split, audition: useAuditionStore() }
 }
 
 // A promise the test settles by hand, to hold a clip back while something else happens.
@@ -985,6 +1014,262 @@ describe('the audition store', () => {
         split.setRange(40, 50)
 
         expect(audition.failure).toBeNull()
+      })
+    })
+  })
+
+  describe('playing a track', () => {
+    it('asks for the track’s start and length and plays the WAV from its start', async () => {
+      const { audition } = setUpTrack()
+      const pending = deferred<Clip>()
+      clip.mockReturnValueOnce(pending.promise)
+
+      audition.toggleStretch(trackStretchOfSelection())
+
+      expect(clip).toHaveBeenCalledExactlyOnceWith(22, 20)
+      expect(audition.stretchStatus).toBe('loading')
+
+      pending.resolve(clipOf(22, 20))
+      await flush()
+
+      expect(audition.stretchStatus).toBe('playing')
+      expect(audio().currentTime).toBe(0)
+      expect(audition.stretchPlayheadSeconds(trackStretchOfSelection())).toBe(22)
+    })
+
+    it('decodes a track of 10 min or less once: pause, resume and seek make no second clip call', async () => {
+      const { audition } = await playingTrack()
+      const stretch = trackStretchOfSelection()
+
+      audition.seekStretch(stretch, 30)
+      expect(audio().currentTime).toBe(8)
+      audition.toggleStretch(stretch)
+      expect(audition.stretchStatus).toBe('paused')
+      audition.seekStretch(stretch, 25)
+      audition.toggleStretch(stretch)
+      await flush()
+
+      expect(audition.stretchStatus).toBe('playing')
+      expect(audio().currentTime).toBe(3)
+      expect(clip).toHaveBeenCalledOnce()
+    })
+
+    it('stops at the track’s end, with the playhead back at its start', async () => {
+      const { audition } = await playingTrack()
+      audio().currentTime = 20
+
+      audio().dispatchEvent(new Event('ended'))
+
+      expect(audition.stretchStatus).toBe('idle')
+      expect(audition.stretchPlayheadSeconds(trackStretchOfSelection())).toBe(22)
+    })
+
+    it('plays only the first 10 min of a longer track', async () => {
+      const { audition } = setUpLongTrack()
+      const stretch = trackStretch(useSplitStore().selectedTrack!)
+
+      audition.toggleStretch(stretch)
+      await flush()
+
+      expect(clip).toHaveBeenCalledExactlyOnceWith(0, 600)
+      audition.seekStretch(stretch, 900)
+      expect(audio().currentTime).toBe(600)
+    })
+
+    it('says "track" when the track cannot be played', async () => {
+      const { audition } = setUpTrack()
+      clip.mockRejectedValueOnce(new Error('ffmpeg went away'))
+
+      audition.toggleStretch(trackStretchOfSelection())
+      await flush()
+
+      expect(audition.failure).toBe("Couldn't play this track: ffmpeg went away")
+      expect(audition.stretchStatus).toBe('idle')
+    })
+
+    describe('and the other things the player plays', () => {
+      it('lets go of a held range WAV and decodes the track, whose playhead is its own start', async () => {
+        const { audition, split } = setUpTrack()
+        split.setRange(10, 30)
+        audition.toggleStretch(rangeStretch())
+        await flush()
+        audio().currentTime = 5
+        audition.toggleStretch(rangeStretch())
+        split.showView('track')
+
+        // The range's resting place, 15 s, is no place in the track.
+        expect(audition.stretchPlayheadSeconds(trackStretchOfSelection())).toBe(22)
+        audition.toggleStretch(trackStretchOfSelection())
+        await flush()
+
+        expect(revokeObjectURL).toHaveBeenCalledExactlyOnceWith('blob:clip-1')
+        expect(clip).toHaveBeenLastCalledWith(22, 20)
+        expect(audio().currentTime).toBe(0)
+      })
+
+      it('lets go of a held track WAV and decodes the range', async () => {
+        const { audition, split } = await playingTrack()
+        audition.toggleStretch(trackStretchOfSelection())
+        split.setRange(10, 30)
+        // A new range lets go of the stretch held, and the range plays on its own clip.
+        audition.toggleStretch(rangeStretch())
+        await flush()
+
+        expect(revokeObjectURL).toHaveBeenCalledExactlyOnceWith('blob:clip-1')
+        expect(clip).toHaveBeenLastCalledWith(10, 20)
+      })
+
+      it('keeps a playhead moved before the first play of another stretch while one is held', async () => {
+        const { audition, split } = setUpTrack()
+        split.setRange(10, 30)
+        audition.toggleStretch(rangeStretch())
+        await flush()
+        audition.toggleStretch(rangeStretch())
+        split.showView('track')
+
+        audition.seekStretch(trackStretchOfSelection(), 30)
+        audition.toggleStretch(trackStretchOfSelection())
+        await flush()
+
+        expect(clip).toHaveBeenLastCalledWith(22, 20)
+        expect(audio().currentTime).toBe(8)
+      })
+
+      it('stops the split audition when the track plays, and the track when the audition plays', async () => {
+        const { audition, split } = setUpTrack()
+        split.selectSplit(split.splits[0]!.id)
+        audition.toggle()
+        await flush()
+        expect(audition.status).toBe('playing')
+        split.selectTrack(split.tracks[1]!)
+        expect(audition.status).toBe('idle')
+
+        audition.toggleStretch(trackStretchOfSelection())
+        await flush()
+        expect(audition.stretchStatus).toBe('playing')
+
+        split.selectSplit(split.splits[0]!.id)
+        expect(audition.stretchStatus).toBe('idle')
+        audition.toggle()
+        await flush()
+        expect(audition.status).toBe('playing')
+        expect(audition.stretchStatus).toBe('idle')
+      })
+    })
+
+    describe('stop rules', () => {
+      it('stops, lets go of the WAV and puts the playhead at the start when another track is selected', async () => {
+        const { audition, split } = await playingTrack()
+        audio().currentTime = 4
+
+        split.selectTrack(split.tracks[2]!)
+
+        expect(audition.stretchStatus).toBe('idle')
+        expect(pause).toHaveBeenCalled()
+        expect(revokeObjectURL).toHaveBeenCalledExactlyOnceWith('blob:clip-1')
+        expect(audition.stretchPlayheadSeconds(trackStretchOfSelection())).toBe(42)
+      })
+
+      it('stops and lets go of the WAV when a split is selected', async () => {
+        const { audition, split } = await playingTrack()
+
+        split.selectSplit(split.splits[0]!.id)
+
+        expect(audition.stretchStatus).toBe('idle')
+        expect(revokeObjectURL).toHaveBeenCalledExactlyOnceWith('blob:clip-1')
+      })
+
+      it('stops and lets go of the WAV when the selected track’s start moves', async () => {
+        const { audition, split } = setUp()
+        split.moveZoomTo(22)
+        split.selectTrack(split.tracks[1]!)
+        audition.toggleStretch(trackStretchOfSelection())
+        await flush()
+
+        split.moveSplit(split.splits[0]!.id, 23)
+
+        expect(audition.stretchStatus).toBe('idle')
+        expect(revokeObjectURL).toHaveBeenCalledExactlyOnceWith('blob:clip-1')
+        expect(audition.stretchPlayheadSeconds(trackStretchOfSelection())).toBe(23)
+      })
+
+      it('stops and lets go of the WAV when the selected track’s end moves', async () => {
+        const { audition, split } = setUp()
+        split.moveZoomTo(42)
+        split.selectTrack(split.tracks[1]!)
+        audition.toggleStretch(trackStretchOfSelection())
+        await flush()
+
+        split.moveSplit(split.splits[1]!.id, 43)
+
+        expect(audition.stretchStatus).toBe('idle')
+        expect(revokeObjectURL).toHaveBeenCalledExactlyOnceWith('blob:clip-1')
+      })
+
+      it('stops when a split at one of its ends is deleted, and the merged track starts at its own start', async () => {
+        const { audition, split } = await playingTrack()
+
+        split.deleteSplit(split.splits[1]!.id)
+
+        expect(audition.stretchStatus).toBe('idle')
+        expect(revokeObjectURL).toHaveBeenCalledExactlyOnceWith('blob:clip-1')
+        expect(audition.stretchPlayheadSeconds(trackStretchOfSelection())).toBe(22)
+      })
+
+      it('keeps playing when a split elsewhere moves', async () => {
+        const { audition, split } = setUp()
+        split.moveZoomTo(42)
+        split.selectTrack(split.tracks[0]!)
+        audition.toggleStretch(trackStretchOfSelection())
+        await flush()
+
+        split.moveSplit(split.splits[1]!.id, 43)
+
+        expect(audition.stretchStatus).toBe('playing')
+        expect(revokeObjectURL).not.toHaveBeenCalled()
+      })
+
+      it('stops and lets go of the WAV when a new range is drawn', async () => {
+        const { audition, split } = await playingTrack()
+
+        split.setRange(40, 50)
+
+        expect(audition.stretchStatus).toBe('idle')
+        expect(revokeObjectURL).toHaveBeenCalledExactlyOnceWith('blob:clip-1')
+      })
+
+      it('pauses where it is, keeping the WAV, on stop(): a view change, the export', async () => {
+        const { audition } = await playingTrack()
+        audio().currentTime = 4
+
+        audition.stop()
+
+        expect(audition.stretchStatus).toBe('paused')
+        expect(audition.stretchPlayheadSeconds(trackStretchOfSelection())).toBe(26)
+        expect(revokeObjectURL).not.toHaveBeenCalled()
+      })
+
+      it('lets go of the WAV when the page resets the store on unmount', async () => {
+        const { audition, split } = await playingTrack()
+
+        audition.stop()
+        split.reset()
+
+        expect(revokeObjectURL).toHaveBeenCalledExactlyOnceWith('blob:clip-1')
+      })
+
+      it('drops a clip that arrives after another track was selected', async () => {
+        const { audition, split } = setUpTrack()
+        const pending = deferred<Clip>()
+        clip.mockReturnValueOnce(pending.promise)
+        audition.toggleStretch(trackStretchOfSelection())
+
+        split.selectTrack(split.tracks[2]!)
+        pending.resolve(clipOf(22, 20))
+        await flush()
+
+        expect(audition.stretchStatus).toBe('idle')
+        expect(play).not.toHaveBeenCalled()
       })
     })
   })

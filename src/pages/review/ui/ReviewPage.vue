@@ -12,6 +12,7 @@ import LoudnessCurve from '@/widgets/loudness-curve/ui/LoudnessCurve.vue'
 import LoudnessSettings from '@/widgets/loudness-curve/ui/LoudnessSettings.vue'
 import SourceWaveform from '@/widgets/source-waveform/ui/SourceWaveform.vue'
 import { rangeTitle } from '@/widgets/split-zoom/lib/range-title.ts'
+import { trackStretch } from '@/widgets/split-zoom/lib/track-extent.ts'
 import { trackTitle } from '@/widgets/split-zoom/lib/track-title.ts'
 import { zoomTitle } from '@/widgets/split-zoom/lib/zoom-title.ts'
 import { useAuditionStore } from '@/widgets/split-zoom/model/audition.ts'
@@ -30,11 +31,11 @@ it runs. The zoom panel shows the zoom view, the Track view of the selected trac
 has dragged out a range, the Range view, as the split store's `view` says, and its
 `Split | Track | Range` control is that view, each segment disabled while it has nothing to show.
 "Add split" is in the zoom view and the Range view and follows the view: at the window's centre in
-the zoom view, at the mark in the Range view. The Track view has the control alone: no split is
-added there. The zoom view has "Play across split", which plays the selected split's clip (and reads
-"Stop" while it loads or plays). The Range view has "Play", which plays the range (and reads "Stop"
-while it is decoded and "Pause" while it plays), and "Back to range start" beside it, which moves
-the playhead to the range's start.
+the zoom view, at the mark in the Range view; the Track view adds no split. The zoom view has "Play
+across split", which plays the selected split's clip (and reads "Stop" while it loads or plays). The
+Range view and the Track view have "Play", which plays the range or the selected track (and reads
+"Stop" while it is decoded and "Pause" while it plays), and "Back to range start" or "Back to track
+start" beside it, which moves the playhead to the stretch's start.
 
 The page mounts only once the source file is ready (src/app/App.vue), which is when the split store
 looks for the gaps in its loudness curve, once; the split store cannot import the source-file store.
@@ -88,17 +89,27 @@ const title = computed(() => {
     : rangeTitle(range)
 })
 
-// "Stop" while the range is being decoded, so a press can take it back; "Pause" while it plays.
-const RANGE_BUTTON_LABELS = { idle: 'Play', loading: 'Stop', playing: 'Pause', paused: 'Play' }
-const rangeButtonLabel = computed(() => RANGE_BUTTON_LABELS[audition.stretchStatus])
+// "Stop" while the stretch is being decoded, so a press can take it back; "Pause" while it plays.
+const STRETCH_BUTTON_LABELS = { idle: 'Play', loading: 'Stop', playing: 'Pause', paused: 'Play' }
+const stretchButtonLabel = computed(() => STRETCH_BUTTON_LABELS[audition.stretchStatus])
 
-// The Range view's two buttons play the range as the stretch; with no range there is nothing to play.
-function backToRangeStart() {
-  if (split.range !== null) audition.backToStretchStart(split.range)
+/*
+The two buttons of the Range view and of the Track view play the stretch on show: the range, or the
+selected track (all of it, or the first 10 min of a long one). With none there is nothing to play.
+*/
+const stretch = computed(() => {
+  if (split.view === 'range') return split.range
+  return split.view === 'track' && split.selectedTrack !== null
+    ? trackStretch(split.selectedTrack)
+    : null
+})
+
+function backToStretchStart() {
+  if (stretch.value !== null) audition.backToStretchStart(stretch.value)
 }
 
-function toggleRange() {
-  if (split.range !== null) audition.toggleStretch(split.range)
+function toggleStretch() {
+  if (stretch.value !== null) audition.toggleStretch(stretch.value)
 }
 
 const view = computed<PanelView>({
@@ -148,14 +159,14 @@ watch(
           Add split
         </UiButton>
         <UiIconButton
-          v-if="split.view === 'range'"
+          v-if="split.view !== 'split'"
           size="sm"
-          label="Back to range start"
-          @click="backToRangeStart"
+          :label="`Back to ${split.view} start`"
+          @click="backToStretchStart"
         >
           <SkipBack class="size-4 shrink-0" />
         </UiIconButton>
-        <UiButton v-if="split.view === 'range'" variant="primary" size="sm" @click="toggleRange">
+        <UiButton v-if="split.view !== 'split'" variant="primary" size="sm" @click="toggleStretch">
           <Square
             v-if="audition.stretchStatus === 'loading'"
             class="size-4 shrink-0"
@@ -169,7 +180,7 @@ watch(
             :stroke-width="0"
           />
           <Play v-else class="size-4 shrink-0" fill="currentColor" :stroke-width="0" />
-          {{ rangeButtonLabel }}
+          {{ stretchButtonLabel }}
         </UiButton>
         <UiButton
           v-else-if="split.view === 'split'"
