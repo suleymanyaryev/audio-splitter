@@ -340,7 +340,7 @@ export const useAuditionStore = defineStore('audition', () => {
   after must already find its press gone.
   */
   watch(
-    () => [splitStore.selectedSplitId, splitStore.selectedSplit?.seconds],
+    () => [splitStore.selectedSplit?.id, splitStore.selectedSplit?.seconds],
     () => {
       if (status.value !== 'idle' || failure.value !== null) stop()
     },

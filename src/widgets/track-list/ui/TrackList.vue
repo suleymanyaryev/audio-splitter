@@ -25,7 +25,7 @@ const list = useTemplateRef('list')
 
 // After the DOM has the new mark; `nearest` leaves a row that is already visible where it is.
 watch(
-  () => split.selectedSplitId,
+  () => split.selectedSplit?.id,
   () => {
     list.value?.querySelector('[aria-current="true"]')?.scrollIntoView({ block: 'nearest' })
   },

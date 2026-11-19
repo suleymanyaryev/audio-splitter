@@ -33,6 +33,14 @@ export interface Track {
   startSplit: Split | null
 }
 
+/*
+What the user is reviewing, one thing at a time (GLOSSARY.md: Selected split, Selected track): a
+split by its id, a track by the id of the split where it starts (null for the first track, which
+starts with the file), or nothing.
+*/
+type Selection =
+  { kind: 'split'; id: number } | { kind: 'track'; startSplitId: number | null } | null
+
 // Which view the zoom panel shows: the 20 s zoom view, or the Range view (GLOSSARY.md: Range).
 export type PanelView = 'split' | 'range'
 
@@ -51,9 +59,10 @@ A track name belongs to the split where the track starts, and the first track's 
 start, so moving or deleting a split keeps the right name with it, and unnamed tracks take their
 number from their position. Every change of a setting replaces all splits and all names.
 
-At most one split is selected, by id. The zoom window is `ZOOM_WINDOW_SECONDS` wide around
-`zoomCentreSeconds`: selecting a split centres it there and nothing else moves it except
-`moveZoomTo`. A split can only be moved inside the window, which never follows the move. A split
+One selection (`Selection`) holds what is under review: a split, a track or nothing. The selected
+split and its index are derived from it, so they follow the splits as they move. The zoom window is
+`ZOOM_WINDOW_SECONDS` wide around `zoomCentreSeconds`: selecting a split centres it there and
+nothing else moves it except `moveZoomTo`. A split can only be moved inside the window, which never follows the move. A split
 is added at the window's centre, and `editCount` says how many things the user changed since the
 last detection.
 
@@ -74,7 +83,7 @@ export const useSplitStore = defineStore('split', () => {
   const gaps = ref<Gap[]>([])
   const splits = ref<Split[]>([])
   const firstTrackName = ref<string | null>(null)
-  const selectedSplitId = ref<number | null>(null)
+  const selection = ref<Selection>(null)
   // With nothing to centre on, the window starts at 0:00.
   const zoomCentreSeconds = ref(ZOOM_WINDOW_SECONDS / 2)
   const range = ref<TimeRange | null>(null)
@@ -93,15 +102,17 @@ export const useSplitStore = defineStore('split', () => {
   const renamedKeys = ref(new Set<number | null>())
   const deletedCount = ref(0)
 
-  const selectedSplit = computed(
-    () => splits.value.find((split) => split.id === selectedSplitId.value) ?? null,
-  )
-
-  // The selected split's place in the order, as the split numbers count it (minus one).
+  // The index in `splits` of the selected split, or null when no split is selected.
   const selectedSplitIndex = computed(() => {
-    const index = splits.value.findIndex((split) => split.id === selectedSplitId.value)
+    const current = selection.value
+    if (current?.kind !== 'split') return null
+    const index = splits.value.findIndex((split) => split.id === current.id)
     return index === -1 ? null : index
   })
+
+  const selectedSplit = computed(() =>
+    selectedSplitIndex.value === null ? null : (splits.value[selectedSplitIndex.value] ?? null),
+  )
 
   // N splits make N + 1 tracks; with no splits, one track over the whole file.
   const tracks = computed<Track[]>(() => {
@@ -177,7 +188,7 @@ export const useSplitStore = defineStore('split', () => {
     firstTrackName.value = null
     clearEdits()
     const first = splits.value[0]
-    selectedSplitId.value = first?.id ?? null
+    selection.value = first === undefined ? null : { kind: 'split', id: first.id }
     zoomCentreSeconds.value = first?.seconds ?? ZOOM_WINDOW_SECONDS / 2
   }
 
@@ -207,7 +218,7 @@ export const useSplitStore = defineStore('split', () => {
   function selectSplit(id: number) {
     const split = splits.value.find((candidate) => candidate.id === id)
     if (split === undefined) return
-    selectedSplitId.value = split.id
+    selection.value = { kind: 'split', id: split.id }
     zoomCentreSeconds.value = split.seconds
     view.value = 'split'
   }
@@ -221,13 +232,16 @@ export const useSplitStore = defineStore('split', () => {
   }
 
   function isTrackSelected(track: Track) {
-    return track.startSplit !== null && track.startSplit.id === selectedSplitId.value
+    const current = selection.value
+    return (
+      track.startSplit !== null && current?.kind === 'split' && track.startSplit.id === current.id
+    )
   }
 
   // A click on empty ground in the whole-file view: the window goes there, with nothing selected.
   function moveZoomTo(seconds: number) {
     zoomCentreSeconds.value = seconds
-    selectedSplitId.value = null
+    selection.value = null
     view.value = 'split'
   }
 
@@ -314,7 +328,8 @@ export const useSplitStore = defineStore('split', () => {
   function deleteSplit(id: number) {
     const index = splits.value.findIndex((candidate) => candidate.id === id)
     if (index === -1) return
-    const wasSelected = selectedSplitId.value === id
+    const current = selection.value
+    const wasSelected = current?.kind === 'split' && current.id === id
     splits.value.splice(index, 1)
     // A split added and deleted again leaves no edit; a detected one leaves "deleted" for "moved".
     if (!addedIds.value.delete(id)) deletedCount.value++
@@ -323,7 +338,7 @@ export const useSplitStore = defineStore('split', () => {
     if (!wasSelected) return
     // The split now at this index is the next one; the last split falls back to the previous.
     const neighbour = splits.value[index] ?? splits.value[index - 1]
-    selectedSplitId.value = neighbour?.id ?? null
+    selection.value = neighbour === undefined ? null : { kind: 'split', id: neighbour.id }
     // Not `selectSplit`: a delete is no choice of split, so the Range view stays shown and playing.
     if (neighbour !== undefined) zoomCentreSeconds.value = neighbour.seconds
   }
@@ -355,7 +370,7 @@ export const useSplitStore = defineStore('split', () => {
     splits.value = []
     firstTrackName.value = null
     clearEdits()
-    selectedSplitId.value = null
+    selection.value = null
     zoomCentreSeconds.value = ZOOM_WINDOW_SECONDS / 2
     range.value = null
     markSeconds.value = null
@@ -369,7 +384,7 @@ export const useSplitStore = defineStore('split', () => {
     gaps,
     splits,
     firstTrackName,
-    selectedSplitId,
+    selection,
     selectedSplit,
     selectedSplitIndex,
     zoomCentreSeconds,

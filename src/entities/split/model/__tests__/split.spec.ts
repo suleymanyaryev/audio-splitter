@@ -271,7 +271,7 @@ describe('the split store', () => {
 
       store.detect(curve, timing(curve))
 
-      expect(store.selectedSplitId).toBe(store.splits[0]!.id)
+      expect(store.selectedSplit?.id).toBe(store.splits[0]!.id)
       expect(store.selectedSplit).toBe(store.splits[0])
       expect(store.zoomCentreSeconds).toBeCloseTo(22, 9)
     })
@@ -282,7 +282,7 @@ describe('the split store', () => {
 
       store.detect(curve, timing(curve))
 
-      expect(store.selectedSplitId).toBeNull()
+      expect(store.selectedSplit).toBeNull()
       expect(store.selectedSplit).toBeNull()
       expect(store.zoomCentreSeconds).toBe(ZOOM_WINDOW_SECONDS / 2)
       expect(store.zoomCentreSeconds).toBe(10)
@@ -318,7 +318,7 @@ describe('the split store', () => {
       store.moveZoomTo(31.5)
 
       expect(store.zoomCentreSeconds).toBe(31.5)
-      expect(store.selectedSplitId).toBeNull()
+      expect(store.selectedSplit).toBeNull()
       expect(store.selectedSplit).toBeNull()
     })
 
@@ -402,7 +402,7 @@ describe('the split store', () => {
 
       store.setSilenceThreshold(-60)
 
-      expect(store.selectedSplitId).toBeNull()
+      expect(store.selectedSplit).toBeNull()
       expect(store.zoomCentreSeconds).toBe(10)
     })
   })
@@ -551,7 +551,7 @@ describe('the split store', () => {
       store.addSplit()
 
       expect(store.splits).toHaveLength(2)
-      expect(store.selectedSplitId).toBeNull()
+      expect(store.selectedSplit).toBeNull()
     })
 
     it('does nothing before detection', () => {
@@ -688,7 +688,7 @@ describe('the split store', () => {
         store.deleteSplit(store.splits[0]!.id)
 
         expect(store.splits).toEqual([])
-        expect(store.selectedSplitId).toBeNull()
+        expect(store.selectedSplit).toBeNull()
         expect(store.zoomCentreSeconds).toBeCloseTo(22, 9)
       })
 
@@ -838,8 +838,8 @@ describe('the split store', () => {
       store.addSplit()
       expect(store.editCount).toBe(1)
 
-      store.moveSplit(store.selectedSplitId!, 33)
-      store.moveSplit(store.selectedSplitId!, 34)
+      store.moveSplit(store.selectedSplit!.id, 33)
+      store.moveSplit(store.selectedSplit!.id, 34)
 
       expect(store.editCount).toBe(1)
     })
@@ -867,7 +867,7 @@ describe('the split store', () => {
       store.addSplit()
       expect(store.editCount).toBe(1)
 
-      store.deleteSplit(store.selectedSplitId!)
+      store.deleteSplit(store.selectedSplit!.id)
 
       expect(store.editCount).toBe(0)
       expect(store.hasEdits).toBe(false)
@@ -935,10 +935,10 @@ describe('the split store', () => {
       store.detect(curve, timing(curve))
       store.moveZoomTo(31.5)
       store.addSplit()
-      store.renameTrack(store.selectedSplitId, 'Hidden')
+      store.renameTrack(store.selectedSplit!.id, 'Hidden')
       expect(store.editCount).toBe(2)
 
-      store.deleteSplit(store.selectedSplitId!)
+      store.deleteSplit(store.selectedSplit!.id)
 
       expect(store.editCount).toBe(0)
     })
@@ -1214,12 +1214,12 @@ describe('the split store', () => {
 
     it('does not select it, move the zoom window or leave the range view', () => {
       const store = markedStore(15)
-      const selectedId = store.selectedSplitId
+      const selectedId = store.selectedSplit?.id
       const centre = store.zoomCentreSeconds
 
       store.addSplitAtMark()
 
-      expect(store.selectedSplitId).toBe(selectedId)
+      expect(store.selectedSplit?.id).toBe(selectedId)
       expect(store.zoomCentreSeconds).toBe(centre)
       expect(store.view).toBe('range')
     })
@@ -1357,7 +1357,7 @@ describe('the split store', () => {
       store.setRange(10, 20)
       const neighbour = store.splits[1]!
 
-      store.deleteSplit(store.selectedSplitId!)
+      store.deleteSplit(store.selectedSplit!.id)
 
       expect(store.view).toBe('range')
       expect(store.selectedSplit).toBe(neighbour)
@@ -1385,7 +1385,7 @@ describe('the split store', () => {
     expect(store.gaps).toEqual([])
     expect(store.splits).toEqual([])
     expect(store.tracks).toEqual([])
-    expect(store.selectedSplitId).toBeNull()
+    expect(store.selectedSplit).toBeNull()
     expect(store.zoomCentreSeconds).toBe(10)
   })
 })

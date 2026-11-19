@@ -159,14 +159,14 @@ describe('ReviewPage', () => {
       const wrapper = await mountPageWithRange()
       const split = useSplitStore()
       split.placeMark(15)
-      const selectedId = split.selectedSplitId
+      const selectedId = split.selectedSplit?.id
       await wrapper.vm.$nextTick()
 
       await addSplitButton(wrapper).trigger('click')
 
       expect(split.splits.map((point) => point.seconds)).toEqual([15, 21, 71.5])
       expect(split.view).toBe('range')
-      expect(split.selectedSplitId).toBe(selectedId)
+      expect(split.selectedSplit?.id).toBe(selectedId)
       expect(split.markSeconds).toBe(15)
       expect(split.editCount).toBe(1)
       expect(wrapper.find('[aria-label="Waveform of the range"]').exists()).toBe(true)

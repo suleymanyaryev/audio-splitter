@@ -281,7 +281,7 @@ describe('the audition store', () => {
     it('stops when the selected split moves', async () => {
       const { split, audition } = await playing()
 
-      split.moveSplit(split.selectedSplitId!, 22.5)
+      split.moveSplit(split.selectedSplit!.id, 22.5)
 
       expect(audition.status).toBe('idle')
     })
@@ -305,7 +305,7 @@ describe('the audition store', () => {
     it('stops when the selected split is deleted', async () => {
       const { split, audition } = await playing()
 
-      split.deleteSplit(split.selectedSplitId!)
+      split.deleteSplit(split.selectedSplit!.id)
 
       expect(audition.status).toBe('idle')
     })

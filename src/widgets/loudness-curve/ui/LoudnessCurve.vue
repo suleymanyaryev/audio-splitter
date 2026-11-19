@@ -162,7 +162,7 @@ watch(
     sourceFile.loudness,
     split.gaps,
     split.splits.map((point) => point.seconds),
-    split.selectedSplitId,
+    split.selectedSplit?.id,
     split.silenceThreshold,
   ],
   draw,

@@ -126,7 +126,7 @@ describe('TrackList', () => {
 
       await wrapper.get('button[aria-label="Delete split at 0:01:11.50"]').trigger('click')
 
-      expect(split.selectedSplitId).toBe(first?.id)
+      expect(split.selectedSplit?.id).toBe(first?.id)
     })
   })
 
@@ -245,11 +245,11 @@ describe('TrackList', () => {
 
     it('selects nothing when the first track field is focused', async () => {
       const { split, wrapper } = mountWithTwoGaps()
-      const before = split.selectedSplitId
+      const before = split.selectedSplit?.id
 
       await nameField(wrapper, 1).trigger('focus')
 
-      expect(split.selectedSplitId).toBe(before)
+      expect(split.selectedSplit?.id).toBe(before)
     })
   })
 
@@ -264,11 +264,11 @@ describe('TrackList', () => {
 
     it('selects nothing for the first track, which starts with the file', async () => {
       const { split, wrapper } = mountWithTwoGaps()
-      const before = split.selectedSplitId
+      const before = split.selectedSplit?.id
 
       await wrapper.findAll('tbody tr')[0]?.trigger('click')
 
-      expect(split.selectedSplitId).toBe(before)
+      expect(split.selectedSplit?.id).toBe(before)
       expect(wrapper.findAll('tbody tr')[0]?.find('button').exists()).toBe(false)
     })
 

@@ -200,7 +200,7 @@ describe('RangeView', () => {
       wrapper.get('[role="slider"]').element.dispatchEvent(event)
 
       expect(split.splits.map((point) => point.seconds)).toEqual([15])
-      expect(split.selectedSplitId).toBeNull()
+      expect(split.selectedSplit).toBeNull()
       expect(split.view).toBe('range')
       expect(split.markSeconds).toBe(15)
       expect(event.defaultPrevented).toBe(true)
@@ -353,7 +353,7 @@ describe('RangeView', () => {
         store.showView('range')
       })
       const view = measured(wrapper)
-      expect(split.selectedSplitId).toBeNull()
+      expect(split.selectedSplit).toBeNull()
 
       await pointer(view, 'pointerdown', 505)
 

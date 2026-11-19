@@ -220,7 +220,7 @@ watch(
     split.range,
     split.gaps,
     split.splits.map((point) => point.seconds),
-    split.selectedSplitId,
+    split.selectedSplit?.id,
     split.markSeconds,
     audition.rangePlayheadSeconds(),
   ],

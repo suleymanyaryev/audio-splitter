@@ -112,12 +112,12 @@ describe('TrackStrip', () => {
 
     it('selects nothing for the first block, which starts with the file', async () => {
       const { split, wrapper } = await mountWithTwoGaps()
-      const before = split.selectedSplitId
+      const before = split.selectedSplit?.id
 
       await blocks(wrapper)[0]?.trigger('click')
 
       expect(blocks(wrapper)[0]?.find('button').exists()).toBe(false)
-      expect(split.selectedSplitId).toBe(before)
+      expect(split.selectedSplit?.id).toBe(before)
     })
 
     it('marks the block of the selected split as current, in a 2 px on-track border', async () => {

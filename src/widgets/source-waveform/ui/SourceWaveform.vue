@@ -176,7 +176,7 @@ watch(
     sourceFile.peaks,
     split.gaps,
     split.splits.map((point) => point.seconds),
-    split.selectedSplitId,
+    split.selectedSplit?.id,
     split.zoomCentreSeconds,
     split.view,
     split.range,
