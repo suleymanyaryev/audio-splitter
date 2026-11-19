@@ -338,7 +338,7 @@ Character: firm and quiet; ink does the talking, colour only for danger.
 
 - **Base:** `inline-flex h-9 cursor-pointer items-center gap-2 rounded-control px-3.5 text-sm font-semibold whitespace-nowrap transition-colors duration-100 disabled:cursor-not-allowed disabled:opacity-40`. Icon before the label, except a "forward" step where it follows. Every variant but inverse adds `focus-visible:focus-ring`.
 - **Primary:** `bg-ink text-surface enabled:hover:bg-wave`. One per panel at most; it is the panel's main action.
-  The zoom panel's "Play across split" reads "Stop", with a filled Square in place of the Play icon, while a clip is loading or playing. The Range view's primary button is "Play"; it reads "Stop" (filled Square) while the range is decoded and "Pause" (filled Pause) while it plays. Just left of it is the small (`sm`, 32 px) icon button "Back to range start" (SkipBack, outline), always enabled. The Track view's title row has the same two, "Back to track start" and "Play", after the control and with no "Add split".
+  The zoom panel's "Play across split" reads "Stop", with a filled Square in place of the Play icon, while a clip is loading or playing. The Range view's primary button is "Play"; it reads "Stop" (filled Square) while the range is decoded and "Pause" (filled Pause) while it plays. Just left of it is the small (`sm`, 32 px) icon button "Back to range start" (SkipBack, outline), always enabled. The Track view's title row has the same two, "Back to track start" and "Play", after the control and with no "Add split". The zoom view's title row has, after the control, "Add split", "Delete split" (secondary, `sm`, with the Trash2 icon, disabled with no split selected) and the primary "Play across split".
 - **Primary lg:** primary plus `h-10 px-5 text-base`. Reserved for the Export action; no other button is large.
 - **Small (`sm`):** base with `h-8 px-3` in place of `h-9 px-3.5`. For actions in a panel title row and in table rows (for example "Add split").
 - **Secondary:** `border border-edge bg-surface text-ink enabled:hover:border-ink enabled:hover:bg-land/40`.
@@ -350,7 +350,7 @@ Character: firm and quiet; ink does the talking, colour only for danger.
 
 - `inline-flex size-9 cursor-pointer items-center justify-center rounded-control border border-edge bg-surface text-ink transition-colors duration-100 enabled:hover:border-ink enabled:hover:bg-land/40 focus-visible:focus-ring disabled:cursor-not-allowed disabled:opacity-40`.
 - A 36 px square styled like a secondary button, holding one 16 px icon. An `aria-label` is required.
-- **Small (`sm`):** `size-8` in place of `size-9`, for table rows (the track list’s delete button).
+- **Small (`sm`):** `size-8` in place of `size-9`, for table rows (the track list’s trash button on a split row).
 
 ### TextField
 
@@ -415,9 +415,10 @@ Reka `AlertDialog`: the confirm before a setting change or "New file" replaces e
 
 - The selected split's number is a filled vermilion chip wherever it appears: `inline-flex size-5 items-center justify-center rounded-full bg-split text-xs font-bold text-on-split`. Other split numbers in lists are plain `text-muted` in the same 20px box.
 - Table rows are separated by `border-b border-hairline` with 6px vertical padding; the selected row takes `bg-land/50 font-semibold`.
-- **Track-list rows:** a row is clickable (`cursor-pointer hover:bg-land/40`) and its number cell holds a button (`size-5 rounded-control text-muted focus-visible:focus-ring`, `aria-label` "Select track N, starts at …"); the selected row is `aria-current="true"`. The number is the track's, so the selected row is marked by its tint and weight only, not by a chip.
+- **Track-list rows:** the list holds a track row for each track and a split row between every two, in time order. A row is clickable (`cursor-pointer hover:bg-land/40`) and a track row's number cell holds a button (`size-5 rounded-control text-muted focus-visible:focus-ring`, `aria-label` "Select track N, starts at …"); the selected row, a track row or a split row, is `aria-current="true"` with `bg-land/50` and weight 600. The number is the track's, so the selected row is marked by its tint and weight only, not by a chip.
 - **Track-list table:** `w-full border-separate border-spacing-0 text-left text-sm` inside a 160px (`h-40`) box that scrolls inside itself. The heading row is Caption in weight 500 and `muted` (`text-xs font-medium text-muted`); each `th` is `sticky top-0 border-b border-hairline bg-surface py-1` (`pr-2` except the last, `w-12` for the number column), so the headings stay in view over the scrolling rows. Cells are `border-b border-hairline py-1.5` (`pr-2` except the last).
-- **Track-list columns:** number (`w-12`), name (the one flexible column, `w-full` with the inline `TextField` in a `max-w-0` cell so a long name is cut off, not wrapped), start and length (`whitespace-nowrap`, start `pr-4`), and a last cell holding the `sm` trash `IconButton` (`py-0.5`, so the 32px button sets the row height at 36px); the first row's last cell is empty. A name field is `aria-label` "Name of track N"; focusing it or clicking it selects the track, like the row.
+- **Track-list columns:** number (`w-12`), name (the one flexible column, `w-full` with the inline `TextField` in a `max-w-0` cell so a long name is cut off, not wrapped), start and length (`whitespace-nowrap`, start `pr-4`), and a last cell that is empty on a track row. A name field is `aria-label` "Name of track N"; focusing it or clicking it selects the track, like the row.
+- **Split row:** the same cells, with the track row's classes. The number cell is empty, the name cell reads `Split N` in `muted` (no field), the start cell holds the split's time, the length cell is empty, and the last cell holds the `sm` trash `IconButton` "Delete split at …" (`py-0.5`, so the 32px button sets the row height at 36px). The button stops the row's click, so it deletes without selecting.
 
 ### Canvas drawing rules (signature)
 

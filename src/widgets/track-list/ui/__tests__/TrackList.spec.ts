@@ -13,18 +13,28 @@ function curveWithTwoGaps() {
   return curve
 }
 
-// Each row as number, the name field's value, start and length.
+/*
+Each row, in order, as number, name (a track's field value, or a split row's text), start and
+length. A split row has no number and no length.
+*/
 function rows(wrapper: ReturnType<typeof mount>) {
   return wrapper.findAll('tbody tr').map((row) => {
-    const [number, , start, length] = row.findAll('td')
+    const [number, name, start, length] = row.findAll('td')
+    const field = row.find<HTMLInputElement>('input')
     return [
       number?.text(),
-      row.get<HTMLInputElement>('input').element.value,
+      field.exists() ? field.element.value : name?.text(),
       start?.text(),
       length?.text(),
     ]
   })
 }
+
+// The rows of the tracks, and of the splits between them, in time order.
+const trackRows = (wrapper: ReturnType<typeof mount>) =>
+  wrapper.findAll('tbody tr').filter((row) => row.find('input').exists())
+const splitRows = (wrapper: ReturnType<typeof mount>) =>
+  wrapper.findAll('tbody tr').filter((row) => !row.find('input').exists())
 
 function nameField(wrapper: ReturnType<typeof mount>, trackNumber: number) {
   return wrapper.get<HTMLInputElement>(`input[aria-label="Name of track ${trackNumber}"]`)
@@ -35,6 +45,10 @@ function mountWithTwoGaps() {
   split.detect(curveWithTwoGaps(), { windowSeconds: 0.05, durationSeconds: 100 })
   return { split, wrapper: mount(TrackList) }
 }
+
+// Each row's `aria-current`, in order: 'true' on the marked one.
+const marked = (wrapper: ReturnType<typeof mount>) =>
+  wrapper.findAll('tbody tr').map((row) => row.attributes('aria-current'))
 
 describe('TrackList', () => {
   const scrollIntoView = vi.fn()
@@ -49,7 +63,7 @@ describe('TrackList', () => {
     scrollIntoView.mockClear()
   })
 
-  it('lists number, start with hundredths and length for each track', () => {
+  it('lists each track, with a split row between every two, in time order', () => {
     useSplitStore().detect(curveWithTwoGaps(), { windowSeconds: 0.05, durationSeconds: 100 })
 
     const wrapper = mount(TrackList)
@@ -63,7 +77,9 @@ describe('TrackList', () => {
     ])
     expect(rows(wrapper)).toEqual([
       ['1', '1', '0:00:00.00', '0:00:21'],
+      ['', 'Split 1', '0:00:21.00', ''],
       ['2', '2', '0:00:21.00', '0:00:50'],
+      ['', 'Split 2', '0:01:11.50', ''],
       ['3', '3', '0:01:11.50', '0:00:28'],
     ])
   })
@@ -81,7 +97,7 @@ describe('TrackList', () => {
     const split = useSplitStore()
     split.detect(curveWithTwoGaps(), { windowSeconds: 0.05, durationSeconds: 100 })
     const wrapper = mount(TrackList)
-    expect(wrapper.findAll('tbody tr')).toHaveLength(3)
+    expect(wrapper.findAll('tbody tr')).toHaveLength(5)
 
     split.setMinimumGapLength(3)
 
@@ -98,35 +114,75 @@ describe('TrackList', () => {
     expect(wrapper.classes()).toEqual(expect.arrayContaining(['h-40', 'overflow-y-auto']))
   })
 
-  describe('deleting a split', () => {
-    it('offers a trash button on every row but the first', () => {
+  describe('split rows', () => {
+    it('has no number button and no name field, and no length', () => {
       const { wrapper } = mountWithTwoGaps()
 
-      const labels = wrapper
-        .findAll('tbody tr')
-        .map((row) =>
-          row.findAll('button[aria-label^="Delete"]').map((b) => b.attributes('aria-label')),
-        )
-
-      expect(labels).toEqual([[], ['Delete split at 0:00:21.00'], ['Delete split at 0:01:11.50']])
+      for (const row of splitRows(wrapper)) {
+        expect(row.find('input').exists()).toBe(false)
+        expect(row.findAll('button[aria-label^="Select track"]')).toHaveLength(0)
+        expect(row.findAll('td')[3]?.text()).toBe('')
+      }
     })
 
-    it('deletes the split where the track starts, which merges the track into the one before', async () => {
+    it('offers a trash button on every split row, naming the split’s time', () => {
+      const { wrapper } = mountWithTwoGaps()
+
+      const labels = splitRows(wrapper).map((row) =>
+        row.findAll('button').map((button) => button.attributes('aria-label')),
+      )
+
+      expect(labels).toEqual([['Delete split at 0:00:21.00'], ['Delete split at 0:01:11.50']])
+    })
+
+    it('has no button that deletes a split on a track row', () => {
+      const { wrapper } = mountWithTwoGaps()
+
+      for (const row of trackRows(wrapper)) {
+        expect(row.findAll('button[aria-label^="Delete"]')).toHaveLength(0)
+      }
+    })
+
+    it('deletes its split, which merges the tracks either side of it', async () => {
       const { split, wrapper } = mountWithTwoGaps()
 
       await wrapper.get('button[aria-label="Delete split at 0:01:11.50"]').trigger('click')
 
       expect(split.splits.map((point) => point.seconds)).toEqual([21])
-      expect(wrapper.findAll('tbody tr')).toHaveLength(2)
+      expect(trackRows(wrapper)).toHaveLength(2)
+      expect(splitRows(wrapper)).toHaveLength(1)
     })
 
-    it('does not select the row it was clicked in', async () => {
+    it('does not select the row the button was clicked in', async () => {
       const { split, wrapper } = mountWithTwoGaps()
-      const first = split.splits[0]
+      split.selectTrack(split.tracks[0]!)
 
       await wrapper.get('button[aria-label="Delete split at 0:01:11.50"]').trigger('click')
 
-      expect(split.selectedSplit?.id).toBe(first?.id)
+      expect(split.selectedTrack?.number).toBe(1)
+      expect(split.selectedSplit).toBeNull()
+    })
+
+    it('selects its split when the row is clicked, with the zoom view shown on it', async () => {
+      const { split, wrapper } = mountWithTwoGaps()
+      split.selectTrack(split.tracks[1]!)
+
+      await splitRows(wrapper)[1]?.trigger('click')
+
+      expect(split.selectedSplit).toBe(split.splits[1])
+      expect(split.selectedTrack).toBeNull()
+      expect(split.view).toBe('split')
+      expect(split.zoomCentreSeconds).toBe(71.5)
+    })
+
+    it('numbers the splits from 1 in time order, and renumbers when one goes', async () => {
+      const { split, wrapper } = mountWithTwoGaps()
+
+      split.deleteSplit(split.splits[0]!.id)
+      await wrapper.vm.$nextTick()
+
+      expect(splitRows(wrapper).map((row) => row.findAll('td')[1]?.text())).toEqual(['Split 1'])
+      expect(splitRows(wrapper)[0]?.findAll('td')[2]?.text()).toBe('0:01:11.50')
     })
   })
 
@@ -256,7 +312,7 @@ describe('TrackList', () => {
     it('selects the track when its row is clicked', async () => {
       const { split, wrapper } = mountWithTwoGaps()
 
-      await wrapper.findAll('tbody tr')[2]?.trigger('click')
+      await trackRows(wrapper)[2]?.trigger('click')
 
       expect(split.selectedTrack?.number).toBe(3)
       expect(split.selectedSplit).toBeNull()
@@ -265,7 +321,7 @@ describe('TrackList', () => {
     it('selects the first track when its row is clicked', async () => {
       const { split, wrapper } = mountWithTwoGaps()
 
-      await wrapper.findAll('tbody tr')[0]?.trigger('click')
+      await trackRows(wrapper)[0]?.trigger('click')
 
       expect(split.selectedTrack?.number).toBe(1)
     })
@@ -273,51 +329,41 @@ describe('TrackList', () => {
     it('can be selected from the keyboard through a button in the number cell, the first row too', async () => {
       const { split, wrapper } = mountWithTwoGaps()
 
-      const button = wrapper.findAll('tbody tr')[2]?.get('button')
+      const button = trackRows(wrapper)[2]?.get('button')
       await button?.trigger('click')
 
       expect(button?.attributes('aria-label')).toBe('Select track 3, starts at 0:01:11.50')
       expect(split.selectedTrack?.number).toBe(3)
 
-      const first = wrapper.findAll('tbody tr')[0]?.get('button')
+      const first = trackRows(wrapper)[0]?.get('button')
       await first?.trigger('click')
 
       expect(first?.attributes('aria-label')).toBe('Select track 1, starts at 0:00:00.00')
       expect(split.selectedTrack?.number).toBe(1)
     })
+  })
 
-    it('marks the row of the selected track as current, in the selected-row style', async () => {
+  describe('the marked row', () => {
+    it('is the row of the selected track, in the selected-row style', async () => {
       const { split, wrapper } = mountWithTwoGaps()
-      const rows = wrapper.findAll('tbody tr')
+      const all = wrapper.findAll('tbody tr')
 
-      // Detection selects split 1, which is no track.
-      expect(rows.map((row) => row.attributes('aria-current'))).toEqual([
-        undefined,
-        undefined,
-        undefined,
-      ])
+      // Detection selects split 1, so the split row is the marked one.
+      expect(marked(wrapper)).toEqual([undefined, 'true', undefined, undefined, undefined])
 
-      await rows[1]?.trigger('click')
+      await trackRows(wrapper)[1]?.trigger('click')
 
-      expect(rows.map((row) => row.attributes('aria-current'))).toEqual([
-        undefined,
-        'true',
-        undefined,
-      ])
-      expect(rows[1]?.classes()).toEqual(expect.arrayContaining(['bg-land/50', 'font-semibold']))
-      expect(rows[0]?.classes()).not.toContain('bg-land/50')
+      expect(marked(wrapper)).toEqual([undefined, undefined, 'true', undefined, undefined])
+      expect(all[2]?.classes()).toEqual(expect.arrayContaining(['bg-land/50', 'font-semibold']))
+      expect(all[0]?.classes()).not.toContain('bg-land/50')
 
       split.selectTrack(split.tracks[0]!)
       await wrapper.vm.$nextTick()
 
-      expect(rows.map((row) => row.attributes('aria-current'))).toEqual([
-        'true',
-        undefined,
-        undefined,
-      ])
+      expect(marked(wrapper)).toEqual(['true', undefined, undefined, undefined, undefined])
     })
 
-    it('marks no row when a split is selected', async () => {
+    it('is the row of the selected split, in the same style, and only that one', async () => {
       const { split, wrapper } = mountWithTwoGaps()
       split.selectTrack(split.tracks[1]!)
       await wrapper.vm.$nextTick()
@@ -325,10 +371,22 @@ describe('TrackList', () => {
       split.selectSplit(split.splits[1]!.id)
       await wrapper.vm.$nextTick()
 
+      expect(marked(wrapper)).toEqual([undefined, undefined, undefined, 'true', undefined])
+      expect(wrapper.findAll('tbody tr')[3]?.classes()).toEqual(
+        expect.arrayContaining(['bg-land/50', 'font-semibold']),
+      )
+    })
+
+    it('is no row when nothing is selected', async () => {
+      const { split, wrapper } = mountWithTwoGaps()
+
+      split.moveZoomTo(50)
+      await wrapper.vm.$nextTick()
+
       expect(wrapper.findAll('tbody tr[aria-current]')).toHaveLength(0)
     })
 
-    it('keeps the selected row in view when the selection changes', async () => {
+    it('is kept in view when a track is selected', async () => {
       const { split, wrapper } = mountWithTwoGaps()
       scrollIntoView.mockClear()
 
@@ -336,10 +394,20 @@ describe('TrackList', () => {
       await wrapper.vm.$nextTick()
 
       expect(scrollIntoView).toHaveBeenCalledWith({ block: 'nearest' })
-      expect(scrollIntoView.mock.contexts.at(-1)).toBe(wrapper.findAll('tbody tr')[2]?.element)
+      expect(scrollIntoView.mock.contexts.at(-1)).toBe(wrapper.findAll('tbody tr')[4]?.element)
     })
 
-    it('keeps the selected row in view when the selected track changes in place', async () => {
+    it('is kept in view when a split is selected', async () => {
+      const { split, wrapper } = mountWithTwoGaps()
+      scrollIntoView.mockClear()
+
+      split.selectSplit(split.splits[1]!.id)
+      await wrapper.vm.$nextTick()
+
+      expect(scrollIntoView.mock.contexts.at(-1)).toBe(wrapper.findAll('tbody tr')[3]?.element)
+    })
+
+    it('is kept in view when the selected track changes in place', async () => {
       const { split, wrapper } = mountWithTwoGaps()
       split.selectTrack(split.tracks[1]!)
       await wrapper.vm.$nextTick()

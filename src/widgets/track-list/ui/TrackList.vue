@@ -1,26 +1,45 @@
 <script setup lang="ts">
-import { useTemplateRef, watch } from 'vue'
+import { computed, useTemplateRef, watch } from 'vue'
 import { Trash2 } from 'lucide-vue-next'
 
-import { useSplitStore } from '@/entities/split/model/split.ts'
+import { useSplitStore, type Split, type Track } from '@/entities/split/model/split.ts'
 import { formatDuration } from '@/shared/lib/time/format-duration.ts'
 import { formatHundredths } from '@/shared/lib/time/format-hundredths.ts'
 import UiIconButton from '@/shared/ui/UiIconButton.vue'
 import TrackNameField from './TrackNameField.vue'
 
 /*
-The tracks as a table: number, name (edited in place, `TrackNameField`), start (hundredths, where a
-split's position is read), length (whole seconds) and a trash button that deletes the split where
-the track starts (none on the first track). It is as tall as the zoom view's 160 px content area and
-scrolls inside itself, the heading row staying in view.
+The file as a table, in time order: a row for each track with a row for each split between two
+tracks. A track row has its number (a button, so the row can be selected from the keyboard), its
+name (edited in place, `TrackNameField`), its start (hundredths, where a split's position is read)
+and its length (whole seconds). A split row reads `Split N` where the name goes, its time in the
+start column, no length and a trash button that deletes the split, which merges the tracks either
+side of it; it has no name field, because naming belongs to tracks. The box is as tall as the zoom
+view's 160 px content area and scrolls inside itself, the heading row staying in view.
 
-A click on a row selects its track, the first included, and the row of the selected track is marked
-and kept in view; focusing a name field selects the track too. The number cell holds a button, so a
-row can be selected from the keyboard too. The box has 4 px of padding (undone by the negative
-margin) so the focus ring of a button at the left edge is not cut off by the scroll box.
+A click on a row selects what it shows, a track or a split (the first track included), and the
+marked row, whichever kind it is, follows the selection and is kept in view; focusing a name field
+selects its track too. A button stops the click, so it does only what it says. The box has 4 px of
+padding (undone by the negative margin) so the focus ring of a button at the left edge is not cut
+off by the scroll box.
 */
 const split = useSplitStore()
 const list = useTemplateRef('list')
+
+type Row =
+  | { key: string; kind: 'track'; track: Track }
+  | { key: string; kind: 'split'; point: Split; number: number }
+
+// Each track, then the split that ends it: the last track ends with the file, so no split follows.
+const rows = computed<Row[]>(() =>
+  split.tracks.flatMap((track, index): Row[] => {
+    const trackRow: Row = { key: `track-${track.number}`, kind: 'track', track }
+    const point = split.splits[index]
+    return point === undefined
+      ? [trackRow]
+      : [trackRow, { key: `split-${point.id}`, kind: 'split', point, number: index + 1 }]
+  }),
+)
 
 // After the DOM has the new mark; `nearest` leaves a row that is already visible where it is.
 watch(
@@ -55,48 +74,63 @@ watch(
         </tr>
       </thead>
       <tbody>
-        <tr
-          v-for="track in split.tracks"
-          :key="track.number"
-          :aria-current="split.isTrackSelected(track) ? 'true' : undefined"
-          class="cursor-pointer scroll-mt-7 hover:bg-land/40"
-          :class="split.isTrackSelected(track) ? 'bg-land/50 font-semibold' : ''"
-          @click="split.selectTrack(track)"
-        >
-          <td class="border-b border-hairline py-1.5 pr-2">
-            <button
-              type="button"
-              :aria-label="`Select track ${track.number}, starts at ${formatHundredths(track.startSeconds)}`"
-              class="inline-flex size-5 cursor-pointer items-center justify-center rounded-control text-muted focus-visible:focus-ring"
-            >
-              {{ track.number }}
-            </button>
-          </td>
-          <td class="max-w-0 border-b border-hairline py-1.5 pr-3">
-            <TrackNameField
-              :name="track.name"
-              :label="`Name of track ${track.number}`"
-              @start="split.selectTrack(track)"
-              @save="split.renameTrack(track.startSplit?.id ?? null, $event)"
-            />
-          </td>
-          <td class="border-b border-hairline py-1.5 pr-4 whitespace-nowrap">
-            {{ formatHundredths(track.startSeconds) }}
-          </td>
-          <td class="border-b border-hairline py-1.5 pr-2 whitespace-nowrap">
-            {{ formatDuration(track.lengthSeconds) }}
-          </td>
-          <td class="border-b border-hairline py-0.5">
-            <UiIconButton
-              v-if="track.startSplit !== null"
-              size="sm"
-              :label="`Delete split at ${formatHundredths(track.startSeconds)}`"
-              @click.stop="split.deleteSplit(track.startSplit.id)"
-            >
-              <Trash2 class="size-4 shrink-0" />
-            </UiIconButton>
-          </td>
-        </tr>
+        <template v-for="row in rows" :key="row.key">
+          <tr
+            v-if="row.kind === 'track'"
+            :aria-current="split.isTrackSelected(row.track) ? 'true' : undefined"
+            class="cursor-pointer scroll-mt-7 hover:bg-land/40"
+            :class="split.isTrackSelected(row.track) ? 'bg-land/50 font-semibold' : ''"
+            @click="split.selectTrack(row.track)"
+          >
+            <td class="border-b border-hairline py-1.5 pr-2">
+              <button
+                type="button"
+                :aria-label="`Select track ${row.track.number}, starts at ${formatHundredths(row.track.startSeconds)}`"
+                class="inline-flex size-5 cursor-pointer items-center justify-center rounded-control text-muted focus-visible:focus-ring"
+              >
+                {{ row.track.number }}
+              </button>
+            </td>
+            <td class="max-w-0 border-b border-hairline py-1.5 pr-3">
+              <TrackNameField
+                :name="row.track.name"
+                :label="`Name of track ${row.track.number}`"
+                @start="split.selectTrack(row.track)"
+                @save="split.renameTrack(row.track.startSplit?.id ?? null, $event)"
+              />
+            </td>
+            <td class="border-b border-hairline py-1.5 pr-4 whitespace-nowrap">
+              {{ formatHundredths(row.track.startSeconds) }}
+            </td>
+            <td class="border-b border-hairline py-1.5 pr-2 whitespace-nowrap">
+              {{ formatDuration(row.track.lengthSeconds) }}
+            </td>
+            <td class="border-b border-hairline py-0.5"></td>
+          </tr>
+          <tr
+            v-else
+            :aria-current="split.selectedSplit?.id === row.point.id ? 'true' : undefined"
+            class="cursor-pointer scroll-mt-7 hover:bg-land/40"
+            :class="split.selectedSplit?.id === row.point.id ? 'bg-land/50 font-semibold' : ''"
+            @click="split.selectSplit(row.point.id)"
+          >
+            <td class="border-b border-hairline py-1.5 pr-2"></td>
+            <td class="border-b border-hairline py-1.5 pr-3 text-muted">Split {{ row.number }}</td>
+            <td class="border-b border-hairline py-1.5 pr-4 whitespace-nowrap">
+              {{ formatHundredths(row.point.seconds) }}
+            </td>
+            <td class="border-b border-hairline py-1.5 pr-2"></td>
+            <td class="border-b border-hairline py-0.5">
+              <UiIconButton
+                size="sm"
+                :label="`Delete split at ${formatHundredths(row.point.seconds)}`"
+                @click.stop="split.deleteSplit(row.point.id)"
+              >
+                <Trash2 class="size-4 shrink-0" />
+              </UiIconButton>
+            </td>
+          </tr>
+        </template>
       </tbody>
     </table>
   </div>

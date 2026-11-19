@@ -220,6 +220,7 @@ Spec and tickets: [`.scratch/split-markers-ranges-and-tracks-separation/spec.md`
 
 - The split store holds one selection (a split, a track or nothing); the selected track is derived from the live tracks, so it follows its splits.
 - Selecting a track, the first included, from the strip, the Track list or a name field shows the Track view beside the zoom view and the Range view, with a `Split | Track | Range` control; the whole-file view outlines the selected track.
+- The Track list interleaves split rows between its track rows (`Split N`, its time, no length): a click selects the split, and its trash button deletes it and merges the tracks either side. The zoom view's title row has "Delete split" beside "Add split".
 - The strip has a split item between every two blocks, 8 px wide: a click selects that split and shows the zoom view centred on it, and it is vermilion when hovered, focused or selected. A very short track keeps a block 12 px wide.
 - The player plays the selected track as a stretch, as it plays a range: Play, pause, resume without decoding again, drag the playhead and back to the track's start in the Track view. A track over 10 min plays in full through a moving 10 min window: the window starts at the playhead, the next is decoded while the first plays (30 s before its end), the sound carries on into it, and a seek outside the held windows decodes a new one. At most two windows are held.
 

@@ -19,7 +19,7 @@ The import rules are in AGENTS.md "Code layout" and enforced by `pnpm lint`; thi
 - Two slices of one layer never import each other, so `split` can't read `source-file`. The page wires them: `ReviewPage.vue` hands the loudness curve to `split.detect` on mount and resets `split` on unmount. Wire a new cross-store need the same way, in the page, not in either store.
 - `App.vue` switches pages on the `source-file` store's status; there is no router.
 - Buttons enable on store getters (`canAddSplit`, `canAddSplitAtMark`) and take their labels from store status.
-- Selection views (`TrackList.vue`, `TrackStrip.vue`): a click calls `split.selectTrack`, and the selected item carries `aria-current="true"`. The strip's split items do the same with `split.selectSplit`.
+- Selection views (`TrackList.vue`, `TrackStrip.vue`): a click calls `split.selectTrack`, and the selected item carries `aria-current="true"`. The strip's split items and the list's split rows do the same with `split.selectSplit`; a button inside a row stops the click (`@click.stop`) so it does only what it says.
 
 ## The user's edits
 

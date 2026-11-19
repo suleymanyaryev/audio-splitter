@@ -52,6 +52,12 @@ function addSplitButton(wrapper: ReturnType<typeof mount>) {
   return button
 }
 
+function deleteSplitButton(wrapper: ReturnType<typeof mount>) {
+  const button = wrapper.findAll('button').find((candidate) => candidate.text() === 'Delete split')
+  if (!button) throw new Error('no Delete split button')
+  return button
+}
+
 // The primary button of the zoom panel's title row; its name is "Play across split" or "Stop".
 function auditionButton(wrapper: ReturnType<typeof mount>) {
   const button = wrapper
@@ -133,6 +139,80 @@ describe('ReviewPage', () => {
       expect(document.activeElement).toBe(
         wrapper.get('[role="slider"][aria-label="Split 2"]').element,
       )
+    })
+  })
+
+  describe('Delete split', () => {
+    it('is enabled while a split is selected, and disabled with none', async () => {
+      const wrapper = mountPage()
+
+      expect(deleteSplitButton(wrapper).attributes('disabled')).toBeUndefined()
+
+      useSplitStore().moveZoomTo(46)
+      await wrapper.vm.$nextTick()
+
+      expect(deleteSplitButton(wrapper).attributes('disabled')).toBeDefined()
+    })
+
+    it('deletes the selected split, which merges the tracks either side, and selects its neighbour', async () => {
+      const wrapper = mountPage()
+      const split = useSplitStore()
+
+      await deleteSplitButton(wrapper).trigger('click')
+
+      expect(split.splits.map((point) => point.seconds)).toEqual([71.5])
+      expect(split.tracks).toHaveLength(2)
+      expect(split.selectedSplit?.seconds).toBe(71.5)
+    })
+
+    it('counts as an edit, as the Delete key does', async () => {
+      const wrapper = mountPage()
+      const split = useSplitStore()
+
+      await deleteSplitButton(wrapper).trigger('click')
+
+      expect(split.editCount).toBe(1)
+    })
+
+    it('hands the keyboard to the split that is selected next, so it can be nudged at once', async () => {
+      const wrapper = mountPage()
+
+      await deleteSplitButton(wrapper).trigger('click')
+      await wrapper.vm.$nextTick()
+
+      expect(document.activeElement).toBe(
+        wrapper.get('[role="slider"][aria-label="Split 1"]').element,
+      )
+    })
+
+    it('is disabled once the last split is deleted', async () => {
+      const wrapper = mountPage()
+
+      await deleteSplitButton(wrapper).trigger('click')
+      await deleteSplitButton(wrapper).trigger('click')
+
+      expect(useSplitStore().splits).toHaveLength(0)
+      expect(deleteSplitButton(wrapper).attributes('disabled')).toBeDefined()
+    })
+
+    it('sits between "Add split" and "Play across split"', () => {
+      const wrapper = mountPage()
+
+      const labels = wrapper.findAll('button').map((button) => button.text())
+
+      expect(labels.indexOf('Add split')).toBeLessThan(labels.indexOf('Delete split'))
+      expect(labels.indexOf('Delete split')).toBeLessThan(labels.indexOf('Play across split'))
+    })
+
+    it('is not in the Track view or the Range view', async () => {
+      const wrapper = await mountPageWithTrack(2)
+      const texts = () => wrapper.findAll('button').map((button) => button.text())
+      expect(texts()).not.toContain('Delete split')
+
+      useSplitStore().setRange(10, 20)
+      await wrapper.vm.$nextTick()
+
+      expect(texts()).not.toContain('Delete split')
     })
   })
 

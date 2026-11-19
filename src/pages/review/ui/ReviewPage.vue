@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onUnmounted, useTemplateRef, watch } from 'vue'
-import { Download, Pause, Play, Plus, SkipBack, Square } from 'lucide-vue-next'
+import { Download, Pause, Play, Plus, SkipBack, Square, Trash2 } from 'lucide-vue-next'
 
 import { useSourceFileStore } from '@/entities/source-file/model/source-file.ts'
 import { useSplitStore, type PanelView } from '@/entities/split/model/split.ts'
@@ -31,8 +31,10 @@ it runs. The zoom panel shows the zoom view, the Track view of the selected trac
 has dragged out a range, the Range view, as the split store's `view` says, and its
 `Split | Track | Range` control is that view, each segment disabled while it has nothing to show.
 "Add split" is in the zoom view and the Range view and follows the view: at the window's centre in
-the zoom view, at the mark in the Range view; the Track view adds no split. The zoom view has "Play
-across split", which plays the selected split's clip (and reads "Stop" while it loads or plays). The
+the zoom view, at the mark in the Range view; the Track view adds no split. The zoom view also has
+"Delete split", which deletes the selected split as Delete does on its handle (disabled with none
+selected), and "Play across split", which plays the selected split's clip (and reads "Stop" while
+it loads or plays). The
 Range view and the Track view have "Play", which plays the range or the selected track (and reads
 "Stop" while it is decoded and "Pause" while it plays), and "Back to range start" or "Back to track
 start" beside it, which moves the playhead to the stretch's start.
@@ -72,6 +74,14 @@ function addSplit() {
     return
   }
   split.addSplit()
+  void zoom.value?.focusHandle()
+}
+
+// The same delete as the handle's key, and the keyboard goes to the split selected next.
+function deleteSplit() {
+  const selected = split.selectedSplit
+  if (selected === null) return
+  split.deleteSplit(selected.id)
   void zoom.value?.focusHandle()
 }
 
@@ -157,6 +167,15 @@ watch(
         >
           <Plus class="size-4 shrink-0" />
           Add split
+        </UiButton>
+        <UiButton
+          v-if="split.view === 'split'"
+          size="sm"
+          :disabled="split.selectedSplit === null"
+          @click="deleteSplit"
+        >
+          <Trash2 class="size-4 shrink-0" />
+          Delete split
         </UiButton>
         <UiIconButton
           v-if="split.view !== 'split'"
