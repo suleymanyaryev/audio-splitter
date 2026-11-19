@@ -5,7 +5,7 @@ import { nextTick } from 'vue'
 import { enableAutoUnmount, mount } from '@vue/test-utils'
 import { useSourceFileStore } from '@/entities/source-file/model/source-file.ts'
 import { useSplitStore } from '@/entities/split/model/split.ts'
-import { trackStretch } from '../../lib/track-extent.ts'
+import { trackExtent } from '../../lib/track-extent.ts'
 import { useAuditionStore } from '../../model/audition.ts'
 import TrackView from '../TrackView.vue'
 
@@ -32,7 +32,7 @@ function setup() {
   const toggleStretch = vi.spyOn(audition, 'toggleStretch').mockImplementation(() => {})
   const backToStretchStart = vi.spyOn(audition, 'backToStretchStart').mockImplementation(() => {})
   const wrapper = mount(TrackView)
-  const stretch = trackStretch(split.selectedTrack!)
+  const stretch = trackExtent(split.selectedTrack!)
   return { audition, split, stretch, toggleStretch, backToStretchStart, wrapper }
 }
 
@@ -100,7 +100,7 @@ describe('TrackView', () => {
       expect(view.attributes('aria-valuetext')).toBe('0:00:30.26')
     })
 
-    it('ends at the first 10 min of a longer track, which is all the player plays', () => {
+    it('ends at the end of a track longer than 10 min, which the player plays in full', () => {
       useSourceFileStore().durationSeconds = 1000
       const split = useSplitStore()
       split.detect(new Float32Array(20_000).fill(-10), {
@@ -111,7 +111,7 @@ describe('TrackView', () => {
 
       const wrapper = mount(TrackView)
 
-      expect(wrapper.get('[role="slider"]').attributes('aria-valuemax')).toBe('600')
+      expect(wrapper.get('[role="slider"]').attributes('aria-valuemax')).toBe('1000')
     })
   })
 

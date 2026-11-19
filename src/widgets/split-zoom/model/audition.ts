@@ -4,6 +4,7 @@ import { defineStore } from 'pinia'
 import { FileReplacedError, useSourceFileStore } from '@/entities/source-file/model/source-file.ts'
 import type { TimeRange } from '@/entities/split/lib/range-between.ts'
 import { useSplitStore } from '@/entities/split/model/split.ts'
+import { decodeWindow, nextWindow, windowHolds } from '../lib/decode-window.ts'
 
 // How far the audition reaches either side of the split.
 const REACH_SECONDS = 4
@@ -14,13 +15,21 @@ type Subject = 'split' | 'range' | 'track'
 // A start and an end in the file: what the player plays besides the audition. The range or a track.
 type Stretch = TimeRange
 
+// What the source-file store gives for a clip.
+interface Clip {
+  wav: Uint8Array
+  startSeconds: number
+  lengthSeconds: number
+}
+
 const isSameStretch = (a: Stretch, b: Stretch) =>
   a.startSeconds === b.startSeconds && a.endSeconds === b.endSeconds
 
 /*
 The one player, for two kinds of listening. One hidden `<audio>` element plays a WAV the source-file
 store decodes (tickets 14 and 19: every format goes through ffmpeg, because Chrome seeks a VBR MP3
-seconds off; docs/concepts/06-seeking-compressed-audio.md), and at most one decoded stretch is held.
+seconds off; docs/concepts/06-seeking-compressed-audio.md), and the WAV held is one decoded window
+of one stretch, or the audition's clip.
 
 The audition is the 8 s across the selected split: the button and the Space key on the split handle
 call `toggle`, `status` is where it is and the zoom view draws its playhead from `playheadSeconds`.
@@ -28,23 +37,32 @@ call `toggle`, `status` is where it is and the zoom view draws its playhead from
 Playing a stretch (docs/concepts/08-listening-to-a-range.md) is a second state, `stretchStatus`,
 which adds `paused`. A stretch is a start and an end the caller hands in with every call: the range
 (the Range view's button and Space key call `toggleStretch(range)`) or the selected track (the Track
-view's, with `trackStretch(track)`, which holds a long track to its first 10 min), so the player
-reads no store for it. The whole stretch is decoded once and kept, tied to the stretch it was
-decoded for: a pause only stops the element and keeps the place, so playing again sets `currentTime`
-inside the WAV (exact, where a compressed file is not) and plays at once, while a different stretch
-releases the WAV and decodes its own. The playhead is `stretchPlayheadSeconds`: the sound while it
-plays and the resting place otherwise, which is the stretch's start for a new stretch and after it
-has ended. The resting place is tied to its stretch too, so a view of another stretch never draws
-it, and a playhead moved before a stretch's first play is kept. The
-playhead moves without a new decode: `seekStretch` sets `currentTime` while the stretch plays and
-the resting place otherwise (which the next play, or a clip still being decoded, starts from), and a
-drag of it pauses a playing stretch (`grabPlayhead`) and plays it on from the drop
-(`dropPlayhead`). The audition and the stretch stop each other, and a new range, or another selected
-track, or a selected track whose start or end moved, stops and releases whatever is held.
+view's, with its whole extent). The player reads the split store only to word a failure (`stretchSubject`)
+and to stop when the range or the selected track changes. A stretch of 10 min or less is one window,
+decoded once and kept, tied to the stretch it was decoded for: a pause only stops the element and
+keeps the place, so playing again sets `currentTime` inside the WAV (exact, where a compressed file
+is not) and plays at once, while a different stretch releases the WAV and decodes its own.
+
+A longer stretch is heard through a moving window (`lib/decode-window.ts`): the 10 min from the
+playhead, or to the stretch's end. A seek inside the window sets `currentTime`; a seek outside it
+releases the windows and decodes one from the seek point. While a window plays, the next is decoded
+ahead once the playhead is 30 s from its end (on `timeupdate`), and when the window ends the
+element is pointed at the next one and plays on, so the hand-over is no decode wait. At most two
+windows are held, the playing one and the one ahead.
+
+The playhead is `stretchPlayheadSeconds`: the sound while it plays and the resting place otherwise,
+which is the stretch's start for a new stretch and after it has ended. The resting place is tied to
+its stretch too, so a view of another stretch never draws it, and a playhead moved before a
+stretch's first play is kept. The playhead moves without a new decode inside the window:
+`seekStretch` sets `currentTime` while the stretch plays and the resting place otherwise (which the
+next play, or a clip still being decoded, starts from), and a drag of it pauses a playing stretch
+(`grabPlayhead`) and plays it on from the drop (`dropPlayhead`). The audition and the stretch stop
+each other, and a new range, or another selected track, or a selected track whose start or end
+moved, stops and releases whatever is held.
 
 Every press takes a number, and a clip that arrives for an older number is dropped: a press that
 was stopped, or a selection or range that changed while ffmpeg was working, must never start sound
-later.
+later. The window ahead has its own guard, the fetch itself: releasing the windows forgets it.
 */
 export const useAuditionStore = defineStore('audition', () => {
   const sourceFile = useSourceFileStore()
@@ -76,8 +94,11 @@ export const useAuditionStore = defineStore('audition', () => {
   let url: string | undefined
   let clipStartSeconds = 0
   let clipLengthSeconds = 0
-  // The stretch the held WAV was decoded for, which a press can play again without decoding.
-  let heldStretch: Stretch | null = null
+  // The stretch the held WAV is a window of, and the window, which a press can play again without decoding.
+  let held: { stretch: Stretch; window: TimeRange } | null = null
+  // The window after the held one, decoded while the held one plays, and the fetch that made it.
+  let upcoming: { url: string; clip: Clip; window: TimeRange } | undefined
+  let ahead: { done: Promise<void> } | undefined
   // Whether the stretch was playing when the playhead was grabbed, so the drop plays it on.
   let shouldResume = false
 
@@ -89,8 +110,12 @@ export const useAuditionStore = defineStore('audition', () => {
       element.load()
     }
     if (url !== undefined) URL.revokeObjectURL(url)
+    if (upcoming !== undefined) URL.revokeObjectURL(upcoming.url)
     url = undefined
-    heldStretch = null
+    held = null
+    // A fetch still on its way finds `ahead` gone, and drops what it made.
+    upcoming = undefined
+    ahead = undefined
   }
 
   // The place `stretch` resumes from, or null when it has none and starts at its start.
@@ -115,7 +140,7 @@ export const useAuditionStore = defineStore('audition', () => {
   function pauseStretch() {
     // A pause that interrupts a pending `play()` makes it stale, so its rejection is not reported.
     press++
-    if (heldStretch !== null) resting.value = { stretch: heldStretch, seconds: stretchPosition() }
+    if (held !== null) resting.value = { stretch: held.stretch, seconds: stretchPosition() }
     element?.pause()
     stretchStatus.value = 'paused'
   }
@@ -148,10 +173,10 @@ export const useAuditionStore = defineStore('audition', () => {
 
   // The stretch gives way to the audition or to a new range: its sound and its WAV go, its place stays.
   function letGoOfStretch() {
-    if (heldStretch !== null && stretchStatus.value === 'playing') {
-      resting.value = { stretch: heldStretch, seconds: stretchPosition() }
+    if (held !== null && stretchStatus.value === 'playing') {
+      resting.value = { stretch: held.stretch, seconds: stretchPosition() }
     }
-    if (heldStretch !== null) release()
+    if (held !== null) release()
     stretchStatus.value = 'idle'
   }
 
@@ -170,7 +195,10 @@ export const useAuditionStore = defineStore('audition', () => {
       element = new Audio()
       element.addEventListener('ended', () => {
         if (status.value === 'playing') stop()
-        else if (stretchStatus.value === 'playing') endStretch()
+        else if (stretchStatus.value === 'playing') void carryOn()
+      })
+      element.addEventListener('timeupdate', () => {
+        if (stretchStatus.value === 'playing') void fetchAhead()
       })
     }
     return element
@@ -222,12 +250,15 @@ export const useAuditionStore = defineStore('audition', () => {
     }
   }
 
-  // Makes the clip the one held, dropping the previous one (note 06: 1.4 MB each) and loading it.
-  function hold(clip: { wav: Uint8Array; startSeconds: number; lengthSeconds: number }) {
+  const urlOf = (clip: Clip) =>
+    URL.createObjectURL(new Blob([clip.wav as BlobPart], { type: 'audio/wav' }))
+
+  // Makes the clip the one held, dropping the previous ones (note 06: 1.4 MB each) and loading it.
+  function hold(clip: Clip) {
     release()
     clipStartSeconds = clip.startSeconds
     clipLengthSeconds = clip.lengthSeconds
-    url = URL.createObjectURL(new Blob([clip.wav as BlobPart], { type: 'audio/wav' }))
+    url = urlOf(clip)
     audioElement().src = url
   }
 
@@ -258,44 +289,48 @@ export const useAuditionStore = defineStore('audition', () => {
     return splitStore.view === 'track' ? 'track' : 'range'
   }
 
-  // Plays the stretch from the playhead: decodes it on the first press, and later sets the place.
+  /*
+  Plays the stretch from the playhead. The first press decodes the window that holds the playhead;
+  later ones set the place in it, and a playhead outside the held window decodes another.
+  */
   async function playStretch(stretch: Stretch) {
     const thisPress = ++press
     const isStale = () => thisPress !== press
     failure.value = null
     letGoOfAudition()
-    // A WAV decoded for another stretch is no use here. Its place is no place in this stretch.
-    if (heldStretch !== null && !isSameStretch(heldStretch, stretch)) release()
     const subject = stretchSubject()
     /*
-    Read when the sound starts, so a playhead moved while the clip was decoded counts. A playhead
-    left at the very end has nothing to play from, so it plays from the start, as a media element
-    does when it is played after its end.
+    Where the sound starts. Read when it starts, so a playhead moved while a clip was decoded
+    counts. A playhead left at the very end has nothing to play from, so it plays from the start, as
+    a media element does when it is played after its end.
     */
-    const offset = () => {
+    const placeNow = () => {
       const place = restingSecondsOf(stretch)
-      const hasRoom = place !== null && place < stretch.endSeconds
-      return offsetOf(hasRoom ? place : stretch.startSeconds)
+      return place !== null && place < stretch.endSeconds ? place : stretch.startSeconds
     }
+    const holdsPlace = (place: number) =>
+      held !== null &&
+      isSameStretch(held.stretch, stretch) &&
+      windowHolds(held.window, stretch, place)
 
-    if (heldStretch !== null) {
-      audioElement().currentTime = offset()
-      stretchStatus.value = 'playing'
-      await playElement(isStale, subject)
-      return
+    for (let place = placeNow(); !holdsPlace(place); place = placeNow()) {
+      // A WAV decoded for another stretch, or another part of this one, is no use here.
+      if (held !== null) release()
+      stretchStatus.value = 'loading'
+      const window = decodeWindow(stretch, place)
+      const clip = await decode(
+        window.startSeconds,
+        window.endSeconds - window.startSeconds,
+        isStale,
+        subject,
+      )
+      if (clip === null) return
+      hold(clip)
+      held = { stretch: { ...stretch }, window }
+      // A playhead moved while the clip was decoded may be outside it: the loop decodes again.
+      if (placeNow() === place) break
     }
-
-    stretchStatus.value = 'loading'
-    const clip = await decode(
-      stretch.startSeconds,
-      stretch.endSeconds - stretch.startSeconds,
-      isStale,
-      subject,
-    )
-    if (clip === null) return
-    hold(clip)
-    heldStretch = { startSeconds: stretch.startSeconds, endSeconds: stretch.endSeconds }
-    audioElement().currentTime = offset()
+    audioElement().currentTime = offsetOf(placeNow())
     stretchStatus.value = 'playing'
     await playElement(isStale, subject)
   }
@@ -312,13 +347,108 @@ export const useAuditionStore = defineStore('audition', () => {
 
   /*
   Moves the stretch's playhead to a time, held to the stretch. While the stretch plays, the sound
-  jumps there at once (an exact `currentTime` inside the WAV) and goes on; otherwise only the
+  jumps there at once (an exact `currentTime` inside the WAV) and goes on, unless the time is
+  outside the held window, which is let go for a window decoded from there; otherwise only the
   resting place moves, which a later play, or the clip still being decoded, starts from.
   */
   function seekStretch(stretch: Stretch, seconds: number) {
     const target = Math.min(Math.max(seconds, stretch.startSeconds), stretch.endSeconds)
-    if (stretchStatus.value === 'playing') audioElement().currentTime = offsetOf(target)
-    else resting.value = { stretch: { ...stretch }, seconds: target }
+    if (stretchStatus.value !== 'playing') {
+      resting.value = { stretch: { ...stretch }, seconds: target }
+    } else if (held !== null && windowHolds(held.window, stretch, target)) {
+      audioElement().currentTime = offsetOf(target)
+    } else if (target >= stretch.endSeconds) {
+      // The very end of a stretch whose last window is not held: there is nothing to hear after it.
+      audioElement().pause()
+      endStretch()
+    } else {
+      audioElement().pause()
+      release()
+      resting.value = { stretch: { ...stretch }, seconds: target }
+      void playStretch(stretch)
+    }
+  }
+
+  /*
+  Decodes the window after the held one, once the playhead is 30 s from the held one's end. Asked
+  again for the same held window it is the same fetch, even after it failed: the hand-over asks
+  once more, and says why if it fails too.
+  */
+  function fetchAhead() {
+    if (ahead !== undefined) return ahead.done
+    if (held === null) return Promise.resolve()
+    const window = nextWindow(held.stretch, held.window, stretchPosition())
+    if (window === null) return Promise.resolve()
+    const asked = { done: Promise.resolve() }
+    ahead = asked
+    asked.done = (async () => {
+      try {
+        const clip = await sourceFile.clip(
+          window.startSeconds,
+          window.endSeconds - window.startSeconds,
+        )
+        // Releasing the windows, or handing over, forgot this fetch: its clip is of no use.
+        if (ahead === asked) upcoming = { url: urlOf(clip), clip, window }
+      } catch {
+        // Nothing is lost yet: the hand-over decodes the window itself if it is still missing.
+      }
+    })()
+    return asked.done
+  }
+
+  /*
+  A window of a stretch ended while playing: the stretch is over after its last window, and
+  otherwise the element is pointed at the window ahead and plays on. When that is not decoded yet
+  (a seek close to the end of the window) the stretch reads as decoding until it is.
+  */
+  async function carryOn() {
+    if (held === null || held.window.endSeconds >= held.stretch.endSeconds) {
+      endStretch()
+      return
+    }
+    const { stretch, window } = held
+    const thisPress = ++press
+    const isStale = () => thisPress !== press
+    const subject = stretchSubject()
+    let place = window.endSeconds
+    if (upcoming === undefined) {
+      // The place is kept, so a seek made while the window is decoded is heard from.
+      resting.value = { stretch: { ...stretch }, seconds: place }
+      stretchStatus.value = 'loading'
+      await fetchAhead()
+      if (isStale()) return
+      if (upcoming === undefined) {
+        const missing = decodeWindow(stretch, place)
+        const clip = await decode(
+          missing.startSeconds,
+          missing.endSeconds - missing.startSeconds,
+          isStale,
+          subject,
+        )
+        if (clip === null) return
+        upcoming = { url: urlOf(clip), clip, window: missing }
+      }
+      place = restingSecondsOf(stretch) ?? place
+    }
+    const next = upcoming
+    if (!windowHolds(next.window, stretch, place)) {
+      // The playhead was moved away while the window was decoded: a window from there is the one to play.
+      release()
+      void playStretch(stretch)
+      return
+    }
+    const finished = url
+    upcoming = undefined
+    ahead = undefined
+    url = next.url
+    clipStartSeconds = next.clip.startSeconds
+    clipLengthSeconds = next.clip.lengthSeconds
+    held = { stretch, window: next.window }
+    audioElement().src = next.url
+    audioElement().currentTime = offsetOf(place)
+    if (finished !== undefined) URL.revokeObjectURL(finished)
+    stretchStatus.value = 'playing'
+    await playElement(isStale, subject)
   }
 
   function backToStretchStart(stretch: Stretch) {

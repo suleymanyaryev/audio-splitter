@@ -12,7 +12,7 @@ import { formatHundredths } from '@/shared/lib/time/format-hundredths.ts'
 import { roundToMillisecond } from '@/shared/lib/time/round-to-millisecond.ts'
 import { draggedTime } from '../lib/dragged-time.ts'
 import { rangeWindow } from '../lib/range-window.ts'
-import { trackExtent, trackStretch } from '../lib/track-extent.ts'
+import { trackExtent } from '../lib/track-extent.ts'
 import { usePlayheadFrames } from '../lib/use-playhead-frames.ts'
 import { useRangePress } from '../lib/use-range-press.ts'
 import { zoomBars } from '../lib/zoom-bars.ts'
@@ -36,7 +36,8 @@ held key is ignored, so it does not start and stop the sound over and over), and
 playhead back to the track's start. Delete and Backspace do nothing: removing a track deletes
 splits and has its own button. A failure to play is said in a line at the bottom of the view.
 
-The player plays `trackStretch` of the track, which is the whole track up to 10 min.
+The player plays the whole track, however long: a track over 10 min is heard through a window that
+moves along it (`model/audition.ts`), which this view does not see.
 */
 
 // DESIGN.md: the whole canvas is framed in 1.5 px ink, as in the zoom view.
@@ -53,17 +54,14 @@ const audition = useAuditionStore()
 const canvas = useTemplateRef('canvas')
 const frame = useTemplateRef('frame')
 
-// What the view draws, and what the player plays: the same, but for a track longer than 10 min.
+// What the view draws, and what the player plays: the whole selected track.
 const extent = computed(() =>
   split.selectedTrack === null ? null : trackExtent(split.selectedTrack),
-)
-const stretch = computed(() =>
-  split.selectedTrack === null ? null : trackStretch(split.selectedTrack),
 )
 
 // The track's start for a new track, then where it is heard or resumes; 0 with no track selected.
 function playheadSeconds() {
-  return stretch.value === null ? 0 : audition.stretchPlayheadSeconds(stretch.value)
+  return extent.value === null ? 0 : audition.stretchPlayheadSeconds(extent.value)
 }
 
 function draw() {
@@ -143,25 +141,25 @@ const { overPlayhead, dragging, onPointerDown, onPointerMove, onPointerEnd } = u
     audition.grabPlayhead()
   },
   move: (seconds) => {
-    if (stretch.value !== null) audition.seekStretch(stretch.value, seconds)
+    if (extent.value !== null) audition.seekStretch(extent.value, seconds)
   },
   drop: () => {
-    if (stretch.value !== null) audition.dropPlayhead(stretch.value)
+    if (extent.value !== null) audition.dropPlayhead(extent.value)
   },
   selectSplit: () => {},
   placeMark: (seconds) => {
-    if (stretch.value !== null) audition.seekStretch(stretch.value, seconds)
+    if (extent.value !== null) audition.seekStretch(extent.value, seconds)
     // A click focuses the view, so the keys work on the playhead at once.
     frame.value?.focus()
   },
 })
 
 function moveBy(direction: -1 | 1, isShifted: boolean) {
-  if (stretch.value === null) return
+  if (extent.value === null) return
   const step = isShifted ? SHIFT_STEP_SECONDS : STEP_SECONDS
   audition.seekStretch(
-    stretch.value,
-    roundToMillisecond(audition.stretchPlayheadSeconds(stretch.value) + direction * step),
+    extent.value,
+    roundToMillisecond(audition.stretchPlayheadSeconds(extent.value) + direction * step),
   )
 }
 
@@ -171,11 +169,11 @@ function onKeydown(event: KeyboardEvent) {
   switch (event.key) {
     case ' ': {
       // A held key must not start and stop the sound over and over.
-      if (!event.repeat && stretch.value !== null) audition.toggleStretch(stretch.value)
+      if (!event.repeat && extent.value !== null) audition.toggleStretch(extent.value)
       break
     }
     case 'Home': {
-      if (stretch.value !== null) audition.backToStretchStart(stretch.value)
+      if (extent.value !== null) audition.backToStretchStart(extent.value)
       break
     }
     case 'ArrowLeft':
@@ -216,8 +214,8 @@ watch(
       tabindex="0"
       role="slider"
       aria-label="Playhead in the track"
-      :aria-valuemin="stretch?.startSeconds"
-      :aria-valuemax="stretch?.endSeconds"
+      :aria-valuemin="extent?.startSeconds"
+      :aria-valuemax="extent?.endSeconds"
       :aria-valuenow="playheadSeconds()"
       :aria-valuetext="formatHundredths(playheadSeconds())"
       class="size-full select-none focus-visible:focus-ring"

@@ -3,7 +3,7 @@ import { createPinia, setActivePinia } from 'pinia'
 
 import { FileReplacedError, useSourceFileStore } from '@/entities/source-file/model/source-file.ts'
 import { useSplitStore } from '@/entities/split/model/split.ts'
-import { trackStretch } from '../../lib/track-extent.ts'
+import { trackExtent } from '../../lib/track-extent.ts'
 import { useAuditionStore } from '../audition.ts'
 
 interface Clip {
@@ -75,7 +75,7 @@ function setUpTrack() {
   return parts
 }
 
-const trackStretchOfSelection = () => trackStretch(useSplitStore().selectedTrack!)
+const trackStretchOfSelection = () => trackExtent(useSplitStore().selectedTrack!)
 
 async function playingTrack() {
   const parts = setUpTrack()
@@ -91,6 +91,17 @@ function setUpLongTrack() {
   split.detect(curveOf([LOUD, 20_000]), { windowSeconds: 0.05, durationSeconds: 1000 })
   split.selectTrack(split.tracks[0]!)
   return { split, audition: useAuditionStore() }
+}
+
+// The track of 1000 s from `setUpLongTrack`, as the stretch the player is asked to play.
+const longStretch = () => trackExtent(useSplitStore().selectedTrack!)
+
+async function playingLongTrack() {
+  const parts = setUpLongTrack()
+  parts.audition.toggleStretch(longStretch())
+  await flush()
+  expect(parts.audition.stretchStatus).toBe('playing')
+  return parts
 }
 
 // A promise the test settles by hand, to hold a clip back while something else happens.
@@ -126,6 +137,26 @@ describe('the audition store', () => {
 
   // The one hidden element the store made: the element `play` was last called on.
   const audio = () => play.mock.contexts.at(-1) as HTMLAudioElement
+
+  // The WAVs held: made and not yet let go of. The player holds at most two.
+  const heldWavs = () => createObjectURL.mock.calls.length - revokeObjectURL.mock.calls.length
+
+  // The element's time moves, as it does while playing, and tells the player.
+  const timeUpdate = (currentTime: number) => {
+    audio().currentTime = currentTime
+    audio().dispatchEvent(new Event('timeupdate'))
+  }
+
+  // A long track near the end of its first window, whose window ahead is still being decoded.
+  async function waitingForTheWindowAhead() {
+    const parts = await playingLongTrack()
+    const pending = deferred<Clip>()
+    clip.mockReturnValueOnce(pending.promise)
+    timeUpdate(595)
+    timeUpdate(600)
+    audio().dispatchEvent(new Event('ended'))
+    return { ...parts, pending }
+  }
 
   beforeEach(() => {
     setActivePinia(createPinia())
@@ -1064,16 +1095,373 @@ describe('the audition store', () => {
       expect(audition.stretchPlayheadSeconds(trackStretchOfSelection())).toBe(22)
     })
 
-    it('plays only the first 10 min of a longer track', async () => {
-      const { audition } = setUpLongTrack()
-      const stretch = trackStretch(useSplitStore().selectedTrack!)
+    describe('a long track, through a moving window', () => {
+      // The track of 1000 s: windows of 600 s, so 0 s to 600 s and then 600 s to 1000 s.
+      it('decodes the first 10 min from the playhead, and plays from its start', async () => {
+        const { audition } = setUpLongTrack()
 
-      audition.toggleStretch(stretch)
-      await flush()
+        audition.toggleStretch(longStretch())
+        await flush()
 
-      expect(clip).toHaveBeenCalledExactlyOnceWith(0, 600)
-      audition.seekStretch(stretch, 900)
-      expect(audio().currentTime).toBe(600)
+        expect(clip).toHaveBeenCalledExactlyOnceWith(0, 600)
+        expect(audio().currentTime).toBe(0)
+        expect(audition.stretchPlayheadSeconds(longStretch())).toBe(0)
+      })
+
+      it('decodes the window from a playhead moved before the first play', async () => {
+        const { audition } = setUpLongTrack()
+        audition.seekStretch(longStretch(), 250)
+
+        audition.toggleStretch(longStretch())
+        await flush()
+
+        expect(clip).toHaveBeenCalledExactlyOnceWith(250, 600)
+        expect(audio().currentTime).toBe(0)
+        expect(audition.stretchPlayheadSeconds(longStretch())).toBe(250)
+      })
+
+      it('decodes only what is left when the playhead is near the end', async () => {
+        const { audition } = setUpLongTrack()
+        audition.seekStretch(longStretch(), 900)
+
+        audition.toggleStretch(longStretch())
+        await flush()
+
+        expect(clip).toHaveBeenCalledExactlyOnceWith(900, 100)
+      })
+
+      it('seeks inside the held window with no clip call', async () => {
+        const { audition } = await playingLongTrack()
+
+        audition.seekStretch(longStretch(), 300)
+
+        expect(audio().currentTime).toBe(300)
+        expect(audition.stretchStatus).toBe('playing')
+        expect(clip).toHaveBeenCalledOnce()
+      })
+
+      it('decodes a new window from the seek point when the playing track is seeked outside it', async () => {
+        const { audition } = await playingLongTrack()
+        const pending = deferred<Clip>()
+        clip.mockReturnValueOnce(pending.promise)
+
+        audition.seekStretch(longStretch(), 800)
+
+        expect(clip).toHaveBeenLastCalledWith(800, 200)
+        expect(audition.stretchStatus).toBe('loading')
+        expect(audition.stretchPlayheadSeconds(longStretch())).toBe(800)
+        expect(revokeObjectURL).toHaveBeenCalledExactlyOnceWith('blob:clip-1')
+
+        pending.resolve(clipOf(800, 200))
+        await flush()
+
+        expect(audition.stretchStatus).toBe('playing')
+        expect(audio().currentTime).toBe(0)
+        expect(audition.stretchPlayheadSeconds(longStretch())).toBe(800)
+      })
+
+      it('decodes a new window on Play when a paused track was seeked outside its window', async () => {
+        const { audition } = await playingLongTrack()
+        audition.toggleStretch(longStretch())
+
+        audition.seekStretch(longStretch(), 700)
+        expect(clip).toHaveBeenCalledOnce()
+        audition.toggleStretch(longStretch())
+        await flush()
+
+        expect(clip).toHaveBeenLastCalledWith(700, 300)
+        expect(audition.stretchStatus).toBe('playing')
+        expect(audition.stretchPlayheadSeconds(longStretch())).toBe(700)
+      })
+
+      it('resumes a paused track from its window, with no clip call, when the playhead is inside it', async () => {
+        const { audition } = await playingLongTrack()
+        audition.toggleStretch(longStretch())
+        audition.seekStretch(longStretch(), 450)
+
+        audition.toggleStretch(longStretch())
+        await flush()
+
+        expect(audio().currentTime).toBe(450)
+        expect(clip).toHaveBeenCalledOnce()
+      })
+
+      it('plays from the window a playhead left outside it while the first clip was decoded', async () => {
+        const { audition } = setUpLongTrack()
+        const pending = deferred<Clip>()
+        clip.mockReturnValueOnce(pending.promise)
+        audition.toggleStretch(longStretch())
+
+        audition.seekStretch(longStretch(), 800)
+        pending.resolve(clipOf(0, 600))
+        await flush()
+
+        expect(clip).toHaveBeenLastCalledWith(800, 200)
+        expect(audition.stretchStatus).toBe('playing')
+        expect(audition.stretchPlayheadSeconds(longStretch())).toBe(800)
+      })
+
+      it('ends the track, with no clip call, when the playing track is seeked to its very end', async () => {
+        const { audition } = await playingLongTrack()
+
+        audition.seekStretch(longStretch(), 1000)
+
+        expect(audition.stretchStatus).toBe('idle')
+        expect(audition.stretchPlayheadSeconds(longStretch())).toBe(0)
+        expect(clip).toHaveBeenCalledOnce()
+      })
+
+      it('plays from the track’s start when the playhead was left at its very end', async () => {
+        const { audition } = await playingLongTrack()
+        audition.toggleStretch(longStretch())
+        audition.seekStretch(longStretch(), 1000)
+
+        audition.toggleStretch(longStretch())
+        await flush()
+
+        expect(clip).toHaveBeenLastCalledWith(0, 600)
+        expect(audition.stretchPlayheadSeconds(longStretch())).toBe(0)
+      })
+
+      describe('and the window ahead', () => {
+        it('is decoded when the playhead is 30 s from the end of the window, and not before', async () => {
+          await playingLongTrack()
+
+          timeUpdate(569)
+          expect(clip).toHaveBeenCalledOnce()
+          timeUpdate(570)
+
+          expect(clip).toHaveBeenCalledTimes(2)
+          expect(clip).toHaveBeenLastCalledWith(600, 400)
+        })
+
+        it('is asked for once', async () => {
+          await playingLongTrack()
+
+          timeUpdate(570)
+          timeUpdate(580)
+          await flush()
+          timeUpdate(590)
+
+          expect(clip).toHaveBeenCalledTimes(2)
+        })
+
+        it('is not asked for while the track is not playing', async () => {
+          const { audition } = await playingLongTrack()
+          audition.toggleStretch(longStretch())
+
+          timeUpdate(590)
+
+          expect(clip).toHaveBeenCalledOnce()
+        })
+
+        it('is never asked for by a track of 10 min or less', async () => {
+          await playingTrack()
+
+          timeUpdate(19)
+
+          expect(clip).toHaveBeenCalledOnce()
+        })
+
+        it('is played on into when the window ends, with no clip call and no wait', async () => {
+          const { audition } = await playingLongTrack()
+          timeUpdate(570)
+          await flush()
+          const played = play.mock.calls.length
+
+          timeUpdate(600)
+          audio().dispatchEvent(new Event('ended'))
+
+          expect(audition.stretchStatus).toBe('playing')
+          expect(audio().src).toBe('blob:clip-2')
+          expect(audio().currentTime).toBe(0)
+          expect(audition.stretchPlayheadSeconds(longStretch())).toBe(600)
+          expect(play).toHaveBeenCalledTimes(played + 1)
+          expect(clip).toHaveBeenCalledTimes(2)
+          expect(revokeObjectURL).toHaveBeenCalledExactlyOnceWith('blob:clip-1')
+          audio().currentTime = 100
+          expect(audition.stretchPlayheadSeconds(longStretch())).toBe(700)
+        })
+
+        it('is asked for in turn: the window after it is decoded ahead of the hand-over', async () => {
+          const longer = setUpLongTrack()
+          longer.split.detect(curveOf([LOUD, 40_000]), {
+            windowSeconds: 0.05,
+            durationSeconds: 2000,
+          })
+          longer.split.selectTrack(longer.split.tracks[0]!)
+          longer.audition.toggleStretch(longStretch())
+          await flush()
+          timeUpdate(570)
+          await flush()
+          timeUpdate(600)
+          audio().dispatchEvent(new Event('ended'))
+
+          timeUpdate(1170)
+
+          expect(clip).toHaveBeenCalledTimes(3)
+          expect(clip).toHaveBeenLastCalledWith(1200, 600)
+        })
+
+        it('ends the track after its last window, with the playhead back at the start', async () => {
+          const { audition } = await playingLongTrack()
+          timeUpdate(570)
+          await flush()
+          timeUpdate(600)
+          audio().dispatchEvent(new Event('ended'))
+
+          audio().currentTime = 400
+          audio().dispatchEvent(new Event('ended'))
+
+          expect(audition.stretchStatus).toBe('idle')
+          expect(audition.stretchPlayheadSeconds(longStretch())).toBe(0)
+          audition.toggleStretch(longStretch())
+          await flush()
+          expect(clip).toHaveBeenLastCalledWith(0, 600)
+        })
+
+        it('holds at most two windows: the one playing and the one ahead', async () => {
+          const { audition } = await playingLongTrack()
+          expect(heldWavs()).toBe(1)
+
+          timeUpdate(570)
+          await flush()
+          expect(heldWavs()).toBe(2)
+          audition.toggleStretch(longStretch())
+          audition.toggleStretch(longStretch())
+          expect(heldWavs()).toBe(2)
+
+          timeUpdate(600)
+          audio().dispatchEvent(new Event('ended'))
+          expect(heldWavs()).toBe(1)
+        })
+
+        it('lets both windows go for a window from a seek outside them', async () => {
+          const { audition } = await playingLongTrack()
+          timeUpdate(570)
+          await flush()
+
+          audition.seekStretch(longStretch(), 900)
+          await flush()
+
+          expect(heldWavs()).toBe(1)
+          expect(audio().src).toBe('blob:clip-3')
+        })
+
+        it('drops a window that arrives after the windows were let go of', async () => {
+          const { audition } = await playingLongTrack()
+          const pending = deferred<Clip>()
+          clip.mockReturnValueOnce(pending.promise)
+          timeUpdate(570)
+
+          audition.seekStretch(longStretch(), 900)
+          await flush()
+          pending.resolve(clipOf(600, 400))
+          await flush()
+
+          expect(createObjectURL).toHaveBeenCalledTimes(2)
+          expect(heldWavs()).toBe(1)
+          expect(audition.stretchStatus).toBe('playing')
+        })
+
+        it('lets both windows go when a new range is made', async () => {
+          const { split } = await playingLongTrack()
+          timeUpdate(570)
+          await flush()
+
+          split.setRange(10, 30)
+
+          expect(heldWavs()).toBe(0)
+        })
+
+        describe('when it is not decoded by the hand-over', () => {
+          it('reads "decoding" until it arrives, then plays on from its start', async () => {
+            const { audition, pending } = await waitingForTheWindowAhead()
+            expect(audition.stretchStatus).toBe('loading')
+            expect(audition.stretchPlayheadSeconds(longStretch())).toBe(600)
+
+            pending.resolve(clipOf(600, 400))
+            await flush()
+
+            expect(audition.stretchStatus).toBe('playing')
+            expect(audio().src).toBe('blob:clip-2')
+            expect(audition.stretchPlayheadSeconds(longStretch())).toBe(600)
+            expect(clip).toHaveBeenCalledTimes(2)
+          })
+
+          it('is taken back by a press, and does not play when it arrives', async () => {
+            const { audition, pending } = await waitingForTheWindowAhead()
+            const played = play.mock.calls.length
+
+            audition.toggleStretch(longStretch())
+            pending.resolve(clipOf(600, 400))
+            await flush()
+
+            expect(audition.stretchStatus).toBe('idle')
+            expect(play).toHaveBeenCalledTimes(played)
+          })
+
+          it('plays on from a place sought inside it meanwhile', async () => {
+            const { audition, pending } = await waitingForTheWindowAhead()
+
+            audition.seekStretch(longStretch(), 800)
+            pending.resolve(clipOf(600, 400))
+            await flush()
+
+            expect(audition.stretchStatus).toBe('playing')
+            expect(audio().currentTime).toBe(200)
+            expect(audition.stretchPlayheadSeconds(longStretch())).toBe(800)
+          })
+
+          it('decodes a window from a place sought outside it meanwhile', async () => {
+            const { audition, pending } = await waitingForTheWindowAhead()
+
+            audition.seekStretch(longStretch(), 300)
+            pending.resolve(clipOf(600, 400))
+            await flush()
+
+            expect(clip).toHaveBeenLastCalledWith(300, 600)
+            expect(audition.stretchStatus).toBe('playing')
+            expect(audition.stretchPlayheadSeconds(longStretch())).toBe(300)
+            expect(heldWavs()).toBe(1)
+          })
+        })
+
+        describe('failures', () => {
+          it('stays quiet when decoding it fails, and decodes it again at the hand-over', async () => {
+            const { audition } = await playingLongTrack()
+            clip.mockRejectedValueOnce(new Error('ffmpeg went away'))
+
+            timeUpdate(570)
+            await flush()
+            expect(audition.failure).toBeNull()
+            expect(audition.stretchStatus).toBe('playing')
+            timeUpdate(600)
+            audio().dispatchEvent(new Event('ended'))
+            await flush()
+
+            expect(clip).toHaveBeenLastCalledWith(600, 400)
+            expect(audition.stretchStatus).toBe('playing')
+            expect(audio().src).toBe('blob:clip-2')
+          })
+
+          it('says why when the hand-over cannot decode it either', async () => {
+            const { audition } = await playingLongTrack()
+            clip.mockRejectedValueOnce(new Error('ffmpeg went away'))
+            timeUpdate(570)
+            await flush()
+            clip.mockRejectedValueOnce(new Error('still away'))
+
+            timeUpdate(600)
+            audio().dispatchEvent(new Event('ended'))
+            await flush()
+
+            expect(audition.failure).toBe("Couldn't play this track: still away")
+            expect(audition.stretchStatus).toBe('idle')
+            expect(heldWavs()).toBe(0)
+          })
+        })
+      })
     })
 
     it('says "track" when the track cannot be played', async () => {

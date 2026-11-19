@@ -12,7 +12,7 @@ import LoudnessCurve from '@/widgets/loudness-curve/ui/LoudnessCurve.vue'
 import LoudnessSettings from '@/widgets/loudness-curve/ui/LoudnessSettings.vue'
 import SourceWaveform from '@/widgets/source-waveform/ui/SourceWaveform.vue'
 import { rangeTitle } from '@/widgets/split-zoom/lib/range-title.ts'
-import { trackStretch } from '@/widgets/split-zoom/lib/track-extent.ts'
+import { trackExtent } from '@/widgets/split-zoom/lib/track-extent.ts'
 import { trackTitle } from '@/widgets/split-zoom/lib/track-title.ts'
 import { zoomTitle } from '@/widgets/split-zoom/lib/zoom-title.ts'
 import { useAuditionStore } from '@/widgets/split-zoom/model/audition.ts'
@@ -95,12 +95,12 @@ const stretchButtonLabel = computed(() => STRETCH_BUTTON_LABELS[audition.stretch
 
 /*
 The two buttons of the Range view and of the Track view play the stretch on show: the range, or the
-selected track (all of it, or the first 10 min of a long one). With none there is nothing to play.
+selected track (all of it, however long). With none there is nothing to play.
 */
 const stretch = computed(() => {
   if (split.view === 'range') return split.range
   return split.view === 'track' && split.selectedTrack !== null
-    ? trackStretch(split.selectedTrack)
+    ? trackExtent(split.selectedTrack)
     : null
 })
 

@@ -96,7 +96,7 @@ stateDiagram-v2
 
 ## Player
 
-One store, `audition`, is the one player: a hidden `<audio>` element plays a WAV the `source-file` store decodes (a start and a length, `-c:a pcm_s16le -f wav`, with the same 1 s pre-roll as a slice), and at most one decoded stretch is held. It has two kinds of listening, each with its own status, and starting one stops the other.
+One store, `audition`, is the one player: a hidden `<audio>` element plays a WAV the `source-file` store decodes (a start and a length, `-c:a pcm_s16le -f wav`, with the same 1 s pre-roll as a slice), and at most one decoded window of one stretch (and the window after it) is held. It has two kinds of listening, each with its own status, and starting one stops the other.
 
 **The audition** is the 8 s across the selected split (the split ±4 s). "Play across split" and Space on the zoom view's handle both call `toggle`. The zoom view draws the playhead each animation frame from the element's `currentTime` plus the clip's start.
 
@@ -113,14 +113,16 @@ stateDiagram-v2
   playing --> idle: the range plays, or a new range
 ```
 
-**The stretch** is the range the user dragged out (note 08) or the selected track. The Range view's and the Track view's Play button and Space both call `toggleStretch(stretch)`: the player plays a stretch (a start and an end the caller hands in: the range as it is, a track as `trackStretch(track)`, which holds a track over 10 min to its first 10 min until the moving window lands), so it reads no store for it. The whole stretch is decoded once and kept, tied to the stretch it was decoded for (a different stretch, a range after a track or the other way round, releases it and decodes its own), so a pause costs nothing: playing again sets the element's `currentTime` inside the WAV, which is exact, and plays at once. Both views draw the playhead each animation frame while it plays, and at its resting place otherwise: the stretch's start for a new stretch and after the end. The resting place names the stretch it belongs to, so a view of another stretch never draws it. The playhead moves without changing the status: `seekStretch` sets `currentTime` while the stretch plays, and the resting place otherwise (which `toggleStretch`, or the clip still being decoded, starts from); a drag of it goes through `grabPlayhead`, which pauses a playing stretch, and `dropPlayhead`, which plays it on only if it was playing.
+**The stretch** is the range the user dragged out (note 08) or the selected track. The Range view's and the Track view's Play button and Space both call `toggleStretch(stretch)`: the player plays a stretch (a start and an end the caller hands in: the range as it is, a track as its whole extent). It reads the split store only to word a failure and to stop when the range or the selected track changes. A stretch of 10 min or less is one window: decoded once and kept, tied to the stretch it was decoded for (a different stretch, a range after a track or the other way round, releases it and decodes its own), so a pause costs nothing: playing again sets the element's `currentTime` inside the WAV, which is exact, and plays at once. Both views draw the playhead each animation frame while it plays, and at its resting place otherwise: the stretch's start for a new stretch and after the end. The resting place names the stretch it belongs to, so a view of another stretch never draws it. The playhead moves without changing the status: `seekStretch` sets `currentTime` while the stretch plays, and the resting place otherwise (which `toggleStretch`, or the clip still being decoded, starts from); a drag of it goes through `grabPlayhead`, which pauses a playing stretch, and `dropPlayhead`, which plays it on only if it was playing.
+
+**A long track moves a window along it.** At most 10 min of WAV is decoded at a time, so `lib/decode-window.ts` decides, for a stretch and a playhead, the window to decode (the 10 min from the playhead, held to the stretch's end; the whole stretch when it is 10 min or less), whether a time is inside a window, and when the next window is due. The first press decodes the window that holds the playhead. A seek inside the held window sets `currentTime`; a seek outside it releases the windows and decodes one from the seek point (the stretch reads as decoding meanwhile), and a seek to the stretch's very end ends the stretch. While a window plays, `timeupdate` asks for the window ahead once the playhead is 30 s from the end of the playing one, once per window. When the element's `ended` event comes, the player points the element at that window and plays on: no decode, and a break of about 60 ms, which is the element loading a new source (note 08). When the window ahead is not decoded yet (a seek close to the end of the window) the stretch reads as decoding until it arrives, and a decode that failed ahead is tried again then, with its failure shown. The window ahead is dropped if the windows are released meanwhile: its fetch is forgotten, so a window that arrives late is never held. At most two windows are held.
 
 ```mermaid
 stateDiagram-v2
   [*] --> idle
   idle --> loading: toggleStretch, no WAV held
   idle --> playing: toggleStretch, WAV held
-  loading --> playing: stretch decoded
+  loading --> playing: stretch's window decoded
   loading --> idle: toggleStretch, stop, a new range, another track, or the audition plays
   loading --> idle: decode failed, failure shown
   playing --> idle: play refused, failure shown
@@ -128,7 +130,9 @@ stateDiagram-v2
   paused --> playing: toggleStretch
   playing --> paused: grabPlayhead, a drag of the playhead
   paused --> playing: dropPlayhead, if it was playing when grabbed
-  playing --> idle: stretch ended, playhead back at the start
+  playing --> idle: the stretch's last window ended, playhead back at the start
+  playing --> playing: a window ended, the window ahead plays on
+  playing --> loading: seekStretch outside the held window, or a window ended before the one ahead was decoded
   paused --> idle: a new range, another track, or the audition plays
   playing --> idle: a new range, another track, or the audition plays
 ```
