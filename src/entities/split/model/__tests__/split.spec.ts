@@ -50,6 +50,22 @@ function editedStore() {
   return store
 }
 
+// Four tracks in 80 s (0–22, 22–42, 42–62, 62–80), named A to D.
+function namedFourTracks() {
+  const curve = threeFarGapsCurve()
+  const store = useSplitStore()
+  store.detect(curve, timing(curve))
+  const [first, second, third] = store.splits
+  store.renameTrack(null, 'A')
+  store.renameTrack(first!.id, 'B')
+  store.renameTrack(second!.id, 'C')
+  store.renameTrack(third!.id, 'D')
+  return store
+}
+
+const trackNames = (store: ReturnType<typeof useSplitStore>) =>
+  store.tracks.map((track) => track.name)
+
 // A range does not depend on the splits; 60 s with two of them will do.
 function loadedStore() {
   const curve = farGaps()
@@ -271,7 +287,7 @@ describe('the split store', () => {
 
       store.detect(curve, timing(curve))
 
-      expect(store.selectedSplitId).toBe(store.splits[0]!.id)
+      expect(store.selectedSplit?.id).toBe(store.splits[0]!.id)
       expect(store.selectedSplit).toBe(store.splits[0])
       expect(store.zoomCentreSeconds).toBeCloseTo(22, 9)
     })
@@ -282,7 +298,7 @@ describe('the split store', () => {
 
       store.detect(curve, timing(curve))
 
-      expect(store.selectedSplitId).toBeNull()
+      expect(store.selectedSplit).toBeNull()
       expect(store.selectedSplit).toBeNull()
       expect(store.zoomCentreSeconds).toBe(ZOOM_WINDOW_SECONDS / 2)
       expect(store.zoomCentreSeconds).toBe(10)
@@ -318,7 +334,7 @@ describe('the split store', () => {
       store.moveZoomTo(31.5)
 
       expect(store.zoomCentreSeconds).toBe(31.5)
-      expect(store.selectedSplitId).toBeNull()
+      expect(store.selectedSplit).toBeNull()
       expect(store.selectedSplit).toBeNull()
     })
 
@@ -346,33 +362,122 @@ describe('the split store', () => {
       expect(store.splits).toHaveLength(3)
     })
 
-    it('selects the split where a track starts, and leaves the first track alone', () => {
+    it('selects a track, the first included, and clears the selected split', () => {
       const curve = farGaps()
       const store = useSplitStore()
       store.detect(curve, timing(curve))
 
       store.selectTrack(store.tracks[2]!)
 
-      expect(store.selectedSplit).toBe(store.splits[1])
-      expect(store.zoomCentreSeconds).toBeCloseTo(42, 9)
+      expect(store.selectedSplit).toBeNull()
+      expect(store.selectedTrack).toBe(store.tracks[2])
 
       store.selectTrack(store.tracks[0]!)
 
-      expect(store.selectedSplit).toBe(store.splits[1])
-      expect(store.zoomCentreSeconds).toBeCloseTo(42, 9)
+      expect(store.selectedTrack).toBe(store.tracks[0])
+      expect(store.selectedSplit).toBeNull()
     })
 
-    it('marks as selected only the track that starts at the selected split', () => {
+    it('refuses a stale track, whose start split was deleted, and keeps the selection and view', () => {
       const curve = farGaps()
       const store = useSplitStore()
       store.detect(curve, timing(curve))
-      expect(selectedTracks(store)).toEqual([false, true, false])
+      const stale = store.tracks[2]!
+      store.selectSplit(store.splits[0]!.id)
+      store.deleteSplit(stale.startSplit!.id)
+
+      store.selectTrack(stale)
+
+      expect(store.selectedTrack).toBeNull()
+      expect(store.selectedSplit).toBe(store.splits[0])
+      expect(store.view).toBe('split')
+    })
+
+    it('selects no track before detection', () => {
+      const curve = farGaps()
+      const other = useSplitStore()
+      other.detect(curve, timing(curve))
+      const track = other.tracks[0]!
+      other.reset()
+
+      other.selectTrack(track)
+
+      expect(other.selectedTrack).toBeNull()
+      expect(other.view).toBe('split')
+    })
+
+    it('clears the selected track when a split is selected', () => {
+      const curve = farGaps()
+      const store = useSplitStore()
+      store.detect(curve, timing(curve))
+      store.selectTrack(store.tracks[1]!)
 
       store.selectSplit(store.splits[1]!.id)
+
+      expect(store.selectedTrack).toBeNull()
+      expect(store.selectedSplit).toBe(store.splits[1])
+    })
+
+    it('clears the selected track when the zoom window is moved', () => {
+      const curve = farGaps()
+      const store = useSplitStore()
+      store.detect(curve, timing(curve))
+      store.selectTrack(store.tracks[1]!)
+
+      store.moveZoomTo(5)
+
+      expect(store.selectedTrack).toBeNull()
+    })
+
+    it('does not move the zoom window when a track is selected', () => {
+      const curve = farGaps()
+      const store = useSplitStore()
+      store.detect(curve, timing(curve))
+      store.moveZoomTo(31.5)
+
+      store.selectTrack(store.tracks[2]!)
+
+      expect(store.zoomCentreSeconds).toBe(31.5)
+    })
+
+    it('has no selected track until one is selected, or before detection', () => {
+      const store = useSplitStore()
+      expect(store.selectedTrack).toBeNull()
+
+      const curve = farGaps()
+      store.detect(curve, timing(curve))
+
+      expect(store.selectedTrack).toBeNull()
+    })
+
+    it('follows the selected track as the split where it starts moves', () => {
+      const curve = farGaps()
+      const store = useSplitStore()
+      store.detect(curve, timing(curve))
+      // A split moves only inside the window, and selecting a track leaves the window where it is.
+      store.moveZoomTo(22)
+      store.selectTrack(store.tracks[1]!)
+
+      store.moveSplit(store.splits[0]!.id, 24)
+
+      expect(store.selectedTrack?.number).toBe(2)
+      expect(store.selectedTrack?.startSeconds).toBe(24)
+    })
+
+    it('marks as selected only the selected track, the first included', () => {
+      const curve = farGaps()
+      const store = useSplitStore()
+      store.detect(curve, timing(curve))
+      // Detection selects the first split, which is no track.
+      expect(selectedTracks(store)).toEqual([false, false, false])
+
+      store.selectTrack(store.tracks[0]!)
+      expect(selectedTracks(store)).toEqual([true, false, false])
+
+      store.selectTrack(store.tracks[2]!)
       expect(selectedTracks(store)).toEqual([false, false, true])
 
-      // The first track starts with the file, so no selection makes it selected.
-      store.moveZoomTo(31.5)
+      store.selectSplit(store.splits[1]!.id)
       expect(selectedTracks(store)).toEqual([false, false, false])
     })
 
@@ -402,7 +507,7 @@ describe('the split store', () => {
 
       store.setSilenceThreshold(-60)
 
-      expect(store.selectedSplitId).toBeNull()
+      expect(store.selectedSplit).toBeNull()
       expect(store.zoomCentreSeconds).toBe(10)
     })
   })
@@ -551,7 +656,7 @@ describe('the split store', () => {
       store.addSplit()
 
       expect(store.splits).toHaveLength(2)
-      expect(store.selectedSplitId).toBeNull()
+      expect(store.selectedSplit).toBeNull()
     })
 
     it('does nothing before detection', () => {
@@ -688,7 +793,7 @@ describe('the split store', () => {
         store.deleteSplit(store.splits[0]!.id)
 
         expect(store.splits).toEqual([])
-        expect(store.selectedSplitId).toBeNull()
+        expect(store.selectedSplit).toBeNull()
         expect(store.zoomCentreSeconds).toBeCloseTo(22, 9)
       })
 
@@ -713,6 +818,338 @@ describe('the split store', () => {
       store.deleteSplit(-1)
 
       expect(store.splits).toHaveLength(2)
+    })
+  })
+
+  describe('removing a track', () => {
+    describe('which splits go', () => {
+      it('deletes the splits at both ends of a middle track, which merges it with both neighbours', () => {
+        const store = namedFourTracks()
+
+        store.removeTrack(store.tracks[1]!)
+
+        expect(store.splits.map((split) => split.seconds)).toEqual([expect.closeTo(62, 9)])
+        expect(store.tracks.map((track) => [track.startSeconds, track.lengthSeconds])).toEqual([
+          [0, expect.closeTo(62, 9)],
+          [expect.closeTo(62, 9), expect.closeTo(18, 9)],
+        ])
+      })
+
+      it('merges the first track into the next, deleting the one split it has', () => {
+        const store = namedFourTracks()
+
+        store.removeTrack(store.tracks[0]!)
+
+        expect(store.splits.map((split) => split.seconds)).toEqual([
+          expect.closeTo(42, 9),
+          expect.closeTo(62, 9),
+        ])
+        expect(store.tracks[0]!.lengthSeconds).toBeCloseTo(42, 9)
+      })
+
+      it('merges the last track into the previous one, deleting the one split it has', () => {
+        const store = namedFourTracks()
+
+        store.removeTrack(store.tracks[3]!)
+
+        expect(store.splits.map((split) => split.seconds)).toEqual([
+          expect.closeTo(22, 9),
+          expect.closeTo(42, 9),
+        ])
+        expect(store.tracks[2]!.lengthSeconds).toBeCloseTo(38, 9)
+      })
+
+      it('leaves one track when one of two is removed, and no split', () => {
+        const curve = farGaps()
+        const store = useSplitStore()
+        store.detect(curve, timing(curve))
+        store.deleteSplit(store.splits[1]!.id)
+
+        store.removeTrack(store.tracks[0]!)
+
+        expect(store.splits).toEqual([])
+        expect(store.tracks).toHaveLength(1)
+      })
+
+      it('refuses the only track, whose removal would remove the file', () => {
+        const curve = curveOf([LOUD, 100])
+        const store = useSplitStore()
+        store.detect(curve, timing(curve))
+
+        store.removeTrack(store.tracks[0]!)
+
+        expect(store.tracks).toHaveLength(1)
+        expect(store.editCount).toBe(0)
+      })
+
+      it('refuses a track whose start split is gone', () => {
+        const store = namedFourTracks()
+        const stale = store.tracks[2]!
+        store.deleteSplit(stale.startSplit!.id)
+        const edits = store.editCount
+
+        store.removeTrack(stale)
+
+        expect(store.splits).toHaveLength(2)
+        expect(store.editCount).toBe(edits)
+      })
+    })
+
+    describe('the names', () => {
+      it('takes the removed track’s name with it, and the merged track keeps the previous name', () => {
+        const store = namedFourTracks()
+
+        store.removeTrack(store.tracks[1]!)
+
+        expect(trackNames(store)).toEqual(['A', 'D'])
+      })
+
+      it('keeps the previous track’s name when the last track is removed', () => {
+        const store = namedFourTracks()
+
+        store.removeTrack(store.tracks[3]!)
+
+        expect(trackNames(store)).toEqual(['A', 'B', 'C'])
+      })
+
+      it('moves the next track’s name to the file’s start when the first track is removed', () => {
+        const store = namedFourTracks()
+
+        store.removeTrack(store.tracks[0]!)
+
+        expect(store.firstTrackName).toBe('B')
+        expect(trackNames(store)).toEqual(['B', 'C', 'D'])
+      })
+
+      it('numbers the merged first track when the next track had no name', () => {
+        const curve = threeFarGapsCurve()
+        const store = useSplitStore()
+        store.detect(curve, timing(curve))
+        store.renameTrack(null, 'A')
+
+        store.removeTrack(store.tracks[0]!)
+
+        expect(store.firstTrackName).toBeNull()
+        expect(trackNames(store)).toEqual(['1', '2', '3'])
+      })
+
+      it('keeps the names of the tracks that were not merged', () => {
+        const store = namedFourTracks()
+
+        store.removeTrack(store.tracks[1]!)
+
+        expect(store.tracks[1]!.name).toBe('D')
+        expect(store.tracks[1]!.number).toBe(2)
+      })
+    })
+
+    describe('the edit count', () => {
+      it('counts each detected split it deletes: two in the middle, one at an edge', () => {
+        const curve = threeFarGapsCurve()
+        const store = useSplitStore()
+        store.detect(curve, timing(curve))
+
+        store.removeTrack(store.tracks[1]!)
+        expect(store.editCount).toBe(2)
+
+        store.removeTrack(store.tracks[1]!)
+        expect(store.editCount).toBe(3)
+      })
+
+      it('takes the added edit back for an added split, and counts a detected one', () => {
+        const curve = threeFarGapsCurve()
+        const store = useSplitStore()
+        store.detect(curve, timing(curve))
+        store.moveZoomTo(52)
+        store.addSplit()
+        expect(store.editCount).toBe(1)
+
+        // Track 3 runs from the detected split at 42 s to the added one at 52 s.
+        store.removeTrack(store.tracks[2]!)
+
+        expect(store.splits.map((split) => split.seconds)).toEqual([
+          expect.closeTo(22, 9),
+          expect.closeTo(62, 9),
+        ])
+        expect(store.editCount).toBe(1)
+      })
+
+      it('counts nothing for a track between two added splits', () => {
+        const curve = threeFarGapsCurve()
+        const store = useSplitStore()
+        store.detect(curve, timing(curve))
+        store.moveZoomTo(30)
+        store.addSplit()
+        store.moveZoomTo(36)
+        store.addSplit()
+        expect(store.editCount).toBe(2)
+
+        store.removeTrack(store.tracks[2]!)
+
+        expect(store.splits).toHaveLength(3)
+        expect(store.editCount).toBe(0)
+      })
+
+      it('drops the moved and the renamed edits of the splits it deletes', () => {
+        const store = namedFourTracks()
+        store.moveSplit(store.splits[0]!.id, 23)
+        // A, B, C and D are four renamed tracks, and split 1 moved: five edits.
+        expect(store.editCount).toBe(5)
+
+        store.removeTrack(store.tracks[1]!)
+
+        // Splits 1 and 2 are deleted (two edits) with B's and C's rename and split 1's move
+        // gone: what is left is A, D and the two deletions.
+        expect(store.editCount).toBe(4)
+      })
+
+      it('counts the file’s start as renamed while the first track holds a name after the removal', () => {
+        const store = namedFourTracks()
+
+        store.removeTrack(store.tracks[0]!)
+
+        // The deleted split, the file's start (now B), C and D.
+        expect(store.editCount).toBe(4)
+      })
+
+      it('counts no rename for the file’s start when the first track is left unnamed', () => {
+        const curve = threeFarGapsCurve()
+        const store = useSplitStore()
+        store.detect(curve, timing(curve))
+        store.renameTrack(null, 'A')
+        expect(store.editCount).toBe(1)
+
+        store.removeTrack(store.tracks[0]!)
+
+        // The deleted split only: the next track had no name to move to the file's start.
+        expect(store.editCount).toBe(1)
+      })
+
+      it('counts a rename for the file’s start when the removed first track had none', () => {
+        const curve = threeFarGapsCurve()
+        const store = useSplitStore()
+        store.detect(curve, timing(curve))
+        store.renameTrack(store.splits[0]!.id, 'B')
+
+        store.removeTrack(store.tracks[0]!)
+
+        expect(store.editCount).toBe(2)
+      })
+    })
+
+    describe('the selection afterwards', () => {
+      it('is the merged track when the removed track was selected', () => {
+        const store = namedFourTracks()
+        store.selectTrack(store.tracks[1]!)
+
+        store.removeTrack(store.tracks[1]!)
+
+        expect(store.selectedTrack).toBe(store.tracks[0])
+        expect(store.selectedTrack?.lengthSeconds).toBeCloseTo(62, 9)
+        expect(store.view).toBe('track')
+      })
+
+      it('is the merged track when the next track was selected, whose start split goes', () => {
+        const store = namedFourTracks()
+        store.selectTrack(store.tracks[2]!)
+
+        store.removeTrack(store.tracks[1]!)
+
+        expect(store.selectedTrack).toBe(store.tracks[0])
+      })
+
+      it('is the merged track when the previous track was selected, now longer', () => {
+        const store = namedFourTracks()
+        store.selectTrack(store.tracks[0]!)
+
+        store.removeTrack(store.tracks[1]!)
+
+        expect(store.selectedTrack).toBe(store.tracks[0])
+        expect(store.selectedTrack?.lengthSeconds).toBeCloseTo(62, 9)
+      })
+
+      it('stays on the first track, now longer, when it is selected and removed', () => {
+        const store = namedFourTracks()
+        store.selectTrack(store.tracks[0]!)
+
+        store.removeTrack(store.tracks[0]!)
+
+        expect(store.selectedTrack).toBe(store.tracks[0])
+        expect(store.selectedTrack?.lengthSeconds).toBeCloseTo(42, 9)
+      })
+
+      it('is the merged first track when the second track is selected and the first is removed', () => {
+        const store = namedFourTracks()
+        store.selectTrack(store.tracks[1]!)
+
+        store.removeTrack(store.tracks[0]!)
+
+        expect(store.selectedTrack).toBe(store.tracks[0])
+      })
+
+      it('is the merged track, the previous one, when the last track is removed while selected', () => {
+        const store = namedFourTracks()
+        store.selectTrack(store.tracks[3]!)
+
+        store.removeTrack(store.tracks[3]!)
+
+        expect(store.selectedTrack).toBe(store.tracks[2])
+        expect(store.selectedTrack?.lengthSeconds).toBeCloseTo(38, 9)
+      })
+
+      it('stays on a track that was not merged, which is renumbered', () => {
+        const store = namedFourTracks()
+        store.selectTrack(store.tracks[3]!)
+
+        store.removeTrack(store.tracks[1]!)
+
+        expect(store.selectedTrack).toBe(store.tracks[1])
+        expect(store.selectedTrack?.name).toBe('D')
+      })
+
+      it('stays on a selected split that is not deleted', () => {
+        const store = namedFourTracks()
+        store.selectSplit(store.splits[2]!.id)
+        const kept = store.splits[2]
+
+        store.removeTrack(store.tracks[1]!)
+
+        expect(store.selectedSplit).toBe(kept)
+        expect(store.zoomCentreSeconds).toBeCloseTo(62, 9)
+      })
+
+      it('falls back to the neighbour, as a delete does, when the selected split is deleted', () => {
+        const store = namedFourTracks()
+        store.selectSplit(store.splits[0]!.id)
+
+        store.removeTrack(store.tracks[1]!)
+
+        expect(store.selectedSplit).toBe(store.splits[0])
+        expect(store.selectedSplit?.seconds).toBeCloseTo(62, 9)
+        expect(store.zoomCentreSeconds).toBeCloseTo(62, 9)
+      })
+
+      it('selects nothing when the one split goes and a split was selected', () => {
+        const curve = farGaps()
+        const store = useSplitStore()
+        store.detect(curve, timing(curve))
+        store.deleteSplit(store.splits[1]!.id)
+        store.selectSplit(store.splits[0]!.id)
+
+        store.removeTrack(store.tracks[0]!)
+
+        expect(store.selection).toBeNull()
+      })
+
+      it('leaves nothing selected as it was', () => {
+        const store = namedFourTracks()
+        store.moveZoomTo(50)
+
+        store.removeTrack(store.tracks[1]!)
+
+        expect(store.selection).toBeNull()
+        expect(store.view).toBe('split')
+      })
     })
   })
 
@@ -838,8 +1275,8 @@ describe('the split store', () => {
       store.addSplit()
       expect(store.editCount).toBe(1)
 
-      store.moveSplit(store.selectedSplitId!, 33)
-      store.moveSplit(store.selectedSplitId!, 34)
+      store.moveSplit(store.selectedSplit!.id, 33)
+      store.moveSplit(store.selectedSplit!.id, 34)
 
       expect(store.editCount).toBe(1)
     })
@@ -867,7 +1304,7 @@ describe('the split store', () => {
       store.addSplit()
       expect(store.editCount).toBe(1)
 
-      store.deleteSplit(store.selectedSplitId!)
+      store.deleteSplit(store.selectedSplit!.id)
 
       expect(store.editCount).toBe(0)
       expect(store.hasEdits).toBe(false)
@@ -935,10 +1372,10 @@ describe('the split store', () => {
       store.detect(curve, timing(curve))
       store.moveZoomTo(31.5)
       store.addSplit()
-      store.renameTrack(store.selectedSplitId, 'Hidden')
+      store.renameTrack(store.selectedSplit!.id, 'Hidden')
       expect(store.editCount).toBe(2)
 
-      store.deleteSplit(store.selectedSplitId!)
+      store.deleteSplit(store.selectedSplit!.id)
 
       expect(store.editCount).toBe(0)
     })
@@ -1214,12 +1651,12 @@ describe('the split store', () => {
 
     it('does not select it, move the zoom window or leave the range view', () => {
       const store = markedStore(15)
-      const selectedId = store.selectedSplitId
+      const selectedId = store.selectedSplit?.id
       const centre = store.zoomCentreSeconds
 
       store.addSplitAtMark()
 
-      expect(store.selectedSplitId).toBe(selectedId)
+      expect(store.selectedSplit?.id).toBe(selectedId)
       expect(store.zoomCentreSeconds).toBe(centre)
       expect(store.view).toBe('range')
     })
@@ -1315,13 +1752,90 @@ describe('the split store', () => {
       expect(store.view).toBe('split')
     })
 
-    it('switches back to the split view when a track is selected', () => {
+    it('switches to the track view when a track is selected', () => {
       const store = loadedStore()
       store.setRange(10, 20)
 
       store.selectTrack(store.tracks[1]!)
 
+      expect(store.view).toBe('track')
+    })
+
+    it('switches to the track view on request once a track is selected', () => {
+      const store = loadedStore()
+      store.selectTrack(store.tracks[1]!)
+      store.showView('split')
+
+      store.showView('track')
+
+      expect(store.view).toBe('track')
+    })
+
+    it('refuses the track view while no track is selected', () => {
+      const store = loadedStore()
+
+      store.showView('track')
+
       expect(store.view).toBe('split')
+    })
+
+    it('switches back to the split view from the track view when a split is selected', () => {
+      const store = loadedStore()
+      store.selectTrack(store.tracks[1]!)
+
+      store.selectSplit(store.splits[1]!.id)
+
+      expect(store.view).toBe('split')
+    })
+
+    it('switches back to the split view from the track view when the zoom window is moved', () => {
+      const store = loadedStore()
+      store.selectTrack(store.tracks[1]!)
+
+      store.moveZoomTo(5)
+
+      expect(store.view).toBe('split')
+    })
+
+    it('goes back to the split view when a setting change clears the selected track', () => {
+      const store = loadedStore()
+      store.selectTrack(store.tracks[1]!)
+
+      store.setMinimumGapLength(3)
+
+      expect(store.selectedTrack).toBeNull()
+      expect(store.view).toBe('split')
+      expect(store.selectedSplit).toBe(store.splits[0])
+    })
+
+    it('stays on the track view when a split other than the selected track’s start is deleted', () => {
+      const store = loadedStore()
+      store.selectTrack(store.tracks[1]!)
+
+      store.deleteSplit(store.splits[1]!.id)
+
+      expect(store.view).toBe('track')
+      expect(store.selectedTrack?.number).toBe(2)
+    })
+
+    it('selects the merged track when the split where the selected track starts is deleted', () => {
+      const store = loadedStore()
+      store.selectTrack(store.tracks[2]!)
+
+      store.deleteSplit(store.splits[1]!.id)
+
+      expect(store.view).toBe('track')
+      expect(store.selectedTrack).toBe(store.tracks[1])
+      expect(store.selectedTrack?.startSplit).toBe(store.splits[0])
+    })
+
+    it('selects the merged first track when the split where the second track starts is deleted', () => {
+      const store = loadedStore()
+      store.selectTrack(store.tracks[1]!)
+
+      store.deleteSplit(store.splits[0]!.id)
+
+      expect(store.selectedTrack).toBe(store.tracks[0])
     })
 
     it('switches back to the split view when the zoom window is moved', () => {
@@ -1357,7 +1871,7 @@ describe('the split store', () => {
       store.setRange(10, 20)
       const neighbour = store.splits[1]!
 
-      store.deleteSplit(store.selectedSplitId!)
+      store.deleteSplit(store.selectedSplit!.id)
 
       expect(store.view).toBe('range')
       expect(store.selectedSplit).toBe(neighbour)
@@ -1385,7 +1899,7 @@ describe('the split store', () => {
     expect(store.gaps).toEqual([])
     expect(store.splits).toEqual([])
     expect(store.tracks).toEqual([])
-    expect(store.selectedSplitId).toBeNull()
+    expect(store.selectedSplit).toBeNull()
     expect(store.zoomCentreSeconds).toBe(10)
   })
 })

@@ -69,7 +69,7 @@ const { overLine, dragging, onPointerDown, onPointerMove, onPointerEnd } = useSp
   seconds: (x, grabOffset) =>
     draggedTime(x, grabOffset, split.zoomCentreSeconds, ZOOM_WINDOW_SECONDS, frameWidth()),
   move: (seconds) => {
-    if (split.selectedSplitId !== null) split.moveSplit(split.selectedSplitId, seconds)
+    if (split.selectedSplit !== null) split.moveSplit(split.selectedSplit.id, seconds)
   },
 })
 
@@ -182,7 +182,7 @@ watch(
     sourceFile.peaks,
     split.gaps,
     split.splits.map((point) => point.seconds),
-    split.selectedSplitId,
+    split.selectedSplit?.id,
     split.zoomCentreSeconds,
   ],
   draw,

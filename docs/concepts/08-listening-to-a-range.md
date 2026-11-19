@@ -1,6 +1,6 @@
 # 08 · Listening to a range
 
-Milestone 6 plays the 8 s across a split. This milestone plays any stretch the user drags out, up to 10 min, and lets them pause it, jump around in it and add a split where they hear a track start. The method is the same as the audition's: ffmpeg decodes the range to a WAV and the page plays that, never the compressed file. What changes is the size. Eight seconds is 1.4 MB; ten minutes is 106 MB, and that is where the limit comes from.
+Milestone 6 plays the 8 s across a split. This milestone plays any stretch the user drags out, up to 10 min, and lets them pause it, jump around in it and add a split where they hear a track start. The method is the same as the audition's: ffmpeg decodes the range to a WAV and the page plays that, never the compressed file. What changes is the size. Eight seconds is 1.4 MB; ten minutes is 106 MB, and that is where the limit comes from. A track can be longer than a range may be; the last section is how one is heard in full.
 
 ## The words
 
@@ -46,6 +46,29 @@ The longest wait is the MP3, late in the 3 h file: about 2 s, below the 3 s the 
 
 It matches the decode times above, so nothing else in the press is slow. Pausing and pressing Play again took 2 to 5 ms in all three: the WAV is held, so the press sets `currentTime` and calls `play()`, and ffmpeg is not asked again.
 
+## A track longer than 10 min: a moving window
+
+A range is never longer than 10 min, but a track can be (the 3 h file's last tracks are 1.5 to 2.3 min, and a user who deletes a few splits makes a long one). The player still decodes no more than 10 min at a time, so a long track is heard through a **window**: a part of the track, decoded to a WAV, that moves along it.
+
+**The arithmetic.** Take the track at 10,159.45 s of the 3 h MP3, 764 s long after six splits are deleted (it ends at 10,923.40 s). The playhead starts at the track's start, so the first window is 10,159.45 s to 10,759.45 s: 600 s, a WAV of 105,840,078 bytes. The next window is due when the playhead is 30 s from the end of the first, at 10,729.45 s, and it starts where the first ends, 10,759.45 s, and runs to the track's end: 163.95 s, about 29 MB. The two are held together for the last 30 s of the first and the whole of the second's first moments, at most 2 × 105.8 MB = 212 MB (2 × 115.2 MB = 230 MB as `.opus`); when the first ends, its WAV is let go and one is held again.
+
+**A seek.** Inside the held window it is the same multiplication as in a range: `currentTime = x`, exact and immediate. Outside it there is no WAV to read from, so the player lets both windows go and decodes a new one that starts at the seek point and runs 10 min (or to the track's end): the wait is a decode, as for a new range. A seek to the track's very end ends the track, as the end of a short one does.
+
+**The hand-over.** The window ahead is asked for when the element reports the playhead is 30 s from the end (`timeupdate`, a few times a second), once per window, so a decode that takes 2 s has 28 s to spare. When the first window ends, the element is pointed at the second's blob URL and played: nothing is decoded, but the element has to load the new source, and that is the one break. When the window ahead is not there yet (a seek 3 s before the end of a window, with a slow decode), the Play button reads "Stop" until it arrives, as for any decode.
+
+**In the browser.** The same track (95 · 2:49:19 – 3:02:03, made by deleting the start splits of tracks 96 to 101 in the Track list) in Chrome on the 3 h files, same machine as above, on 2026-11-19. The element's events are logged with `performance.now()`; the hand-over is from `ended` of the first window to `playing` of the second. The playhead was read at rest, by pausing.
+
+| Measured                                              | `.m4a`  | `.mp3`  | `.opus` |
+| ----------------------------------------------------- | ------- | ------- | ------- |
+| Play to sound, first window (600 s)                   | 0.85 s  | 1.85 s  | 1.36 s  |
+| `ended` to `playing`, window ahead decoded in advance | 58.8 ms | 59.6 ms | 59.0 ms |
+| The same with the playhead put 3 s before the end     | 59.2 ms | 58.6 ms | 59.8 ms |
+| Click outside the window to sound, new window (600 s) | 0.81 s  | 2.32 s  | 1.32 s  |
+
+The second window's WAV is 163.9 s long in all three. A seek to 300 s into the window and 1 s of play read 10,460.46 s for an expected 10,460.48 s (`.m4a`). 1.3 s after the hand-over the playhead read 10,760.79 s, 10,760.77 s and 10,760.82 s, where the boundaries were 10,759.48 s, 10,759.45 s and 10,759.50 s: it carried on from the boundary. The click outside the window put the playhead at 10,312.27 s for a click at 10,312.26 s, and at the end of the last window the track stopped with the playhead back at its start in all three. The window ahead in the third row was only 11 s, the track's last stretch after the click. The first and last rows are one 10 min decode each, plus the press, and match the earlier tables (0.69, 1.94 and 1.16 s from the press to the sound); the MP3's are the longest because the window is late in the file.
+
+**What the break is.** The 59 ms are the element loading a new source: `loadedmetadata` 10 to 13 ms after the switch and `canplay` about 45 ms after that, the same in the three formats. No decode is waited for, but it is not gapless: a user can hear a short drop-out once for each 10 min window. The way to remove it would be a second element started before the first ends; this milestone keeps the one element, and the break is about 0.01 % of the time.
+
 ## Where it lives in the code
 
 Existing modules are linked, new ones are named.
@@ -56,9 +79,11 @@ Existing modules are linked, new ones are named.
 - [`src/widgets/source-waveform/ui/SourceWaveform.vue`](../../src/widgets/source-waveform/ui/SourceWaveform.vue): the overlay, drawn from the live drag or the held range.
 - [`src/widgets/source-waveform/lib/use-range-drag.ts`](../../src/widgets/source-waveform/lib/use-range-drag.ts): tells a click from a drag (4 px), captures the pointer and reports the live range.
 - [`src/entities/split/lib/range-between.ts`](../../src/entities/split/lib/range-between.ts) and [`config/range-limits.ts`](../../src/entities/split/config/range-limits.ts): the range a drag makes, held to the file and to 10 min from the press, and the 1 s minimum.
-- [`src/widgets/split-zoom/model/audition.ts`](../../src/widgets/split-zoom/model/audition.ts): the one player, for the audition and for the range. The range's `toggleRange` decodes it on the first press and keeps the WAV, so a pause and a replay set `currentTime` inside it and decode nothing; `seekRange`, `backToRangeStart`, `grabPlayhead` and `dropPlayhead` move the playhead the same way.
+- [`src/widgets/split-zoom/model/audition.ts`](../../src/widgets/split-zoom/model/audition.ts): the one player, for the audition and for a stretch, the range or the selected track. A stretch is played with `toggleStretch(stretch)`, which decodes its window on the first press and keeps the WAV, so a pause and a replay set `currentTime` inside it and decode nothing; `seekStretch`, `backToStretchStart`, `grabPlayhead` and `dropPlayhead` move the playhead the same way. For a stretch over 10 min it decodes the next window ahead and plays on into it.
+- [`src/widgets/split-zoom/lib/decode-window.ts`](../../src/widgets/split-zoom/lib/decode-window.ts): which window to decode for a stretch and a playhead (`decodeWindow`), whether a time is inside one (`windowHolds`) and when the next is due (`nextWindow`).
 - [`src/widgets/split-zoom/ui/SplitZoom.vue`](../../src/widgets/split-zoom/ui/SplitZoom.vue): the zoom view the Range view sits beside.
 - [`src/widgets/split-zoom/ui/RangeView.vue`](../../src/widgets/split-zoom/ui/RangeView.vue): the range stretched across the zoom panel, drawn from the peaks already held. Its `lib/range-window.ts` turns the range into the centre and length the zoom view's bar, land and axis helpers take, and `lib/range-title.ts` writes the title. It draws the playhead and takes Space and Home; `lib/use-range-press.ts` is its pointer handling, in the order playhead (within 6 px, dragged), then a split line (within 6 px, selected), then the mark (placed). Left and Right move the mark and Enter adds a split at it.
 - [`src/shared/lib/canvas/dash-pattern.ts`](../../src/shared/lib/canvas/dash-pattern.ts): the dash of the mark, shared with the silence threshold.
 - [`src/shared/ui/UiSegmentedControl.vue`](../../src/shared/ui/UiSegmentedControl.vue): the `Split | Range` control.
-- [`src/pages/review/ui/ReviewPage.vue`](../../src/pages/review/ui/ReviewPage.vue): swaps the zoom view and the Range view on the store's view, and holds the `Split | Range` control; its Play button reads "Stop", "Pause" or "Play", with "Back to range start" beside it, and its "Add split" follows the view (at the window's centre in the zoom view, at the mark in the Range view).
+- [`src/widgets/split-zoom/ui/TrackView.vue`](../../src/widgets/split-zoom/ui/TrackView.vue): the selected track in the same place, drawn the same way, with the playhead and the same `lib/use-range-press.ts` (a press moves the playhead, with no split line or mark); Left and Right move the playhead 1 s, with Shift 10 s. `lib/track-extent.ts` has `trackExtent`, the track as the start and end both the view and the player take.
+- [`src/pages/review/ui/ReviewPage.vue`](../../src/pages/review/ui/ReviewPage.vue): swaps the zoom view, the Track view and the Range view on the store's view, and holds the `Split | Track | Range` control; its Play button reads "Stop", "Pause" or "Play", with "Back to range start" or "Back to track start" beside it, and its "Add split" follows the view (at the window's centre in the zoom view, at the mark in the Range view).

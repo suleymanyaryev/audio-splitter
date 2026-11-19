@@ -37,6 +37,19 @@ const axisTimes = computed(() => {
   return [0, 0.25, 0.5, 0.75, 1].map((fraction) => formatDuration(duration * fraction))
 })
 
+// The horizontal extent of what the panel shows, or null when the outline is the range's alone.
+function shownOutline(duration: number, width: number) {
+  if (split.view === 'split') {
+    return zoomOutline(split.zoomCentreSeconds, ZOOM_WINDOW_SECONDS, duration, width)
+  }
+  const track = split.view === 'track' ? split.selectedTrack : null
+  if (track === null) return null
+  return {
+    left: timeToX(track.startSeconds, duration, width),
+    right: timeToX(track.startSeconds + track.lengthSeconds, duration, width),
+  }
+}
+
 function draw() {
   const peaks = sourceFile.peaks
   const prepared = peaks && canvas.value ? prepareCanvas(canvas.value) : null
@@ -83,22 +96,18 @@ function draw() {
   drawSplitLines(context, lineXs, splitColor, waveTop, waveHeight, selectedIndex)
 
   /*
-  The stretch the zoom view shows, outlined inside the wave area so the stroke is not cut off. While
-  the Range view is shown the zoom view is not, and the range's overlay is the only outline.
+  The stretch the panel shows, outlined inside the wave area so the stroke is not cut off: the zoom
+  window in the zoom view, the selected track in the Track view. While the Range view is shown the
+  range's overlay is the only outline.
   */
-  if (split.view === 'split') {
-    const { left, right } = zoomOutline(
-      split.zoomCentreSeconds,
-      ZOOM_WINDOW_SECONDS,
-      duration,
-      width,
-    )
+  const shown = shownOutline(duration, width)
+  if (shown !== null) {
     context.strokeStyle = style.getPropertyValue('--color-ink')
     context.lineWidth = OUTLINE_WIDTH
     context.strokeRect(
-      left + OUTLINE_WIDTH / 2,
+      shown.left + OUTLINE_WIDTH / 2,
       waveTop + OUTLINE_WIDTH / 2,
-      Math.max(0, right - left - OUTLINE_WIDTH),
+      Math.max(0, shown.right - shown.left - OUTLINE_WIDTH),
       waveHeight - OUTLINE_WIDTH,
     )
   }
@@ -176,9 +185,11 @@ watch(
     sourceFile.peaks,
     split.gaps,
     split.splits.map((point) => point.seconds),
-    split.selectedSplitId,
+    split.selectedSplit?.id,
     split.zoomCentreSeconds,
     split.view,
+    split.selectedTrack?.startSeconds,
+    split.selectedTrack?.lengthSeconds,
     split.range,
     liveRange.value,
   ],

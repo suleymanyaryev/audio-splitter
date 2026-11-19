@@ -210,6 +210,26 @@ Spec and tickets: [`.scratch/select-section-and-play/spec.md`](../.scratch/selec
 
 ---
 
+## Milestone 9: Tracks and splits, apart
+
+Spec and tickets: [`.scratch/split-markers-ranges-and-tracks-separation/spec.md`](../.scratch/split-markers-ranges-and-tracks-separation/spec.md).
+
+**Concept.** A track and a split are two things, selected one at a time: a track is a stretch heard end to end, a split is a point moved inside a 20 s window. The player already plays a stretch from a start to an end (milestone 8), so a track is one more stretch to hand it.
+
+**Build.**
+
+- The split store holds one selection (a split, a track or nothing); the selected track is derived from the live tracks, so it follows its splits.
+- Selecting a track, the first included, from the strip, the Track list or a name field shows the Track view beside the zoom view and the Range view, with a `Split | Track | Range` control; the whole-file view outlines the selected track.
+- The Track list interleaves split rows between its track rows (`Split N`, its time, no length): a click selects the split, and its trash button deletes it and merges the tracks either side. The zoom view's title row has "Delete split" beside "Add split". A track row's merge button, "Remove track N", deletes the splits at both its ends, so the track and its neighbours become one, with the removed track's name gone with it.
+- The strip has a split item between every two blocks, 8 px wide: a click selects that split and shows the zoom view centred on it, and it is vermilion when hovered, focused or selected. A very short track keeps a block 12 px wide.
+- The player plays the selected track as a stretch, as it plays a range: Play, pause, resume without decoding again, drag the playhead and back to the track's start in the Track view. A track over 10 min plays in full through a moving 10 min window: the window starts at the playhead, the next is decoded while the first plays (30 s before its end), the sound carries on into it, and a seek outside the held windows decodes a new one. At most two windows are held.
+
+**Try it.** Select the first track and a track late in a long file in each format; see the outline on the whole-file view, switch between the three views, and play and seek a track. Merge a few late tracks of the 3 h MP3 into one over 10 min, play it across the window boundary and click outside the window.
+
+**Left for later.** Splits as items of their own in the list, and removing a track (the rest of the milestone's tickets).
+
+---
+
 ## Not in v1
 
 Ruled out on the [map](../.scratch/audio-splitter/map.md); each returns only as a fresh effort.

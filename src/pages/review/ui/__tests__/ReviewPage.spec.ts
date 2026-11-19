@@ -32,6 +32,13 @@ function mountPage() {
   return mount(ReviewPage, { attachTo: document.body })
 }
 
+// The page with the track of that number selected, as a click on its row's number button does.
+async function mountPageWithTrack(number: number) {
+  const wrapper = mountPage()
+  await wrapper.get(`[aria-label^="Select track ${number}"]`).trigger('click')
+  return wrapper
+}
+
 async function mountPageWithRange() {
   const wrapper = mountPage()
   useSplitStore().setRange(10, 20)
@@ -42,6 +49,12 @@ async function mountPageWithRange() {
 function addSplitButton(wrapper: ReturnType<typeof mount>) {
   const button = wrapper.findAll('button').find((candidate) => candidate.text() === 'Add split')
   if (!button) throw new Error('no Add split button')
+  return button
+}
+
+function deleteSplitButton(wrapper: ReturnType<typeof mount>) {
+  const button = wrapper.findAll('button').find((candidate) => candidate.text() === 'Delete split')
+  if (!button) throw new Error('no Delete split button')
   return button
 }
 
@@ -76,7 +89,7 @@ function exportButton(wrapper: ReturnType<typeof mount>) {
   return button
 }
 
-function viewOption(wrapper: ReturnType<typeof mount>, name: 'Split' | 'Range') {
+function viewOption(wrapper: ReturnType<typeof mount>, name: 'Split' | 'Track' | 'Range') {
   const option = wrapper
     .get('[role="radiogroup"][aria-label="Panel view"]')
     .findAll('[role="radio"]')
@@ -85,7 +98,7 @@ function viewOption(wrapper: ReturnType<typeof mount>, name: 'Split' | 'Range') 
   return option
 }
 
-// The panel's title: the zoom view's time, or the range's start, end and length.
+// The panel's title: the zoom view's time, the track's name and ends, or the range's.
 const panelTitle = (wrapper: ReturnType<typeof mount>) => wrapper.get('h2.text-lg').text()
 
 describe('ReviewPage', () => {
@@ -129,6 +142,80 @@ describe('ReviewPage', () => {
     })
   })
 
+  describe('Delete split', () => {
+    it('is enabled while a split is selected, and disabled with none', async () => {
+      const wrapper = mountPage()
+
+      expect(deleteSplitButton(wrapper).attributes('disabled')).toBeUndefined()
+
+      useSplitStore().moveZoomTo(46)
+      await wrapper.vm.$nextTick()
+
+      expect(deleteSplitButton(wrapper).attributes('disabled')).toBeDefined()
+    })
+
+    it('deletes the selected split, which merges the tracks either side, and selects its neighbour', async () => {
+      const wrapper = mountPage()
+      const split = useSplitStore()
+
+      await deleteSplitButton(wrapper).trigger('click')
+
+      expect(split.splits.map((point) => point.seconds)).toEqual([71.5])
+      expect(split.tracks).toHaveLength(2)
+      expect(split.selectedSplit?.seconds).toBe(71.5)
+    })
+
+    it('counts as an edit, as the Delete key does', async () => {
+      const wrapper = mountPage()
+      const split = useSplitStore()
+
+      await deleteSplitButton(wrapper).trigger('click')
+
+      expect(split.editCount).toBe(1)
+    })
+
+    it('hands the keyboard to the split that is selected next, so it can be nudged at once', async () => {
+      const wrapper = mountPage()
+
+      await deleteSplitButton(wrapper).trigger('click')
+      await wrapper.vm.$nextTick()
+
+      expect(document.activeElement).toBe(
+        wrapper.get('[role="slider"][aria-label="Split 1"]').element,
+      )
+    })
+
+    it('is disabled once the last split is deleted', async () => {
+      const wrapper = mountPage()
+
+      await deleteSplitButton(wrapper).trigger('click')
+      await deleteSplitButton(wrapper).trigger('click')
+
+      expect(useSplitStore().splits).toHaveLength(0)
+      expect(deleteSplitButton(wrapper).attributes('disabled')).toBeDefined()
+    })
+
+    it('sits between "Add split" and "Play across split"', () => {
+      const wrapper = mountPage()
+
+      const labels = wrapper.findAll('button').map((button) => button.text())
+
+      expect(labels.indexOf('Add split')).toBeLessThan(labels.indexOf('Delete split'))
+      expect(labels.indexOf('Delete split')).toBeLessThan(labels.indexOf('Play across split'))
+    })
+
+    it('is not in the Track view or the Range view', async () => {
+      const wrapper = await mountPageWithTrack(2)
+      const texts = () => wrapper.findAll('button').map((button) => button.text())
+      expect(texts()).not.toContain('Delete split')
+
+      useSplitStore().setRange(10, 20)
+      await wrapper.vm.$nextTick()
+
+      expect(texts()).not.toContain('Delete split')
+    })
+  })
+
   describe('Add split in the Range view', () => {
     it('is disabled while there is no mark, and enabled once there is room at the mark', async () => {
       const wrapper = await mountPageWithRange()
@@ -159,14 +246,14 @@ describe('ReviewPage', () => {
       const wrapper = await mountPageWithRange()
       const split = useSplitStore()
       split.placeMark(15)
-      const selectedId = split.selectedSplitId
+      const selectedId = split.selectedSplit?.id
       await wrapper.vm.$nextTick()
 
       await addSplitButton(wrapper).trigger('click')
 
       expect(split.splits.map((point) => point.seconds)).toEqual([15, 21, 71.5])
       expect(split.view).toBe('range')
-      expect(split.selectedSplitId).toBe(selectedId)
+      expect(split.selectedSplit?.id).toBe(selectedId)
       expect(split.markSeconds).toBe(15)
       expect(split.editCount).toBe(1)
       expect(wrapper.find('[aria-label="Waveform of the range"]').exists()).toBe(true)
@@ -244,11 +331,12 @@ describe('ReviewPage', () => {
     })
   })
 
-  describe('the Split | Range control', () => {
-    it('starts on Split, with Range disabled while there is no range', () => {
+  describe('the Split | Track | Range control', () => {
+    it('starts on Split, with Track and Range disabled while there is nothing to show', () => {
       const wrapper = mountPage()
 
       expect(viewOption(wrapper, 'Split').attributes('aria-checked')).toBe('true')
+      expect(viewOption(wrapper, 'Track').attributes('disabled')).toBeDefined()
       expect(viewOption(wrapper, 'Range').attributes('disabled')).toBeDefined()
     })
 
@@ -302,15 +390,168 @@ describe('ReviewPage', () => {
       expect(wrapper.find('[aria-label="Waveform of the range"]').exists()).toBe(true)
     })
 
-    it('goes back to Split when a track row selects a split', async () => {
+    it('goes back to Split when a split is selected', async () => {
       const wrapper = mountPage()
-      useSplitStore().setRange(10, 20)
+      const split = useSplitStore()
+      split.setRange(10, 20)
       await wrapper.vm.$nextTick()
 
-      await wrapper.get('[aria-label^="Select track 3"]').trigger('click')
+      split.selectSplit(split.splits[1]!.id)
+      await wrapper.vm.$nextTick()
 
       expect(viewOption(wrapper, 'Split').attributes('aria-checked')).toBe('true')
       expect(panelTitle(wrapper)).toBe('0:01:11.50')
+    })
+
+    describe('the Track view', () => {
+      it('swaps in the Track view, titled by the track, when a track is selected', async () => {
+        const wrapper = await mountPageWithTrack(3)
+
+        expect(viewOption(wrapper, 'Track').attributes('aria-checked')).toBe('true')
+        expect(viewOption(wrapper, 'Track').attributes('disabled')).toBeUndefined()
+        expect(wrapper.find('[aria-label="Waveform of the track"]').exists()).toBe(true)
+        expect(wrapper.find('[aria-label="Zoomed waveform of the split"]').exists()).toBe(false)
+        expect(panelTitle(wrapper)).toBe('3 · 0:01:11.50 – 0:01:40.00')
+      })
+
+      it('shows the first track too', async () => {
+        const wrapper = await mountPageWithTrack(1)
+
+        expect(wrapper.find('[aria-label="Waveform of the track"]').exists()).toBe(true)
+        expect(panelTitle(wrapper)).toBe('1 · 0:00:00.00 – 0:00:21.00')
+      })
+
+      it('has no "Add split" and no "Play across split" in its title row', async () => {
+        const wrapper = await mountPageWithTrack(2)
+
+        const labels = wrapper.findAll('button').map((button) => button.text())
+        expect(labels).not.toContain('Add split')
+        expect(labels).not.toContain('Play across split')
+      })
+
+      it('has "Back to track start" and Play, and no "Back to range start"', async () => {
+        const wrapper = await mountPageWithTrack(2)
+        const labels = wrapper
+          .findAll('button')
+          .map((button) => button.attributes('aria-label') ?? button.text())
+
+        expect(labels.indexOf('Back to track start')).toBe(labels.indexOf('Play') - 1)
+        expect(labels).not.toContain('Back to range start')
+        expect(wrapper.get('button[aria-label="Back to track start"]').text()).toBe('')
+      })
+
+      it('shows the zoom window where it was, with no split selected, on Split', async () => {
+        const wrapper = mountPage()
+        const split = useSplitStore()
+        split.moveZoomTo(50)
+        await wrapper.get('[aria-label^="Select track 3"]').trigger('click')
+
+        await viewOption(wrapper, 'Split').trigger('click')
+
+        expect(wrapper.find('[aria-label="Zoomed waveform of the split"]').exists()).toBe(true)
+        expect(panelTitle(wrapper)).toBe('No split selected')
+        expect(split.zoomCentreSeconds).toBe(50)
+        expect(split.selectedSplit).toBeNull()
+        expect(viewOption(wrapper, 'Track').attributes('disabled')).toBeUndefined()
+      })
+
+      it('switches back to the Track view with the control, keeping the track', async () => {
+        const wrapper = await mountPageWithTrack(2)
+        await viewOption(wrapper, 'Split').trigger('click')
+
+        await viewOption(wrapper, 'Track').trigger('click')
+
+        expect(wrapper.find('[aria-label="Waveform of the track"]').exists()).toBe(true)
+        expect(panelTitle(wrapper)).toBe('2 · 0:00:21.00 – 0:01:11.50')
+      })
+
+      it('goes back to Split, with Track disabled, when a setting change clears the track', async () => {
+        const wrapper = await mountPageWithTrack(2)
+
+        useSplitStore().setMinimumGapLength(2.5)
+        await wrapper.vm.$nextTick()
+
+        expect(viewOption(wrapper, 'Split').attributes('aria-checked')).toBe('true')
+        expect(viewOption(wrapper, 'Track').attributes('disabled')).toBeDefined()
+      })
+
+      it('plays the track as a stretch when Play is clicked', async () => {
+        const wrapper = await mountPageWithTrack(2)
+        const toggleStretch = vi
+          .spyOn(useAuditionStore(), 'toggleStretch')
+          .mockImplementation(() => {})
+
+        await rangeButton(wrapper).trigger('click')
+
+        expect(toggleStretch).toHaveBeenCalledExactlyOnceWith({
+          startSeconds: 21,
+          endSeconds: 71.5,
+        })
+      })
+
+      it('moves the playhead to the track’s start when "Back to track start" is clicked', async () => {
+        const wrapper = await mountPageWithTrack(2)
+        const backToStretchStart = vi
+          .spyOn(useAuditionStore(), 'backToStretchStart')
+          .mockImplementation(() => {})
+
+        await wrapper.get('button[aria-label="Back to track start"]').trigger('click')
+
+        expect(backToStretchStart).toHaveBeenCalledExactlyOnceWith({
+          startSeconds: 21,
+          endSeconds: 71.5,
+        })
+      })
+
+      it('reads "Stop" while the track is decoded, "Pause" while it plays and "Play" when paused, enabled throughout', async () => {
+        const wrapper = await mountPageWithTrack(2)
+        const audition = useAuditionStore()
+        const back = () => wrapper.get('button[aria-label="Back to track start"]')
+
+        expect(rangeButton(wrapper).text()).toBe('Play')
+        for (const [status, label] of [
+          ['loading', 'Stop'],
+          ['playing', 'Pause'],
+          ['paused', 'Play'],
+        ] as const) {
+          audition.stretchStatus = status
+          await wrapper.vm.$nextTick()
+          expect(rangeButton(wrapper).text()).toBe(label)
+          expect(rangeButton(wrapper).attributes('disabled')).toBeUndefined()
+          expect(back().attributes('disabled')).toBeUndefined()
+        }
+      })
+
+      it('stops the sound when the view changes to Split', async () => {
+        const wrapper = await mountPageWithTrack(2)
+        const stop = vi.spyOn(useAuditionStore(), 'stop')
+
+        await viewOption(wrapper, 'Split').trigger('click')
+
+        expect(stop).toHaveBeenCalled()
+      })
+
+      it('swaps to the Range view and back to the Track view through the control', async () => {
+        const wrapper = await mountPageWithTrack(2)
+        const split = useSplitStore()
+        split.setRange(10, 20)
+        await wrapper.vm.$nextTick()
+        expect(wrapper.find('[aria-label="Waveform of the range"]').exists()).toBe(true)
+
+        await viewOption(wrapper, 'Track').trigger('click')
+
+        expect(split.view).toBe('track')
+        expect(wrapper.find('[aria-label="Waveform of the track"]').exists()).toBe(true)
+      })
+
+      it('stops the audition when the view changes to the Track view', async () => {
+        const wrapper = mountPage()
+        const stop = vi.spyOn(useAuditionStore(), 'stop')
+
+        await wrapper.get('[aria-label^="Select track 3"]').trigger('click')
+
+        expect(stop).toHaveBeenCalled()
+      })
     })
 
     it('stops the audition when the view changes', async () => {
@@ -336,7 +577,7 @@ describe('ReviewPage', () => {
       expect(backButton(wrapper).text()).toBe('')
 
       for (const status of ['loading', 'playing', 'paused'] as const) {
-        audition.rangeStatus = status
+        audition.stretchStatus = status
         await wrapper.vm.$nextTick()
         expect(backButton(wrapper).attributes('disabled')).toBeUndefined()
       }
@@ -351,7 +592,7 @@ describe('ReviewPage', () => {
     it('moves the playhead to the range’s start when clicked', async () => {
       const wrapper = await mountPageWithRange()
       const backToRangeStart = vi
-        .spyOn(useAuditionStore(), 'backToRangeStart')
+        .spyOn(useAuditionStore(), 'backToStretchStart')
         .mockImplementation(() => {})
 
       await backButton(wrapper).trigger('click')
@@ -376,7 +617,7 @@ describe('ReviewPage', () => {
 
     it('calls the player when clicked', async () => {
       const wrapper = await mountPageWithRange()
-      const toggleRange = vi.spyOn(useAuditionStore(), 'toggleRange').mockImplementation(() => {})
+      const toggleRange = vi.spyOn(useAuditionStore(), 'toggleStretch').mockImplementation(() => {})
 
       await rangeButton(wrapper).trigger('click')
 
@@ -388,17 +629,17 @@ describe('ReviewPage', () => {
       const audition = useAuditionStore()
       const playIcon = rangeButton(wrapper).get('svg').classes()
 
-      audition.rangeStatus = 'loading'
+      audition.stretchStatus = 'loading'
       await wrapper.vm.$nextTick()
       expect(rangeButton(wrapper).text()).toBe('Stop')
       expect(rangeButton(wrapper).attributes('disabled')).toBeUndefined()
 
-      audition.rangeStatus = 'playing'
+      audition.stretchStatus = 'playing'
       await wrapper.vm.$nextTick()
       expect(rangeButton(wrapper).text()).toBe('Pause')
       expect(rangeButton(wrapper).get('svg').classes()).not.toEqual(playIcon)
 
-      audition.rangeStatus = 'paused'
+      audition.stretchStatus = 'paused'
       await wrapper.vm.$nextTick()
       expect(rangeButton(wrapper).text()).toBe('Play')
     })
