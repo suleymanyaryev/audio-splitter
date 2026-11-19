@@ -238,10 +238,16 @@ export const useSplitStore = defineStore('split', () => {
 
   /*
   Selects the track, keyed by the split where it starts (none for the first), and shows the Track
-  view. The zoom window stays where it is: the track is no split to centre on.
+  view. The zoom window stays where it is: the track is no split to centre on. A stale `Track`, whose
+  start split is gone, or one before any detection, selects nothing.
   */
   function selectTrack(track: Track) {
-    selection.value = { kind: 'track', startSplitId: track.startSplit?.id ?? null }
+    if (timing.value === null) return
+    const startSplitId = track.startSplit?.id ?? null
+    const isLive =
+      startSplitId === null || splits.value.some((candidate) => candidate.id === startSplitId)
+    if (!isLive) return
+    selection.value = { kind: 'track', startSplitId }
     view.value = 'track'
   }
 
@@ -365,7 +371,8 @@ export const useSplitStore = defineStore('split', () => {
   /*
   Removes a track (GLOSSARY.md: Removing a track): deletes the splits at both its ends, whichever
   exist, so the track and its neighbours become one. It is `deleteSplit` twice, so the edits and the
-  selection follow as a delete's do (the end split goes first, so a selected split falls back once).
+  selection follow as a delete's do: the end split goes first, so a selected split at either end of
+  the track lands on the split after it, or, for the last track, on the split before it.
   The removed track's name goes with its start split. The next track's name belonged to the end
   split, so when the first track is removed, which has no start split to keep a name on, it moves to
   the file's start (`renameTrack` counts the edit). The only track is refused, as is one whose start

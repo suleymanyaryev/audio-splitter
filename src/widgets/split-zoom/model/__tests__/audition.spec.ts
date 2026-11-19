@@ -911,6 +911,23 @@ describe('the audition store', () => {
       })
     })
 
+    it('plays on when a split added at the mark shortens the selected track', async () => {
+      const { audition, split } = setUp()
+      split.selectTrack(split.tracks[1]!)
+      split.setRange(25, 40)
+      audition.toggleStretch(rangeStretch())
+      await flush()
+      audio().currentTime = 3
+      split.placeMark(30)
+
+      split.addSplitAtMark()
+
+      expect(split.splits).toHaveLength(3)
+      expect(audition.stretchStatus).toBe('playing')
+      expect(revokeObjectURL).not.toHaveBeenCalled()
+      expect(audition.stretchPlayheadSeconds(rangeStretch())).toBe(28)
+    })
+
     describe('and the split audition, which stop each other', () => {
       it('stops the range, keeping its playhead, and lets go of its clip, when the audition plays', async () => {
         const { audition } = await playingRange()
@@ -1232,7 +1249,7 @@ describe('the audition store', () => {
           timeUpdate(570)
 
           expect(clip).toHaveBeenCalledTimes(2)
-          expect(clip).toHaveBeenLastCalledWith(600, 400)
+          expect(clip).toHaveBeenLastCalledWith(600, 400, expect.any(AbortSignal))
         })
 
         it('is asked for once', async () => {
@@ -1300,7 +1317,7 @@ describe('the audition store', () => {
           timeUpdate(1170)
 
           expect(clip).toHaveBeenCalledTimes(3)
-          expect(clip).toHaveBeenLastCalledWith(1200, 600)
+          expect(clip).toHaveBeenLastCalledWith(1200, 600, expect.any(AbortSignal))
         })
 
         it('ends the track after its last window, with the playhead back at the start', async () => {
@@ -1362,6 +1379,46 @@ describe('the audition store', () => {
           expect(createObjectURL).toHaveBeenCalledTimes(2)
           expect(heldWavs()).toBe(1)
           expect(audition.stretchStatus).toBe('playing')
+        })
+
+        it('stops its decode when the windows are let go of, so the seek’s window does not wait behind it', async () => {
+          const { audition } = await playingLongTrack()
+          clip.mockReturnValueOnce(deferred<Clip>().promise)
+          timeUpdate(570)
+          const signal = clip.mock.lastCall?.[2]
+          expect(signal?.aborted).toBe(false)
+
+          audition.seekStretch(longStretch(), 900)
+
+          expect(signal?.aborted).toBe(true)
+        })
+
+        it('stops its decode on stop()', async () => {
+          const { audition } = await playingLongTrack()
+          clip.mockReturnValueOnce(deferred<Clip>().promise)
+          timeUpdate(570)
+          const signal = clip.mock.lastCall?.[2]
+
+          audition.stop()
+
+          expect(signal?.aborted).toBe(true)
+          expect(audition.stretchStatus).toBe('paused')
+        })
+
+        it('lets go of a window ahead already decoded on stop(), and decodes it again on playing on', async () => {
+          const { audition } = await playingLongTrack()
+          timeUpdate(570)
+          await flush()
+          expect(heldWavs()).toBe(2)
+
+          audition.stop()
+          expect(heldWavs()).toBe(1)
+          audition.toggleStretch(longStretch())
+          await flush()
+          timeUpdate(575)
+
+          expect(clip).toHaveBeenCalledTimes(3)
+          expect(clip).toHaveBeenLastCalledWith(600, 400, expect.any(AbortSignal))
         })
 
         it('lets both windows go when a new range is made', async () => {

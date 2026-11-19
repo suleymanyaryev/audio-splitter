@@ -20,9 +20,11 @@ async function mountStrip() {
   return wrapper
 }
 
-// The track blocks: the items of the list that carry a track's name and length.
+// The track blocks: the items of the list whose button is no split's.
 function blocks(wrapper: ReturnType<typeof mount>) {
-  return wrapper.findAll('li[aria-label]')
+  return wrapper
+    .findAll('ol > li')
+    .filter((item) => !item.find('button[aria-label^="Split "]').exists())
 }
 
 // The split items between them, as the buttons that select a split.
@@ -92,7 +94,12 @@ describe('TrackStrip', () => {
     expect(blocks(wrapper)[0]?.classes()).not.toContain('px-1')
     expect(blocks(wrapper)[1]?.classes()).toContain('px-1')
     expect(blocks(wrapper)[0]?.attributes('title')).toBe('1, 0:00:21')
-    expect(blocks(wrapper)[2]?.attributes('aria-label')).toBe('3, 0:00:28')
+    // A block with no text is still a button with a name.
+    expect(blocks(wrapper).map((block) => block.get('button').attributes('aria-label'))).toEqual([
+      '1, 0:00:21',
+      '2, 0:00:50',
+      '3, 0:00:28',
+    ])
   })
 
   it('follows the minimum gap length: fewer gaps, fewer blocks', async () => {
@@ -181,7 +188,7 @@ describe('TrackStrip', () => {
 
       const order = wrapper
         .findAll('ol > li')
-        .map((item) => (item.attributes('aria-label') === undefined ? 'split' : 'block'))
+        .map((item) => (item.find('button[aria-label^="Split "]').exists() ? 'split' : 'block'))
 
       expect(order).toEqual(['block', 'split', 'block', 'split', 'block'])
     })
@@ -200,9 +207,12 @@ describe('TrackStrip', () => {
     it('is 8 px wide', async () => {
       const { wrapper } = await mountWithTwoGaps()
 
-      const items = wrapper.findAll('ol > li:not([aria-label])')
+      const items = splitItems(wrapper).map((button) => button.element.parentElement!)
 
-      expect(items.map((item) => item.attributes('style'))).toEqual(['width: 8px;', 'width: 8px;'])
+      expect(items.map((item) => item.getAttribute('style'))).toEqual([
+        'width: 8px;',
+        'width: 8px;',
+      ])
     })
 
     it('names the split and its time', async () => {

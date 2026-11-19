@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, useTemplateRef, watch } from 'vue'
+import { computed, ref, useTemplateRef, watch } from 'vue'
 
 import { useSourceFileStore } from '@/entities/source-file/model/source-file.ts'
 import { useSplitStore } from '@/entities/split/model/split.ts'
@@ -63,6 +63,16 @@ const extent = computed(() =>
 function playheadSeconds() {
   return extent.value === null ? 0 : audition.stretchPlayheadSeconds(extent.value)
 }
+
+/*
+The slider's value. While the track plays the playhead follows the audio, which Vue does not see,
+so each frame copies it here to the whole second: a screen reader hears a new value once a second,
+not on every frame. Otherwise it is the resting place, which Vue does see, to the hundredth.
+*/
+const heardSeconds = ref(0)
+const sliderSeconds = computed(() =>
+  audition.stretchStatus === 'playing' ? heardSeconds.value : playheadSeconds(),
+)
 
 function draw() {
   const peaks = sourceFile.peaks
@@ -190,7 +200,13 @@ function onKeydown(event: KeyboardEvent) {
   event.preventDefault()
 }
 
-usePlayheadFrames(() => audition.stretchStatus === 'playing', draw)
+usePlayheadFrames(
+  () => audition.stretchStatus === 'playing',
+  () => {
+    heardSeconds.value = Math.floor(playheadSeconds())
+    draw()
+  },
+)
 
 useCanvasRedraw(canvas, draw)
 
@@ -216,8 +232,8 @@ watch(
       aria-label="Playhead in the track"
       :aria-valuemin="extent?.startSeconds"
       :aria-valuemax="extent?.endSeconds"
-      :aria-valuenow="playheadSeconds()"
-      :aria-valuetext="formatHundredths(playheadSeconds())"
+      :aria-valuenow="sliderSeconds"
+      :aria-valuetext="formatHundredths(sliderSeconds)"
       class="size-full select-none focus-visible:focus-ring"
       :class="{ 'cursor-ew-resize': overPlayhead || dragging }"
       @keydown="onKeydown"

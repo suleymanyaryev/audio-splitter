@@ -79,7 +79,6 @@ const blocks = computed(() => {
       </li>
       <li
         :title="`${block.track.name}, ${block.length}`"
-        :aria-label="`${block.track.name}, ${block.length}`"
         :aria-current="split.isTrackSelected(block.track) ? 'true' : undefined"
         class="min-w-0 flex-none rounded-control border-2 bg-track text-on-track"
         :class="[
@@ -89,9 +88,11 @@ const blocks = computed(() => {
         :style="{ width: `${block.widthPx}px` }"
       >
         <!-- The ring is inside the block, in on-track: outside it would sit on the land, and the
-      on-track colour has no contrast there. -->
+      on-track colour has no contrast there. The name is the button's, as a block too narrow for
+      text is still one to click. -->
         <button
           type="button"
+          :aria-label="`${block.track.name}, ${block.length}`"
           class="flex size-full min-w-0 cursor-pointer flex-col justify-center gap-0.5 text-left focus-visible:outline-2 focus-visible:-outline-offset-4 focus-visible:outline-on-track"
           @click="split.selectTrack(block.track)"
         >

@@ -36,6 +36,18 @@ _Avoid_: Candidate, cut point, marker, split point
 The one split the user is reviewing: at most one at a time. Selecting a split centres the zoom window on it; moving it does not recentre the window.
 _Avoid_: Current split, active split, focused split
 
+**Selected track**:
+The one track the user is reviewing, heard end to end whatever its length. Its ends are its splits, so it follows them when they move; no split is added inside it. A split and a track are never selected at the same time.
+_Avoid_: Track range, current track, active track
+
+**Track view**:
+The zoom panel's view of the selected track, stretched across the whole panel with its gaps and its two end splits, to listen to.
+_Avoid_: Track panel, track range view
+
+**Removing a track**:
+Merging a track into its neighbours by deleting the splits at both its ends. Its name goes with it: the merged track keeps the previous track's name, or the next track's when the first track is removed.
+_Avoid_: Deleting a track, excluding a track
+
 **Zoom window**:
 The 20 second stretch of the source file around a centre time that the zoom view shows, outlined on the whole-file view.
 _Avoid_: Viewport, zoom range, visible range
@@ -49,7 +61,7 @@ A stretch of the source file, 1 s to 10 min, that the user drags out on the whol
 _Avoid_: Selection, section, region
 
 **Range view**:
-The zoom panel's other view: the range stretched across the whole panel, with its gaps and splits, in place of the zoom view. A `Split | Range` control switches between the two; selecting a split or moving the zoom window switches back.
+The zoom panel's other view: the range stretched across the whole panel, with its gaps and splits, in place of the zoom view. A `Split | Track | Range` control switches between the three; selecting a split or moving the zoom window switches back.
 _Avoid_: Range panel, overview
 
 **Mark**:

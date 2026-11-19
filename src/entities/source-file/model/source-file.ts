@@ -200,11 +200,26 @@ export const useSourceFileStore = defineStore('source-file', () => {
     return turn
   }
 
-  // Decodes `lengthSeconds` from `startSeconds` in the open session, less where the file ends.
-  async function clip(startSeconds: number, lengthSeconds: number) {
-    return inSession(({ open, duration }) =>
-      decodeClip(open, startSeconds, lengthSeconds, duration),
-    )
+  /*
+  Decodes `lengthSeconds` from `startSeconds` in the open session, less where the file ends. A
+  clip the caller no longer wants (`signal` aborted) must not hold up the calls behind it: one
+  still waiting rejects when its turn comes, without running, and one running is interrupted,
+  which costs the next call a fresh worker (under 100 ms) instead of the rest of a decode.
+  */
+  async function clip(startSeconds: number, lengthSeconds: number, signal?: AbortSignal) {
+    return inSession(async ({ open, duration }) => {
+      signal?.throwIfAborted()
+      // The queue runs one call at a time, so the command an interrupt stops is this clip's.
+      const interrupt = () => {
+        open.interrupt()
+      }
+      signal?.addEventListener('abort', interrupt, { once: true })
+      try {
+        return await decodeClip(open, startSeconds, lengthSeconds, duration)
+      } finally {
+        signal?.removeEventListener('abort', interrupt)
+      }
+    })
   }
 
   /*

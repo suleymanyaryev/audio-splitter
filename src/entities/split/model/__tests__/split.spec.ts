@@ -378,6 +378,34 @@ describe('the split store', () => {
       expect(store.selectedSplit).toBeNull()
     })
 
+    it('refuses a stale track, whose start split was deleted, and keeps the selection and view', () => {
+      const curve = farGaps()
+      const store = useSplitStore()
+      store.detect(curve, timing(curve))
+      const stale = store.tracks[2]!
+      store.selectSplit(store.splits[0]!.id)
+      store.deleteSplit(stale.startSplit!.id)
+
+      store.selectTrack(stale)
+
+      expect(store.selectedTrack).toBeNull()
+      expect(store.selectedSplit).toBe(store.splits[0])
+      expect(store.view).toBe('split')
+    })
+
+    it('selects no track before detection', () => {
+      const curve = farGaps()
+      const other = useSplitStore()
+      other.detect(curve, timing(curve))
+      const track = other.tracks[0]!
+      other.reset()
+
+      other.selectTrack(track)
+
+      expect(other.selectedTrack).toBeNull()
+      expect(other.view).toBe('split')
+    })
+
     it('clears the selected track when a split is selected', () => {
       const curve = farGaps()
       const store = useSplitStore()

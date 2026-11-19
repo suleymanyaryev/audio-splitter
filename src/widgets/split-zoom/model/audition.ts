@@ -62,7 +62,8 @@ moved, stops and releases whatever is held.
 
 Every press takes a number, and a clip that arrives for an older number is dropped: a press that
 was stopped, or a selection or range that changed while ffmpeg was working, must never start sound
-later. The window ahead has its own guard, the fetch itself: releasing the windows forgets it.
+later. The window ahead has its own guard, the fetch itself: releasing the windows, or `stop`,
+forgets it and stops its decode, so a seek's window or an export's cut does not wait behind it.
 */
 export const useAuditionStore = defineStore('audition', () => {
   const sourceFile = useSourceFileStore()
@@ -98,7 +99,7 @@ export const useAuditionStore = defineStore('audition', () => {
   let held: { stretch: Stretch; window: TimeRange } | null = null
   // The window after the held one, decoded while the held one plays, and the fetch that made it.
   let upcoming: { url: string; clip: Clip; window: TimeRange } | undefined
-  let ahead: { done: Promise<void> } | undefined
+  let ahead: { done: Promise<void>; stopper: AbortController } | undefined
   // Whether the stretch was playing when the playhead was grabbed, so the drop plays it on.
   let shouldResume = false
 
@@ -110,10 +111,18 @@ export const useAuditionStore = defineStore('audition', () => {
       element.load()
     }
     if (url !== undefined) URL.revokeObjectURL(url)
-    if (upcoming !== undefined) URL.revokeObjectURL(upcoming.url)
     url = undefined
     held = null
-    // A fetch still on its way finds `ahead` gone, and drops what it made.
+    forgetAhead()
+  }
+
+  /*
+  Lets go of the window ahead. A fetch still on its way is stopped, and if its clip arrives anyway
+  it finds `ahead` gone and drops it.
+  */
+  function forgetAhead() {
+    ahead?.stopper.abort()
+    if (upcoming !== undefined) URL.revokeObjectURL(upcoming.url)
     upcoming = undefined
     ahead = undefined
   }
@@ -148,12 +157,14 @@ export const useAuditionStore = defineStore('audition', () => {
   /*
   Ends everything audible, for the page: the export, a view change, a moved selection, leaving. A
   stretch that plays is paused, so its playhead stays where it was; one still being decoded is taken
-  back, and a paused one stays paused.
+  back, and a paused one stays paused. The window ahead goes: the export's cuts must not wait
+  behind its decode, and playing on decodes it again in time (30 s before the window ends).
   */
   function stop() {
     press++
     if (stretchStatus.value === 'playing') pauseStretch()
     else if (stretchStatus.value === 'loading') stretchStatus.value = 'idle'
+    forgetAhead()
     letGoOfAudition()
     failure.value = null
   }
@@ -379,13 +390,14 @@ export const useAuditionStore = defineStore('audition', () => {
     if (held === null) return Promise.resolve()
     const window = nextWindow(held.stretch, held.window, stretchPosition())
     if (window === null) return Promise.resolve()
-    const asked = { done: Promise.resolve() }
+    const asked = { done: Promise.resolve(), stopper: new AbortController() }
     ahead = asked
     asked.done = (async () => {
       try {
         const clip = await sourceFile.clip(
           window.startSeconds,
           window.endSeconds - window.startSeconds,
+          asked.stopper.signal,
         )
         // Releasing the windows, or handing over, forgot this fetch: its clip is of no use.
         if (ahead === asked) upcoming = { url: urlOf(clip), clip, window }
@@ -525,7 +537,9 @@ export const useAuditionStore = defineStore('audition', () => {
   /*
   The same for the selected track: another track, none, or one whose start or end moved is no longer
   the stretch that was heard. The source is a string, so a split that moves elsewhere, which
-  recomputes the tracks, changes nothing here.
+  recomputes the tracks, changes nothing here. In the Range view the stretch is the range, which a
+  track's change leaves alone: a split added at the mark shortens the selected track, and the range
+  plays on.
   */
   watch(
     () => {
@@ -534,7 +548,9 @@ export const useAuditionStore = defineStore('audition', () => {
         ? null
         : `${track.startSplit?.id ?? 'first'}/${track.startSeconds}/${track.lengthSeconds}`
     },
-    resetStretch,
+    () => {
+      if (splitStore.view !== 'range') resetStretch()
+    },
     { flush: 'sync' },
   )
 

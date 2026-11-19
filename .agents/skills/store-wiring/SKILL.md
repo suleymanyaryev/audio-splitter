@@ -30,7 +30,7 @@ The import rules are in AGENTS.md "Code layout" and enforced by `pnpm lint`; thi
 
 There is one player, `widgets/split-zoom/model/audition.ts`, with one hidden `<audio>`. Its two modes (the audition clip and a stretch: the range or the selected track) stop each other. Anything new that plays goes through it. Anything that should silence it calls `stop()`: the page does so on a view change, before the export and on unmount.
 
-An async result can arrive after the user has moved on. The audition guards against this: every press takes a number, a result for an older number is dropped, and `flush: 'sync'` watchers on the split store stop the player at once. Use the same guard for any new async work started by a user action. Work the player starts by itself, such as the window decoded ahead of a long track (`fetchAhead`), is not a press: it keeps its own token, which releasing the held windows forgets, so what arrives late is dropped.
+An async result can arrive after the user has moved on. The audition guards against this: every press takes a number, a result for an older number is dropped, and `flush: 'sync'` watchers on the split store stop the player at once. Use the same guard for any new async work started by a user action. Work the player starts by itself, such as the window decoded ahead of a long track (`fetchAhead`), is not a press: it keeps its own token, which releasing the held windows (or `stop()`) forgets, so what arrives late is dropped, and it aborts the token's `AbortSignal`, so its ffmpeg call stops holding the queue.
 
 ## Jobs and browser APIs
 

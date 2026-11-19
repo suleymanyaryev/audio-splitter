@@ -497,6 +497,77 @@ describe('the source-file store', () => {
       expect(clipRuns(session)).toHaveLength(1)
     })
 
+    it('interrupts a running clip whose signal is aborted, and the next clip still runs', async () => {
+      const session = loadedSession()
+      vi.mocked(openFfmpeg).mockResolvedValue(session)
+      const store = useSourceFileStore()
+      await store.load(file)
+      // The clip hangs until the session is interrupted, as a slow decode would.
+      session.run.mockImplementationOnce(
+        async () =>
+          new Promise((_, reject) => {
+            session.interrupt.mockImplementationOnce(() => {
+              reject(new Error('ffmpeg was stopped'))
+            })
+          }),
+      )
+      const unwanted = new AbortController()
+      const first = store.clip(6, 8, unwanted.signal)
+      const second = store.clip(16, 8)
+      await vi.waitFor(() => {
+        expect(clipRuns(session)).toHaveLength(1)
+      })
+
+      unwanted.abort()
+
+      await expect(first).rejects.toThrow('ffmpeg was stopped')
+      await expect(second).resolves.toMatchObject({ startSeconds: 16 })
+    })
+
+    it('rejects a queued clip whose signal is aborted, without running it', async () => {
+      const session = loadedSession()
+      vi.mocked(openFfmpeg).mockResolvedValue(session)
+      const store = useSourceFileStore()
+      await store.load(file)
+      const decode = session.run.getMockImplementation()!
+      let release: (() => void) | undefined
+      session.run.mockImplementationOnce(
+        async (command, timeoutMs) =>
+          new Promise((resolve) => {
+            release = () => {
+              resolve(decode(command, timeoutMs))
+            }
+          }),
+      )
+      const first = store.clip(6, 8)
+      const unwanted = new AbortController()
+      const second = store.clip(16, 8, unwanted.signal)
+      await vi.waitFor(() => {
+        expect(clipRuns(session)).toHaveLength(1)
+      })
+
+      unwanted.abort()
+      release?.()
+
+      await expect(first).resolves.toMatchObject({ startSeconds: 6 })
+      await expect(second).rejects.toThrow()
+      expect(clipRuns(session)).toHaveLength(1)
+      expect(session.interrupt).not.toHaveBeenCalled()
+    })
+
+    it('leaves a clip that ended alone when its signal is aborted later', async () => {
+      const session = loadedSession()
+      vi.mocked(openFfmpeg).mockResolvedValue(session)
+      const store = useSourceFileStore()
+      await store.load(file)
+      const done = new AbortController()
+      await store.clip(6, 8, done.signal)
+
+      done.abort()
+
+      expect(session.interrupt).not.toHaveBeenCalled()
+    })
+
     it('rejects a clip after reset', async () => {
       vi.mocked(openFfmpeg).mockResolvedValue(loadedSession())
       const store = useSourceFileStore()
