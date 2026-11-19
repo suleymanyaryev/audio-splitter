@@ -40,6 +40,10 @@ function nameField(wrapper: ReturnType<typeof mount>, trackNumber: number) {
   return wrapper.get<HTMLInputElement>(`input[aria-label="Name of track ${trackNumber}"]`)
 }
 
+function removeButton(wrapper: ReturnType<typeof mount>, trackNumber: number) {
+  return wrapper.get(`button[aria-label="Remove track ${trackNumber}"]`)
+}
+
 function mountWithTwoGaps() {
   const split = useSplitStore()
   split.detect(curveWithTwoGaps(), { windowSeconds: 0.05, durationSeconds: 100 })
@@ -73,7 +77,7 @@ describe('TrackList', () => {
       'Name',
       'Start',
       'Length',
-      'Delete',
+      'Actions',
     ])
     expect(rows(wrapper)).toEqual([
       ['1', '1', '0:00:00.00', '0:00:21'],
@@ -183,6 +187,103 @@ describe('TrackList', () => {
 
       expect(splitRows(wrapper).map((row) => row.findAll('td')[1]?.text())).toEqual(['Split 1'])
       expect(splitRows(wrapper)[0]?.findAll('td')[2]?.text()).toBe('0:01:11.50')
+    })
+  })
+
+  describe('removing a track', () => {
+    it('offers a merge button on every track row, named after the track', () => {
+      const { wrapper } = mountWithTwoGaps()
+
+      const labels = trackRows(wrapper).map((row) =>
+        row
+          .findAll('button[aria-label^="Remove"]')
+          .map((button) => button.attributes('aria-label')),
+      )
+
+      expect(labels).toEqual([['Remove track 1'], ['Remove track 2'], ['Remove track 3']])
+    })
+
+    it('offers no merge button on a split row', () => {
+      const { wrapper } = mountWithTwoGaps()
+
+      for (const row of splitRows(wrapper)) {
+        expect(row.findAll('button[aria-label^="Remove"]')).toHaveLength(0)
+      }
+    })
+
+    it('offers none when there is only one track', () => {
+      useSplitStore().detect(new Float32Array(400).fill(-10), {
+        windowSeconds: 0.05,
+        durationSeconds: 20,
+      })
+
+      const wrapper = mount(TrackList)
+
+      expect(wrapper.findAll('button[aria-label^="Remove"]')).toHaveLength(0)
+    })
+
+    it('goes when the last tracks are merged into one', async () => {
+      const { split, wrapper } = mountWithTwoGaps()
+
+      await removeButton(wrapper, 2).trigger('click')
+
+      expect(split.tracks).toHaveLength(1)
+      expect(wrapper.findAll('button[aria-label^="Remove"]')).toHaveLength(0)
+    })
+
+    it('removes the track, which merges it with its neighbours, in the middle', async () => {
+      const { split, wrapper } = mountWithTwoGaps()
+
+      await removeButton(wrapper, 2).trigger('click')
+
+      expect(split.splits).toHaveLength(0)
+      expect(rows(wrapper)).toEqual([['1', '1', '0:00:00.00', '0:01:40']])
+    })
+
+    it('merges the first track into the next', async () => {
+      const { split, wrapper } = mountWithTwoGaps()
+
+      await removeButton(wrapper, 1).trigger('click')
+
+      expect(split.splits.map((point) => point.seconds)).toEqual([71.5])
+    })
+
+    it('merges the last track into the previous one', async () => {
+      const { split, wrapper } = mountWithTwoGaps()
+
+      await removeButton(wrapper, 3).trigger('click')
+
+      expect(split.splits.map((point) => point.seconds)).toEqual([21])
+    })
+
+    it('does not select the row it was clicked in', async () => {
+      const { split, wrapper } = mountWithTwoGaps()
+      split.selectTrack(split.tracks[0]!)
+
+      await removeButton(wrapper, 3).trigger('click')
+
+      expect(split.selectedTrack?.number).toBe(1)
+    })
+
+    it('leaves a split selected as it was, if it was not deleted', async () => {
+      const { split, wrapper } = mountWithTwoGaps()
+      const kept = split.splits[1]
+
+      split.selectSplit(kept!.id)
+      await removeButton(wrapper, 1).trigger('click')
+
+      expect(split.selectedSplit).toBe(kept)
+    })
+
+    it('has an icon unlike the trash of a split row', () => {
+      const { wrapper } = mountWithTwoGaps()
+
+      const merge = removeButton(wrapper, 2).get('svg').classes()
+      const trash = wrapper.get('button[aria-label^="Delete split"] svg').classes()
+
+      expect(merge.join(' ')).toMatch(/merge/)
+      expect(trash.join(' ')).toMatch(/trash/)
+      expect(merge).not.toEqual(trash)
     })
   })
 

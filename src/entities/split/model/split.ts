@@ -57,7 +57,8 @@ one of the two settings moves.
 
 A track name belongs to the split where the track starts, and the first track's to the file's
 start, so moving or deleting a split keeps the right name with it, and unnamed tracks take their
-number from their position. Every change of a setting replaces all splits and all names.
+number from their position. Removing a track deletes the splits at both its ends, which is two
+deletes with the names and edits of a delete. Every change of a setting replaces all splits and all names.
 
 One selection (`Selection`) holds what is under review: a split, a track or nothing. The selected
 split, its index and the selected track are derived from it, so they follow the splits as they move
@@ -362,6 +363,29 @@ export const useSplitStore = defineStore('split', () => {
   }
 
   /*
+  Removes a track (GLOSSARY.md: Removing a track): deletes the splits at both its ends, whichever
+  exist, so the track and its neighbours become one. It is `deleteSplit` twice, so the edits and the
+  selection follow as a delete's do (the end split goes first, so a selected split falls back once).
+  The removed track's name goes with its start split. The next track's name belonged to the end
+  split, so when the first track is removed, which has no start split to keep a name on, it moves to
+  the file's start (`renameTrack` counts the edit). The only track is refused, as is one whose start
+  split is gone, so a stale `Track` removes nothing.
+  */
+  function removeTrack(track: Track) {
+    const startIndex =
+      track.startSplit === null
+        ? -1
+        : splits.value.findIndex((candidate) => candidate.id === track.startSplit?.id)
+    if (splits.value.length === 0 || (startIndex === -1 && track.startSplit !== null)) return
+    const start = splits.value[startIndex]
+    const end = splits.value[startIndex + 1]
+    const inheritedName = end?.name ?? null
+    if (end !== undefined) deleteSplit(end.id)
+    if (start !== undefined) deleteSplit(start.id)
+    if (start === undefined) renameTrack(null, inheritedName ?? '')
+  }
+
+  /*
   Names the track that starts at the split `startSplitId`, or the first track with null. Whatever is
   typed is valid: an empty name means "use the number".
   */
@@ -429,6 +453,7 @@ export const useSplitStore = defineStore('split', () => {
     addSplit,
     addSplitAtMark,
     deleteSplit,
+    removeTrack,
     renameTrack,
     reset,
   }

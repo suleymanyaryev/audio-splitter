@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, useTemplateRef, watch } from 'vue'
-import { Trash2 } from 'lucide-vue-next'
+import { Merge, Trash2 } from 'lucide-vue-next'
 
 import { useSplitStore, type Split, type Track } from '@/entities/split/model/split.ts'
 import { formatDuration } from '@/shared/lib/time/format-duration.ts'
@@ -12,10 +12,12 @@ import TrackNameField from './TrackNameField.vue'
 The file as a table, in time order: a row for each track with a row for each split between two
 tracks. A track row has its number (a button, so the row can be selected from the keyboard), its
 name (edited in place, `TrackNameField`), its start (hundredths, where a split's position is read)
-and its length (whole seconds). A split row reads `Split N` where the name goes, its time in the
-start column, no length and a trash button that deletes the split, which merges the tracks either
-side of it; it has no name field, because naming belongs to tracks. The box is as tall as the zoom
-view's 160 px content area and scrolls inside itself, the heading row staying in view.
+and its length (whole seconds), then a merge button that removes the track and merges it with its
+neighbours (none when it is the only track). A split row reads `Split N` where the name goes, its
+time in the start column, no length and a trash button that deletes the split, which merges the
+tracks either side of it; it has no name field, because naming belongs to tracks. The two buttons
+carry different icons, so one is not taken for the other. The box is as tall as the zoom view's
+160 px content area and scrolls inside itself, the heading row staying in view.
 
 A click on a row selects what it shows, a track or a split (the first track included), and the
 marked row, whichever kind it is, follows the selection and is kept in view; focusing a name field
@@ -29,6 +31,10 @@ const list = useTemplateRef('list')
 type Row =
   | { key: string; kind: 'track'; track: Track }
   | { key: string; kind: 'split'; point: Split; number: number }
+
+function isSplitSelected(point: Split) {
+  return split.selectedSplit?.id === point.id
+}
 
 // Each track, then the split that ends it: the last track ends with the file, so no split follows.
 const rows = computed<Row[]>(() =>
@@ -69,7 +75,7 @@ watch(
             Length
           </th>
           <th scope="col" class="sticky top-0 border-b border-hairline bg-surface py-1">
-            <span class="sr-only">Delete</span>
+            <span class="sr-only">Actions</span>
           </th>
         </tr>
       </thead>
@@ -105,17 +111,31 @@ watch(
             <td class="border-b border-hairline py-1.5 pr-2 whitespace-nowrap">
               {{ formatDuration(row.track.lengthSeconds) }}
             </td>
-            <td class="border-b border-hairline py-0.5"></td>
+            <td class="border-b border-hairline py-0.5">
+              <UiIconButton
+                v-if="split.tracks.length > 1"
+                size="sm"
+                :label="`Remove track ${row.track.number}`"
+                @click.stop="split.removeTrack(row.track)"
+              >
+                <Merge class="size-4 shrink-0" />
+              </UiIconButton>
+            </td>
           </tr>
           <tr
             v-else
-            :aria-current="split.selectedSplit?.id === row.point.id ? 'true' : undefined"
+            :aria-current="isSplitSelected(row.point) ? 'true' : undefined"
             class="cursor-pointer scroll-mt-7 hover:bg-land/40"
-            :class="split.selectedSplit?.id === row.point.id ? 'bg-land/50 font-semibold' : ''"
+            :class="isSplitSelected(row.point) ? 'bg-land/50 font-semibold' : ''"
             @click="split.selectSplit(row.point.id)"
           >
             <td class="border-b border-hairline py-1.5 pr-2"></td>
-            <td class="border-b border-hairline py-1.5 pr-3 text-muted">Split {{ row.number }}</td>
+            <td
+              class="border-b border-hairline py-1.5 pr-3"
+              :class="isSplitSelected(row.point) ? '' : 'text-muted'"
+            >
+              Split {{ row.number }}
+            </td>
             <td class="border-b border-hairline py-1.5 pr-4 whitespace-nowrap">
               {{ formatHundredths(row.point.seconds) }}
             </td>
