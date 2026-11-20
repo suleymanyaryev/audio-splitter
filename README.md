@@ -140,6 +140,7 @@ One screen each, plain words, worked numbers from a real 1 h file.
 6. [Seeking compressed audio](docs/concepts/06-seeking-compressed-audio.md): frames, VBR, why `<audio>` seeks MP3 wrong, WAV.
 7. [Cutting without re-encoding](docs/concepts/07-cutting-without-re-encoding.md): stream copy, cut grain, priming, tags.
 8. [Listening to a range](docs/concepts/08-listening-to-a-range.md): sample frames, byte rate, why a range stops at 10 min, and how a longer track is heard through a moving window.
+9. [Volume is gain](docs/concepts/09-volume-is-gain.md): amplitude, linear gain, decibels, why the slider steps in dB, and that volume is playback only.
 
 ### Planning record
 
