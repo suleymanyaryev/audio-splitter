@@ -47,13 +47,21 @@ export const SHORTCUT_SECTIONS: ShortcutSection[] = [
     title: 'Range view',
     rows: [
       { input: 'Click', does: 'Place the mark, the dashed line' },
-      { input: 'Click a split’s line', does: 'Select that split and open the Split view' },
+      { input: 'Double-click', does: 'Move the playhead there' },
+      {
+        input: 'Double-click a split’s line',
+        does: 'Select that split and open the Split view',
+      },
       {
         input: 'Drag the playhead',
         does: 'Move the playhead along the range; a playing range pauses while it is held',
       },
-      { input: 'Left / Right', does: 'Move the mark 100 ms (Shift: 1 s)' },
+      { input: 'Left / Right', does: 'Move the playhead 1 s (Shift: 10 s)' },
       { input: 'Enter', does: 'Add a split at the mark' },
+      {
+        input: 'Shift+Enter',
+        does: 'Add a split at the playhead, without stopping the sound',
+      },
       { input: 'Space', does: 'Play or pause the range' },
       { input: 'Home', does: 'Go back to the range’s start' },
     ],

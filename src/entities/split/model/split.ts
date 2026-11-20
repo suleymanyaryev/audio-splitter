@@ -14,6 +14,8 @@ compared with a hair of tolerance, because a split a step away from its limit ca
 */
 const MINIMUM_DISTANCE_SECONDS = 1
 const LIMIT_TOLERANCE = 1e-9
+// Splits sit on the same 10 ms grid the arrow keys and a drag step in.
+const GRID_STEPS_PER_SECOND = 100
 
 // `id` is stable for the split's life, so a selection and a count of edits can hold it.
 // `name` is the name of the track that starts at this split, null while it is unnamed.
@@ -75,8 +77,8 @@ the whole-file view, or none. It belongs to the file, not to the detection, so a
 the edits leave it alone; `reset` clears it. The panel shows the range's view after a new range and
 the zoom view again as soon as the user selects a split or moves the window, since both are about
 the zoom view; the range stays while the zoom view is shown. The mark is a spot inside the range,
-placed by the user, cleared by a new range and kept otherwise; `addSplitAtMark` adds a split there
-without selecting it, so the user stays in the Range view.
+placed by the user, cleared by a new range and kept otherwise; `addSplitAtMark` adds a split there,
+and `addSplitAt` at any time (the playhead), without selecting it, so the user stays in the Range view.
 */
 export const useSplitStore = defineStore('split', () => {
   const curve = shallowRef<Float32Array | null>(null)
@@ -341,12 +343,18 @@ export const useSplitStore = defineStore('split', () => {
   }
 
   /*
-  A split where the mark is, for the user who is listening in the Range view: it is not selected,
-  so the view, the playback and the mark stay as they are.
+  A split at a time, for the user who is listening in the Range view (the playhead): the time is
+  rounded to the 10 ms grid first, then held to the same room as any split. It is not selected, so
+  the view, the playback and the mark stay as they are.
   */
+  function addSplitAt(seconds: number) {
+    const onGrid = Math.round(seconds * GRID_STEPS_PER_SECOND) / GRID_STEPS_PER_SECOND
+    if (hasRoomFor(onGrid)) insertSplit(onGrid)
+  }
+
+  // A split where the mark is.
   function addSplitAtMark() {
-    if (markSeconds.value === null || !canAddSplitAtMark.value) return
-    insertSplit(markSeconds.value)
+    if (markSeconds.value !== null) addSplitAt(markSeconds.value)
   }
 
   function deleteSplit(id: number) {
@@ -463,6 +471,7 @@ export const useSplitStore = defineStore('split', () => {
     showView,
     moveSplit,
     addSplit,
+    addSplitAt,
     addSplitAtMark,
     deleteSplit,
     removeTrack,

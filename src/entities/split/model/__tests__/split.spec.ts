@@ -1716,6 +1716,112 @@ describe('the split store', () => {
     })
   })
 
+  describe('adding a split at a time', () => {
+    it('adds an unnamed split there, in time order, on the 10 ms grid', () => {
+      const store = markedStore(12)
+
+      store.addSplitAt(15.004)
+      store.addSplitAt(17.006)
+
+      expect(store.splits.map((split) => split.seconds)).toEqual([
+        15,
+        17.01,
+        expect.closeTo(22, 9),
+        expect.closeTo(42, 9),
+      ])
+      expect(store.splits.map((split) => split.name)).toEqual([null, null, null, null])
+    })
+
+    it('does not select it, move the zoom window, leave the range view or touch the mark', () => {
+      const store = markedStore(12)
+      const selectedId = store.selectedSplit?.id
+      const centre = store.zoomCentreSeconds
+
+      store.addSplitAt(15)
+
+      expect(store.selectedSplit?.id).toBe(selectedId)
+      expect(store.selectedTrack).toBe(store.tracks[0])
+      expect(store.zoomCentreSeconds).toBe(centre)
+      expect(store.view).toBe('range')
+      expect(store.markSeconds).toBe(12)
+    })
+
+    it('needs no mark, and no range on show', () => {
+      const store = loadedStore()
+
+      store.addSplitAt(15)
+
+      expect(store.splits).toHaveLength(3)
+    })
+
+    it('is refused within 1 s of a split, and allowed at exactly 1 s', () => {
+      const store = loadedStore()
+
+      store.addSplitAt(22.5)
+      store.addSplitAt(21.5)
+      expect(store.splits).toHaveLength(2)
+
+      store.addSplitAt(23)
+      expect(store.splits).toHaveLength(3)
+    })
+
+    it('is refused within 1 s of the file’s start and end, and allowed at exactly 1 s', () => {
+      const store = loadedStore()
+
+      store.addSplitAt(0.5)
+      store.addSplitAt(59.5)
+      store.addSplitAt(0)
+      store.addSplitAt(60)
+      store.addSplitAt(-3)
+      store.addSplitAt(75)
+      expect(store.splits).toHaveLength(2)
+
+      store.addSplitAt(1)
+      store.addSplitAt(59)
+      expect(store.splits).toHaveLength(4)
+    })
+
+    it('judges the room by the time it would land on, on the grid', () => {
+      const store = loadedStore()
+
+      // 22.996 would land on 23: 1 s from the split at 22.
+      store.addSplitAt(22.996)
+      expect(store.splits).toHaveLength(3)
+
+      // 0.996 would land on 1: 1 s from the file's start.
+      store.addSplitAt(0.996)
+      expect(store.splits.map((split) => split.seconds)).toContain(1)
+    })
+
+    it('counts as one added-split edit, and none once it is deleted again', () => {
+      const store = loadedStore()
+
+      store.addSplitAt(15)
+      expect(store.editCount).toBe(1)
+
+      store.deleteSplit(store.splits[0]!.id)
+      expect(store.editCount).toBe(0)
+    })
+
+    it('adds one split for a time asked twice, since the second is within 1 s of the first', () => {
+      const store = loadedStore()
+
+      store.addSplitAt(15)
+      store.addSplitAt(15)
+      store.addSplitAt(15.4)
+
+      expect(store.splits).toHaveLength(3)
+    })
+
+    it('does nothing before detection', () => {
+      const store = useSplitStore()
+
+      store.addSplitAt(15)
+
+      expect(store.splits).toEqual([])
+    })
+  })
+
   describe('the panel view', () => {
     it('starts on the track view, on the first track', () => {
       const store = loadedStore()

@@ -16,14 +16,14 @@ export interface RangePressSource {
   grab: () => void
   move: (seconds: number) => void
   drop: () => void
-  // The split at that index of `splitXs` is selected.
+  // A double-click on the split at that index of `splitXs` selects it.
   selectSplit: (index: number) => void
-  // The mark goes to a time.
+  // A single press puts the mark at a time.
   placeMark: (seconds: number) => void
 }
 
 // The pointer's horizontal position in the canvas's own pixels.
-function pointerX(event: PointerEvent) {
+function pointerX(event: MouseEvent) {
   const { left } = (event.currentTarget as HTMLElement).getBoundingClientRect()
   return event.clientX - left
 }
@@ -34,9 +34,10 @@ function isNear(x: number, playhead: number | null) {
 }
 
 /*
-The pointer handlers of the Range view: what a press on it does, in this order (spec stories 26–47):
-within 6 px of the playhead it takes hold of it; else within 6 px of a split line it selects that
-split; else it places the mark. Only the playhead is dragged: the view keeps the pointer while the
+The pointer handlers of the Range view: a single press takes hold of the playhead within 6 px of it,
+and otherwise places the mark. A split line is never hit by a single press, so pointing next to one
+does not leave the view. A double-click selects the split whose line is within 6 px, and otherwise
+moves the playhead there. Only the playhead is dragged: the view keeps the pointer while the
 drag lasts, every move sets the playhead's time through `move` (the pointer's distance from the line
 when it was grabbed is kept, so the line does not jump), and the release lets go. With no drag on, a
 move only says whether the pointer is over the playhead, for the cursor.
@@ -69,8 +70,14 @@ export function useRangePress({
       grab()
       return
     }
+    placeMark(seconds(x))
+  }
+
+  function onDoubleClick(event: MouseEvent) {
+    if (event.button !== 0) return
+    const x = pointerX(event)
     const line = hitTestSplit(x, splitXs())
-    if (line === null) placeMark(seconds(x))
+    if (line === null) move(seconds(x))
     else selectSplit(line)
   }
 
@@ -94,5 +101,5 @@ export function useRangePress({
     drop()
   }
 
-  return { overPlayhead, dragging, onPointerDown, onPointerMove, onPointerEnd }
+  return { overPlayhead, dragging, onPointerDown, onPointerMove, onPointerEnd, onDoubleClick }
 }

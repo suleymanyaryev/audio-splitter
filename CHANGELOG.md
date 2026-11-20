@@ -19,10 +19,12 @@ Versions follow [Semantic Versioning](https://semver.org/) applied to the produc
 
 ### Added
 
+- In the Range view, Shift+Enter adds a split where the playhead is, while the range plays, without stopping the sound or leaving the view. Like every split it lands on the 10 ms grid and is refused within 1 s of another split or of the file's ends. A held Enter or Shift+Enter adds one split only.
 - A `?` button in the header, "Keyboard shortcuts (?)", on the review screen, or the `?` key anywhere on the page, opens a dialog that lists every key and pointer gesture of the review screen, grouped by area: Split view, Track view, Range view, whole-file view and Track list, with the view on show first. `?` typed into a track name stays a question mark. Escape, a click outside or "Close" closes it.
 
 ### Changed
 
+- In the Range view a single click places the mark wherever it lands, even next to a split's line, and never leaves the view. A double-click moves the playhead there, or, within 6 px of a split's line, selects that split and opens the Split view. Left and Right now move the playhead 1 s, with Shift 10 s, as in the Track view; the mark is placed with the pointer only. The view is a slider on the playhead.
 - Every button in the zoom panel's title row, in all three views, is now an icon button with a tooltip that says what it does and, where there is one, its key: "Add split" (Enter in the Range view), "Delete split (Delete)", "Back to track start (Home)", and Play across split, Play, Pause and Stop with "(Space)". The tooltip opens when the pointer rests on the button and when the keyboard focuses it, and closes on Escape. Play's icon and tooltip follow what a press will do. The Track list's merge and trash buttons show their names as tooltips too. The `Split | Track | Range` control, "Export to folder…" and "New file" keep their words.
 - A freshly analysed file opens with track 1 selected in the Track view, ready to play, instead of on the first split. Changing the silence threshold or the minimum gap length selects track 1 again, and shows the Track view unless the Range view is on show. The Split view then opens on the file's first seconds with no split selected.
 - Loading the audio engine now waits up to 3 minutes instead of 1 before giving up, so a slow connection can finish downloading it.

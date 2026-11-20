@@ -22,6 +22,15 @@ function pointerAt(canvasX: number, button = 0, buttons = 1) {
   return { event, setPointerCapture }
 }
 
+// What the double-click handler reads: a `dblclick` has no pointer id and captures nothing.
+function doubleClickAt(canvasX: number, button = 0) {
+  return {
+    button,
+    clientX: LEFT + canvasX,
+    currentTarget: { getBoundingClientRect: () => ({ left: LEFT }) },
+  } as unknown as MouseEvent
+}
+
 /*
 The playhead is at x = 450; a pointer at x is x / 10 seconds. The split lines are at the x given,
 none by default.
@@ -145,34 +154,18 @@ describe('useRangePress', () => {
     })
   })
 
-  describe('a split line', () => {
-    it('is selected by a press within 6 px of it, by its index, and places no mark', () => {
+  describe('a split line, under a single press', () => {
+    it('is not hit: a press on its line places the mark there, and selects nothing', () => {
       const press = pressOf(450, [100, 300, 700])
-      const down = pointerAt(305)
+      const down = pointerAt(300)
 
       press.onPointerDown(down.event)
 
-      expect(press.selectSplit).toHaveBeenCalledExactlyOnceWith(1)
-      expect(press.placeMark).not.toHaveBeenCalled()
+      expect(press.placeMark).toHaveBeenCalledExactlyOnceWith(30)
+      expect(press.selectSplit).not.toHaveBeenCalled()
       expect(press.grab).not.toHaveBeenCalled()
       expect(down.setPointerCapture).not.toHaveBeenCalled()
       expect(press.dragging.value).toBe(false)
-    })
-
-    it('is not selected by a press 7 px away', () => {
-      const press = pressOf(450, [300])
-
-      press.onPointerDown(pointerAt(307).event)
-
-      expect(press.selectSplit).not.toHaveBeenCalled()
-    })
-
-    it('is the nearer one when two are within reach', () => {
-      const press = pressOf(450, [300, 304])
-
-      press.onPointerDown(pointerAt(303).event)
-
-      expect(press.selectSplit).toHaveBeenCalledExactlyOnceWith(1)
     })
 
     it('loses to the playhead when both are within 6 px', () => {
@@ -183,6 +176,63 @@ describe('useRangePress', () => {
       expect(press.grab).toHaveBeenCalledOnce()
       expect(press.selectSplit).not.toHaveBeenCalled()
       expect(press.placeMark).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('a double-click', () => {
+    it('selects the split whose line is within 6 px, by its index, and moves nothing', () => {
+      const press = pressOf(450, [100, 300, 700])
+
+      press.onDoubleClick(doubleClickAt(305))
+
+      expect(press.selectSplit).toHaveBeenCalledExactlyOnceWith(1)
+      expect(press.move).not.toHaveBeenCalled()
+    })
+
+    it('selects the nearer split when two are within reach', () => {
+      const press = pressOf(450, [300, 304])
+
+      press.onDoubleClick(doubleClickAt(303))
+
+      expect(press.selectSplit).toHaveBeenCalledExactlyOnceWith(1)
+    })
+
+    it('moves the playhead to that time when no line is within 6 px', () => {
+      const press = pressOf(450, [300])
+
+      press.onDoubleClick(doubleClickAt(307))
+
+      expect(press.move).toHaveBeenCalledExactlyOnceWith(30.7)
+      expect(press.selectSplit).not.toHaveBeenCalled()
+    })
+
+    it('moves the playhead with no split lines and no playhead drawn, too', () => {
+      const press = pressOf(null)
+
+      press.onDoubleClick(doubleClickAt(250))
+
+      expect(press.move).toHaveBeenCalledExactlyOnceWith(25)
+    })
+
+    it('places no mark and takes hold of nothing', () => {
+      const press = pressOf(450, [300])
+
+      press.onDoubleClick(doubleClickAt(250))
+      press.onDoubleClick(doubleClickAt(450))
+
+      expect(press.placeMark).not.toHaveBeenCalled()
+      expect(press.grab).not.toHaveBeenCalled()
+      expect(press.dragging.value).toBe(false)
+    })
+
+    it('is ignored for any button but the primary one', () => {
+      const press = pressOf(450, [300])
+
+      press.onDoubleClick(doubleClickAt(300, 2))
+      press.onDoubleClick(doubleClickAt(250, 2))
+
+      expect(press.selectSplit).not.toHaveBeenCalled()
+      expect(press.move).not.toHaveBeenCalled()
     })
   })
 
@@ -199,13 +249,12 @@ describe('useRangePress', () => {
   })
 
   describe('the mark', () => {
-    it('is placed by a press away from the playhead and the split lines, at that time', () => {
+    it('is placed by a press away from the playhead, at that time', () => {
       const press = pressOf(450, [100])
 
       press.onPointerDown(pointerAt(250).event)
 
       expect(press.placeMark).toHaveBeenCalledExactlyOnceWith(25)
-      expect(press.selectSplit).not.toHaveBeenCalled()
       expect(press.grab).not.toHaveBeenCalled()
     })
 
