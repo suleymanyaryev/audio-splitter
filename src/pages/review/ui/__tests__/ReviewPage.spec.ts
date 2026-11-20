@@ -1,11 +1,13 @@
 import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 
-import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils'
+import { DOMWrapper, enableAutoUnmount, flushPromises, mount } from '@vue/test-utils'
 import { useSourceFileStore } from '@/entities/source-file/model/source-file.ts'
 import { useSplitStore } from '@/entities/split/model/split.ts'
 import { useShortcutsDialogStore } from '@/widgets/shortcuts-dialog/model/shortcuts-dialog.ts'
 import { useAuditionStore } from '@/widgets/split-zoom/model/audition.ts'
+import { FakeFolder } from '@/widgets/track-strip/model/__tests__/fake-folder.ts'
+import { useExportSingleStore } from '@/widgets/track-strip/model/export-single.ts'
 import { useExportTracksStore } from '@/widgets/track-strip/model/export-tracks.ts'
 import ReviewPage from '../ReviewPage.vue'
 
@@ -137,6 +139,42 @@ function viewOption(wrapper: ReturnType<typeof mount>, name: 'Split' | 'Track' |
 
 // The panel's title: the zoom view's time, the track's name and ends, or the range's.
 const panelTitle = (wrapper: ReturnType<typeof mount>) => wrapper.get('h2.text-lg').text()
+
+// The single export's name dialog renders into document.body, outside the wrapper.
+const dialog = () => document.querySelector('[role="dialog"]')
+const nameField = () => dialog()?.querySelector('input') as HTMLInputElement
+const savedLine = (wrapper: ReturnType<typeof mount>) => wrapper.find('[role="status"]')
+
+function exportButtonOf(wrapper: ReturnType<typeof mount>, label: string) {
+  return wrapper.get(`button[aria-label="${label}"]`)
+}
+
+async function typeName(text: string) {
+  nameField().value = text
+  nameField().dispatchEvent(new Event('input'))
+  await flushPromises()
+}
+
+async function pressEnterInField() {
+  nameField().dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+  await flushPromises()
+}
+
+// The buttons of the zoom panel's title row, in order.
+function titleRowButtons(wrapper: ReturnType<typeof mount>) {
+  const row = new DOMWrapper(wrapper.get('h2.text-lg').element.parentElement!)
+  return row.findAll('button[aria-label]').map((button) => button.attributes('aria-label'))
+}
+
+// Track 2 exported under its default name: the saved line is on show.
+async function exportTrack2() {
+  const wrapper = await mountPageWithTrack(2)
+  await exportButtonOf(wrapper, 'Export track…').trigger('click')
+  await flushPromises()
+  await pressEnterInField()
+  expect(savedLine(wrapper).exists()).toBe(true)
+  return wrapper
+}
 
 describe('ReviewPage', () => {
   beforeEach(() => {
@@ -884,6 +922,194 @@ describe('ReviewPage', () => {
       await exportButton(wrapper).trigger('click')
 
       expect(order).toEqual(['stop', 'start'])
+    })
+  })
+
+  describe('single export', () => {
+    let folder: FakeFolder
+
+    beforeEach(() => {
+      const sourceFile = useSourceFileStore()
+      sourceFile.file = new File([], 'Evening Set.m4a')
+      sourceFile.format = 'm4a'
+      folder = new FakeFolder('', [], 'Music')
+      vi.stubGlobal(
+        'showDirectoryPicker',
+        vi.fn(() => Promise.resolve(folder)),
+      )
+      vi.spyOn(sourceFile, 'cutTrack').mockResolvedValue(Uint8Array.of(1, 2, 3))
+    })
+
+    afterEach(() => {
+      // Not `vi.unstubAllGlobals`: that would also remove the setup file's ResizeObserver.
+      Reflect.deleteProperty(globalThis, 'showDirectoryPicker')
+    })
+
+    it('has "Export track…" after Play in the Track view and "Export range…" in the Range view, and neither in the Split view', async () => {
+      const track = await mountPageWithTrack(2)
+      const trackNames = titleRowButtons(track)
+      expect(trackNames.at(-1)).toBe('Export track…')
+      expect(trackNames.at(-2)).toBe('Play')
+      expect(await tooltipOf(exportButtonOf(track, 'Export track…'))).toBe('Export track…')
+
+      const range = await mountPageWithRange()
+      expect(titleRowButtons(range).at(-1)).toBe('Export range…')
+
+      const onSplit = await mountPageOnSplit()
+      expect(onSplit.find('button[aria-label^="Export "]').exists()).toBe(false)
+    })
+
+    it('opens the name dialog on the track, with "<source stem> NN", and does not stop the sound', async () => {
+      const wrapper = await mountPageWithTrack(2)
+      const stop = vi.spyOn(useAuditionStore(), 'stop')
+
+      await exportButtonOf(wrapper, 'Export track…').trigger('click')
+      await flushPromises()
+
+      expect(dialog()?.textContent).toContain('Export track')
+      expect(nameField().value).toBe('Evening Set 02')
+      expect(stop).not.toHaveBeenCalled()
+    })
+
+    it('opens with the track’s own name when it has one', async () => {
+      const wrapper = await mountPageWithTrack(2)
+      const split = useSplitStore()
+      split.renameTrack(split.splits[0]!.id, 'Chorus')
+
+      await exportButtonOf(wrapper, 'Export track…').trigger('click')
+      await flushPromises()
+
+      expect(nameField().value).toBe('Chorus')
+    })
+
+    it('confirms with Enter: stops the sound first, writes the file, closes and says where it went', async () => {
+      const wrapper = await mountPageWithTrack(2)
+      const order: string[] = []
+      vi.spyOn(useAuditionStore(), 'stop').mockImplementation(() => {
+        order.push('stop')
+      })
+      vi.spyOn(useExportSingleStore(), 'confirm').mockImplementation(async (name) => {
+        order.push(`confirm ${name}`)
+        await Promise.resolve()
+      })
+      await exportButtonOf(wrapper, 'Export track…').trigger('click')
+      await flushPromises()
+      await typeName('Chorus')
+
+      await pressEnterInField()
+
+      expect(order).toEqual(['stop', 'confirm Chorus'])
+    })
+
+    it('writes the file and shows "Saved <file> in <folder>" in the Track view once the dialog closes', async () => {
+      const wrapper = await mountPageWithTrack(2)
+      await exportButtonOf(wrapper, 'Export track…').trigger('click')
+      await flushPromises()
+      await typeName('Chorus')
+
+      await pressEnterInField()
+
+      expect(dialog()).toBeNull()
+      expect(folder.files.has('02 Chorus.m4a')).toBe(true)
+      expect(savedLine(wrapper).text()).toBe('Saved 02 Chorus.m4a in Music')
+    })
+
+    it('has OK off and Enter doing nothing while the name is empty', async () => {
+      const wrapper = await mountPageWithTrack(2)
+      await exportButtonOf(wrapper, 'Export track…').trigger('click')
+      await flushPromises()
+      await typeName('')
+
+      await pressEnterInField()
+
+      const ok = [...document.querySelectorAll('button')].find(
+        (candidate) => candidate.textContent.trim() === 'OK',
+      )
+      expect(ok?.disabled).toBe(true)
+      expect(dialog()).not.toBeNull()
+      expect(folder.files.size).toBe(0)
+    })
+
+    describe('the saved line', () => {
+      it('goes at the next press in the view', async () => {
+        const wrapper = await exportTrack2()
+
+        // jsdom has no pointer capture, which the view's own press handler asks for.
+        const view = wrapper.get('[aria-label="Playhead in the track"]')
+        view.element.setPointerCapture = () => {}
+        await view.trigger('pointerdown')
+
+        expect(savedLine(wrapper).exists()).toBe(false)
+      })
+
+      it('goes at the next key in the view', async () => {
+        const wrapper = await exportTrack2()
+
+        await wrapper.get('[aria-label="Playhead in the track"]').trigger('keydown', { key: 'x' })
+
+        expect(savedLine(wrapper).exists()).toBe(false)
+      })
+
+      it('goes at a selection change', async () => {
+        const wrapper = await exportTrack2()
+
+        await wrapper.get('[aria-label^="Select track 3"]').trigger('click')
+
+        expect(savedLine(wrapper).exists()).toBe(false)
+      })
+
+      it('goes at a view switch, and stays gone on coming back', async () => {
+        const wrapper = await exportTrack2()
+
+        await viewOption(wrapper, 'Split').trigger('click')
+        await viewOption(wrapper, 'Track').trigger('click')
+
+        expect(savedLine(wrapper).exists()).toBe(false)
+      })
+
+      it('stays while the user does something else on the page', async () => {
+        const wrapper = await exportTrack2()
+
+        await exportButton(wrapper).element.dispatchEvent(
+          new Event('pointerdown', { bubbles: true }),
+        )
+        await wrapper.vm.$nextTick()
+
+        expect(savedLine(wrapper).exists()).toBe(true)
+      })
+    })
+
+    describe('the range', () => {
+      it('opens the name dialog with "<source stem> <start>–<end>"', async () => {
+        const wrapper = await mountPageWithRange()
+
+        await exportButtonOf(wrapper, 'Export range…').trigger('click')
+        await flushPromises()
+
+        expect(dialog()?.textContent).toContain('Export range')
+        expect(nameField().value).toBe('Evening Set 0.00.10–0.00.20')
+      })
+
+      it('writes "<name>.m4a", names no track and shows the saved line in the Range view', async () => {
+        const wrapper = await mountPageWithRange()
+        await exportButtonOf(wrapper, 'Export range…').trigger('click')
+        await flushPromises()
+        await typeName('Chorus clip')
+
+        await pressEnterInField()
+
+        expect(folder.files.has('Chorus clip.m4a')).toBe(true)
+        expect(savedLine(wrapper).text()).toBe('Saved Chorus clip.m4a in Music')
+        expect(useSplitStore().editCount).toBe(0)
+      })
+    })
+
+    it('is off while the full export runs', async () => {
+      const wrapper = await mountPageWithTrack(2)
+      useExportTracksStore().status = 'running'
+      await wrapper.vm.$nextTick()
+
+      expect(exportButtonOf(wrapper, 'Export track…').attributes('disabled')).toBeDefined()
     })
   })
 })

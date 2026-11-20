@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onUnmounted, useTemplateRef, watch } from 'vue'
-import { Download, Pause, Play, Plus, SkipBack, Square, Trash2 } from 'lucide-vue-next'
+import { Download, FileDown, Pause, Play, Plus, SkipBack, Square, Trash2 } from 'lucide-vue-next'
 
 import { useSourceFileStore } from '@/entities/source-file/model/source-file.ts'
 import { useSplitStore, type PanelView } from '@/entities/split/model/split.ts'
@@ -23,8 +23,10 @@ import RangeView from '@/widgets/split-zoom/ui/RangeView.vue'
 import SplitZoom from '@/widgets/split-zoom/ui/SplitZoom.vue'
 import TrackView from '@/widgets/split-zoom/ui/TrackView.vue'
 import TrackList from '@/widgets/track-list/ui/TrackList.vue'
+import { useExportSingleStore } from '@/widgets/track-strip/model/export-single.ts'
 import { useExportTracksStore } from '@/widgets/track-strip/model/export-tracks.ts'
 import ExportDialog from '@/widgets/track-strip/ui/ExportDialog.vue'
+import SingleExportDialog from '@/widgets/track-strip/ui/SingleExportDialog.vue'
 import TrackStrip from '@/widgets/track-strip/ui/TrackStrip.vue'
 
 /*
@@ -50,6 +52,7 @@ const sourceFile = useSourceFileStore()
 const split = useSplitStore()
 const audition = useAuditionStore()
 const exporter = useExportTracksStore()
+const singleExport = useExportSingleStore()
 const shortcuts = useShortcutsDialogStore()
 
 // `?` anywhere on the page opens the shortcuts dialog, as the header's button does.
@@ -73,6 +76,42 @@ function exportTracks() {
   audition.stop()
   void exporter.start()
 }
+
+/*
+"Export track…" and "Export range…" open the name dialog, which leaves the sound alone: only
+confirming the name stops it, so the file is not slowed by decoding sound. The dialog tells the
+page the name, and the store then runs.
+*/
+function openSingleExport() {
+  if (split.view === 'range') {
+    if (split.range !== null) singleExport.openRange(split.range)
+  } else if (split.selectedTrack !== null) {
+    singleExport.openTrack(split.selectedTrack)
+  }
+}
+
+function confirmSingleExport(name: string) {
+  audition.stop()
+  void singleExport.confirm(name)
+}
+
+/*
+The line that says where a single export went stays until the user's next press or key in the
+view, a view switch or a selection change. The Split view has no such line.
+*/
+watch(
+  () => [split.view, split.selectedTrack?.number, split.selectedSplit?.id],
+  () => {
+    singleExport.dismissSaved()
+  },
+)
+// The full export and a single export never run at once; each store refuses the other's start too.
+const isExporting = computed(() => exporter.isRunning || singleExport.isRunning)
+const savedLine = computed(() =>
+  singleExport.status === 'saved' && split.view !== 'split'
+    ? { file: singleExport.savedFile, folder: singleExport.savedFolderName }
+    : null,
+)
 
 /*
 In the zoom view a new split is selected and its handle takes the keyboard, ready for the arrow
@@ -238,10 +277,29 @@ watch(
           />
           <Play v-else class="size-4 shrink-0" fill="currentColor" :stroke-width="0" />
         </UiIconButton>
+        <UiIconButton
+          v-if="split.view !== 'split'"
+          size="sm"
+          :label="split.view === 'range' ? 'Export range…' : 'Export track…'"
+          :disabled="isExporting"
+          @click="openSingleExport"
+        >
+          <FileDown class="size-4 shrink-0" />
+        </UiIconButton>
       </template>
-      <RangeView v-if="split.view === 'range'" />
-      <TrackView v-else-if="split.view === 'track'" />
-      <SplitZoom v-else ref="zoom" />
+      <!-- Capturing, so a press or key the view handles itself still clears the saved line. -->
+      <div
+        @pointerdown.capture="singleExport.dismissSaved()"
+        @keydown.capture="singleExport.dismissSaved()"
+      >
+        <RangeView v-if="split.view === 'range'" />
+        <TrackView v-else-if="split.view === 'track'" />
+        <SplitZoom v-else ref="zoom" />
+      </div>
+      <p v-if="savedLine" role="status" class="mt-2 text-sm text-muted">
+        Saved <span class="font-semibold text-ink">{{ savedLine.file }}</span> in
+        <span class="font-semibold text-ink">{{ savedLine.folder }}</span>
+      </p>
     </UiPanel>
 
     <UiPanel title="Track list" class="col-span-4">
@@ -253,7 +311,7 @@ watch(
         <UiButton
           variant="primary"
           size="lg"
-          :disabled="sourceFile.status !== 'ready' || exporter.isRunning"
+          :disabled="sourceFile.status !== 'ready' || isExporting"
           @click="exportTracks"
         >
           <Download class="size-4 shrink-0" />
@@ -264,6 +322,7 @@ watch(
     </UiPanel>
 
     <ExportDialog />
+    <SingleExportDialog @confirm="confirmSingleExport" />
     <ShortcutsDialog />
   </main>
 </template>

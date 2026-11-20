@@ -341,7 +341,7 @@ Every kit component lives in `src/shared/ui/` as `Ui<Name>.vue` (`UiButton`, `Ui
 
 **Motion.** `transition-colors duration-100` on buttons and icon buttons; nothing else animates.
 
-**Icons.** `lucide-vue-next`, 16 px (`size-4`), stroke width 2, round caps and joins, `shrink-0`, coloured `currentColor`. Play, Pause and Square (stop) are drawn filled (`fill="currentColor"`, no stroke). Icons used so far: Play, Pause, Square, SkipBack (back to range start), ChevronsLeft, ChevronsRight (step 3 s), Trash2 (delete split), Merge (remove track), Plus (add split), Download (export), CircleQuestionMark (keyboard shortcuts). Unicode glyphs are never icons; typographic separators such as the middle dot and the minus sign are text.
+**Icons.** `lucide-vue-next`, 16 px (`size-4`), stroke width 2, round caps and joins, `shrink-0`, coloured `currentColor`. Play, Pause and Square (stop) are drawn filled (`fill="currentColor"`, no stroke). Icons used so far: Play, Pause, Square, SkipBack (back to range start), ChevronsLeft, ChevronsRight (step 3 s), Trash2 (delete split), Merge (remove track), Plus (add split), Download (export to folder), FileDown (single export), CircleQuestionMark (keyboard shortcuts). Unicode glyphs are never icons; typographic separators such as the middle dot and the minus sign are text.
 
 ### Buttons
 
@@ -349,7 +349,7 @@ Character: firm and quiet; ink does the talking, colour only for danger.
 
 - **Base:** `inline-flex h-9 cursor-pointer items-center gap-2 rounded-control px-3.5 text-sm font-semibold whitespace-nowrap transition-colors duration-100 disabled:cursor-not-allowed disabled:opacity-40`. Icon before the label, except a "forward" step where it follows. Every variant but inverse adds `focus-visible:focus-ring`.
 - **Primary:** `bg-ink text-surface enabled:hover:bg-wave`. One per panel at most; it is the panel's main action.
-  The zoom panel's title row holds no labelled button: its actions are icon buttons (see IconButton), and the panel's one primary action, Play, is the filled one. After the `Split | Track | Range` control the zoom view has "Add split" (Plus), "Delete split" (Trash2, disabled with no split selected) and the primary "Play across split", which reads "Stop" with a filled Square in place of the Play icon while a clip is loading or playing. The Range view has "Add split", "Back to range start" (SkipBack, always enabled) and the primary "Play", which reads "Stop" (filled Square) while the range is decoded and "Pause" (filled Pause) while it plays. The Track view has the same without "Add split": "Back to track start" and "Play". Only "Export to folder…", "New file" and the dialogs' actions keep their words.
+  The zoom panel's title row holds no labelled button: its actions are icon buttons (see IconButton), and the panel's one primary action, Play, is the filled one. After the `Split | Track | Range` control the zoom view has "Add split" (Plus), "Delete split" (Trash2, disabled with no split selected) and the primary "Play across split", which reads "Stop" with a filled Square in place of the Play icon while a clip is loading or playing. The Range view has "Add split", "Back to range start" (SkipBack, always enabled) and the primary "Play", which reads "Stop" (filled Square) while the range is decoded and "Pause" (filled Pause) while it plays. The Track view has the same without "Add split": "Back to track start" and "Play". Both views end with their single export, "Export track…" or "Export range…" (FileDown, secondary, disabled while the full export runs); it opens the name dialog (see Plain dialog) and its tooltip has no key. Only "Export to folder…", "New file" and the dialogs' actions keep their words.
 - **Primary lg:** primary plus `h-10 px-5 text-base`. Reserved for the Export action; no other button is large.
 - **Small (`sm`):** base with `h-8 px-3` in place of `h-9 px-3.5`. For actions in a panel title row and in table rows (for example "Add split").
 - **Secondary:** `border border-edge bg-surface text-ink enabled:hover:border-ink enabled:hover:bg-land/40`.
@@ -379,6 +379,7 @@ Reka `TooltipProvider` / `TooltipRoot` / `TooltipTrigger` / `TooltipContent`, wr
 - **Default:** native `input`: `h-9 w-full max-w-56 rounded-control border border-edge bg-surface px-2.5 text-sm text-ink enabled:hover:border-ink focus-visible:focus-ring disabled:opacity-40`.
 - **Hover:** border goes to ink. **Focus:** ink ring. **Disabled:** 40% opacity.
 - **Invalid:** set `aria-invalid="true"` and the field takes `aria-invalid:border-split aria-invalid:outline-split` (vermilion border at rest, vermilion ring when focused). The message sits directly below: `mt-1 text-xs font-semibold text-split`, linked with `aria-describedby`, written as a plain sentence. No field uses it yet: track names are never invalid.
+- **Wide variant** (the name in the single export's dialog): the default's look across the whole width, without `max-w-56`.
 - **Inline variant** (rename a track inside its track-list row): `-mx-1.5 h-6 w-[calc(100%+12px)] rounded-control border border-transparent bg-transparent px-1.5 text-sm text-ink enabled:hover:border-edge focus-visible:focus-ring`. It reads as the row's text until hovered (edge border) or focused (ink ring). It has no invalid state: export sanitises filenames, so no track name is wrong.
 
 ### Slider
@@ -422,11 +423,14 @@ Reka `AlertDialog`: the confirm before a setting change or "New file" replaces e
 
 ### Plain dialog
 
-Reka `Dialog` (`UiPlainDialog`): a dialog that gives information or asks for a name, where the alert dialog asks a yes-or-no question. It looks like the alert dialog (the same opaque ground and panel frame, no shadow) and differs in what closes it: Escape and a press outside it both close it, where the alert dialog ignores a press outside. The keyboard shortcuts dialog is the first.
+Reka `Dialog` (`UiPlainDialog`): a dialog that gives information or asks for a name, where the alert dialog asks a yes-or-no question. It looks like the alert dialog (the same opaque ground and panel frame, no shadow) and differs in what closes it: Escape and a press outside it both close it, where the alert dialog ignores a press outside. The keyboard shortcuts dialog is the first, and the single export's name dialog the second.
 
 - **Frame:** the alert dialog's frame, with `max-h-[calc(100vh-32px)] overflow-y-auto` so a long list scrolls inside it and the dialog never leaves the screen. `md` is `max-w-md` (448 px); `lg` is `max-w-2xl` (672 px), for a dialog that holds a list.
 - **Content:** title in Title, the description below it in Body (`mt-1`), the content (`mt-4`), then the actions, right-aligned, only when there are any (`mt-4 flex justify-end gap-2`). The shortcuts dialog's one action is a secondary "Close".
 - **Shortcut list:** one `section` per area (`mt-4`, none above the first), its `h3` in Label with a hairline rule below (`border-b border-hairline pb-1 text-sm font-semibold`), then a two-column `dl` (`grid-cols-[minmax(0,13rem)_minmax(0,1fr)] gap-x-4 gap-y-1 text-sm`): the key or gesture in `font-semibold` ink, what it does in `text-muted`. The view on show is the first section.
+
+- **Name dialog** (single export, `SingleExportDialog`): `md`, titled "Export track" or "Export range", its description one plain sentence. The content is a Label `Name` over a wide TextField (selected on focus, so typing replaces the default and Enter keeps it), then one `mt-3 text-sm text-muted` line: "You choose a folder when you confirm." or "Saves into **folder**." (the folder name `font-semibold` ink) with an underlined "Change folder" button after it. A failure sits under the field as the field's invalid message ("Export failed: reason"). The actions are a secondary "Cancel" and a primary "OK", off while the name is empty. While the file is written the field and the folder line give way to one `text-sm font-semibold` line, "Cutting and saving “name”…", and the one action is "Cancel"; Escape and a press outside do not close it then.
+- **Saved line** (under the Track view or the Range view, after a single export): `mt-2 text-sm text-muted`, "Saved **file** in **folder**" with the two names in `font-semibold` ink, `role="status"`. It goes at the next press or key in the view, a view switch or a selection change.
 
 ### Header band
 

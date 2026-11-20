@@ -6,7 +6,7 @@ The diagrams are drawn from the code. When a change alters what one of them show
 
 ## The stores
 
-Five Pinia setup stores hold all state, in memory only. Two are entities; three belong to the widget that owns the behaviour.
+Seven Pinia setup stores hold all state, in memory only. Two are entities; five belong to the widget that owns the behaviour.
 
 | Store              | Slice                      | Holds                                                                                                                                                                                                                                                                                                    |
 | ------------------ | -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -14,6 +14,8 @@ Five Pinia setup stores hold all state, in memory only. Two are entities; three 
 | `split`            | `entities/split`           | The silence threshold and minimum gap length, the gaps, the splits with their track names, the derived tracks, the one selection (a split, a track or nothing; the selected split and the selected track are derived from it), the zoom window, the range, the mark and the panel's view, the edit count |
 | `audition`         | `widgets/split-zoom`       | Whether the audition's clip and the stretch's (range or track) are loading, playing or paused, the failure, the stretch's resting place                                                                                                                                                                  |
 | `export-tracks`    | `widgets/track-strip`      | The export's status, the track in hand, the counts, the subfolder's name, the failure                                                                                                                                                                                                                    |
+| `export-single`    | `widgets/track-strip`      | The single export's status (naming, running, saved, failed), the default name, the remembered folder, the saved file and folder names, the failure                                                                                                                                                       |
+| `export-lock`      | `widgets/track-strip`      | Which export is writing (the full or a single one), so the two never run at once                                                                                                                                                                                                                         |
 | `shortcuts-dialog` | `widgets/shortcuts-dialog` | Whether the shortcuts dialog is open                                                                                                                                                                                                                                                                     |
 
 ```mermaid
@@ -22,6 +24,8 @@ flowchart LR
   split[("split")]
   audition[("audition<br/>(the player)")]
   exporter[("export-tracks")]
+  exporterSingle[("export-single")]
+  exportLock[("export-lock")]
   reviewPage["ReviewPage"]
 
   sourceFile -- "loudness curve,<br/>once on mount" --> reviewPage
@@ -30,6 +34,10 @@ flowchart LR
   audition -- "clip(start, length, signal?)" --> sourceFile
   split -- "tracks and names,<br/>fixed when the export starts" --> exporter
   exporter -- "cutTrack(track)<br/>stopCuts()" --> sourceFile
+  split -- "track, its end and count;<br/>renameTrack when the name changed" --> exporterSingle
+  exporterSingle -- "cutTrack(track or range)<br/>stopCuts()" --> sourceFile
+  exporter -- "take, release" --> exportLock
+  exporterSingle -- "take, release" --> exportLock
 ```
 
 - **`split` can't import `source-file`**, because two slices of one layer never import each other. `ReviewPage` reads the curve and hands it to `split.detect` when it mounts, and `split` keeps a reference to it to find the gaps again when a setting changes. When the page unmounts, it stops the player and resets `split`.
@@ -196,3 +204,59 @@ stateDiagram-v2
 ```
 
 A failure names the track that failed, when there was one. The cut commands per format, and why `.mp3` and `.opus` seek twice, are in [concept note 07](concepts/07-cutting-without-re-encoding.md).
+
+## Single export
+
+One track or the range, as one file, under a name the user confirms. The `export-single` store sits beside the full export, in the same widget, and shares its file writing (`api/write-file.ts`, which aborts a failed writable and removes the empty file Chrome made), its file-name sanitising, number padding, track file names and tags.
+
+```mermaid
+sequenceDiagram
+  actor User
+  participant page as ReviewPage
+  participant dialog as SingleExportDialog
+  participant single as export-single store
+  participant folder as folder (File System Access)
+  participant store as source-file store
+
+  User->>page: Export track… or Export range…
+  page->>single: openTrack(track) or openRange(range)
+  Note right of single: status naming, default name filled in, the sound plays on
+  User->>dialog: confirms the name (Enter or OK)
+  dialog->>page: confirm(name)
+  page->>page: stop the player
+  page->>single: confirm(name)
+  alt no folder remembered
+    single->>folder: showDirectoryPicker, same id as the full export
+    Note right of single: closed picker: back to naming, nothing taken
+  end
+  single->>single: rename the track if the name changed
+  single->>folder: list the names, pick "03 Name.m4a" or "03 Name (2).m4a"
+  single->>store: cutTrack(its times, tags)
+  store-->>single: bytes
+  single->>folder: create, write, close
+  single-->>page: saved: "Saved 03 Name.m4a in Music"
+```
+
+- **The folder is remembered for the file.** The handle is kept in the store (not as reactive state) and forgotten when the source file changes; "Change folder" in the dialog picks another. Nothing is saved across a reload.
+- **Names.** A track's file is the full export's for that track (`NN name.ext`, padded to the current track count, and just `NN.ext` for an unnamed track whose default name was confirmed as it was offered); a range's is `name.ext`, sanitised, with the title tag the name as typed, the album the source's stem and no track number (the cut writes an empty `track=` so a number the source carried does not come along). A name that is taken gets ` (2)`, ` (3)` before the extension, compared without regard to case.
+- **The rename comes first.** A name changed in a track's dialog is given to the track before the cut, so a failed export keeps it; a range renames nothing.
+- **The two exports exclude each other** through the `export-lock` store, which each takes when it starts (before the picker opens) and gives back when it ends however it ends. The two export stores cannot import each other, and a store of their own keeps the dependency one way. The page also disables each export's buttons while the other runs.
+- **Cancel** stops the cut as the full export's does and closes the dialog; a failure stays in the dialog with its reason, over the name, to confirm again.
+- **The saved line** is the page's: `export-single` holds the file and folder names until the page dismisses it, on the next press or key in the view, a view switch or a selection change.
+
+```mermaid
+stateDiagram-v2
+  [*] --> idle
+  idle --> naming: Export track… or Export range…
+  naming --> naming: picker closed
+  naming --> running: name confirmed
+  naming --> failed: picker failed
+  naming --> idle: Cancel
+  running --> saved: file written
+  running --> idle: Cancel
+  running --> failed: a cut or a write failed
+  failed --> running: name confirmed again
+  failed --> idle: Cancel
+  saved --> idle: press, key, view switch or selection change
+  saved --> naming: another export opened
+```

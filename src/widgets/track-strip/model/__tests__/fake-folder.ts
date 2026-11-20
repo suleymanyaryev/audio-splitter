@@ -13,6 +13,7 @@ export class FakeFolder implements ExportFolder {
   constructor(
     private readonly path = '',
     readonly log: string[] = [],
+    readonly name = 'Exports',
   ) {}
 
   async *keys() {
@@ -25,7 +26,7 @@ export class FakeFolder implements ExportFolder {
     if (folder === undefined) {
       if (options?.create !== true)
         return Promise.reject(new DOMException('no folder', 'NotFoundError'))
-      folder = new FakeFolder(`${this.path}${name}/`, this.log)
+      folder = new FakeFolder(`${this.path}${name}/`, this.log, name)
       this.folders.set(name, folder)
       this.log.push(`mkdir ${this.path}${name}/`)
     }

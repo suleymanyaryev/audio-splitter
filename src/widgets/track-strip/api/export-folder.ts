@@ -11,6 +11,8 @@ interface ExportWritable {
 }
 
 export interface ExportFolder {
+  // What the user sees the folder called, for the line that says where a file went.
+  readonly name: string
   // The names of everything in the folder, files and folders alike.
   keys(): AsyncIterable<string>
   getDirectoryHandle(name: string, options?: { create?: boolean }): Promise<ExportFolder>

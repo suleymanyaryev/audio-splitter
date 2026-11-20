@@ -6,9 +6,12 @@ import { useSplitStore } from '@/entities/split/model/split.ts'
 import { exportFolderName } from '../lib/export-folder-name.ts'
 import type { ExportFailure } from '../lib/export-summary.ts'
 import { pickExportFolder, type ExportFolder } from '../api/export-folder.ts'
+import { writeFile } from '../api/write-file.ts'
+import { messageOf } from '../lib/message-of.ts'
 import { sourceStem } from '../lib/source-stem.ts'
 import { trackFileName } from '../lib/track-file-name.ts'
 import { trackTags } from '../lib/track-tags.ts'
+import { useExportLockStore } from './export-lock.ts'
 
 // One track to write, with the name the user gave it (null while it has none).
 interface PlannedTrack {
@@ -16,42 +19,6 @@ interface PlannedTrack {
   name: string | null
   startSeconds: number
   endSeconds: number | undefined
-}
-
-// A DOMException (what the picker and the writable reject with) is no `Error` in every realm.
-function messageOf(error: unknown): string {
-  const hasMessage = typeof error === 'object' && error !== null && 'message' in error
-  return String(hasMessage ? error.message : error)
-}
-
-// Waits for a clean-up step, whatever its outcome: it must not hide the failure that caused it.
-async function bestEffort(step: Promise<unknown> | undefined) {
-  try {
-    await step
-  } catch {
-    // Nothing more can be done about it.
-  }
-}
-
-/*
-Writes one track into the folder. Chrome makes the file, empty, as soon as it is asked for, and
-only a closed writable fills it, so a failure aborts the writable and then removes that empty
-file: a failed export leaves whole tracks only (ticket 08). The app deletes nothing of the
-user's here: the file is one it made a moment ago, in the subfolder it made for this export.
-*/
-async function writeTrack(folder: ExportFolder, fileName: string, bytes: Uint8Array) {
-  const handle = await folder.getFileHandle(fileName, { create: true })
-  let writable: Awaited<ReturnType<typeof handle.createWritable>> | undefined
-  try {
-    writable = await handle.createWritable()
-    await writable.write(bytes)
-    await writable.close()
-  } catch (error) {
-    // The write's own failure is the one to report, so the clean-up's own failures are let go.
-    await bestEffort(writable?.abort())
-    await bestEffort(folder.removeEntry(fileName))
-    throw error
-  }
 }
 
 /*
@@ -67,6 +34,7 @@ track; the tracks already closed stay on disk.
 export const useExportTracksStore = defineStore('export-tracks', () => {
   const sourceFile = useSourceFileStore()
   const splitStore = useSplitStore()
+  const lock = useExportLockStore()
 
   const status = ref<'idle' | 'running' | 'done' | 'cancelled' | 'failed'>('idle')
   // The track being cut and written, from 1; 0 until an export starts.
@@ -83,8 +51,6 @@ export const useExportTracksStore = defineStore('export-tracks', () => {
   stops nothing at all, so this flag is what tells the loop a cancel from a real failure.
   */
   let wasCancelled = false
-  // Also true while the picker is open, when the status is still idle.
-  let isBusy = false
 
   // Ends the export as failed; `track` is null when it was no track that failed.
   function fail(track: PlannedTrack | null, error: unknown) {
@@ -133,11 +99,7 @@ export const useExportTracksStore = defineStore('export-tracks', () => {
         })
         // A cancel that came as the cut ended: the track is not written.
         if (wasCancelled) break
-        await writeTrack(
-          folder,
-          trackFileName({ ...track, count: tracks.length, extension }),
-          bytes,
-        )
+        await writeFile(folder, trackFileName({ ...track, count: tracks.length, extension }), bytes)
         // Dropped before the next cut starts.
         bytes = null
         savedCount.value++
@@ -152,8 +114,11 @@ export const useExportTracksStore = defineStore('export-tracks', () => {
 
   async function start() {
     const { file, format } = sourceFile
-    if (file === null || format === null || isBusy || sourceFile.status !== 'ready') return
-    isBusy = true
+    if (file === null || format === null || sourceFile.status !== 'ready') return
+    // Held from here, the picker included, when the status is still idle; a single export has it
+    // while it runs.
+    if (lock.isHeld) return
+    lock.take('full')
     wasCancelled = false
     try {
       let picked: ExportFolder | null
@@ -184,7 +149,7 @@ export const useExportTracksStore = defineStore('export-tracks', () => {
       }
       await exportTracks(folder, tracks, stem, format)
     } finally {
-      isBusy = false
+      lock.release('full')
     }
   }
 

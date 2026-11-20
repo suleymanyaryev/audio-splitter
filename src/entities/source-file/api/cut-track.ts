@@ -12,8 +12,9 @@ const CUT_TIMEOUT_MS = 300_000
 
 export interface TrackTags {
   title: string
-  // "N/TOTAL", as the tag is written.
-  track: string
+  // "N/TOTAL", as the tag is written; null for a file that is no track (a range), which then
+  // carries none, not even one the source had.
+  track: string | null
   album: string
 }
 
@@ -88,7 +89,7 @@ function tagArguments(cut: TrackCut): string[] {
     key,
     `title=${cut.tags.title}`,
     key,
-    `track=${cut.tags.track}`,
+    `track=${cut.tags.track ?? ''}`,
     key,
     `album=${cut.tags.album}`,
     ...(cut.format === 'm4a' ? ['-movflags', '+faststart'] : []),

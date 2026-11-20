@@ -62,6 +62,40 @@ async function readFolder(page: Page, folderName: string): Promise<SavedTrack[]>
   }, folderName)
 }
 
+// One file of the folder root, where a single export writes: how long it decodes to and whether the
+// title and the album are in its bytes.
+async function readSavedFile(page: Page, fileName: string, title: string) {
+  return page.evaluate(
+    async ({ name, wantedTitle }) => {
+      const root = await navigator.storage.getDirectory()
+      const handle = await root.getFileHandle(name)
+      const file = await handle.getFile()
+      // Decoding takes the buffer it is given, so the text is read from a second one.
+      const buffer = await new globalThis.OfflineAudioContext(1, 1, 44_100).decodeAudioData(
+        await file.arrayBuffer(),
+      )
+      const text = new TextDecoder('latin1').decode(await file.arrayBuffer())
+      return {
+        bytes: file.size,
+        seconds: buffer.duration,
+        hasTitle: text.includes(wantedTitle),
+        hasAlbum: text.includes('bursts'),
+      }
+    },
+    { name: fileName, wantedTitle: title },
+  )
+}
+
+// The names of the files in the folder root, which the single exports write into.
+async function rootFileNames(page: Page) {
+  return page.evaluate(async () => {
+    const root = await navigator.storage.getDirectory()
+    const names: string[] = []
+    for await (const [name, handle] of root.entries()) if (handle.kind === 'file') names.push(name)
+    return names.toSorted((a, b) => a.localeCompare(b))
+  })
+}
+
 async function openReviewPage(page: Page, format: string) {
   await page.goto('/')
   await page.locator('input[type="file"]').setInputFiles(`e2e/fixtures/bursts.${format}`)
@@ -118,5 +152,57 @@ for (const format of FORMATS) {
     await exportToFolder(page, '3 tracks saved to bursts (2)/')
     expect(await readFolder(page, 'bursts (2)')).toHaveLength(3)
     expect(await readFolder(page, 'bursts')).toEqual(tracks)
+  })
+}
+
+/*
+Single export (v1.1.0), one flow per format: one track written under its default name straight into
+the folder root, and the same track again, which takes " (2)"; then a range dragged out on the
+whole-file waveform, written under a name typed in the dialog.
+*/
+for (const format of FORMATS) {
+  test(`exports one .${format} track singly, twice, and a range of it`, async ({ page }) => {
+    await openReviewPage(page, format)
+
+    await page.getByRole('button', { name: /^Select track 2/ }).click()
+    for (const savedName of [`02.${format}`, `02 (2).${format}`]) {
+      await page.getByRole('button', { name: 'Export track…' }).click()
+      await expect(page.getByRole('textbox', { name: 'Name' })).toHaveValue('bursts 02')
+      await page.getByRole('textbox', { name: 'Name' }).press('Enter')
+      await expect(page.getByRole('status')).toContainText(`Saved ${savedName} in`, {
+        timeout: 20_000,
+      })
+    }
+
+    expect(await rootFileNames(page)).toEqual([`02 (2).${format}`, `02.${format}`])
+    for (const name of [`02.${format}`, `02 (2).${format}`]) {
+      const saved = await readSavedFile(page, name, 'bursts 02')
+      expect(saved.bytes).toBeGreaterThan(0)
+      expect(saved.hasTitle).toBe(true)
+      expect(saved.hasAlbum).toBe(true)
+      expect(Math.abs(saved.seconds - (EXPECTED_SECONDS[1] ?? 0))).toBeLessThan(TOLERANCE_SECONDS)
+    }
+
+    // A quarter to a half of the 30 s file: about 7.5 s to 15 s.
+    const waveform = page.getByRole('region', { name: 'Whole file' }).locator('canvas')
+    const box = (await waveform.boundingBox())!
+    await page.mouse.move(box.x + box.width * 0.25, box.y + box.height / 2)
+    await page.mouse.down()
+    await page.mouse.move(box.x + box.width * 0.5, box.y + box.height / 2, { steps: 5 })
+    await page.mouse.up()
+    await page.getByRole('button', { name: 'Export range…' }).click()
+    await page.getByRole('textbox', { name: 'Name' }).fill('my clip')
+    await page.getByRole('textbox', { name: 'Name' }).press('Enter')
+    await expect(page.getByRole('status')).toContainText(`Saved my clip.${format} in`, {
+      timeout: 20_000,
+    })
+
+    const clip = await readSavedFile(page, `my clip.${format}`, 'my clip')
+    expect(clip.hasTitle).toBe(true)
+    expect(clip.hasAlbum).toBe(true)
+    // The range's own length is in the panel's title, after the dot: `0:00:07.50 – … · 7.50`.
+    const title = await page.getByRole('heading', { level: 2, name: /·/ }).textContent()
+    const seconds = Number(title?.split('·').at(-1)?.trim().split(':').at(-1))
+    expect(Math.abs(clip.seconds - seconds)).toBeLessThan(TOLERANCE_SECONDS)
   })
 }

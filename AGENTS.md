@@ -46,7 +46,7 @@ The list below says where, not what: one line per slice on what it is for, never
 - `src/widgets/shortcuts-dialog/`: The dialog that lists every key and pointer gesture of the review screen
 - `src/widgets/split-zoom/`: The zoom panel's two views, `SplitZoom` and `RangeView`, and `model/audition.ts`, the one player
 - `src/widgets/track-list/`: The tracks as a table
-- `src/widgets/track-strip/`: The tracks as proportional blocks, and the export to a folder
+- `src/widgets/track-strip/`: The tracks as proportional blocks, and the exports: every track to a folder, one track or the range as one file
 - `src/entities/source-file/`: The loaded file, its analysis and its open ffmpeg session; `api/` holds one ffmpeg command per job
 - `src/entities/split/`: The splits and what derives from them (gaps, tracks, selection, range); tuned constants in `config/`
 - `src/shared/api/ffmpeg/`: The ffmpeg.wasm session (`ffmpeg.ts`) and `__tests__/fake-ffmpeg.ts`, its stand-in in specs
@@ -54,7 +54,7 @@ The list below says where, not what: one line per slice on what it is for, never
 - `src/shared/lib/time/`: Time formatting (`h:mm:ss`, `h:mm:ss.cc`) and millisecond rounding for ffmpeg command lines
 - `src/shared/lib/canvas/`: Drawing the canvases share: axes, split hit test, lands, split lines, bars, dashes, font, canvas setup and redraw
 - `src/shared/ui/`: The kit, `Ui<Name>.vue`; the look is DESIGN.md's, read it before touching one
-- `e2e/`: Playwright: `export.spec.ts` exports each supported format and reads the files back
+- `e2e/`: Playwright: `export.spec.ts` exports each supported format, whole and as single exports, and reads the files back
 - `e2e/fixtures/`: The committed 30 s fixtures per supported format plus a Vorbis `.ogg`, and `make-fixtures.sh`, which made them
 
 - Slice folders are kebab-case, `.vue` files PascalCase. A segment folder (`ui`, `model`, `lib`, `api`, `config`) exists only when it holds a file.
@@ -77,7 +77,7 @@ Fix a `pnpm knip` finding by removing the unused file, export or dependency afte
 ## Testing
 
 - Vitest + jsdom + `@vue/test-utils`. `vitest.setup.ts` fills browser APIs jsdom lacks (`ResizeObserver`, which Reka's slider uses). Specs are `__tests__/*.spec.ts` next to the code they cover; a spec anywhere else is not collected. Import `describe`/`it`/`expect` from `vitest` (globals are off).
-- Specs for Node-side code start with `// @vitest-environment node`. Playwright specs live in `e2e/`, typed by `e2e/tsconfig.json` (extends `@tsconfig/node24`, adds the DOM library for the functions handed to `page.evaluate`, referenced from `tsconfig.json`). `e2e/export.spec.ts` loads a fixture per format and exports it; an init script replaces `showDirectoryPicker` with `navigator.storage.getDirectory()` (the origin-private file system), so the real File System Access writes land in a real directory and no picker opens, and the spec reads the folder back through the same API and decodes each file. It is the browser flow `pnpm test:e2e` runs in Final when the plan names the export.
+- Specs for Node-side code start with `// @vitest-environment node`. Playwright specs live in `e2e/`, typed by `e2e/tsconfig.json` (extends `@tsconfig/node24`, adds the DOM library for the functions handed to `page.evaluate`, referenced from `tsconfig.json`). `e2e/export.spec.ts` loads a fixture per format and exports it; an init script replaces `showDirectoryPicker` with `navigator.storage.getDirectory()` (the origin-private file system), so the real File System Access writes land in a real directory and no picker opens, and the spec reads the folder back through the same API and decodes each file. It also exports one track twice and a dragged-out range singly per format (straight into the folder root, the second track taking ` (2)`). It is the browser flow `pnpm test:e2e` runs in Final when the plan names the export.
 - `scripts/*.ts` run directly under Node type stripping: erasable syntax only (no enums, namespaces or parameter properties) and `.ts` extensions on relative imports. `tsconfig.node.json` enforces both.
 
 ## Agent skills
