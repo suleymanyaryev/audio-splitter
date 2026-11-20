@@ -62,7 +62,9 @@ deletes with the names and edits of a delete. Every change of a setting replaces
 
 One selection (`Selection`) holds what is under review: a split, a track or nothing. The selected
 split, its index and the selected track are derived from it, so they follow the splits as they move
-(the track is kept by the split where it starts, so only deleting that split moves the key). The zoom window is
+(the track is kept by the split where it starts, so only deleting that split moves the key). Every
+detection selects the first track and puts the window at the file's start, so a file opens on
+track 1, ready to play. The zoom window is
 `ZOOM_WINDOW_SECONDS` wide around `zoomCentreSeconds`: selecting a split centres it there and
 nothing else moves it except `moveZoomTo`. A split can only be moved inside the window, which never follows the move. A split
 is added at the window's centre, and `editCount` says how many things the user changed since the
@@ -198,11 +200,12 @@ export const useSplitStore = defineStore('split', () => {
     }))
     firstTrackName.value = null
     clearEdits()
-    const first = splits.value[0]
-    selection.value = first === undefined ? null : { kind: 'split', id: first.id }
-    zoomCentreSeconds.value = first?.seconds ?? ZOOM_WINDOW_SECONDS / 2
-    // The Track view has no track to show now; the Range view keeps its range.
-    if (view.value === 'track') view.value = 'split'
+    // The first track starts with the file, so it is keyed by no split and exists with no gap too.
+    selection.value = { kind: 'track', startSplitId: null }
+    // The window starts at 0:00, so the Split view shows the file's opening seconds.
+    zoomCentreSeconds.value = ZOOM_WINDOW_SECONDS / 2
+    // The Range view keeps the stretch the user is listening to; any other view shows the track.
+    if (view.value !== 'range') view.value = 'track'
   }
 
   /*
@@ -216,6 +219,8 @@ export const useSplitStore = defineStore('split', () => {
     silenceThreshold.value = Math.round((median(loudness) - DEFAULT_OFFSET_DB) * 10) / 10
     minimumGapLength.value = DEFAULT_MINIMUM_GAP_SECONDS
     findAgain()
+    // The first detection of a file always lands on its first track.
+    view.value = 'track'
   }
 
   function setSilenceThreshold(decibels: number) {

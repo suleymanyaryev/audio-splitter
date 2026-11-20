@@ -26,3 +26,6 @@ if ('HTMLCanvasElement' in globalThis) HTMLCanvasElement.prototype.getContext = 
 if ('document' in globalThis) {
   Object.defineProperty(document, 'fonts', { value: { ready: Promise.resolve() } })
 }
+
+// jsdom has no scrollIntoView; the track list scrolls the marked row into view.
+if ('Element' in globalThis) Element.prototype.scrollIntoView = () => {}

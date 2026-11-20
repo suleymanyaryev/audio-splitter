@@ -141,8 +141,9 @@ describe('TrackStrip', () => {
     it('marks the block of the selected track as current, in a 2 px on-track border', async () => {
       const { split, wrapper } = await mountWithTwoGaps()
 
-      // Detection selects split 1, which is no track.
-      expect(wrapper.findAll('li[aria-current]')).toHaveLength(0)
+      // Detection selects track 1.
+      expect(wrapper.findAll('li[aria-current]')).toHaveLength(1)
+      expect(blocks(wrapper)[0]?.element.closest('li')?.getAttribute('aria-current')).toBe('true')
 
       split.selectTrack(split.tracks[1]!)
       await wrapper.vm.$nextTick()
@@ -240,7 +241,11 @@ describe('TrackStrip', () => {
     it('is current when its split is selected, and only then', async () => {
       const { split, wrapper } = await mountWithTwoGaps()
 
-      // Detection selects the first split.
+      // Detection selects track 1, so no split is current yet.
+      expect(wrapper.findAll('button[aria-current]')).toHaveLength(0)
+
+      split.selectSplit(split.splits[0]!.id)
+      await wrapper.vm.$nextTick()
       expect(splitItems(wrapper).map((item) => item.attributes('aria-current'))).toEqual([
         'true',
         undefined,
@@ -259,7 +264,9 @@ describe('TrackStrip', () => {
     })
 
     it('is land at rest and vermilion when hovered, focused or selected', async () => {
-      const { wrapper } = await mountWithTwoGaps()
+      const { split, wrapper } = await mountWithTwoGaps()
+      split.selectSplit(split.splits[0]!.id)
+      await wrapper.vm.$nextTick()
       const [selected, other] = splitItems(wrapper)
 
       expect(selected?.classes()).toContain('bg-split')

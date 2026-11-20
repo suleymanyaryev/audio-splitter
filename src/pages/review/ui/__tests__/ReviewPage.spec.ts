@@ -28,9 +28,19 @@ function mountPage() {
   sourceFile.durationSeconds = 100
   sourceFile.loudnessWindowSeconds = 0.05
   sourceFile.loudness = curveWithTwoGaps()
-  // Element.prototype.scrollIntoView is missing in jsdom, and the track list calls it.
-  Element.prototype.scrollIntoView = () => {}
   return mount(ReviewPage, { attachTo: document.body })
+}
+
+/*
+The page on the Split view with split 1 selected, as a click on its row does: analysis opens on
+track 1 in the Track view, and these specs are about the zoom view.
+*/
+async function mountPageOnSplit() {
+  const wrapper = mountPage()
+  const split = useSplitStore()
+  split.selectSplit(split.splits[0]!.id)
+  await wrapper.vm.$nextTick()
+  return wrapper
 }
 
 // The page with the track of that number selected, as a click on its row's number button does.
@@ -135,7 +145,7 @@ describe('ReviewPage', () => {
 
   describe('the title row’s icon buttons', () => {
     it('are Add split, Delete split and Play across split in the Split view, named and told by their keys', async () => {
-      const wrapper = mountPage()
+      const wrapper = await mountPageOnSplit()
       const names = iconButtons(wrapper)
         .map((button) => nameOf(button))
         .filter((name) => ['Add split', 'Delete split', 'Play across split'].includes(name))
@@ -151,7 +161,7 @@ describe('ReviewPage', () => {
     })
 
     it('keep today’s enabled states in the Split view', async () => {
-      const wrapper = mountPage()
+      const wrapper = await mountPageOnSplit()
       // Split 1 is selected with the window on it: nothing to add, everything else is there.
       expect(addSplitButton(wrapper).attributes('disabled')).toBeDefined()
       expect(deleteSplitButton(wrapper).attributes('disabled')).toBeUndefined()
@@ -166,7 +176,7 @@ describe('ReviewPage', () => {
     })
 
     it('say Stop (Space) in the Split view while a clip plays', async () => {
-      const wrapper = mountPage()
+      const wrapper = await mountPageOnSplit()
       useAuditionStore().status = 'playing'
       await wrapper.vm.$nextTick()
 
@@ -220,8 +230,8 @@ describe('ReviewPage', () => {
   })
 
   describe('Add split', () => {
-    it('is disabled while the window centre is within a second of a split', () => {
-      const wrapper = mountPage()
+    it('is disabled while the window centre is within a second of a split', async () => {
+      const wrapper = await mountPageOnSplit()
 
       // Split 1 is selected and the window is centred on it.
       expect(addSplitButton(wrapper).attributes('disabled')).toBeDefined()
@@ -257,7 +267,7 @@ describe('ReviewPage', () => {
 
   describe('Delete split', () => {
     it('is enabled while a split is selected, and disabled with none', async () => {
-      const wrapper = mountPage()
+      const wrapper = await mountPageOnSplit()
 
       expect(deleteSplitButton(wrapper).attributes('disabled')).toBeUndefined()
 
@@ -268,7 +278,7 @@ describe('ReviewPage', () => {
     })
 
     it('deletes the selected split, which merges the tracks either side, and selects its neighbour', async () => {
-      const wrapper = mountPage()
+      const wrapper = await mountPageOnSplit()
       const split = useSplitStore()
 
       await deleteSplitButton(wrapper).trigger('click')
@@ -279,7 +289,7 @@ describe('ReviewPage', () => {
     })
 
     it('counts as an edit, as the Delete key does', async () => {
-      const wrapper = mountPage()
+      const wrapper = await mountPageOnSplit()
       const split = useSplitStore()
 
       await deleteSplitButton(wrapper).trigger('click')
@@ -288,7 +298,7 @@ describe('ReviewPage', () => {
     })
 
     it('hands the keyboard to the split that is selected next, so it can be nudged at once', async () => {
-      const wrapper = mountPage()
+      const wrapper = await mountPageOnSplit()
 
       await deleteSplitButton(wrapper).trigger('click')
       await wrapper.vm.$nextTick()
@@ -299,7 +309,7 @@ describe('ReviewPage', () => {
     })
 
     it('is disabled once the last split is deleted', async () => {
-      const wrapper = mountPage()
+      const wrapper = await mountPageOnSplit()
 
       await deleteSplitButton(wrapper).trigger('click')
       await deleteSplitButton(wrapper).trigger('click')
@@ -308,8 +318,8 @@ describe('ReviewPage', () => {
       expect(deleteSplitButton(wrapper).attributes('disabled')).toBeDefined()
     })
 
-    it('sits between "Add split" and "Play across split"', () => {
-      const wrapper = mountPage()
+    it('sits between "Add split" and "Play across split"', async () => {
+      const wrapper = await mountPageOnSplit()
 
       const labels = wrapper.findAll('button').map((button) => nameOf(button))
 
@@ -385,8 +395,8 @@ describe('ReviewPage', () => {
   })
 
   describe('the audition button', () => {
-    it('reads "Play across split" and is enabled while a split is selected', () => {
-      const wrapper = mountPage()
+    it('reads "Play across split" and is enabled while a split is selected', async () => {
+      const wrapper = await mountPageOnSplit()
 
       const button = auditionButton(wrapper)
 
@@ -403,7 +413,7 @@ describe('ReviewPage', () => {
     })
 
     it('calls the audition store when clicked', async () => {
-      const wrapper = mountPage()
+      const wrapper = await mountPageOnSplit()
       const toggle = vi.spyOn(useAuditionStore(), 'toggle').mockImplementation(() => {})
 
       await auditionButton(wrapper).trigger('click')
@@ -412,7 +422,7 @@ describe('ReviewPage', () => {
     })
 
     it('reads "Stop" with its own icon while a clip loads or plays, and stays enabled', async () => {
-      const wrapper = mountPage()
+      const wrapper = await mountPageOnSplit()
       const audition = useAuditionStore()
       const playIcon = auditionButton(wrapper).get('svg').classes()
 
@@ -443,16 +453,28 @@ describe('ReviewPage', () => {
   })
 
   describe('the Split | Track | Range control', () => {
-    it('starts on Split, with Track and Range disabled while there is nothing to show', () => {
+    it('starts on Track, with track 1 shown and Range disabled while there is no range', () => {
       const wrapper = mountPage()
 
-      expect(viewOption(wrapper, 'Split').attributes('aria-checked')).toBe('true')
-      expect(viewOption(wrapper, 'Track').attributes('disabled')).toBeDefined()
+      expect(viewOption(wrapper, 'Track').attributes('aria-checked')).toBe('true')
+      expect(viewOption(wrapper, 'Track').attributes('disabled')).toBeUndefined()
       expect(viewOption(wrapper, 'Range').attributes('disabled')).toBeDefined()
+      expect(wrapper.find('[aria-label="Waveform of the track"]').exists()).toBe(true)
+      expect(panelTitle(wrapper)).toBe('1 · 0:00:00.00 – 0:00:21.00')
     })
 
-    it('shows the zoom view and its buttons, and no Range view, on Split', () => {
+    it('shows the file’s opening seconds, with no split selected, when Split is chosen', async () => {
       const wrapper = mountPage()
+
+      await viewOption(wrapper, 'Split').trigger('click')
+
+      expect(wrapper.find('[aria-label="Zoomed waveform of the split"]').exists()).toBe(true)
+      expect(panelTitle(wrapper)).toBe('No split selected')
+      expect(deleteSplitButton(wrapper).attributes('disabled')).toBeDefined()
+    })
+
+    it('shows the zoom view and its buttons, and no Range view, on Split', async () => {
+      const wrapper = await mountPageOnSplit()
 
       expect(wrapper.find('[aria-label="Zoomed waveform of the split"]').exists()).toBe(true)
       expect(wrapper.find('[aria-label="Waveform of the range"]').exists()).toBe(false)
@@ -493,7 +515,7 @@ describe('ReviewPage', () => {
       await viewOption(wrapper, 'Split').trigger('click')
       expect(split.view).toBe('split')
       expect(wrapper.find('[aria-label="Zoomed waveform of the split"]').exists()).toBe(true)
-      expect(panelTitle(wrapper)).toBe('0:00:21.00')
+      expect(panelTitle(wrapper)).toBe('No split selected')
 
       await viewOption(wrapper, 'Range').trigger('click')
       expect(split.view).toBe('range')
@@ -574,14 +596,14 @@ describe('ReviewPage', () => {
         expect(panelTitle(wrapper)).toBe('2 · 0:00:21.00 – 0:01:11.50')
       })
 
-      it('goes back to Split, with Track disabled, when a setting change clears the track', async () => {
+      it('shows track 1 again when a setting change finds the splits again', async () => {
         const wrapper = await mountPageWithTrack(2)
 
         useSplitStore().setMinimumGapLength(2.5)
         await wrapper.vm.$nextTick()
 
-        expect(viewOption(wrapper, 'Split').attributes('aria-checked')).toBe('true')
-        expect(viewOption(wrapper, 'Track').attributes('disabled')).toBeDefined()
+        expect(viewOption(wrapper, 'Track').attributes('aria-checked')).toBe('true')
+        expect(panelTitle(wrapper)).toMatch(/^1 · /)
       })
 
       it('plays the track as a stretch when Play is clicked', async () => {
@@ -654,7 +676,7 @@ describe('ReviewPage', () => {
       })
 
       it('stops the audition when the view changes to the Track view', async () => {
-        const wrapper = mountPage()
+        const wrapper = await mountPageOnSplit()
         const stop = vi.spyOn(useAuditionStore(), 'stop')
 
         await wrapper.get('[aria-label^="Select track 3"]').trigger('click')
@@ -690,8 +712,8 @@ describe('ReviewPage', () => {
       }
     })
 
-    it('is not there in the Split view', () => {
-      const wrapper = mountPage()
+    it('is not there in the Split view', async () => {
+      const wrapper = await mountPageOnSplit()
 
       expect(wrapper.find('button[aria-label="Back to range start"]').exists()).toBe(false)
     })
@@ -716,8 +738,8 @@ describe('ReviewPage', () => {
       expect(rangeButton(wrapper).attributes('disabled')).toBeUndefined()
     })
 
-    it('is not there in the Split view, where the audition button is', () => {
-      const wrapper = mountPage()
+    it('is not there in the Split view, where the audition button is', async () => {
+      const wrapper = await mountPageOnSplit()
 
       expect(wrapper.findAll('button').map((button) => nameOf(button))).not.toContain('Play')
     })
@@ -774,7 +796,7 @@ describe('ReviewPage', () => {
     })
 
     it('puts the Split view first while it is on show', async () => {
-      mountPage()
+      await mountPageOnSplit()
 
       pressQuestionMark()
       await flushPromises()

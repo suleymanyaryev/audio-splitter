@@ -41,6 +41,8 @@ function editedStore() {
   const curve = threeFarGapsCurve()
   const store = useSplitStore()
   store.detect(curve, timing(curve))
+  // A split moves only inside the window, and detection leaves the window at the file's start.
+  store.selectSplit(store.splits[0]!.id)
   store.moveSplit(store.splits[0]!.id, 25)
   store.deleteSplit(store.splits[1]!.id)
   store.moveZoomTo(50)
@@ -281,27 +283,28 @@ describe('the split store', () => {
   })
 
   describe('selection and the zoom window', () => {
-    it('selects split 1 and centres the window on it when detection ends', () => {
+    it('selects track 1 and starts the window at the file’s start when detection ends', () => {
       const curve = farGaps()
       const store = useSplitStore()
 
       store.detect(curve, timing(curve))
 
-      expect(store.selectedSplit?.id).toBe(store.splits[0]!.id)
-      expect(store.selectedSplit).toBe(store.splits[0])
-      expect(store.zoomCentreSeconds).toBeCloseTo(22, 9)
+      expect(store.selectedTrack).toBe(store.tracks[0])
+      expect(store.selectedSplit).toBeNull()
+      expect(store.zoomCentreSeconds).toBe(ZOOM_WINDOW_SECONDS / 2)
     })
 
-    it('selects nothing and starts the window at 0:00 when there is no split', () => {
+    it('opens the same way on a file with no gap, one track over the whole file', () => {
       const curve = curveOf([LOUD, 100])
       const store = useSplitStore()
 
       store.detect(curve, timing(curve))
 
-      expect(store.selectedSplit).toBeNull()
+      expect(store.tracks).toHaveLength(1)
+      expect(store.selectedTrack).toBe(store.tracks[0])
       expect(store.selectedSplit).toBeNull()
       expect(store.zoomCentreSeconds).toBe(ZOOM_WINDOW_SECONDS / 2)
-      expect(store.zoomCentreSeconds).toBe(10)
+      expect(store.view).toBe('track')
     })
 
     it('selects a split and centres the window on it', () => {
@@ -322,8 +325,8 @@ describe('the split store', () => {
 
       store.selectSplit(-1)
 
-      expect(store.selectedSplit).toBe(store.splits[0])
-      expect(store.zoomCentreSeconds).toBeCloseTo(22, 9)
+      expect(store.selectedTrack).toBe(store.tracks[0])
+      expect(store.zoomCentreSeconds).toBe(ZOOM_WINDOW_SECONDS / 2)
     })
 
     it('moves the window to a time and selects nothing', () => {
@@ -342,6 +345,9 @@ describe('the split store', () => {
       const curve = farGaps()
       const store = useSplitStore()
       store.detect(curve, timing(curve))
+      expect(store.selectedSplitIndex).toBeNull()
+
+      store.selectSplit(store.splits[0]!.id)
       expect(store.selectedSplitIndex).toBe(0)
 
       store.selectSplit(store.splits[1]!.id)
@@ -440,12 +446,8 @@ describe('the split store', () => {
       expect(store.zoomCentreSeconds).toBe(31.5)
     })
 
-    it('has no selected track until one is selected, or before detection', () => {
+    it('has no selected track before detection', () => {
       const store = useSplitStore()
-      expect(store.selectedTrack).toBeNull()
-
-      const curve = farGaps()
-      store.detect(curve, timing(curve))
 
       expect(store.selectedTrack).toBeNull()
     })
@@ -468,11 +470,11 @@ describe('the split store', () => {
       const curve = farGaps()
       const store = useSplitStore()
       store.detect(curve, timing(curve))
-      // Detection selects the first split, which is no track.
-      expect(selectedTracks(store)).toEqual([false, false, false])
-
-      store.selectTrack(store.tracks[0]!)
+      // Detection selects the first track.
       expect(selectedTracks(store)).toEqual([true, false, false])
+
+      store.selectTrack(store.tracks[1]!)
+      expect(selectedTracks(store)).toEqual([false, true, false])
 
       store.selectTrack(store.tracks[2]!)
       expect(selectedTracks(store)).toEqual([false, false, true])
@@ -481,7 +483,7 @@ describe('the split store', () => {
       expect(selectedTracks(store)).toEqual([false, false, false])
     })
 
-    it('selects split 1 again and recentres after every setting change', () => {
+    it('selects track 1 again and returns the window to the start after every setting change', () => {
       const curve = farGaps()
       const store = useSplitStore()
       store.detect(curve, timing(curve))
@@ -489,17 +491,18 @@ describe('the split store', () => {
 
       store.setMinimumGapLength(3)
 
-      expect(store.selectedSplit).toBe(store.splits[0])
-      expect(store.zoomCentreSeconds).toBeCloseTo(22, 9)
+      expect(store.selectedTrack).toBe(store.tracks[0])
+      expect(store.selectedSplit).toBeNull()
+      expect(store.zoomCentreSeconds).toBe(ZOOM_WINDOW_SECONDS / 2)
 
       store.moveZoomTo(50)
       store.setSilenceThreshold(-45)
 
-      expect(store.selectedSplit).toBe(store.splits[0])
-      expect(store.zoomCentreSeconds).toBeCloseTo(22, 9)
+      expect(store.selectedTrack).toBe(store.tracks[0])
+      expect(store.zoomCentreSeconds).toBe(ZOOM_WINDOW_SECONDS / 2)
     })
 
-    it('selects nothing and returns the window to 0:00 when a setting change leaves no split', () => {
+    it('selects the only track and returns the window to 0:00 when a setting change leaves no split', () => {
       const curve = farGaps()
       const store = useSplitStore()
       store.detect(curve, timing(curve))
@@ -508,6 +511,7 @@ describe('the split store', () => {
       store.setSilenceThreshold(-60)
 
       expect(store.selectedSplit).toBeNull()
+      expect(store.selectedTrack).toBe(store.tracks[0])
       expect(store.zoomCentreSeconds).toBe(10)
     })
   })
@@ -517,6 +521,7 @@ describe('the split store', () => {
       const curve = farGaps()
       const store = useSplitStore()
       store.detect(curve, timing(curve))
+      store.selectSplit(store.splits[0]!.id)
       store.splits[0]!.name = 'Opening'
 
       store.moveSplit(store.splits[0]!.id, 23.34)
@@ -531,6 +536,7 @@ describe('the split store', () => {
       const curve = farGaps()
       const store = useSplitStore()
       store.detect(curve, timing(curve))
+      store.selectSplit(store.splits[0]!.id)
 
       store.moveSplit(store.splits[0]!.id, 25)
 
@@ -542,6 +548,7 @@ describe('the split store', () => {
       const curve = farGaps()
       const store = useSplitStore()
       store.detect(curve, timing(curve))
+      store.selectSplit(store.splits[0]!.id)
       const id = store.splits[0]!.id
 
       store.moveSplit(id, 40)
@@ -696,6 +703,7 @@ describe('the split store', () => {
       const curve = farGaps()
       const store = useSplitStore()
       store.detect(curve, timing(curve))
+      store.selectSplit(store.splits[0]!.id)
 
       // Split 1 is selected, so the centre is on it.
       expect(store.canAddSplit).toBe(false)
@@ -788,6 +796,7 @@ describe('the split store', () => {
         const curve = farGaps()
         const store = useSplitStore()
         store.detect(curve, timing(curve))
+        store.selectSplit(store.splits[0]!.id)
         store.deleteSplit(store.splits[1]!.id)
 
         store.deleteSplit(store.splits[0]!.id)
@@ -801,6 +810,7 @@ describe('the split store', () => {
         const curve = threeFarGapsCurve()
         const store = useSplitStore()
         store.detect(curve, timing(curve))
+        store.selectSplit(store.splits[0]!.id)
         const selected = store.splits[0]!
 
         store.deleteSplit(store.splits[2]!.id)
@@ -992,6 +1002,7 @@ describe('the split store', () => {
 
       it('drops the moved and the renamed edits of the splits it deletes', () => {
         const store = namedFourTracks()
+        store.selectSplit(store.splits[0]!.id)
         store.moveSplit(store.splits[0]!.id, 23)
         // A, B, C and D are four renamed tracks, and split 1 moved: five edits.
         expect(store.editCount).toBe(5)
@@ -1232,6 +1243,7 @@ describe('the split store', () => {
       const curve = farGaps()
       const store = useSplitStore()
       store.detect(curve, timing(curve))
+      store.selectSplit(store.splits[0]!.id)
       const id = store.splits[0]!.id
 
       store.moveSplit(id, 23)
@@ -1258,6 +1270,7 @@ describe('the split store', () => {
       const curve = farGaps()
       const store = useSplitStore()
       store.detect(curve, timing(curve))
+      store.selectSplit(store.splits[0]!.id)
       const id = store.splits[0]!.id
 
       store.moveSplit(id, 40)
@@ -1285,6 +1298,7 @@ describe('the split store', () => {
       const curve = farGaps()
       const store = useSplitStore()
       store.detect(curve, timing(curve))
+      store.selectSplit(store.splits[0]!.id)
       const id = store.splits[0]!.id
       store.moveSplit(id, 25)
       expect(store.editCount).toBe(1)
@@ -1703,8 +1717,11 @@ describe('the split store', () => {
   })
 
   describe('the panel view', () => {
-    it('starts on the split view', () => {
-      expect(loadedStore().view).toBe('split')
+    it('starts on the track view, on the first track', () => {
+      const store = loadedStore()
+
+      expect(store.view).toBe('track')
+      expect(store.selectedTrack).toBe(store.tracks[0])
     })
 
     it('switches to the range view when a range is made', () => {
@@ -1720,7 +1737,7 @@ describe('the split store', () => {
 
       store.setRange(30, 30.4)
 
-      expect(store.view).toBe('split')
+      expect(store.view).toBe('track')
     })
 
     it('switches to the range view on request once there is a range, and back', () => {
@@ -1740,7 +1757,7 @@ describe('the split store', () => {
 
       store.showView('range')
 
-      expect(store.view).toBe('split')
+      expect(store.view).toBe('track')
     })
 
     it('switches back to the split view when a split is selected', () => {
@@ -1773,6 +1790,7 @@ describe('the split store', () => {
 
     it('refuses the track view while no track is selected', () => {
       const store = loadedStore()
+      store.selectSplit(store.splits[0]!.id)
 
       store.showView('track')
 
@@ -1797,15 +1815,61 @@ describe('the split store', () => {
       expect(store.view).toBe('split')
     })
 
-    it('goes back to the split view when a setting change clears the selected track', () => {
-      const store = loadedStore()
-      store.selectTrack(store.tracks[1]!)
+    describe('after a detection', () => {
+      it('shows the track view for the first one, with the window at the start', () => {
+        const store = loadedStore()
 
-      store.setMinimumGapLength(3)
+        expect(store.view).toBe('track')
+        expect(store.zoomCentreSeconds).toBe(ZOOM_WINDOW_SECONDS / 2)
+      })
 
-      expect(store.selectedTrack).toBeNull()
-      expect(store.view).toBe('split')
-      expect(store.selectedSplit).toBe(store.splits[0])
+      it('shows the track view for a setting change from the split view or the track view', () => {
+        const store = loadedStore()
+        store.selectSplit(store.splits[1]!.id)
+
+        store.setMinimumGapLength(3)
+        expect(store.view).toBe('track')
+        expect(store.selectedTrack).toBe(store.tracks[0])
+
+        store.selectTrack(store.tracks[1]!)
+        store.setSilenceThreshold(-45)
+        expect(store.view).toBe('track')
+        expect(store.selectedTrack).toBe(store.tracks[0])
+      })
+
+      it('keeps the range view for a setting change, with track 1 selected behind it', () => {
+        const store = loadedStore()
+        store.setRange(10, 20)
+        store.selectSplit(store.splits[1]!.id)
+        store.showView('range')
+
+        store.setSilenceThreshold(-45)
+
+        expect(store.view).toBe('range')
+        expect(store.selectedTrack).toBe(store.tracks[0])
+        expect(store.zoomCentreSeconds).toBe(ZOOM_WINDOW_SECONDS / 2)
+      })
+
+      it('shows the track view for the first detection of a new file even with a range on show', () => {
+        const store = loadedStore()
+        store.setRange(10, 20)
+
+        const second = twoGaps()
+        store.detect(second, timing(second))
+
+        expect(store.view).toBe('track')
+      })
+
+      it('shows the track view when the setting change was made from the split view with a range held', () => {
+        const store = loadedStore()
+        store.setRange(10, 20)
+        store.showView('split')
+
+        store.setMinimumGapLength(3)
+
+        expect(store.view).toBe('track')
+        expect(store.range).toEqual({ startSeconds: 10, endSeconds: 20 })
+      })
     })
 
     it('stays on the track view when a split other than the selected track’s start is deleted', () => {
@@ -1868,6 +1932,7 @@ describe('the split store', () => {
 
     it('stays on the range view when the selected split is deleted, with its neighbour selected', () => {
       const store = loadedStore()
+      store.selectSplit(store.splits[0]!.id)
       store.setRange(10, 20)
       const neighbour = store.splits[1]!
 

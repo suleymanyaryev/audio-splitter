@@ -457,8 +457,8 @@ describe('TrackList', () => {
       const { split, wrapper } = mountWithTwoGaps()
       const all = wrapper.findAll('tbody tr')
 
-      // Detection selects split 1, so the split row is the marked one.
-      expect(marked(wrapper)).toEqual([undefined, 'true', undefined, undefined, undefined])
+      // Detection selects track 1, so its row is the marked one.
+      expect(marked(wrapper)).toEqual(['true', undefined, undefined, undefined, undefined])
 
       await trackRows(wrapper)[1]?.trigger('click')
 
