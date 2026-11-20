@@ -32,7 +32,12 @@ export const SHORTCUT_SECTIONS: ShortcutSection[] = [
     id: 'track',
     title: 'Track view',
     rows: [
-      { input: 'Click', does: 'Move the playhead there' },
+      { input: 'Click', does: 'Place the mark, the dashed line' },
+      { input: 'Double-click', does: 'Move the playhead there' },
+      {
+        input: 'Double-click an end split’s line',
+        does: 'Select that split and open the Split view',
+      },
       {
         input: 'Drag the playhead',
         does: 'Move the playhead along the track; a playing track pauses while it is held',

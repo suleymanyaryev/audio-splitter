@@ -52,6 +52,11 @@ async function pointer(
   await nextTick()
 }
 
+async function doubleClick(view: { element: Element }, clientX: number) {
+  view.element.dispatchEvent(new MouseEvent('dblclick', { clientX, bubbles: true }))
+  await nextTick()
+}
+
 // The view is 1,000 px wide, from the page's left edge: the track's 50.5 s is 19.8 px a second.
 function measured(wrapper: ReturnType<typeof setup>['wrapper']) {
   const view = wrapper.get('[role="slider"]')
@@ -281,8 +286,8 @@ describe('TrackView', () => {
   })
 
   describe('a press', () => {
-    it('moves the playhead where it lands and focuses the view, leaving playback alone', async () => {
-      const { audition, stretch, toggleStretch, wrapper } = setup()
+    it('places the mark where it lands and focuses the view, leaving the playhead and playback alone', async () => {
+      const { audition, split, stretch, toggleStretch, wrapper } = setup()
       const view = measured(wrapper)
       document.body.append(wrapper.element)
 
@@ -290,12 +295,23 @@ describe('TrackView', () => {
       await pointer(view, 'pointerdown', 400)
       await pointer(view, 'pointerup', 400)
 
-      expect(audition.stretchPlayheadSeconds(stretch)).toBeCloseTo(41.2, 9)
+      expect(split.trackMarkSeconds).toBeCloseTo(41.2, 9)
+      expect(audition.stretchPlayheadSeconds(stretch)).toBe(21)
       expect(document.activeElement).toBe(view.element)
       expect(toggleStretch).not.toHaveBeenCalled()
     })
 
-    it('moves the playhead from a press near an end split, and selects no split', async () => {
+    it('rounds the mark to 10 ms, as the Range view’s is', async () => {
+      const { split, wrapper } = setup()
+      const view = measured(wrapper)
+
+      // 41.204 s is at x = 400.08.
+      await pointer(view, 'pointerdown', 400.08)
+
+      expect(split.trackMarkSeconds).toBeCloseTo(41.2, 9)
+    })
+
+    it('near an end split places the mark there, and selects no split', async () => {
       const { audition, split, stretch, wrapper } = setup()
       const grab = vi.spyOn(audition, 'grabPlayhead')
       const view = measured(wrapper)
@@ -306,10 +322,90 @@ describe('TrackView', () => {
       await pointer(view, 'pointerup', 997)
 
       expect(grab).not.toHaveBeenCalled()
-      // 3 px short of the end split's line, which is 71.5 s: the playhead goes there, no split does.
-      expect(audition.stretchPlayheadSeconds(stretch)).toBeCloseTo(71.35, 9)
+      // 3 px short of the end split's line, which is 71.5 s: the mark goes there, no split does.
+      expect(split.trackMarkSeconds).toBeCloseTo(71.35, 9)
+      expect(audition.stretchPlayheadSeconds(stretch)).toBeCloseTo(40, 9)
       expect(split.selectedSplit).toBeNull()
       expect(split.selectedTrack?.number).toBe(2)
+      expect(split.view).toBe('track')
+    })
+
+    it('leaves the Range view’s mark alone', async () => {
+      const { split, wrapper } = setup()
+      split.setRange(30, 50)
+      split.placeMark(40)
+      split.showView('track')
+      const view = measured(wrapper)
+
+      await pointer(view, 'pointerdown', 400)
+
+      expect(split.markSeconds).toBe(40)
+    })
+  })
+
+  describe('a double-click', () => {
+    it('moves the playhead there, and not the mark', async () => {
+      const { audition, split, stretch, wrapper } = setup()
+      split.placeTrackMark(30)
+      const view = measured(wrapper)
+
+      await doubleClick(view, 400)
+
+      expect(audition.stretchPlayheadSeconds(stretch)).toBeCloseTo(41.2, 9)
+      expect(split.trackMarkSeconds).toBe(30)
+      expect(split.view).toBe('track')
+    })
+
+    it('moves the playhead through the player’s seek, which a playing track plays on from', async () => {
+      const { audition, stretch, wrapper } = setup()
+      const seek = vi.spyOn(audition, 'seekStretch')
+      const view = measured(wrapper)
+
+      await doubleClick(view, 400)
+
+      expect(seek).toHaveBeenCalledExactlyOnceWith(stretch, 41.2)
+    })
+
+    it('within 6 px of the end split’s line selects that split and opens the Split view', async () => {
+      const { split, wrapper } = setup()
+      const view = measured(wrapper)
+
+      await doubleClick(view, 995)
+
+      expect(split.selectedSplit?.seconds).toBe(71.5)
+      expect(split.view).toBe('split')
+    })
+
+    it('within 6 px of the start split’s line selects that split too', async () => {
+      const { split, wrapper } = setup()
+      const view = measured(wrapper)
+
+      await doubleClick(view, 5)
+
+      expect(split.selectedSplit?.seconds).toBe(21)
+      expect(split.view).toBe('split')
+    })
+
+    it('7 px from an end split’s line moves the playhead instead', async () => {
+      const { audition, split, stretch, wrapper } = setup()
+      const view = measured(wrapper)
+
+      await doubleClick(view, 993)
+
+      expect(split.selectedSplit).toBeNull()
+      expect(split.view).toBe('track')
+      expect(audition.stretchPlayheadSeconds(stretch)).toBeCloseTo(71.15, 9)
+    })
+
+    it('takes no split that lies outside the track, though the view draws all', async () => {
+      const { split, wrapper } = setup()
+      // Track 1 (0 s to 21 s) has the split at 21 s on its right edge, and nothing on its left.
+      split.selectTrack(split.tracks[0]!)
+      const view = measured(wrapper)
+
+      await doubleClick(view, 5)
+
+      expect(split.selectedSplit).toBeNull()
       expect(split.view).toBe('track')
     })
   })

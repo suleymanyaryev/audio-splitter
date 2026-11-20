@@ -1,4 +1,4 @@
-import { computed, ref, shallowRef } from 'vue'
+import { computed, ref, shallowRef, watch } from 'vue'
 import { defineStore } from 'pinia'
 
 import { median } from '@/shared/lib/audio/median.ts'
@@ -95,6 +95,8 @@ export const useSplitStore = defineStore('split', () => {
   const range = ref<TimeRange | null>(null)
   // The spot in the range where "Add split" puts a split (GLOSSARY.md), or none.
   const markSeconds = ref<number | null>(null)
+  // The Track view's own mark, inside the selected track, or none (see `trackSpan` below).
+  const trackMarkSeconds = ref<number | null>(null)
   const view = ref<PanelView>('split')
   let nextSplitId = 0
   /*
@@ -149,6 +151,37 @@ export const useSplitStore = defineStore('split', () => {
       : null
   })
 
+  /*
+  The two splits that bound the selected track, the ones that exist: the first track has no start
+  split and the last no end split. They are what a double-click in the Track view can reach.
+  */
+  const selectedTrackEndSplits = computed(() => {
+    const track = selectedTrack.value
+    if (track === null) return []
+    const index = splits.value.findIndex((split) => split.id === track.startSplit?.id)
+    const end = splits.value[index + 1]
+    return [track.startSplit, end].filter((split) => split !== null && split !== undefined)
+  })
+
+  /*
+  What makes the selected track the same track: the split where it starts and where it starts and
+  ends in time. The Track view's mark belongs to it, so any change of it, another track selected, a
+  split selected, an end split moved or deleted, or a split added inside, clears the mark.
+  */
+  const trackSpan = computed(() => {
+    const track = selectedTrack.value
+    return track === null
+      ? null
+      : `${track.startSplit?.id ?? 'first'}/${track.startSeconds}/${track.startSeconds + track.lengthSeconds}`
+  })
+  watch(
+    trackSpan,
+    () => {
+      trackMarkSeconds.value = null
+    },
+    { flush: 'sync' },
+  )
+
   function clearEdits() {
     movedIds.value.clear()
     addedIds.value.clear()
@@ -202,6 +235,8 @@ export const useSplitStore = defineStore('split', () => {
     }))
     firstTrackName.value = null
     clearEdits()
+    // A detection starts over, even when the first track is still the same stretch.
+    trackMarkSeconds.value = null
     // The first track starts with the file, so it is keyed by no split and exists with no gap too.
     selection.value = { kind: 'track', startSplitId: null }
     // The window starts at 0:00, so the Split view shows the file's opening seconds.
@@ -292,6 +327,16 @@ export const useSplitStore = defineStore('split', () => {
     markSeconds.value = Math.min(
       Math.max(seconds, range.value.startSeconds),
       range.value.endSeconds,
+    )
+  }
+
+  // Places the Track view's mark, held inside the selected track like the Range view's in its range.
+  function placeTrackMark(seconds: number) {
+    const track = selectedTrack.value
+    if (track === null) return
+    trackMarkSeconds.value = Math.min(
+      Math.max(seconds, track.startSeconds),
+      track.startSeconds + track.lengthSeconds,
     )
   }
 
@@ -436,6 +481,7 @@ export const useSplitStore = defineStore('split', () => {
     zoomCentreSeconds.value = ZOOM_WINDOW_SECONDS / 2
     range.value = null
     markSeconds.value = null
+    trackMarkSeconds.value = null
     view.value = 'split'
     nextSplitId = 0
   }
@@ -453,6 +499,8 @@ export const useSplitStore = defineStore('split', () => {
     zoomCentreSeconds,
     range,
     markSeconds,
+    trackMarkSeconds,
+    selectedTrackEndSplits,
     view,
     canAddSplit,
     canAddSplitAtMark,
@@ -468,6 +516,7 @@ export const useSplitStore = defineStore('split', () => {
     moveZoomTo,
     setRange,
     placeMark,
+    placeTrackMark,
     showView,
     moveSplit,
     addSplit,

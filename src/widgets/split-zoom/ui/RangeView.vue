@@ -3,8 +3,8 @@ import { computed, ref, useTemplateRef, watch } from 'vue'
 
 import { useSourceFileStore } from '@/entities/source-file/model/source-file.ts'
 import { useSplitStore } from '@/entities/split/model/split.ts'
-import { DASH_PATTERN } from '@/shared/lib/canvas/dash-pattern.ts'
 import { drawLands, drawSplitLines } from '@/shared/lib/canvas/draw-lands-and-splits.ts'
+import { drawMark } from '@/shared/lib/canvas/draw-mark.ts'
 import { BAR_PITCH, drawPeakBars } from '@/shared/lib/canvas/draw-peak-bars.ts'
 import { prepareCanvas } from '@/shared/lib/canvas/prepare-canvas.ts'
 import { useCanvasRedraw } from '@/shared/lib/canvas/use-canvas-redraw.ts'
@@ -42,9 +42,8 @@ or add splits over and over. A failure to play is said in a line at the bottom o
 
 // DESIGN.md: the whole canvas is framed in 1.5 px ink, as in the zoom view.
 const FRAME_WIDTH = 1.5
-// The playhead is one CSS pixel of ink, and so is the mark.
+// The playhead is one CSS pixel of ink.
 const PLAYHEAD_WIDTH = 1
-const MARK_WIDTH = 1
 // Left and Right move the playhead 1 s, with Shift 10 s.
 const STEP_SECONDS = 1
 const SHIFT_STEP_SECONDS = 10
@@ -108,16 +107,7 @@ function draw() {
   // The mark is a dashed line, never mistaken for a split line or the playhead, under the latter.
   if (split.markSeconds !== null) {
     const x = zoomTimeToX(split.markSeconds, centreSeconds, windowSeconds, width)
-    // Snapped to the middle of a whole CSS pixel, so the line is not smeared over two.
-    const snapped = Math.round(x - MARK_WIDTH / 2) + MARK_WIDTH / 2
-    context.strokeStyle = style.getPropertyValue('--color-ink')
-    context.lineWidth = MARK_WIDTH
-    context.setLineDash(DASH_PATTERN)
-    context.beginPath()
-    context.moveTo(snapped, 0)
-    context.lineTo(snapped, height)
-    context.stroke()
-    context.setLineDash([])
+    drawMark(context, x, style.getPropertyValue('--color-ink'), height)
   }
 
   /*

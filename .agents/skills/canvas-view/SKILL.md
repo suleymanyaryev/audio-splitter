@@ -30,7 +30,7 @@ The canvases (`widgets/source-waveform`, `widgets/loudness-curve`, `widgets/spli
 - A drag keeps the distance it was grabbed at, so the line doesn't jump. The resize cursor shows only within reach of the line.
 - A press that moves under 4 px is a click (`use-range-drag.ts`).
 - A click within 6 px of a split line hits it: `hitTestSplit` (`@/shared/lib/canvas/hit-test-split.ts`).
-- When one press can mean several things, test them in a fixed order and take the first match. `use-range-press.ts` checks the playhead, then a split line, then places the mark.
+- When one press can mean several things, test them in a fixed order and take the first match. `use-range-press.ts` checks the playhead, then places the mark; a split line is reached by double-click only. The Range view and the Track view both use it, each with its own mark in the split store.
 - A drag that goes through the replace guard ends when the change is held back (its `set` returns false). See `LoudnessCurve.vue`.
 
 ## Keyboard

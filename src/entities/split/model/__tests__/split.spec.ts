@@ -84,6 +84,15 @@ function markedStore(markSeconds: number) {
   return store
 }
 
+// Track 2 (22 s to 42 s) is selected with the window on its end split, so that split can move.
+function markedSecondTrack() {
+  const store = loadedStore()
+  store.moveZoomTo(42)
+  store.selectTrack(store.tracks[1]!)
+  store.placeTrackMark(30)
+  return store
+}
+
 const selectedTracks = (store: ReturnType<typeof useSplitStore>) =>
   store.tracks.map((track) => store.isTrackSelected(track))
 
@@ -1591,6 +1600,165 @@ describe('the split store', () => {
       store.placeMark(14)
 
       expect(store.editCount).toBe(0)
+    })
+  })
+
+  describe('the Track view’s mark', () => {
+    // Track 1 is selected after detection: 0 s to 22 s. Track 2 runs 22 s to 42 s.
+    it('is none on a new track, and placed inside the selected track', () => {
+      const store = loadedStore()
+      expect(store.trackMarkSeconds).toBeNull()
+
+      store.placeTrackMark(14.25)
+
+      expect(store.trackMarkSeconds).toBe(14.25)
+    })
+
+    it('is held inside the track, at its ends', () => {
+      const store = loadedStore()
+      store.selectTrack(store.tracks[1]!)
+
+      store.placeTrackMark(4)
+      expect(store.trackMarkSeconds).toBe(22)
+
+      store.placeTrackMark(50)
+      expect(store.trackMarkSeconds).toBe(42)
+    })
+
+    it('is not placed with no track selected', () => {
+      const store = loadedStore()
+      store.moveZoomTo(5)
+
+      store.placeTrackMark(14)
+
+      expect(store.trackMarkSeconds).toBeNull()
+    })
+
+    it('is kept while the same track stays selected, through view switches', () => {
+      const store = loadedStore()
+      store.setRange(10, 20)
+      store.placeTrackMark(14)
+
+      store.showView('track')
+      store.showView('range')
+      store.selectTrack(store.tracks[0]!)
+
+      expect(store.trackMarkSeconds).toBe(14)
+    })
+
+    it('is cleared when another track is selected, and does not return with the first', () => {
+      const store = loadedStore()
+      store.placeTrackMark(14)
+
+      store.selectTrack(store.tracks[1]!)
+      expect(store.trackMarkSeconds).toBeNull()
+
+      store.selectTrack(store.tracks[0]!)
+      expect(store.trackMarkSeconds).toBeNull()
+    })
+
+    it('is cleared when a split is selected, and when the zoom window is moved', () => {
+      const store = loadedStore()
+      store.placeTrackMark(14)
+      store.selectSplit(store.splits[0]!.id)
+      expect(store.trackMarkSeconds).toBeNull()
+
+      store.selectTrack(store.tracks[0]!)
+      store.placeTrackMark(14)
+      store.moveZoomTo(5)
+      expect(store.trackMarkSeconds).toBeNull()
+    })
+
+    describe('when an end of its track changes', () => {
+      it('is cleared when the split at the end moves', () => {
+        const store = markedSecondTrack()
+
+        store.moveSplit(store.splits[1]!.id, 40)
+
+        expect(store.trackMarkSeconds).toBeNull()
+      })
+
+      it('is cleared when the split at the end is deleted, and the track grows', () => {
+        const store = markedSecondTrack()
+
+        store.deleteSplit(store.splits[1]!.id)
+
+        expect(store.trackMarkSeconds).toBeNull()
+      })
+
+      it('is cleared when a split is added inside the track, and it shrinks', () => {
+        const store = markedSecondTrack()
+
+        store.addSplitAt(36)
+
+        expect(store.trackMarkSeconds).toBeNull()
+      })
+
+      it('is kept when a split is added in another track', () => {
+        const store = markedSecondTrack()
+
+        store.addSplitAt(10)
+
+        expect(store.trackMarkSeconds).toBe(30)
+      })
+    })
+
+    it('is cleared by a detection, and forgotten on reset', () => {
+      const store = loadedStore()
+      store.placeTrackMark(14)
+      store.setMinimumGapLength(3)
+      expect(store.trackMarkSeconds).toBeNull()
+
+      store.placeTrackMark(14)
+      store.reset()
+      expect(store.trackMarkSeconds).toBeNull()
+    })
+
+    it('is its own: placing it leaves the Range view’s mark, and the other way round', () => {
+      const store = loadedStore()
+      store.setRange(10, 20)
+      store.placeMark(12)
+
+      store.placeTrackMark(14)
+      expect(store.markSeconds).toBe(12)
+
+      store.placeMark(16)
+      expect(store.trackMarkSeconds).toBe(14)
+    })
+
+    it('does not count as an edit', () => {
+      const store = loadedStore()
+
+      store.placeTrackMark(14)
+
+      expect(store.editCount).toBe(0)
+    })
+  })
+
+  describe('the end splits of the selected track', () => {
+    it('are the split before and the split after, none at the file’s ends', () => {
+      const store = loadedStore()
+      const [first, second] = store.splits
+
+      expect(store.selectedTrackEndSplits).toEqual([first])
+
+      store.selectTrack(store.tracks[1]!)
+      expect(store.selectedTrackEndSplits).toEqual([first, second])
+
+      store.selectTrack(store.tracks[2]!)
+      expect(store.selectedTrackEndSplits).toEqual([second])
+    })
+
+    it('are none with no selected track, and for a track over the whole file', () => {
+      const store = useSplitStore()
+      expect(store.selectedTrackEndSplits).toEqual([])
+
+      const curve = curveOf([LOUD, 100])
+      store.detect(curve, timing(curve))
+      expect(store.selectedTrackEndSplits).toEqual([])
+
+      store.moveZoomTo(2)
+      expect(store.selectedTrackEndSplits).toEqual([])
     })
   })
 
