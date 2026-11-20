@@ -22,6 +22,7 @@ import { useAuditionStore } from '@/widgets/split-zoom/model/audition.ts'
 import RangeView from '@/widgets/split-zoom/ui/RangeView.vue'
 import SplitZoom from '@/widgets/split-zoom/ui/SplitZoom.vue'
 import TrackView from '@/widgets/split-zoom/ui/TrackView.vue'
+import VolumeControl from '@/widgets/split-zoom/ui/VolumeControl.vue'
 import TrackList from '@/widgets/track-list/ui/TrackList.vue'
 import { useExportSingleStore } from '@/widgets/track-strip/model/export-single.ts'
 import { useExportTracksStore } from '@/widgets/track-strip/model/export-tracks.ts'
@@ -43,7 +44,8 @@ selected), and "Play across split", which plays the selected split's clip (and r
 it loads or plays). The
 Range view and the Track view have "Play", which plays the range or the selected track (and reads
 "Stop" while it is decoded and "Pause" while it plays), and "Back to range start" or "Back to track
-start" beside it, which moves the playhead to the stretch's start.
+start" beside it, which moves the playhead to the stretch's start. The volume control (a mute button
+and a slider) ends the row in all three views.
 
 The page mounts only once the source file is ready (src/app/App.vue), which is when the split store
 looks for the gaps in its loudness curve, once; the split store cannot import the source-file store.
@@ -286,6 +288,7 @@ watch(
         >
           <FileDown class="size-4 shrink-0" />
         </UiIconButton>
+        <VolumeControl />
       </template>
       <!-- Capturing, so a press or key the view handles itself still clears the saved line. -->
       <div

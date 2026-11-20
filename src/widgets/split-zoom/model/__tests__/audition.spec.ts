@@ -3,6 +3,7 @@ import { createPinia, setActivePinia } from 'pinia'
 
 import { FileReplacedError, useSourceFileStore } from '@/entities/source-file/model/source-file.ts'
 import { useSplitStore } from '@/entities/split/model/split.ts'
+import { VOLUME_STORAGE_KEY } from '../../config/volume.ts'
 import { trackExtent } from '../../lib/track-extent.ts'
 import { useAuditionStore } from '../audition.ts'
 
@@ -130,6 +131,11 @@ function setUp() {
 // Lets the promise callbacks the store waits on run.
 const flush = () => new Promise((done) => setTimeout(done, 0))
 
+// What localStorage does when the browser blocks it: every read and write throws.
+function throwBlocked(): never {
+  throw new DOMException('The operation is insecure.', 'SecurityError')
+}
+
 describe('the audition store', () => {
   let play: MockInstance<HTMLMediaElement['play']>
   let pause: MockInstance<HTMLMediaElement['pause']>
@@ -161,6 +167,8 @@ describe('the audition store', () => {
   }
 
   beforeEach(() => {
+    // The volume is kept in localStorage, which a spec must not inherit from another.
+    localStorage.clear()
     setActivePinia(createPinia())
     play = vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue()
     pause = vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => {})
@@ -1736,5 +1744,160 @@ describe('the audition store', () => {
     expect(audition.status).toBe('idle')
     expect(pause).toHaveBeenCalled()
     expect(revokeObjectURL).toHaveBeenCalledExactlyOnceWith('blob:clip-1')
+  })
+
+  /*
+  The volume (docs/concepts/09-volume-is-gain.md): a level in dB, 0 to -40, and a mute flag, applied
+  to the one element as a linear gain and kept in localStorage.
+  */
+  describe('volume', () => {
+    it('starts at 0 dB and unmuted', () => {
+      const { audition } = setUp()
+
+      expect(audition.volumeDecibels).toBe(0)
+      expect(audition.isMuted).toBe(false)
+    })
+
+    it('gives a new element the gain of the level set before it was made', async () => {
+      const { audition } = setUp()
+      audition.setVolume(-20)
+
+      audition.toggle()
+      await flush()
+
+      expect(audio().volume).toBeCloseTo(0.1, 6)
+      expect(audio().muted).toBe(false)
+    })
+
+    it('gives a new element full gain by default', async () => {
+      await playing()
+
+      expect(audio().volume).toBe(1)
+    })
+
+    it('changes the gain of sound that is already playing, at once', async () => {
+      const { audition } = await playing()
+
+      audition.setVolume(-6)
+      expect(audio().volume).toBeCloseTo(0.5012, 4)
+
+      audition.setVolume(-40)
+      expect(audio().volume).toBeCloseTo(0.01, 6)
+      expect(audition.status).toBe('playing')
+    })
+
+    it('changes the gain of a playing range and a playing track the same way', async () => {
+      const range = await playingRange()
+      range.audition.setVolume(-10)
+      expect(audio().volume).toBeCloseTo(0.3162, 4)
+      range.audition.stop()
+
+      const track = await playingTrack()
+      track.audition.setVolume(-30)
+      expect(audio().volume).toBeCloseTo(0.03162, 5)
+    })
+
+    it('mutes the element without touching its gain, and unmutes to the same level', async () => {
+      const { audition } = await playing()
+      audition.setVolume(-12)
+
+      audition.toggleMute()
+      expect(audition.isMuted).toBe(true)
+      expect(audio().muted).toBe(true)
+      expect(audio().volume).toBeCloseTo(0.2512, 4)
+      expect(audition.volumeDecibels).toBe(-12)
+
+      audition.toggleMute()
+      expect(audition.isMuted).toBe(false)
+      expect(audio().muted).toBe(false)
+      expect(audio().volume).toBeCloseTo(0.2512, 4)
+    })
+
+    it('keeps the level while muted, and the mute while the level changes', async () => {
+      const { audition } = await playing()
+
+      audition.toggleMute()
+      audition.setVolume(-3)
+
+      expect(audio().muted).toBe(true)
+      expect(audio().volume).toBeCloseTo(0.7079, 4)
+    })
+
+    it('holds the level to whole dB from -40 to 0', () => {
+      const { audition } = setUp()
+
+      audition.setVolume(-12.4)
+      expect(audition.volumeDecibels).toBe(-12)
+
+      audition.setVolume(-90)
+      expect(audition.volumeDecibels).toBe(-40)
+
+      audition.setVolume(6)
+      expect(audition.volumeDecibels).toBe(0)
+    })
+
+    it('keeps the level and the mute, so a store made later reads them back', () => {
+      const first = setUp().audition
+      first.setVolume(-15)
+      first.toggleMute()
+
+      setActivePinia(createPinia())
+      const second = useAuditionStore()
+
+      expect(second.volumeDecibels).toBe(-15)
+      expect(second.isMuted).toBe(true)
+    })
+
+    it('gives the element of a later store the saved gain and mute', async () => {
+      const first = setUp().audition
+      first.setVolume(-20)
+      first.toggleMute()
+
+      // A new pinia has a new source-file store, whose clip is stubbed afresh.
+      setActivePinia(createPinia())
+      vi.spyOn(useSourceFileStore(), 'clip').mockImplementation(async (start, length) =>
+        clipOf(start, length),
+      )
+      const later = setUp().audition
+      later.toggle()
+      await flush()
+
+      expect(audio().volume).toBeCloseTo(0.1, 6)
+      expect(audio().muted).toBe(true)
+    })
+
+    it.each([
+      ['no saved value', null],
+      ['text that is no JSON', 'loud'],
+      ['a level that is no whole number', '{"volumeDecibels":-12.5,"isMuted":false}'],
+      ['a level under -40', '{"volumeDecibels":-41,"isMuted":false}'],
+      ['a level over 0', '{"volumeDecibels":3,"isMuted":false}'],
+      ['a level that is a string', '{"volumeDecibels":"-12","isMuted":false}'],
+      ['a mute flag that is no boolean', '{"volumeDecibels":-12,"isMuted":"yes"}'],
+      ['a value that is no object', '7'],
+    ])('uses the defaults for %s', (_, saved) => {
+      if (saved !== null) localStorage.setItem(VOLUME_STORAGE_KEY, saved)
+
+      const { audition } = setUp()
+
+      expect(audition.volumeDecibels).toBe(0)
+      expect(audition.isMuted).toBe(false)
+    })
+
+    it('uses the defaults, and still works, when the browser blocks storage', async () => {
+      vi.spyOn(Storage.prototype, 'getItem').mockImplementation(throwBlocked)
+      vi.spyOn(Storage.prototype, 'setItem').mockImplementation(throwBlocked)
+
+      const { audition } = await playing()
+      expect(audition.volumeDecibels).toBe(0)
+      expect(audition.isMuted).toBe(false)
+
+      audition.setVolume(-10)
+      audition.toggleMute()
+
+      expect(audition.volumeDecibels).toBe(-10)
+      expect(audio().volume).toBeCloseTo(0.3162, 4)
+      expect(audio().muted).toBe(true)
+    })
   })
 })

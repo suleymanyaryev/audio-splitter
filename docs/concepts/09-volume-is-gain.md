@@ -39,10 +39,9 @@ A handful of the 41 steps, so the slider has a feel: −1 dB is 0.8913, −3 dB 
 
 ## Where it lives in the code
 
-Planned, and written down before the code, so the user can confirm the idea first; this section is brought up to date when the code is in.
-
-- `src/shared/lib/audio/decibels-to-gain.ts` (new): `10 ** (dB / 20)`, one line, with its spec: the table above, from outside the function. It sits beside `loudness-builder.ts`, which does the other direction.
-- [`src/widgets/split-zoom/model/audition.ts`](../../src/widgets/split-zoom/model/audition.ts): the one player. It gains the level in dB and the mute flag (state the store owns, changed by actions), applies the gain to the element when the element is made (`audioElement()`) and on every change, and saves both to `localStorage`, with defaults for storage that is blocked or empty.
-- `src/widgets/split-zoom/config/volume.ts` (new): −40, 0 and 1, the slider's range and step, next to the player that uses them.
-- [`src/pages/review/ui/ReviewPage.vue`](../../src/pages/review/ui/ReviewPage.vue): the mute button ("Mute" / "Unmute") and the slider (named "Volume", reading its level in dB) at the end of the zoom panel's title row, in all three views.
-- [`DESIGN.md`](../../DESIGN.md) and [`docs/architecture.md`](../architecture.md): the control's look, and the player's new state.
+- [`src/shared/lib/audio/decibels-to-gain.ts`](../../src/shared/lib/audio/decibels-to-gain.ts): `10 ** (dB / 20)`, one line, with its spec: the table above, from outside the function. It sits beside `loudness-builder.ts`, which does the other direction.
+- [`src/widgets/split-zoom/model/audition.ts`](../../src/widgets/split-zoom/model/audition.ts): the one player. It owns the level in dB (`volumeDecibels`) and the mute flag (`isMuted`), changed by `setVolume` (whole dB, held to the range) and `toggleMute`. A synchronous watcher applies them to the element as `volume` and `muted` and saves them; `audioElement()` applies them when the element is made.
+- [`src/widgets/split-zoom/lib/saved-volume.ts`](../../src/widgets/split-zoom/lib/saved-volume.ts): reads and writes the one `localStorage` entry, a JSON object with the level and the flag. A value that is not what it writes, or storage that throws, gives 0 dB and unmuted.
+- [`src/widgets/split-zoom/config/volume.ts`](../../src/widgets/split-zoom/config/volume.ts): −40, 0 and 1, the slider's range and step, and the storage key.
+- [`src/widgets/split-zoom/ui/VolumeControl.vue`](../../src/widgets/split-zoom/ui/VolumeControl.vue): the mute button ("Mute" / "Unmute") and the slider (named "Volume", reading its level in dB through `lib/format-volume.ts`), which [`ReviewPage.vue`](../../src/pages/review/ui/ReviewPage.vue) puts at the end of the zoom panel's title row, in all three views.
+- [`DESIGN.md`](../../DESIGN.md) and [`docs/architecture.md`](../architecture.md): the control's look, and the player's volume state.

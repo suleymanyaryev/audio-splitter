@@ -176,8 +176,18 @@ async function exportTrack2() {
   return wrapper
 }
 
+// The volume's mute button, whichever way it reads, and its slider once Reka has placed the thumb.
+const muteButton = (wrapper: ReturnType<typeof mount>) =>
+  wrapper.get('button[aria-label="Mute"], button[aria-label="Unmute"]')
+async function volumeSlider(wrapper: ReturnType<typeof mount>) {
+  await flushPromises()
+  return wrapper.get('[role="slider"][aria-label="Volume"]')
+}
+
 describe('ReviewPage', () => {
   beforeEach(() => {
+    // The volume is kept in localStorage, which a spec must not inherit from another.
+    localStorage.clear()
     setActivePinia(createPinia())
   })
 
@@ -946,14 +956,15 @@ describe('ReviewPage', () => {
     })
 
     it('has "Export track…" after Play in the Track view and "Export range…" in the Range view, and neither in the Split view', async () => {
+      // The volume's mute button ends every title row, after these.
       const track = await mountPageWithTrack(2)
       const trackNames = titleRowButtons(track)
-      expect(trackNames.at(-1)).toBe('Export track…')
-      expect(trackNames.at(-2)).toBe('Play')
+      expect(trackNames.at(-2)).toBe('Export track…')
+      expect(trackNames.at(-3)).toBe('Play')
       expect(await tooltipOf(exportButtonOf(track, 'Export track…'))).toBe('Export track…')
 
       const range = await mountPageWithRange()
-      expect(titleRowButtons(range).at(-1)).toBe('Export range…')
+      expect(titleRowButtons(range).at(-2)).toBe('Export range…')
 
       const onSplit = await mountPageOnSplit()
       expect(onSplit.find('button[aria-label^="Export "]').exists()).toBe(false)
@@ -1110,6 +1121,79 @@ describe('ReviewPage', () => {
       await wrapper.vm.$nextTick()
 
       expect(exportButtonOf(wrapper, 'Export track…').attributes('disabled')).toBeDefined()
+    })
+  })
+
+  describe('the volume', () => {
+    const views = [
+      ['Split', mountPageOnSplit],
+      ['Track', () => mountPageWithTrack(2)],
+      ['Range', mountPageWithRange],
+    ] as const
+
+    describe.each(views)('in the %s view', (_, mountView) => {
+      it('ends the title row with a Mute button and a slider named Volume that reads in dB', async () => {
+        const wrapper = await mountView()
+        const slider = await volumeSlider(wrapper)
+
+        expect(titleRowButtons(wrapper).at(-1)).toBe('Mute')
+        expect(await tooltipOf(muteButton(wrapper))).toBe('Mute')
+        expect(slider.attributes('aria-valuemin')).toBe('-40')
+        expect(slider.attributes('aria-valuemax')).toBe('0')
+        expect(slider.attributes('aria-valuenow')).toBe('0')
+        expect(slider.attributes('aria-valuetext')).toBe('0 dB')
+      })
+
+      it('steps the level by 1 dB from the keyboard, in the player', async () => {
+        const wrapper = await mountView()
+        const slider = await volumeSlider(wrapper)
+
+        await slider.trigger('keydown', { key: 'ArrowLeft' })
+        await slider.trigger('keydown', { key: 'ArrowLeft' })
+
+        expect(useAuditionStore().volumeDecibels).toBe(-2)
+        expect(slider.attributes('aria-valuenow')).toBe('-2')
+        expect(slider.attributes('aria-valuetext')).toBe('−2 dB')
+      })
+
+      it('mutes and unmutes, the button and its tooltip saying what the next press does', async () => {
+        const wrapper = await mountView()
+        const audition = useAuditionStore()
+
+        await muteButton(wrapper).trigger('click')
+
+        expect(audition.isMuted).toBe(true)
+        expect(muteButton(wrapper).attributes('aria-label')).toBe('Unmute')
+        expect(await tooltipOf(muteButton(wrapper))).toBe('Unmute')
+
+        await muteButton(wrapper).trigger('click')
+
+        expect(audition.isMuted).toBe(false)
+        expect(muteButton(wrapper).attributes('aria-label')).toBe('Mute')
+      })
+    })
+
+    it('shows the level and the mute the player already has', async () => {
+      const audition = useAuditionStore()
+      audition.setVolume(-12)
+      audition.toggleMute()
+
+      const wrapper = await mountPageOnSplit()
+      const slider = await volumeSlider(wrapper)
+
+      expect(slider.attributes('aria-valuetext')).toBe('−12 dB')
+      expect(muteButton(wrapper).attributes('aria-label')).toBe('Unmute')
+    })
+
+    it('is one setting for every view: a level set in one is the level in the next', async () => {
+      const wrapper = await mountPageOnSplit()
+      const slider = await volumeSlider(wrapper)
+      await slider.trigger('keydown', { key: 'Home' })
+
+      await viewOption(wrapper, 'Track').trigger('click')
+
+      const inTrackView = await volumeSlider(wrapper)
+      expect(inTrackView.attributes('aria-valuetext')).toBe('−40 dB')
     })
   })
 })
