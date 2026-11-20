@@ -19,6 +19,7 @@ Versions follow [Semantic Versioning](https://semver.org/) applied to the produc
 
 ### Changed
 
+- Every button in the zoom panel's title row, in all three views, is now an icon button with a tooltip that says what it does and, where there is one, its key: "Add split" (Enter in the Range view), "Delete split (Delete)", "Back to track start (Home)", and Play across split, Play, Pause and Stop with "(Space)". The tooltip opens when the pointer rests on the button and when the keyboard focuses it, and closes on Escape. Play's icon and tooltip follow what a press will do. The Track list's merge and trash buttons show their names as tooltips too. The `Split | Track | Range` control, "Export to folder…" and "New file" keep their words.
 - Loading the audio engine now waits up to 3 minutes instead of 1 before giving up, so a slow connection can finish downloading it.
 
 ## [1.0.1] - 2026-11-20

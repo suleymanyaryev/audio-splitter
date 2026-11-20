@@ -30,6 +30,7 @@ is filled; "Export to folder…" starts the export, whose overlay (`ExportDialog
 it runs. The zoom panel shows the zoom view, the Track view of the selected track or, once the user
 has dragged out a range, the Range view, as the split store's `view` says, and its
 `Split | Track | Range` control is that view, each segment disabled while it has nothing to show.
+Every button in the zoom panel's title row is an icon button whose tooltip names it and its key.
 "Add split" is in the zoom view and the Range view and follows the view: at the window's centre in
 the zoom view, at the mark in the Range view; the Track view adds no split. The zoom view also has
 "Delete split", which deletes the selected split as Delete does on its handle (disabled with none
@@ -159,33 +160,43 @@ watch(
     <UiPanel :title="title" headline class="col-span-8">
       <template #actions>
         <UiSegmentedControl v-model="view" label="Panel view" :options="viewOptions" />
-        <UiButton
+        <UiIconButton
           v-if="split.view !== 'track'"
           size="sm"
+          label="Add split"
+          :hint="split.view === 'range' ? 'Enter' : undefined"
           :disabled="!canAddSplit"
           @click="addSplit"
         >
           <Plus class="size-4 shrink-0" />
-          Add split
-        </UiButton>
-        <UiButton
+        </UiIconButton>
+        <UiIconButton
           v-if="split.view === 'split'"
           size="sm"
+          label="Delete split"
+          hint="Delete"
           :disabled="split.selectedSplit === null"
           @click="deleteSplit"
         >
           <Trash2 class="size-4 shrink-0" />
-          Delete split
-        </UiButton>
+        </UiIconButton>
         <UiIconButton
           v-if="split.view !== 'split'"
           size="sm"
           :label="`Back to ${split.view} start`"
+          hint="Home"
           @click="backToStretchStart"
         >
           <SkipBack class="size-4 shrink-0" />
         </UiIconButton>
-        <UiButton v-if="split.view !== 'split'" variant="primary" size="sm" @click="toggleStretch">
+        <UiIconButton
+          v-if="split.view !== 'split'"
+          variant="primary"
+          size="sm"
+          :label="stretchButtonLabel"
+          hint="Space"
+          @click="toggleStretch"
+        >
           <Square
             v-if="audition.stretchStatus === 'loading'"
             class="size-4 shrink-0"
@@ -199,12 +210,13 @@ watch(
             :stroke-width="0"
           />
           <Play v-else class="size-4 shrink-0" fill="currentColor" :stroke-width="0" />
-          {{ stretchButtonLabel }}
-        </UiButton>
-        <UiButton
-          v-else-if="split.view === 'split'"
+        </UiIconButton>
+        <UiIconButton
+          v-else
           variant="primary"
           size="sm"
+          :label="audition.isActive ? 'Stop' : 'Play across split'"
+          hint="Space"
           :disabled="split.selectedSplit === null && !audition.isActive"
           @click="audition.toggle()"
         >
@@ -215,8 +227,7 @@ watch(
             :stroke-width="0"
           />
           <Play v-else class="size-4 shrink-0" fill="currentColor" :stroke-width="0" />
-          {{ audition.isActive ? 'Stop' : 'Play across split' }}
-        </UiButton>
+        </UiIconButton>
       </template>
       <RangeView v-if="split.view === 'range'" />
       <TrackView v-else-if="split.view === 'track'" />

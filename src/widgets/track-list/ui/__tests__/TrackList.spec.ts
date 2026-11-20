@@ -54,6 +54,14 @@ function mountWithTwoGaps() {
 const marked = (wrapper: ReturnType<typeof mount>) =>
   wrapper.findAll('tbody tr').map((row) => row.attributes('aria-current'))
 
+// What the tooltip says once the button takes the keyboard.
+async function tooltipOf(button: { trigger: (event: string) => Promise<void> }) {
+  await button.trigger('focus')
+  const text = document.querySelector('[role="tooltip"]')?.textContent
+  await button.trigger('blur')
+  return text
+}
+
 describe('TrackList', () => {
   const scrollIntoView = vi.fn()
 
@@ -518,6 +526,22 @@ describe('TrackList', () => {
       await wrapper.vm.$nextTick()
 
       expect(scrollIntoView.mock.contexts.at(-1)).toBe(wrapper.findAll('tbody tr')[0]?.element)
+    })
+  })
+
+  describe('tooltips', () => {
+    it('says "Remove track N" on the merge button', async () => {
+      const { wrapper } = mountWithTwoGaps()
+
+      expect(await tooltipOf(removeButton(wrapper, 2))).toBe('Remove track 2')
+    })
+
+    it('says "Delete split at …" on the trash button', async () => {
+      const { wrapper } = mountWithTwoGaps()
+
+      const trash = wrapper.get('button[aria-label="Delete split at 0:01:11.50"]')
+
+      expect(await tooltipOf(trash)).toBe('Delete split at 0:01:11.50')
     })
   })
 })

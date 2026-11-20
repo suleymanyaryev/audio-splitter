@@ -46,14 +46,33 @@ async function mountPageWithRange() {
   return wrapper
 }
 
+// A title-row icon button has no text: its accessible name is its label. The other buttons are
+// named by their words.
+function nameOf(button: { attributes: (name: string) => string | undefined; text: () => string }) {
+  return button.attributes('aria-label') ?? button.text()
+}
+
+// What the tooltip says once the button takes the keyboard.
+async function tooltipOf(button: { trigger: (event: string) => Promise<void> }) {
+  await button.trigger('focus')
+  const text = document.querySelector('[role="tooltip"]')?.textContent
+  await button.trigger('blur')
+  return text
+}
+
+// The buttons of the zoom panel's title row: those with a label and no text.
+function iconButtons(wrapper: ReturnType<typeof mount>) {
+  return wrapper.findAll('button[aria-label]').filter((button) => button.text() === '')
+}
+
 function addSplitButton(wrapper: ReturnType<typeof mount>) {
-  const button = wrapper.findAll('button').find((candidate) => candidate.text() === 'Add split')
+  const button = wrapper.findAll('button').find((candidate) => nameOf(candidate) === 'Add split')
   if (!button) throw new Error('no Add split button')
   return button
 }
 
 function deleteSplitButton(wrapper: ReturnType<typeof mount>) {
-  const button = wrapper.findAll('button').find((candidate) => candidate.text() === 'Delete split')
+  const button = wrapper.findAll('button').find((candidate) => nameOf(candidate) === 'Delete split')
   if (!button) throw new Error('no Delete split button')
   return button
 }
@@ -62,7 +81,7 @@ function deleteSplitButton(wrapper: ReturnType<typeof mount>) {
 function auditionButton(wrapper: ReturnType<typeof mount>) {
   const button = wrapper
     .findAll('button')
-    .find((candidate) => ['Play across split', 'Stop'].includes(candidate.text()))
+    .find((candidate) => ['Play across split', 'Stop'].includes(nameOf(candidate)))
   if (!button) throw new Error('no audition button')
   return button
 }
@@ -71,7 +90,7 @@ function auditionButton(wrapper: ReturnType<typeof mount>) {
 function rangeButton(wrapper: ReturnType<typeof mount>) {
   const button = wrapper
     .findAll('button')
-    .find((candidate) => ['Play', 'Pause', 'Stop'].includes(candidate.text()))
+    .find((candidate) => ['Play', 'Pause', 'Stop'].includes(nameOf(candidate)))
   if (!button) throw new Error('no range button')
   return button
 }
@@ -104,6 +123,92 @@ const panelTitle = (wrapper: ReturnType<typeof mount>) => wrapper.get('h2.text-l
 describe('ReviewPage', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
+  })
+
+  describe('the title row’s icon buttons', () => {
+    it('are Add split, Delete split and Play across split in the Split view, named and told by their keys', async () => {
+      const wrapper = mountPage()
+      const names = iconButtons(wrapper)
+        .map((button) => nameOf(button))
+        .filter((name) => ['Add split', 'Delete split', 'Play across split'].includes(name))
+
+      expect(names).toEqual(['Add split', 'Delete split', 'Play across split'])
+      expect(await tooltipOf(deleteSplitButton(wrapper))).toBe('Delete split (Delete)')
+      expect(await tooltipOf(auditionButton(wrapper))).toBe('Play across split (Space)')
+
+      // A disabled button takes no focus, so the window moves off the split to enable Add split.
+      useSplitStore().moveZoomTo(46)
+      await wrapper.vm.$nextTick()
+      expect(await tooltipOf(addSplitButton(wrapper))).toBe('Add split')
+    })
+
+    it('keep today’s enabled states in the Split view', async () => {
+      const wrapper = mountPage()
+      // Split 1 is selected with the window on it: nothing to add, everything else is there.
+      expect(addSplitButton(wrapper).attributes('disabled')).toBeDefined()
+      expect(deleteSplitButton(wrapper).attributes('disabled')).toBeUndefined()
+      expect(auditionButton(wrapper).attributes('disabled')).toBeUndefined()
+
+      useSplitStore().moveZoomTo(46)
+      await wrapper.vm.$nextTick()
+
+      expect(addSplitButton(wrapper).attributes('disabled')).toBeUndefined()
+      expect(deleteSplitButton(wrapper).attributes('disabled')).toBeDefined()
+      expect(auditionButton(wrapper).attributes('disabled')).toBeDefined()
+    })
+
+    it('say Stop (Space) in the Split view while a clip plays', async () => {
+      const wrapper = mountPage()
+      useAuditionStore().status = 'playing'
+      await wrapper.vm.$nextTick()
+
+      expect(await tooltipOf(auditionButton(wrapper))).toBe('Stop (Space)')
+    })
+
+    it('are Back to track start and Play in the Track view, with no Add split', async () => {
+      const wrapper = await mountPageWithTrack(2)
+
+      expect(wrapper.find('button[aria-label="Add split"]').exists()).toBe(false)
+      expect(await tooltipOf(wrapper.get('button[aria-label="Back to track start"]'))).toBe(
+        'Back to track start (Home)',
+      )
+      expect(await tooltipOf(rangeButton(wrapper))).toBe('Play (Space)')
+    })
+
+    it('are Add split, Back to range start and Play in the Range view, with their keys', async () => {
+      const wrapper = await mountPageWithRange()
+      useSplitStore().placeMark(15)
+      await wrapper.vm.$nextTick()
+
+      expect(await tooltipOf(addSplitButton(wrapper))).toBe('Add split (Enter)')
+      expect(await tooltipOf(backButton(wrapper))).toBe('Back to range start (Home)')
+      expect(await tooltipOf(rangeButton(wrapper))).toBe('Play (Space)')
+      expect(addSplitButton(wrapper).attributes('disabled')).toBeUndefined()
+    })
+
+    it('have a Play whose name and tooltip follow its state in the Track view and the Range view', async () => {
+      const wrapper = await mountPageWithRange()
+      const audition = useAuditionStore()
+
+      for (const [status, label] of [
+        ['loading', 'Stop'],
+        ['playing', 'Pause'],
+        ['paused', 'Play'],
+        ['idle', 'Play'],
+      ] as const) {
+        audition.stretchStatus = status
+        await wrapper.vm.$nextTick()
+        expect(nameOf(rangeButton(wrapper))).toBe(label)
+        expect(await tooltipOf(rangeButton(wrapper))).toBe(`${label} (Space)`)
+      }
+    })
+
+    it('leave the view control and Export to folder with their words', () => {
+      const wrapper = mountPage()
+
+      expect(viewOption(wrapper, 'Split').text()).toBe('Split')
+      expect(exportButton(wrapper).text()).toBe('Export to folder…')
+    })
   })
 
   describe('Add split', () => {
@@ -198,7 +303,7 @@ describe('ReviewPage', () => {
     it('sits between "Add split" and "Play across split"', () => {
       const wrapper = mountPage()
 
-      const labels = wrapper.findAll('button').map((button) => button.text())
+      const labels = wrapper.findAll('button').map((button) => nameOf(button))
 
       expect(labels.indexOf('Add split')).toBeLessThan(labels.indexOf('Delete split'))
       expect(labels.indexOf('Delete split')).toBeLessThan(labels.indexOf('Play across split'))
@@ -206,7 +311,7 @@ describe('ReviewPage', () => {
 
     it('is not in the Track view or the Range view', async () => {
       const wrapper = await mountPageWithTrack(2)
-      const texts = () => wrapper.findAll('button').map((button) => button.text())
+      const texts = () => wrapper.findAll('button').map((button) => nameOf(button))
       expect(texts()).not.toContain('Delete split')
 
       useSplitStore().setRange(10, 20)
@@ -264,9 +369,7 @@ describe('ReviewPage', () => {
     it('comes before the "Back to range start" and range buttons', async () => {
       const wrapper = await mountPageWithRange()
 
-      const labels = wrapper
-        .findAll('button')
-        .map((button) => button.attributes('aria-label') ?? button.text())
+      const labels = wrapper.findAll('button').map((button) => nameOf(button))
 
       expect(labels.indexOf('Add split')).toBeLessThan(labels.indexOf('Back to range start'))
       expect(labels.indexOf('Back to range start')).toBeLessThan(labels.indexOf('Play'))
@@ -279,7 +382,7 @@ describe('ReviewPage', () => {
 
       const button = auditionButton(wrapper)
 
-      expect(button.text()).toBe('Play across split')
+      expect(nameOf(button)).toBe('Play across split')
       expect(button.attributes('disabled')).toBeUndefined()
     })
 
@@ -308,17 +411,17 @@ describe('ReviewPage', () => {
       audition.status = 'loading'
       await wrapper.vm.$nextTick()
       const loading = auditionButton(wrapper)
-      expect(loading.text()).toBe('Stop')
+      expect(nameOf(loading)).toBe('Stop')
       expect(loading.get('svg').classes()).not.toEqual(playIcon)
       expect(loading.attributes('disabled')).toBeUndefined()
 
       audition.status = 'playing'
       await wrapper.vm.$nextTick()
-      expect(auditionButton(wrapper).text()).toBe('Stop')
+      expect(nameOf(auditionButton(wrapper))).toBe('Stop')
 
       audition.status = 'idle'
       await wrapper.vm.$nextTick()
-      expect(auditionButton(wrapper).text()).toBe('Play across split')
+      expect(nameOf(auditionButton(wrapper))).toBe('Play across split')
     })
 
     it('stops the audition when the page goes away', () => {
@@ -368,7 +471,7 @@ describe('ReviewPage', () => {
       useSplitStore().setRange(10, 20)
       await wrapper.vm.$nextTick()
 
-      const labels = wrapper.findAll('button').map((button) => button.text())
+      const labels = wrapper.findAll('button').map((button) => nameOf(button))
       expect(labels).toContain('Add split')
       expect(labels).not.toContain('Play across split')
     })
@@ -424,16 +527,14 @@ describe('ReviewPage', () => {
       it('has no "Add split" and no "Play across split" in its title row', async () => {
         const wrapper = await mountPageWithTrack(2)
 
-        const labels = wrapper.findAll('button').map((button) => button.text())
+        const labels = wrapper.findAll('button').map((button) => nameOf(button))
         expect(labels).not.toContain('Add split')
         expect(labels).not.toContain('Play across split')
       })
 
       it('has "Back to track start" and Play, and no "Back to range start"', async () => {
         const wrapper = await mountPageWithTrack(2)
-        const labels = wrapper
-          .findAll('button')
-          .map((button) => button.attributes('aria-label') ?? button.text())
+        const labels = wrapper.findAll('button').map((button) => nameOf(button))
 
         expect(labels.indexOf('Back to track start')).toBe(labels.indexOf('Play') - 1)
         expect(labels).not.toContain('Back to range start')
@@ -508,7 +609,7 @@ describe('ReviewPage', () => {
         const audition = useAuditionStore()
         const back = () => wrapper.get('button[aria-label="Back to track start"]')
 
-        expect(rangeButton(wrapper).text()).toBe('Play')
+        expect(nameOf(rangeButton(wrapper))).toBe('Play')
         for (const [status, label] of [
           ['loading', 'Stop'],
           ['playing', 'Pause'],
@@ -516,7 +617,7 @@ describe('ReviewPage', () => {
         ] as const) {
           audition.stretchStatus = status
           await wrapper.vm.$nextTick()
-          expect(rangeButton(wrapper).text()).toBe(label)
+          expect(nameOf(rangeButton(wrapper))).toBe(label)
           expect(rangeButton(wrapper).attributes('disabled')).toBeUndefined()
           expect(back().attributes('disabled')).toBeUndefined()
         }
@@ -569,9 +670,7 @@ describe('ReviewPage', () => {
     it('is an icon button just left of the range button, enabled whatever the player is doing', async () => {
       const wrapper = await mountPageWithRange()
       const audition = useAuditionStore()
-      const labels = wrapper
-        .findAll('button')
-        .map((button) => button.attributes('aria-label') ?? button.text())
+      const labels = wrapper.findAll('button').map((button) => nameOf(button))
 
       expect(labels.indexOf('Back to range start')).toBe(labels.indexOf('Play') - 1)
       expect(backButton(wrapper).text()).toBe('')
@@ -605,14 +704,14 @@ describe('ReviewPage', () => {
     it('reads "Play" and is enabled while the range is idle', async () => {
       const wrapper = await mountPageWithRange()
 
-      expect(rangeButton(wrapper).text()).toBe('Play')
+      expect(nameOf(rangeButton(wrapper))).toBe('Play')
       expect(rangeButton(wrapper).attributes('disabled')).toBeUndefined()
     })
 
     it('is not there in the Split view, where the audition button is', () => {
       const wrapper = mountPage()
 
-      expect(wrapper.findAll('button').map((button) => button.text())).not.toContain('Play')
+      expect(wrapper.findAll('button').map((button) => nameOf(button))).not.toContain('Play')
     })
 
     it('calls the player when clicked', async () => {
@@ -631,17 +730,17 @@ describe('ReviewPage', () => {
 
       audition.stretchStatus = 'loading'
       await wrapper.vm.$nextTick()
-      expect(rangeButton(wrapper).text()).toBe('Stop')
+      expect(nameOf(rangeButton(wrapper))).toBe('Stop')
       expect(rangeButton(wrapper).attributes('disabled')).toBeUndefined()
 
       audition.stretchStatus = 'playing'
       await wrapper.vm.$nextTick()
-      expect(rangeButton(wrapper).text()).toBe('Pause')
+      expect(nameOf(rangeButton(wrapper))).toBe('Pause')
       expect(rangeButton(wrapper).get('svg').classes()).not.toEqual(playIcon)
 
       audition.stretchStatus = 'paused'
       await wrapper.vm.$nextTick()
-      expect(rangeButton(wrapper).text()).toBe('Play')
+      expect(nameOf(rangeButton(wrapper))).toBe('Play')
     })
   })
 

@@ -141,6 +141,17 @@ components:
     textColor: '{colors.ink}'
     rounded: '{rounded.control}'
     size: '32px'
+  icon-button-primary:
+    backgroundColor: '{colors.ink}'
+    textColor: '{colors.surface}'
+    rounded: '{rounded.control}'
+    size: '32px'
+  tooltip:
+    backgroundColor: '{colors.ink}'
+    textColor: '{colors.surface}'
+    typography: '{typography.caption-strong}'
+    rounded: '{rounded.control}'
+    padding: '4px 8px'
   text-field:
     backgroundColor: '{colors.surface}'
     textColor: '{colors.ink}'
@@ -322,7 +333,7 @@ Borders are 1px: hairline for panels and row rules, control edge for controls, v
 
 ## Components
 
-Every kit component lives in `src/shared/ui/` as `Ui<Name>.vue` (`UiButton`, `UiIconButton`, `UiTextField`, `UiSlider`, `UiSegmentedControl`, `UiPanel`, `UiProgressBar`, `UiDialog`; the prefix keeps a kit component from reading like a native element) and is a Reka UI 2 primitive (or a native element) styled with Tailwind 4 utilities on the tokens below. Classes are given exactly; `focus-ring` is the custom utility defined in the token block.
+Every kit component lives in `src/shared/ui/` as `Ui<Name>.vue` (`UiButton`, `UiIconButton`, `UiTextField`, `UiSlider`, `UiSegmentedControl`, `UiPanel`, `UiProgressBar`, `UiDialog`, `UiTooltip`; the prefix keeps a kit component from reading like a native element) and is a Reka UI 2 primitive (or a native element) styled with Tailwind 4 utilities on the tokens below. Classes are given exactly; `focus-ring` is the custom utility defined in the token block.
 
 **Focus.** Every interactive element shows `focus-visible:focus-ring`: a 2px solid ink outline at 2px offset. On the vinyl band the ring uses `on-vinyl`. On a track block (clicking one selects its track) it uses `on-track`.
 
@@ -338,7 +349,7 @@ Character: firm and quiet; ink does the talking, colour only for danger.
 
 - **Base:** `inline-flex h-9 cursor-pointer items-center gap-2 rounded-control px-3.5 text-sm font-semibold whitespace-nowrap transition-colors duration-100 disabled:cursor-not-allowed disabled:opacity-40`. Icon before the label, except a "forward" step where it follows. Every variant but inverse adds `focus-visible:focus-ring`.
 - **Primary:** `bg-ink text-surface enabled:hover:bg-wave`. One per panel at most; it is the panel's main action.
-  The zoom panel's "Play across split" reads "Stop", with a filled Square in place of the Play icon, while a clip is loading or playing. The Range view's primary button is "Play"; it reads "Stop" (filled Square) while the range is decoded and "Pause" (filled Pause) while it plays. Just left of it is the small (`sm`, 32 px) icon button "Back to range start" (SkipBack, outline), always enabled. The Track view's title row has the same two, "Back to track start" and "Play", after the control and with no "Add split". The zoom view's title row has, after the control, "Add split", "Delete split" (secondary, `sm`, with the Trash2 icon, disabled with no split selected) and the primary "Play across split".
+  The zoom panel's title row holds no labelled button: its actions are icon buttons (see IconButton), and the panel's one primary action, Play, is the filled one. After the `Split | Track | Range` control the zoom view has "Add split" (Plus), "Delete split" (Trash2, disabled with no split selected) and the primary "Play across split", which reads "Stop" with a filled Square in place of the Play icon while a clip is loading or playing. The Range view has "Add split", "Back to range start" (SkipBack, always enabled) and the primary "Play", which reads "Stop" (filled Square) while the range is decoded and "Pause" (filled Pause) while it plays. The Track view has the same without "Add split": "Back to track start" and "Play". Only "Export to folder…", "New file" and the dialogs' actions keep their words.
 - **Primary lg:** primary plus `h-10 px-5 text-base`. Reserved for the Export action; no other button is large.
 - **Small (`sm`):** base with `h-8 px-3` in place of `h-9 px-3.5`. For actions in a panel title row and in table rows (for example "Add split").
 - **Secondary:** `border border-edge bg-surface text-ink enabled:hover:border-ink enabled:hover:bg-land/40`.
@@ -349,8 +360,18 @@ Character: firm and quiet; ink does the talking, colour only for danger.
 ### IconButton
 
 - `inline-flex size-9 cursor-pointer items-center justify-center rounded-control border border-edge bg-surface text-ink transition-colors duration-100 enabled:hover:border-ink enabled:hover:bg-land/40 focus-visible:focus-ring disabled:cursor-not-allowed disabled:opacity-40`.
-- A 36 px square styled like a secondary button, holding one 16 px icon. An `aria-label` is required.
-- **Small (`sm`):** `size-8` in place of `size-9`, for table rows (the track list’s trash button on a split row).
+- A 36 px square styled like a secondary button, holding one 16 px icon. The `label` is required: it is the button's accessible name (`aria-label`) and its tooltip, so the icon costs a screen reader nothing and a sighted user never has to guess. An optional `hint` names the button's key, and the tooltip says it after the label ("Add split (Enter)"); the accessible name stays the label alone.
+- **Small (`sm`):** `size-8` in place of `size-9`, for table rows and title rows.
+- **Primary:** `bg-ink text-surface enabled:hover:bg-wave` in place of the secondary fill and border: a title row's one main action, Play, as the filled button is elsewhere. One per panel at most.
+- A caller's `class` and listeners go to the button, not to the tooltip around it.
+
+### Tooltip
+
+Reka `TooltipProvider` / `TooltipRoot` / `TooltipTrigger` / `TooltipContent`, wrapped as `UiTooltip` (a `label` and an optional `hint`); the icon button is its one user so far. The trigger is the control itself, so it keeps its own focus and click.
+
+- **Opens** on hover after 400 ms and on keyboard focus at once; **closes** on pointer leave, on blur, on Escape and on a press. A disabled button takes no keyboard focus, so only hover shows its tooltip (Chrome does).
+- **Content:** `z-50 rounded-control bg-ink px-2 py-1 text-xs font-semibold whitespace-nowrap text-surface`, above the trigger with a 6 px gap: an inverted chip in Caption-strong, the same ink and surface as the primary button, so it holds in both themes. Text only, "Label (Key)". No arrow, no shadow, no animation: the Flat Sleeve Rule applies here as to everything that lies over the page.
+- Reka keeps a visually hidden copy of the text in a `role="tooltip"` element that the trigger's `aria-describedby` names.
 
 ### TextField
 
@@ -381,7 +402,7 @@ Reka `RadioGroupRoot` / `RadioGroupItem`: a choice of one among a few views, suc
 A titled frame (`section` with an `h2`).
 
 - **Frame:** `rounded-panel border border-hairline bg-surface p-4`.
-- **Title row:** `mb-3 flex items-baseline justify-between gap-6` (`items-center` when the row holds a control). Title `text-base font-semibold` (Headline `text-lg font-bold` for the panel's one big reading, the zoom view's time); on the right, metadata in `text-muted` or the panel's controls, grouped `flex items-center gap-2`. A title-row button is `sm` (secondary, or primary for the panel's one main action), except Export, which is primary `lg`.
+- **Title row:** `mb-3 flex items-baseline justify-between gap-6` (`items-center` when the row holds a control). Title `text-base font-semibold` (Headline `text-lg font-bold` for the panel's one big reading, the zoom view's time); on the right, metadata in `text-muted` or the panel's controls, grouped `flex items-center gap-2`. A title-row button is `sm` (secondary, or primary for the panel's one main action) and, in the zoom panel, an icon button; Export is primary `lg` and keeps its words.
 
 ### ProgressBar
 
