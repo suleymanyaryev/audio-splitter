@@ -1,6 +1,18 @@
 <script setup lang="ts">
-import { computed, onUnmounted, useTemplateRef, watch } from 'vue'
-import { Download, FileDown, Pause, Play, Plus, SkipBack, Square, Trash2 } from 'lucide-vue-next'
+import { computed, nextTick, onUnmounted, useTemplateRef, watch } from 'vue'
+import {
+  BookmarkMinus,
+  BookmarkPlus,
+  Check,
+  Download,
+  FileDown,
+  Pause,
+  Play,
+  Plus,
+  SkipBack,
+  Square,
+  Trash2,
+} from 'lucide-vue-next'
 
 import { useSourceFileStore } from '@/entities/source-file/model/source-file.ts'
 import { useSplitStore, type PanelView } from '@/entities/split/model/split.ts'
@@ -38,7 +50,11 @@ has dragged out a range, the Range view, as the split store's `view` says, and i
 `Split | Track | Range` control is that view, each segment disabled while it has nothing to show.
 Every button in the zoom panel's title row is an icon button whose tooltip names it and its key.
 "Add split" is in the zoom view and the Range view and follows the view: at the window's centre in
-the zoom view, at the mark in the Range view; the Track view adds no split. The zoom view also has
+the zoom view, at the mark in the Range view; the Track view adds no split but has the pending
+splits' buttons: "Add pending split" (at the mark, enabled while there is room and none is
+selected), "Apply" (turns them all into splits and shows the Split view on the first) and "Delete
+pending split" (only while one is selected). "Export track…" is off while the track has pending
+splits, and its tooltip says why. A button that acts on the Track view gives the keyboard back to it. The zoom view also has
 "Delete split", which deletes the selected split as Delete does on its handle (disabled with none
 selected), and "Play across split", which plays the selected split's clip (and reads "Stop" while
 it loads or plays). The
@@ -108,6 +124,10 @@ watch(
   },
 )
 // The full export and a single export never run at once; each store refuses the other's start too.
+// A track with pending splits is not the track the user will get: they apply or delete them first.
+const hasPendingInTrackView = computed(
+  () => split.view === 'track' && split.pendingSplits.length > 0,
+)
 const isExporting = computed(() => exporter.isRunning || singleExport.isRunning)
 const savedLine = computed(() =>
   singleExport.status === 'saved' && split.view !== 'split'
@@ -120,6 +140,7 @@ In the zoom view a new split is selected and its handle takes the keyboard, read
 keys. In the Range view it goes at the mark and nothing else changes: the user stays where they are.
 */
 const zoom = useTemplateRef('zoom')
+const trackView = useTemplateRef('trackView')
 function addSplit() {
   if (split.view === 'range') {
     split.addSplitAtMark()
@@ -127,6 +148,29 @@ function addSplit() {
   }
   split.addSplit()
   void zoom.value?.focusHandle()
+}
+
+/*
+The Track view's buttons, with the same effect as its keys. A button that acts on the view gives the
+keyboard back to it, so the keys go on working (the delete button is gone once it has deleted).
+*/
+function addPendingSplit() {
+  split.addPendingSplitAtMark()
+  trackView.value?.focus()
+}
+
+function deletePendingSplit() {
+  split.deleteSelectedPendingSplit()
+  trackView.value?.focus()
+}
+
+/*
+The Split view opens on the first new split, whose handle takes the keyboard, as a new split's does.
+The view is not on the page until the next render, so the handle is asked for then.
+*/
+function applyPendingSplits() {
+  split.applyPendingSplits()
+  void nextTick(() => zoom.value?.focusHandle())
 }
 
 // The same delete as the handle's key, and the keyboard goes to the split selected next.
@@ -222,6 +266,34 @@ watch(
           <Plus class="size-4 shrink-0" />
         </UiIconButton>
         <UiIconButton
+          v-if="split.view === 'track'"
+          size="sm"
+          label="Add pending split"
+          hint="Enter"
+          :disabled="!split.canAddPendingSplit"
+          @click="addPendingSplit"
+        >
+          <BookmarkPlus class="size-4 shrink-0" />
+        </UiIconButton>
+        <UiIconButton
+          v-if="split.view === 'track'"
+          size="sm"
+          label="Apply"
+          :disabled="split.pendingSplits.length === 0"
+          @click="applyPendingSplits"
+        >
+          <Check class="size-4 shrink-0" />
+        </UiIconButton>
+        <UiIconButton
+          v-if="split.view === 'track' && split.selectedPendingSplit !== null"
+          size="sm"
+          label="Delete pending split"
+          hint="Delete"
+          @click="deletePendingSplit"
+        >
+          <BookmarkMinus class="size-4 shrink-0" />
+        </UiIconButton>
+        <UiIconButton
           v-if="split.view === 'split'"
           size="sm"
           label="Delete split"
@@ -283,7 +355,8 @@ watch(
           v-if="split.view !== 'split'"
           size="sm"
           :label="split.view === 'range' ? 'Export range…' : 'Export track…'"
-          :disabled="isExporting"
+          :reason="hasPendingInTrackView ? 'Apply or delete pending splits first' : undefined"
+          :disabled="isExporting || hasPendingInTrackView"
           @click="openSingleExport"
         >
           <FileDown class="size-4 shrink-0" />
@@ -296,7 +369,7 @@ watch(
         @keydown.capture="singleExport.dismissSaved()"
       >
         <RangeView v-if="split.view === 'range'" />
-        <TrackView v-else-if="split.view === 'track'" />
+        <TrackView v-else-if="split.view === 'track'" ref="trackView" />
         <SplitZoom v-else ref="zoom" />
       </div>
       <p v-if="savedLine" role="status" class="mt-2 text-sm text-muted">

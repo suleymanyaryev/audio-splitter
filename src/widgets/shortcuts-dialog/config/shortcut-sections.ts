@@ -42,7 +42,18 @@ export const SHORTCUT_SECTIONS: ShortcutSection[] = [
         input: 'Drag the playhead',
         does: 'Move the playhead along the track; a playing track pauses while it is held',
       },
+      {
+        input: 'Click a pending split',
+        does: 'Select it; click anywhere else to let go of it',
+      },
       { input: 'Left / Right', does: 'Move the playhead 1 s (Shift: 10 s)' },
+      { input: 'Enter', does: 'Add a pending split at the mark and select it' },
+      {
+        input: 'Shift+Enter',
+        does: 'Add a pending split at the playhead, without selecting it or stopping the sound',
+      },
+      { input: 'Delete / Backspace', does: 'Delete the selected pending split' },
+      { input: 'Escape', does: 'Let go of the selected pending split' },
       { input: 'Space', does: 'Play or pause the track' },
       { input: 'Home', does: 'Go back to the track’s start' },
     ],

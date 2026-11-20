@@ -93,6 +93,22 @@ function markedSecondTrack() {
   return store
 }
 
+// Track 2 (22 s to 42 s) is selected with its mark at 30 s.
+function pendingStore() {
+  const store = loadedStore()
+  store.selectTrack(store.tracks[1]!)
+  store.placeTrackMark(30)
+  return store
+}
+
+// Pending splits at 27 s and 36 s, the second selected.
+function pendingTwo() {
+  const store = pendingStore()
+  store.addPendingSplit(27, false)
+  store.addPendingSplit(36, true)
+  return store
+}
+
 const selectedTracks = (store: ReturnType<typeof useSplitStore>) =>
   store.tracks.map((track) => store.isTrackSelected(track))
 
@@ -1759,6 +1775,437 @@ describe('the split store', () => {
 
       store.moveZoomTo(2)
       expect(store.selectedTrackEndSplits).toEqual([])
+    })
+  })
+
+  describe('pending splits', () => {
+    describe('adding at the mark', () => {
+      it('adds a pending split at the mark and selects it', () => {
+        const store = pendingStore()
+
+        store.addPendingSplitAtMark()
+
+        expect(store.pendingSplits).toEqual([30])
+        expect(store.selectedPendingSplit).toBe(30)
+      })
+
+      it('keeps the mark, the track, the view and the splits as they were', () => {
+        const store = pendingStore()
+
+        store.addPendingSplitAtMark()
+
+        expect(store.trackMarkSeconds).toBe(30)
+        expect(store.selectedTrack?.number).toBe(2)
+        expect(store.view).toBe('track')
+        expect(store.splits).toHaveLength(2)
+        expect(store.editCount).toBe(0)
+      })
+
+      it('does nothing with no mark', () => {
+        const store = loadedStore()
+        store.selectTrack(store.tracks[1]!)
+
+        store.addPendingSplitAtMark()
+
+        expect(store.pendingSplits).toEqual([])
+      })
+
+      it('is refused while a pending split is selected', () => {
+        const store = pendingStore()
+        store.addPendingSplitAtMark()
+        store.placeTrackMark(35)
+
+        store.addPendingSplitAtMark()
+
+        expect(store.pendingSplits).toEqual([30])
+      })
+    })
+
+    describe('adding at a time', () => {
+      it('adds a pending split there without selecting it', () => {
+        const store = pendingStore()
+
+        store.addPendingSplit(27, false)
+
+        expect(store.pendingSplits).toEqual([27])
+        expect(store.selectedPendingSplit).toBeNull()
+      })
+
+      it('selects the new one when asked to', () => {
+        const store = pendingStore()
+
+        store.addPendingSplit(27, true)
+
+        expect(store.selectedPendingSplit).toBe(27)
+      })
+
+      it('is allowed while another pending split is selected, and leaves that one selected', () => {
+        const store = pendingStore()
+        store.addPendingSplitAtMark()
+
+        store.addPendingSplit(36, false)
+
+        expect(store.pendingSplits).toEqual([30, 36])
+        expect(store.selectedPendingSplit).toBe(30)
+      })
+
+      it('lands on the 10 ms grid', () => {
+        const store = pendingStore()
+
+        store.addPendingSplit(27.004, false)
+        store.addPendingSplit(35.006, false)
+
+        expect(store.pendingSplits).toEqual([27, 35.01])
+      })
+
+      it('keeps them in time order', () => {
+        const store = pendingStore()
+
+        store.addPendingSplit(36, false)
+        store.addPendingSplit(25, false)
+        store.addPendingSplit(30, false)
+
+        expect(store.pendingSplits).toEqual([25, 30, 36])
+      })
+
+      it('does nothing with no track selected, or before detection', () => {
+        const store = useSplitStore()
+        store.addPendingSplit(5, false)
+        expect(store.pendingSplits).toEqual([])
+
+        const loaded = loadedStore()
+        loaded.moveZoomTo(30)
+        loaded.addPendingSplit(30, false)
+        expect(loaded.pendingSplits).toEqual([])
+      })
+
+      it('does not count as an edit', () => {
+        const store = pendingStore()
+
+        store.addPendingSplit(27, false)
+
+        expect(store.editCount).toBe(0)
+      })
+    })
+
+    describe('the room', () => {
+      it('is 1 s from another pending split: refused inside, allowed at exactly 1 s', () => {
+        const store = pendingStore()
+        store.addPendingSplit(30, false)
+
+        store.addPendingSplit(30.99, false)
+        store.addPendingSplit(29.01, false)
+        expect(store.pendingSplits).toEqual([30])
+
+        store.addPendingSplit(31, false)
+        store.addPendingSplit(29, false)
+        expect(store.pendingSplits).toEqual([29, 30, 31])
+      })
+
+      it('is 1 s from the track’s ends: refused inside, allowed at exactly 1 s', () => {
+        const store = pendingStore()
+
+        store.addPendingSplit(22.99, false)
+        store.addPendingSplit(41.01, false)
+        expect(store.pendingSplits).toEqual([])
+
+        store.addPendingSplit(23, false)
+        store.addPendingSplit(41, false)
+        expect(store.pendingSplits).toEqual([23, 41])
+      })
+
+      it('is 1 s from the file’s start in the first track, and from its end in the last', () => {
+        const store = loadedStore()
+
+        store.addPendingSplit(0.5, false)
+        store.addPendingSplit(1, false)
+        expect(store.pendingSplits).toEqual([1])
+
+        store.selectTrack(store.tracks[2]!)
+        store.addPendingSplit(59.5, false)
+        store.addPendingSplit(59, false)
+        expect(store.pendingSplits).toEqual([59])
+      })
+
+      it('is refused outside the selected track', () => {
+        const store = pendingStore()
+
+        store.addPendingSplit(10, false)
+        store.addPendingSplit(50, false)
+
+        expect(store.pendingSplits).toEqual([])
+      })
+    })
+
+    describe('whether one can be added at the mark', () => {
+      it('is false with no mark, and true on open ground', () => {
+        const store = loadedStore()
+        store.selectTrack(store.tracks[1]!)
+        expect(store.canAddPendingSplit).toBe(false)
+
+        store.placeTrackMark(30)
+        expect(store.canAddPendingSplit).toBe(true)
+      })
+
+      it('is false when the mark is within 1 s of a pending split or of the track’s ends', () => {
+        const store = pendingStore()
+        store.addPendingSplit(36, false)
+
+        store.placeTrackMark(36.5)
+        expect(store.canAddPendingSplit).toBe(false)
+
+        store.placeTrackMark(22.5)
+        expect(store.canAddPendingSplit).toBe(false)
+
+        store.placeTrackMark(41.5)
+        expect(store.canAddPendingSplit).toBe(false)
+
+        store.placeTrackMark(35)
+        expect(store.canAddPendingSplit).toBe(true)
+      })
+
+      it('is false while a pending split is selected', () => {
+        const store = pendingStore()
+        store.addPendingSplitAtMark()
+        store.placeTrackMark(36)
+        expect(store.canAddPendingSplit).toBe(false)
+
+        store.deselectPendingSplit()
+        expect(store.canAddPendingSplit).toBe(true)
+      })
+
+      it('judges the room by the time it would land on, on the grid', () => {
+        const store = pendingStore()
+        store.addPendingSplit(30, false)
+
+        // 30.996 s is under 1 s from 30 s, but lands on 31.00 s, exactly 1 s away.
+        store.placeTrackMark(30.996)
+        expect(store.canAddPendingSplit).toBe(true)
+
+        store.placeTrackMark(30.994)
+        expect(store.canAddPendingSplit).toBe(false)
+      })
+    })
+
+    describe('selecting, deselecting and deleting', () => {
+      it('selects the pending split at a time, and one selection replaces another', () => {
+        const store = pendingStore()
+        store.addPendingSplit(27, false)
+        store.addPendingSplit(36, false)
+
+        store.selectPendingSplit(36)
+        expect(store.selectedPendingSplit).toBe(36)
+
+        store.selectPendingSplit(27)
+        expect(store.selectedPendingSplit).toBe(27)
+      })
+
+      it('ignores a time that is no pending split', () => {
+        const store = pendingStore()
+        store.addPendingSplit(27, false)
+
+        store.selectPendingSplit(30)
+
+        expect(store.selectedPendingSplit).toBeNull()
+      })
+
+      it('deselects without deleting', () => {
+        const store = pendingStore()
+        store.addPendingSplitAtMark()
+
+        store.deselectPendingSplit()
+
+        expect(store.selectedPendingSplit).toBeNull()
+        expect(store.pendingSplits).toEqual([30])
+      })
+
+      it('deletes the selected one, and the others stay', () => {
+        const store = pendingStore()
+        store.addPendingSplit(27, false)
+        store.addPendingSplit(36, false)
+        store.selectPendingSplit(36)
+
+        store.deleteSelectedPendingSplit()
+
+        expect(store.pendingSplits).toEqual([27])
+        expect(store.selectedPendingSplit).toBeNull()
+      })
+
+      it('deletes nothing with none selected', () => {
+        const store = pendingStore()
+        store.addPendingSplit(27, false)
+
+        store.deleteSelectedPendingSplit()
+
+        expect(store.pendingSplits).toEqual([27])
+      })
+
+      it('lets a new one be added at the same place once it is deleted', () => {
+        const store = pendingStore()
+        store.addPendingSplitAtMark()
+        store.deleteSelectedPendingSplit()
+
+        store.addPendingSplitAtMark()
+
+        expect(store.pendingSplits).toEqual([30])
+      })
+    })
+
+    describe('applying', () => {
+      it('inserts one split for each, in time order, each an added split', () => {
+        const store = pendingStore()
+        store.addPendingSplit(36, false)
+        store.addPendingSplit(27, false)
+
+        store.applyPendingSplits()
+
+        expect(store.splits.map((split) => split.seconds)).toEqual([22, 27, 36, 42])
+        expect(store.editCount).toBe(2)
+        expect(store.tracks).toHaveLength(5)
+      })
+
+      it('empties the list and the selection', () => {
+        const store = pendingStore()
+        store.addPendingSplitAtMark()
+
+        store.applyPendingSplits()
+
+        expect(store.pendingSplits).toEqual([])
+        expect(store.selectedPendingSplit).toBeNull()
+      })
+
+      it('selects the first new split, centres the window on it and shows the Split view', () => {
+        const store = pendingStore()
+        store.addPendingSplit(36, false)
+        store.addPendingSplit(27, false)
+
+        store.applyPendingSplits()
+
+        expect(store.selectedSplit?.seconds).toBe(27)
+        expect(store.zoomCentreSeconds).toBe(27)
+        expect(store.view).toBe('split')
+      })
+
+      it('works the same with one of them selected', () => {
+        const store = pendingStore()
+        store.addPendingSplit(27, false)
+        store.addPendingSplit(36, true)
+
+        store.applyPendingSplits()
+
+        expect(store.splits.map((split) => split.seconds)).toEqual([22, 27, 36, 42])
+        expect(store.selectedSplit?.seconds).toBe(27)
+      })
+
+      it('does nothing with no pending split', () => {
+        const store = pendingStore()
+
+        store.applyPendingSplits()
+
+        expect(store.splits).toHaveLength(2)
+        expect(store.view).toBe('track')
+        expect(store.selectedTrack?.number).toBe(2)
+      })
+
+      it('takes the added edit back when an applied split is deleted again', () => {
+        const store = pendingStore()
+        store.addPendingSplit(27, false)
+        store.applyPendingSplits()
+        expect(store.editCount).toBe(1)
+
+        store.deleteSplit(store.selectedSplit!.id)
+
+        expect(store.editCount).toBe(0)
+      })
+    })
+
+    describe('what empties them', () => {
+      it('keeps them through a view switch while the track stays selected', () => {
+        const store = pendingTwo()
+        store.setRange(10, 20)
+
+        store.showView('split')
+        store.showView('range')
+        store.showView('track')
+
+        expect(store.pendingSplits).toEqual([27, 36])
+        expect(store.selectedPendingSplit).toBe(36)
+      })
+
+      it('keeps them when the same track is selected again', () => {
+        const store = pendingTwo()
+
+        store.selectTrack(store.selectedTrack!)
+
+        expect(store.pendingSplits).toEqual([27, 36])
+      })
+
+      it('empties them when another track is selected, and they do not return with this one', () => {
+        const store = pendingTwo()
+
+        store.selectTrack(store.tracks[0]!)
+        store.selectTrack(store.tracks[1]!)
+
+        expect(store.pendingSplits).toEqual([])
+        expect(store.selectedPendingSplit).toBeNull()
+      })
+
+      it('empties them when a split is selected, and when the zoom window is moved', () => {
+        const store = pendingTwo()
+        store.selectSplit(store.splits[0]!.id)
+        expect(store.pendingSplits).toEqual([])
+
+        store.selectTrack(store.tracks[1]!)
+        store.addPendingSplit(27, false)
+        store.moveZoomTo(5)
+        expect(store.pendingSplits).toEqual([])
+      })
+
+      it('empties them when the split at either end moves', () => {
+        const store = loadedStore()
+        store.moveZoomTo(42)
+        store.selectTrack(store.tracks[1]!)
+        store.addPendingSplit(30, false)
+
+        store.moveSplit(store.splits[1]!.id, 40)
+
+        expect(store.pendingSplits).toEqual([])
+      })
+
+      it('empties them when the split at either end goes', () => {
+        const store = pendingTwo()
+
+        store.deleteSplit(store.splits[0]!.id)
+
+        expect(store.pendingSplits).toEqual([])
+      })
+
+      it('empties them when a split is added inside the track, and keeps them for one in another', () => {
+        const store = pendingTwo()
+        store.addSplitAt(10)
+        expect(store.pendingSplits).toEqual([27, 36])
+
+        store.addSplitAt(40)
+        expect(store.pendingSplits).toEqual([])
+      })
+
+      it('empties them when a detection runs', () => {
+        const store = pendingTwo()
+
+        store.setMinimumGapLength(3)
+
+        expect(store.pendingSplits).toEqual([])
+        expect(store.selectedPendingSplit).toBeNull()
+      })
+
+      it('empties them on reset', () => {
+        const store = pendingTwo()
+
+        store.reset()
+
+        expect(store.pendingSplits).toEqual([])
+        expect(store.selectedPendingSplit).toBeNull()
+      })
     })
   })
 

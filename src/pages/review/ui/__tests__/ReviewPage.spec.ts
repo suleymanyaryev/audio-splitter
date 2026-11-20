@@ -176,6 +176,22 @@ async function exportTrack2() {
   return wrapper
 }
 
+// Track 2 runs 21 s to 71.5 s; its mark is at 40 s once placed.
+async function mountWithMark(seconds = 40) {
+  const wrapper = await mountPageWithTrack(2)
+  useSplitStore().placeTrackMark(seconds)
+  await wrapper.vm.$nextTick()
+  return wrapper
+}
+
+const addPendingButton = (wrapper: ReturnType<typeof mount>) =>
+  wrapper.get('button[aria-label="Add pending split"]')
+const applyButton = (wrapper: ReturnType<typeof mount>) => wrapper.get('button[aria-label="Apply"]')
+const deletePendingButton = (wrapper: ReturnType<typeof mount>) =>
+  wrapper.find('button[aria-label="Delete pending split"]')
+const playheadInTrack = (wrapper: ReturnType<typeof mount>) =>
+  wrapper.get('[role="slider"][aria-label="Playhead in the track"]').element
+
 // The volume's mute button, whichever way it reads, and its slider once Reka has placed the thumb.
 const muteButton = (wrapper: ReturnType<typeof mount>) =>
   wrapper.get('button[aria-label="Mute"], button[aria-label="Unmute"]')
@@ -1121,6 +1137,213 @@ describe('ReviewPage', () => {
       await wrapper.vm.$nextTick()
 
       expect(exportButtonOf(wrapper, 'Export track…').attributes('disabled')).toBeDefined()
+    })
+  })
+
+  describe('pending splits', () => {
+    it('are Add pending split and Apply after the view control in the Track view, then Back, Play and Export', async () => {
+      const wrapper = await mountPageWithTrack(2)
+
+      expect(titleRowButtons(wrapper)).toEqual([
+        'Add pending split',
+        'Apply',
+        'Back to track start',
+        'Play',
+        'Export track…',
+        'Mute',
+      ])
+    })
+
+    it('add a Delete pending split between Apply and Back only while one is selected', async () => {
+      const wrapper = await mountWithMark()
+      expect(deletePendingButton(wrapper).exists()).toBe(false)
+
+      await addPendingButton(wrapper).trigger('click')
+
+      expect(titleRowButtons(wrapper).slice(0, 4)).toEqual([
+        'Add pending split',
+        'Apply',
+        'Delete pending split',
+        'Back to track start',
+      ])
+
+      useSplitStore().deselectPendingSplit()
+      await wrapper.vm.$nextTick()
+      expect(deletePendingButton(wrapper).exists()).toBe(false)
+    })
+
+    it('are icon buttons with tooltips: Add pending split (Enter), Apply, Delete pending split (Delete)', async () => {
+      const wrapper = await mountWithMark()
+
+      expect(await tooltipOf(addPendingButton(wrapper))).toBe('Add pending split (Enter)')
+
+      useSplitStore().addPendingSplit(30, true)
+      await wrapper.vm.$nextTick()
+      expect(applyButton(wrapper).text()).toBe('')
+      expect(await tooltipOf(applyButton(wrapper))).toBe('Apply')
+      expect(await tooltipOf(deletePendingButton(wrapper))).toBe('Delete pending split (Delete)')
+    })
+
+    it('are not in the Split view or the Range view', async () => {
+      for (const wrapper of [await mountPageOnSplit(), await mountPageWithRange()]) {
+        const labels = titleRowButtons(wrapper)
+        expect(labels).not.toContain('Add pending split')
+        expect(labels).not.toContain('Apply')
+        expect(labels).not.toContain('Delete pending split')
+      }
+    })
+
+    describe('Add pending split', () => {
+      it('is disabled with no mark, and enabled once there is room at the mark', async () => {
+        const wrapper = await mountPageWithTrack(2)
+        expect(addPendingButton(wrapper).attributes('disabled')).toBeDefined()
+
+        useSplitStore().placeTrackMark(40)
+        await wrapper.vm.$nextTick()
+
+        expect(addPendingButton(wrapper).attributes('disabled')).toBeUndefined()
+      })
+
+      it('is disabled when the mark is within a second of the track’s end or of a pending split', async () => {
+        const wrapper = await mountWithMark(21.5)
+        expect(addPendingButton(wrapper).attributes('disabled')).toBeDefined()
+
+        const split = useSplitStore()
+        split.placeTrackMark(71)
+        await wrapper.vm.$nextTick()
+        expect(addPendingButton(wrapper).attributes('disabled')).toBeDefined()
+
+        split.addPendingSplit(40, false)
+        split.placeTrackMark(40.5)
+        await wrapper.vm.$nextTick()
+        expect(addPendingButton(wrapper).attributes('disabled')).toBeDefined()
+      })
+
+      it('is disabled while a pending split is selected, and enabled again once it is not', async () => {
+        const wrapper = await mountWithMark()
+        await addPendingButton(wrapper).trigger('click')
+        useSplitStore().placeTrackMark(55)
+        await wrapper.vm.$nextTick()
+        expect(addPendingButton(wrapper).attributes('disabled')).toBeDefined()
+
+        await deletePendingButton(wrapper).trigger('click')
+
+        expect(addPendingButton(wrapper).attributes('disabled')).toBeUndefined()
+      })
+
+      it('adds a pending split at the mark, selects it and hands the keyboard back to the view', async () => {
+        const wrapper = await mountWithMark()
+        const split = useSplitStore()
+
+        await addPendingButton(wrapper).trigger('click')
+
+        expect(split.pendingSplits).toEqual([40])
+        expect(split.selectedPendingSplit).toBe(40)
+        expect(split.splits).toHaveLength(2)
+        expect(document.activeElement).toBe(playheadInTrack(wrapper))
+      })
+    })
+
+    describe('Delete pending split', () => {
+      it('deletes the selected one and hands the keyboard back to the view', async () => {
+        const wrapper = await mountWithMark()
+        const split = useSplitStore()
+        split.addPendingSplit(30, false)
+        split.addPendingSplit(50, true)
+        await wrapper.vm.$nextTick()
+
+        await deletePendingButton(wrapper).trigger('click')
+
+        expect(split.pendingSplits).toEqual([30])
+        expect(deletePendingButton(wrapper).exists()).toBe(false)
+        expect(document.activeElement).toBe(playheadInTrack(wrapper))
+      })
+    })
+
+    describe('Apply', () => {
+      it('is disabled with no pending split, and enabled with one, selected or not', async () => {
+        const wrapper = await mountWithMark()
+        expect(applyButton(wrapper).attributes('disabled')).toBeDefined()
+
+        const split = useSplitStore()
+        split.addPendingSplit(30, false)
+        await wrapper.vm.$nextTick()
+        expect(applyButton(wrapper).attributes('disabled')).toBeUndefined()
+
+        split.selectPendingSplit(30)
+        await wrapper.vm.$nextTick()
+        expect(applyButton(wrapper).attributes('disabled')).toBeUndefined()
+      })
+
+      it('turns them into splits and shows the Split view on the first new one, centred', async () => {
+        const wrapper = await mountWithMark()
+        const split = useSplitStore()
+        split.addPendingSplit(50, false)
+        split.addPendingSplit(30, true)
+        await wrapper.vm.$nextTick()
+
+        await applyButton(wrapper).trigger('click')
+
+        expect(split.splits.map((point) => point.seconds)).toEqual([21, 30, 50, 71.5])
+        expect(split.editCount).toBe(2)
+        expect(split.view).toBe('split')
+        expect(split.selectedSplit?.seconds).toBe(30)
+        expect(split.zoomCentreSeconds).toBe(30)
+        expect(panelTitle(wrapper)).toBe('0:00:30.00')
+        expect(wrapper.find('[aria-label="Zoomed waveform of the split"]').exists()).toBe(true)
+      })
+
+      it('hands the keyboard to the new split, so it can be nudged at once', async () => {
+        const wrapper = await mountWithMark()
+        useSplitStore().addPendingSplit(30, false)
+        await wrapper.vm.$nextTick()
+
+        await applyButton(wrapper).trigger('click')
+        await flushPromises()
+
+        expect(document.activeElement).toBe(
+          wrapper.get('[role="slider"][aria-label="Split 2"]').element,
+        )
+      })
+    })
+
+    describe('Export track…', () => {
+      it('is disabled while the track has pending splits, with the reason as its tooltip', async () => {
+        const wrapper = await mountWithMark()
+        const button = exportButtonOf(wrapper, 'Export track…')
+        expect(button.attributes('disabled')).toBeUndefined()
+
+        useSplitStore().addPendingSplit(30, false)
+        await wrapper.vm.$nextTick()
+
+        expect(button.attributes('disabled')).toBeDefined()
+        // A disabled button takes no focus event from the test tools, so the event goes direct.
+        button.element.dispatchEvent(new FocusEvent('focus'))
+        await wrapper.vm.$nextTick()
+        expect(document.querySelector('[role="tooltip"]')?.textContent).toBe(
+          'Apply or delete pending splits first',
+        )
+      })
+
+      it('is enabled again once they are applied or deleted', async () => {
+        const wrapper = await mountWithMark()
+        const split = useSplitStore()
+        split.addPendingSplit(30, true)
+        await wrapper.vm.$nextTick()
+        split.deleteSelectedPendingSplit()
+        await wrapper.vm.$nextTick()
+
+        expect(exportButtonOf(wrapper, 'Export track…').attributes('disabled')).toBeUndefined()
+      })
+
+      it('has no reason while it is enabled, and keeps "Export range…" free of it', async () => {
+        const wrapper = await mountWithMark()
+        expect(await tooltipOf(exportButtonOf(wrapper, 'Export track…'))).toBe('Export track…')
+
+        useSplitStore().setRange(10, 20)
+        await wrapper.vm.$nextTick()
+        expect(exportButtonOf(wrapper, 'Export range…').attributes('disabled')).toBeUndefined()
+      })
     })
   })
 

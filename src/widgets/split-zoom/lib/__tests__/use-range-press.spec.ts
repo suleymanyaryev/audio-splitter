@@ -35,16 +35,18 @@ function doubleClickAt(canvasX: number, button = 0) {
 The playhead is at x = 450; a pointer at x is x / 10 seconds. The split lines are at the x given,
 none by default.
 */
-function pressOf(playheadX: number | null, splitXs: number[] = []) {
+function pressOf(playheadX: number | null, splitXs: number[] = [], pendingXs?: number[]) {
   const seconds = vi.fn((x: number) => x / 10)
   const grab = vi.fn()
   const move = vi.fn()
   const drop = vi.fn()
   const selectSplit = vi.fn()
+  const selectPending = vi.fn()
   const placeMark = vi.fn()
   const press = useRangePress({
     playheadX: () => playheadX,
     splitXs: () => splitXs,
+    ...(pendingXs !== undefined && { pendingXs: () => pendingXs, selectPending }),
     seconds,
     grab,
     move,
@@ -52,7 +54,7 @@ function pressOf(playheadX: number | null, splitXs: number[] = []) {
     selectSplit,
     placeMark,
   })
-  return { ...press, seconds, grab, move, drop, selectSplit, placeMark }
+  return { ...press, seconds, grab, move, drop, selectSplit, selectPending, placeMark }
 }
 
 describe('useRangePress', () => {
@@ -175,6 +177,68 @@ describe('useRangePress', () => {
 
       expect(press.grab).toHaveBeenCalledOnce()
       expect(press.selectSplit).not.toHaveBeenCalled()
+      expect(press.placeMark).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('a pending split', () => {
+    it('is selected by a press within 6 px, by its index, and nothing else happens', () => {
+      const press = pressOf(450, [], [100, 300, 700])
+      const down = pointerAt(305)
+
+      press.onPointerDown(down.event)
+
+      expect(press.selectPending).toHaveBeenCalledExactlyOnceWith(1)
+      expect(press.placeMark).not.toHaveBeenCalled()
+      expect(press.grab).not.toHaveBeenCalled()
+      expect(down.setPointerCapture).not.toHaveBeenCalled()
+      expect(press.dragging.value).toBe(false)
+    })
+
+    it('selects the nearer one when two are within reach', () => {
+      const press = pressOf(450, [], [300, 304])
+
+      press.onPointerDown(pointerAt(303).event)
+
+      expect(press.selectPending).toHaveBeenCalledExactlyOnceWith(1)
+    })
+
+    it('loses to the playhead when both are within 6 px', () => {
+      const press = pressOf(450, [], [452])
+
+      press.onPointerDown(pointerAt(451).event)
+
+      expect(press.grab).toHaveBeenCalledOnce()
+      expect(press.selectPending).not.toHaveBeenCalled()
+      expect(press.placeMark).not.toHaveBeenCalled()
+    })
+
+    it('beats the mark: a press 7 px away places the mark instead', () => {
+      const press = pressOf(450, [], [300])
+
+      press.onPointerDown(pointerAt(307).event)
+
+      expect(press.selectPending).not.toHaveBeenCalled()
+      expect(press.placeMark).toHaveBeenCalledExactlyOnceWith(30.7)
+    })
+
+    it('is not hit by a double-click, which keeps its own order', () => {
+      const press = pressOf(450, [100], [300])
+
+      press.onDoubleClick(doubleClickAt(300))
+      press.onDoubleClick(doubleClickAt(103))
+
+      expect(press.selectPending).not.toHaveBeenCalled()
+      expect(press.move).toHaveBeenCalledExactlyOnceWith(30)
+      expect(press.selectSplit).toHaveBeenCalledExactlyOnceWith(0)
+    })
+
+    it('is ignored for any button but the primary one', () => {
+      const press = pressOf(450, [], [300])
+
+      press.onPointerDown(pointerAt(300, 2).event)
+
+      expect(press.selectPending).not.toHaveBeenCalled()
       expect(press.placeMark).not.toHaveBeenCalled()
     })
   })

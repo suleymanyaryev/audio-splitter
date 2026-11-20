@@ -6,6 +6,7 @@ defineOptions({ inheritAttrs: false })
 
 const {
   hint = '',
+  reason = '',
   size = 'md',
   variant = 'secondary',
 } = defineProps<{
@@ -14,6 +15,8 @@ const {
   // The button's key ("Enter"), said in the tooltip after the label. The accessible name stays
   // the label alone.
   hint?: string
+  // Why the button is off, said in the tooltip in place of the label and the key while it is set.
+  reason?: string
   // `md` is 36 px; `sm` (32 px) is for table rows and title rows.
   size?: 'sm' | 'md'
   // `primary` is the panel's one main action, filled like UiButton's primary; `inverse` is only
@@ -33,7 +36,7 @@ const VARIANT_CLASSES = {
 </script>
 
 <template>
-  <UiTooltip :label :hint>
+  <UiTooltip :label="reason || label" :hint="reason ? '' : hint">
     <button
       v-bind="$attrs"
       type="button"

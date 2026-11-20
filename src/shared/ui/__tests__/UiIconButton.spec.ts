@@ -47,6 +47,19 @@ describe('UiIconButton', () => {
     expect(wrapper.get('button').attributes('aria-label')).toBe('Add split')
   })
 
+  it('says why it is off in its tooltip, in place of the label and the key', async () => {
+    const wrapper = mount(UiIconButton, {
+      props: { label: 'Export track…', hint: 'E', reason: 'Apply or delete pending splits first' },
+      slots: { default: '<svg />' },
+      attachTo: document.body,
+    })
+
+    await wrapper.get('button').trigger('focus')
+
+    expect(tooltipText()).toBe('Apply or delete pending splits first')
+    expect(wrapper.get('button').attributes('aria-label')).toBe('Export track…')
+  })
+
   it('passes the caller’s click to the button', async () => {
     const onClick = vi.fn()
     const wrapper = mount(UiIconButton, {

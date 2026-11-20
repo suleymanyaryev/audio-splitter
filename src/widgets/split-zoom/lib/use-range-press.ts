@@ -18,6 +18,12 @@ export interface RangePressSource {
   drop: () => void
   // A double-click on the split at that index of `splitXs` selects it.
   selectSplit: (index: number) => void
+  /*
+  Where each pending split's line is, in pixels, and what a press on the one at that index does
+  (select it). Only the Track view has them.
+  */
+  pendingXs?: () => readonly number[]
+  selectPending?: (index: number) => void
   // A single press puts the mark at a time.
   placeMark: (seconds: number) => void
 }
@@ -34,8 +40,9 @@ function isNear(x: number, playhead: number | null) {
 }
 
 /*
-The pointer handlers of the Range view: a single press takes hold of the playhead within 6 px of it,
-and otherwise places the mark. A split line is never hit by a single press, so pointing next to one
+The pointer handlers of the Range view and the Track view: a single press takes hold of the playhead
+within 6 px of it, else selects the pending split within 6 px (the Track view's), and otherwise
+places the mark. A split line is never hit by a single press, so pointing next to one
 does not leave the view. A double-click selects the split whose line is within 6 px, and otherwise
 moves the playhead there. Only the playhead is dragged: the view keeps the pointer while the
 drag lasts, every move sets the playhead's time through `move` (the pointer's distance from the line
@@ -50,6 +57,8 @@ export function useRangePress({
   move,
   drop,
   selectSplit,
+  pendingXs = () => [],
+  selectPending = () => {},
   placeMark,
 }: RangePressSource) {
   const overPlayhead = ref(false)
@@ -70,7 +79,9 @@ export function useRangePress({
       grab()
       return
     }
-    placeMark(seconds(x))
+    const pending = hitTestSplit(x, pendingXs())
+    if (pending === null) placeMark(seconds(x))
+    else selectPending(pending)
   }
 
   function onDoubleClick(event: MouseEvent) {

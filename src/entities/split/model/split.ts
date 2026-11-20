@@ -17,6 +17,10 @@ const LIMIT_TOLERANCE = 1e-9
 // Splits sit on the same 10 ms grid the arrow keys and a drag step in.
 const GRID_STEPS_PER_SECOND = 100
 
+function snapToGrid(seconds: number) {
+  return Math.round(seconds * GRID_STEPS_PER_SECOND) / GRID_STEPS_PER_SECOND
+}
+
 // `id` is stable for the split's life, so a selection and a count of edits can hold it.
 // `name` is the name of the track that starts at this split, null while it is unnamed.
 export interface Split {
@@ -97,6 +101,12 @@ export const useSplitStore = defineStore('split', () => {
   const markSeconds = ref<number | null>(null)
   // The Track view's own mark, inside the selected track, or none (see `trackSpan` below).
   const trackMarkSeconds = ref<number | null>(null)
+  /*
+  The pending splits of the selected track (GLOSSARY.md), in time order, each on the 10 ms grid, and
+  the one the user selected, or none. A pending split has no id: it never moves, so its time is it.
+  */
+  const pendingSeconds = ref<number[]>([])
+  const selectedPendingSeconds = ref<number | null>(null)
   const view = ref<PanelView>('split')
   let nextSplitId = 0
   /*
@@ -174,10 +184,16 @@ export const useSplitStore = defineStore('split', () => {
       ? null
       : `${track.startSplit?.id ?? 'first'}/${track.startSeconds}/${track.startSeconds + track.lengthSeconds}`
   })
+  function clearPending() {
+    pendingSeconds.value = []
+    selectedPendingSeconds.value = null
+  }
+  // The pending splits are the track's too: they are only valid between its two ends.
   watch(
     trackSpan,
     () => {
       trackMarkSeconds.value = null
+      clearPending()
     },
     { flush: 'sync' },
   )
@@ -212,12 +228,43 @@ export const useSplitStore = defineStore('split', () => {
     )
   }
 
+  /*
+  Room for a pending split at a time: inside the selected track and 1 s from its two ends and from
+  every other pending split. The track's ends are splits or the file's ends, so a pending split that
+  has room here makes valid tracks when applied.
+  */
+  function hasRoomForPending(seconds: number) {
+    const track = selectedTrack.value
+    if (track === null) return false
+    const end = track.startSeconds + track.lengthSeconds
+    const isClearOf = (other: number) =>
+      Math.abs(other - seconds) >= MINIMUM_DISTANCE_SECONDS - LIMIT_TOLERANCE
+    return (
+      seconds > track.startSeconds &&
+      seconds < end &&
+      isClearOf(track.startSeconds) &&
+      isClearOf(end) &&
+      pendingSeconds.value.every((other) => isClearOf(other))
+    )
+  }
+
   // "Add split" in the zoom view puts the split at the window's centre.
   const canAddSplit = computed(() => hasRoomFor(zoomCentreSeconds.value))
 
   // "Add split" in the Range view puts it at the mark, when there is one.
   const canAddSplitAtMark = computed(
     () => markSeconds.value !== null && hasRoomFor(markSeconds.value),
+  )
+
+  /*
+  "Add pending split" puts one at the Track view's mark, while there is room and no pending split is
+  selected: the user finishes with the selected one first.
+  */
+  const canAddPendingSplit = computed(
+    () =>
+      trackMarkSeconds.value !== null &&
+      selectedPendingSeconds.value === null &&
+      hasRoomForPending(snapToGrid(trackMarkSeconds.value)),
   )
 
   // Finds the gaps again and replaces all splits and all track names with the proposed ones.
@@ -237,6 +284,7 @@ export const useSplitStore = defineStore('split', () => {
     clearEdits()
     // A detection starts over, even when the first track is still the same stretch.
     trackMarkSeconds.value = null
+    clearPending()
     // The first track starts with the file, so it is keyed by no split and exists with no gap too.
     selection.value = { kind: 'track', startSplitId: null }
     // The window starts at 0:00, so the Split view shows the file's opening seconds.
@@ -340,6 +388,54 @@ export const useSplitStore = defineStore('split', () => {
     )
   }
 
+  /*
+  A pending split at a time, on the 10 ms grid and with room (`hasRoomForPending`). `isSelected` says
+  whether the new one becomes the selected one: at the mark it does, at the playhead it does not, so
+  the user can tap along a playing track and every tap is taken.
+  */
+  function addPendingSplit(seconds: number, isSelected: boolean) {
+    const onGrid = snapToGrid(seconds)
+    if (!hasRoomForPending(onGrid)) return
+    const index = pendingSeconds.value.findIndex((other) => other > onGrid)
+    pendingSeconds.value.splice(index === -1 ? pendingSeconds.value.length : index, 0, onGrid)
+    if (isSelected) selectedPendingSeconds.value = onGrid
+  }
+
+  function addPendingSplitAtMark() {
+    if (trackMarkSeconds.value !== null && canAddPendingSplit.value) {
+      addPendingSplit(trackMarkSeconds.value, true)
+    }
+  }
+
+  function selectPendingSplit(seconds: number) {
+    if (pendingSeconds.value.includes(seconds)) selectedPendingSeconds.value = seconds
+  }
+
+  function deselectPendingSplit() {
+    selectedPendingSeconds.value = null
+  }
+
+  function deleteSelectedPendingSplit() {
+    const selected = selectedPendingSeconds.value
+    if (selected === null) return
+    pendingSeconds.value = pendingSeconds.value.filter((seconds) => seconds !== selected)
+    selectedPendingSeconds.value = null
+  }
+
+  /*
+  Turns every pending split into a split, each an added edit through the same insert as any added
+  split, then selects the first new one, which centres the window on it and shows the Split view,
+  where each can be fine-tuned. The list is taken first and emptied: the first insert changes the
+  track, which would empty it under the loop.
+  */
+  function applyPendingSplits() {
+    const times = pendingSeconds.value
+    if (times.length === 0) return
+    clearPending()
+    const inserted = times.map((seconds) => insertSplit(seconds))
+    selectSplit(inserted[0]!.id)
+  }
+
   // A view needs something to show: asked for with no range or no selected track, the panel stays.
   function showView(next: PanelView) {
     if (next === 'range' && range.value === null) return
@@ -393,7 +489,7 @@ export const useSplitStore = defineStore('split', () => {
   the view, the playback and the mark stay as they are.
   */
   function addSplitAt(seconds: number) {
-    const onGrid = Math.round(seconds * GRID_STEPS_PER_SECOND) / GRID_STEPS_PER_SECOND
+    const onGrid = snapToGrid(seconds)
     if (hasRoomFor(onGrid)) insertSplit(onGrid)
   }
 
@@ -482,6 +578,7 @@ export const useSplitStore = defineStore('split', () => {
     range.value = null
     markSeconds.value = null
     trackMarkSeconds.value = null
+    clearPending()
     view.value = 'split'
     nextSplitId = 0
   }
@@ -501,6 +598,9 @@ export const useSplitStore = defineStore('split', () => {
     markSeconds,
     trackMarkSeconds,
     selectedTrackEndSplits,
+    pendingSplits: pendingSeconds,
+    selectedPendingSplit: selectedPendingSeconds,
+    canAddPendingSplit,
     view,
     canAddSplit,
     canAddSplitAtMark,
@@ -517,6 +617,12 @@ export const useSplitStore = defineStore('split', () => {
     setRange,
     placeMark,
     placeTrackMark,
+    addPendingSplit,
+    addPendingSplitAtMark,
+    selectPendingSplit,
+    deselectPendingSplit,
+    deleteSelectedPendingSplit,
+    applyPendingSplits,
     showView,
     moveSplit,
     addSplit,
