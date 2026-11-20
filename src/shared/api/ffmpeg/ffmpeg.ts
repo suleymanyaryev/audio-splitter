@@ -39,7 +39,7 @@ function inputName(file: File): string {
 }
 
 // Loading fetches and compiles the 32 MB core; file calls (mount, read, delete) take milliseconds.
-const LOAD_TIMEOUT_MS = 60_000
+const LOAD_TIMEOUT_MS = 180_000
 const FILE_TIMEOUT_MS = 10_000
 
 /*

@@ -17,6 +17,10 @@ Versions follow [Semantic Versioning](https://semver.org/) applied to the produc
 
 ## [Unreleased]
 
+### Changed
+
+- Loading the audio engine now waits up to 3 minutes instead of 1 before giving up, so a slow connection can finish downloading it.
+
 ## [1.0.1] - 2026-11-20
 
 ### Added
