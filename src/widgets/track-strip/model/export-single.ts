@@ -175,23 +175,29 @@ export const useExportSingleStore = defineStore('export-single', () => {
     return freeFileName(wanted, taken)
   }
 
+  // Whether the name is the one the dialog offered, held to a name's length as the typed one is.
+  function isOffered(name: string): boolean {
+    return name === defaultName.value.trim().slice(0, MAX_TRACK_NAME_LENGTH)
+  }
+
   // The name the track has once confirmed: its own, or none for an unnamed track left as offered.
   function trackNameOf(target: Subject & { kind: 'track' }, name: string): string | null {
-    return name === defaultName.value ? target.ownName : name
+    return isOffered(name) ? target.ownName : name
   }
+
+  const isOpen = () => status.value === 'naming' || status.value === 'failed'
 
   async function confirm(typed: string) {
     const target = subjectOf.value
     const { file, format } = sourceFile
     const name = typed.trim().slice(0, MAX_TRACK_NAME_LENGTH)
-    const canConfirm = status.value === 'naming' || status.value === 'failed'
     if (
+      name === '' ||
       target === null ||
       file === null ||
       format === null ||
-      !canConfirm ||
-      name === '' ||
-      lock.isHeld
+      lock.isHeld ||
+      !isOpen()
     )
       return
     lock.take('single')
@@ -200,34 +206,38 @@ export const useExportSingleStore = defineStore('export-single', () => {
       const where = folder ?? (await pick())
       // Closed, or failed: the dialog stays, and the name is not taken yet.
       if (where === null) return
+      // The dialog was closed while the picker was open: nothing is asked of the export any more.
+      if (!isOpen()) return
 
       status.value = 'running'
       failure.value = null
-      const stem = sourceStem(file.name)
-
-      let tags
-      if (target.kind === 'track') {
-        const trackName = trackNameOf(target, name)
-        if (name !== defaultName.value) splitStore.renameTrack(target.startSplitId, name)
-        tags = trackTags({ ...target, name: trackName, sourceStem: stem })
-      } else {
-        tags = rangeTags({ name, sourceStem: stem })
-      }
-
       try {
-        const fileName = await fileNameFor(target, name, where, format)
-        let bytes: Uint8Array | null = await sourceFile.cutTrack({
+        const stem = sourceStem(file.name)
+        let tags
+        if (target.kind === 'track') {
+          if (!isOffered(name)) splitStore.renameTrack(target.startSplitId, name)
+          tags = trackTags({ ...target, name: trackNameOf(target, name), sourceStem: stem })
+        } else {
+          tags = rangeTags({ name, sourceStem: stem })
+        }
+
+        // The cut is asked for before anything else is awaited, so a Cancel always has it to stop.
+        const cut = sourceFile.cutTrack({
           startSeconds: target.startSeconds,
           endSeconds: target.endSeconds,
           tags,
         })
+        // Both at once, so the cut's failure is never left unhandled while the names are listed.
+        const [cutBytes, fileName] = await Promise.all([
+          cut,
+          fileNameFor(target, name, where, format),
+        ])
         // A cancel that came as the cut ended: the file is not written.
         if (wasCancelled) {
           status.value = 'idle'
           return
         }
-        await writeFile(where, fileName, bytes)
-        bytes = null
+        await writeFile(where, fileName, cutBytes)
         savedFile.value = fileName
         savedFolderName.value = where.name
         status.value = 'saved'

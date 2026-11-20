@@ -378,7 +378,7 @@ Reka `TooltipProvider` / `TooltipRoot` / `TooltipTrigger` / `TooltipContent`, wr
 
 - **Default:** native `input`: `h-9 w-full max-w-56 rounded-control border border-edge bg-surface px-2.5 text-sm text-ink enabled:hover:border-ink focus-visible:focus-ring disabled:opacity-40`.
 - **Hover:** border goes to ink. **Focus:** ink ring. **Disabled:** 40% opacity.
-- **Invalid:** set `aria-invalid="true"` and the field takes `aria-invalid:border-split aria-invalid:outline-split` (vermilion border at rest, vermilion ring when focused). The message sits directly below: `mt-1 text-xs font-semibold text-split`, linked with `aria-describedby`, written as a plain sentence. No field uses it yet: track names are never invalid.
+- **Invalid:** set `aria-invalid="true"` and the field takes `aria-invalid:border-split aria-invalid:outline-split` (vermilion border at rest, vermilion ring when focused). The message sits directly below: `mt-1 text-xs font-semibold text-split`, linked with `aria-describedby`, written as a plain sentence. The single export's name field uses it for a failed export's reason; a track name is never invalid.
 - **Wide variant** (the name in the single export's dialog): the default's look across the whole width, without `max-w-56`.
 - **Inline variant** (rename a track inside its track-list row): `-mx-1.5 h-6 w-[calc(100%+12px)] rounded-control border border-transparent bg-transparent px-1.5 text-sm text-ink enabled:hover:border-edge focus-visible:focus-ring`. It reads as the row's text until hovered (edge border) or focused (ink ring). It has no invalid state: export sanitises filenames, so no track name is wrong.
 

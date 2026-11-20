@@ -251,6 +251,27 @@ describe('the single export store', () => {
       )
     })
 
+    it('is left alone when the default is too long for a name and is confirmed as it is', async () => {
+      const { sourceFile, split, exporter } = setUp()
+      // `<stem> 02` is 101 characters: the dialog's field takes it whole and the name is held to 100.
+      sourceFile.file = new File([], `${'x'.repeat(98)}.m4a`)
+      exporter.openTrack(trackOf(split, 2))
+
+      await exporter.confirm(exporter.defaultName)
+
+      expect(trackOf(split, 2).name).toBe('2')
+      expect(split.editCount).toBe(0)
+    })
+
+    it('is left alone when the default is confirmed with spaces around it', async () => {
+      const { split, exporter } = setUp()
+      exporter.openTrack(trackOf(split, 2))
+
+      await exporter.confirm('  Evening Set 02 ')
+
+      expect(split.editCount).toBe(0)
+    })
+
     it('is left alone when a named track’s name is confirmed as it is', async () => {
       const { split, exporter } = setUp()
       split.renameTrack(null, 'Opening')
@@ -355,6 +376,24 @@ describe('the single export store', () => {
 
       await exporter.confirm('Chorus')
       expect(exporter.status).toBe('saved')
+    })
+
+    it('runs nothing when the dialog was closed while the picker was open', async () => {
+      const { split, exporter } = setUp()
+      const picking = deferred<FakeFolder>()
+      picker.mockReturnValueOnce(picking.promise)
+      exporter.openTrack(trackOf(split, 2))
+
+      const run = exporter.confirm('Chorus')
+      await flush()
+      exporter.close()
+      picking.resolve(folder)
+      await run
+
+      expect(exporter.status).toBe('idle')
+      expect(cutTrack).not.toHaveBeenCalled()
+      expect(trackOf(split, 2).name).toBe('2')
+      expect(folder.files.size).toBe(0)
     })
 
     it('reports a picker that fails for another reason, in the dialog', async () => {
@@ -504,6 +543,26 @@ describe('the single export store', () => {
 
       expect(exporter.status).toBe('idle')
       expect(folder.files.size).toBe(0)
+    })
+
+    it('stops a cut that is asked for right after a cancel, however early the cancel came', async () => {
+      const { split, exporter } = setUp()
+      exporter.openTrack(trackOf(split, 1))
+      // The folder is remembered from a first export, so the second has no picker to wait for.
+      await exporter.confirm('Zero')
+      const cut = deferred<Uint8Array>()
+      cutTrack.mockReturnValueOnce(cut.promise)
+      exporter.openTrack(trackOf(split, 1))
+
+      const run = exporter.confirm('One')
+      // The cut is asked for in the same turn as the run starts, so a cancel has one to stop.
+      expect(cutTrack).toHaveBeenCalledTimes(2)
+      exporter.cancel()
+      expect(stopCuts).toHaveBeenCalledOnce()
+      cut.reject(new Error('stopped'))
+      await run
+
+      expect(exporter.status).toBe('idle')
     })
 
     it('can run again after a cancel', async () => {

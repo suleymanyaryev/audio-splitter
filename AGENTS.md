@@ -46,7 +46,7 @@ The list below says where, not what: one line per slice on what it is for, never
 - `src/widgets/shortcuts-dialog/`: The dialog that lists every key and pointer gesture of the review screen
 - `src/widgets/split-zoom/`: The zoom panel's two views, `SplitZoom` and `RangeView`, and `model/audition.ts`, the one player
 - `src/widgets/track-list/`: The tracks as a table
-- `src/widgets/track-strip/`: The tracks as proportional blocks, and the exports: every track to a folder, one track or the range as one file
+- `src/widgets/track-strip/`: The tracks as proportional blocks, and the export to a folder
 - `src/entities/source-file/`: The loaded file, its analysis and its open ffmpeg session; `api/` holds one ffmpeg command per job
 - `src/entities/split/`: The splits and what derives from them (gaps, tracks, selection, range); tuned constants in `config/`
 - `src/shared/api/ffmpeg/`: The ffmpeg.wasm session (`ffmpeg.ts`) and `__tests__/fake-ffmpeg.ts`, its stand-in in specs

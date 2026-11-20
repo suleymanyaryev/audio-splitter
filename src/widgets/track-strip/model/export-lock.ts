@@ -11,9 +11,9 @@ export const useExportLockStore = defineStore('export-lock', () => {
   const holder = ref<'full' | 'single' | null>(null)
   const isHeld = computed(() => holder.value !== null)
 
-  // The caller checks `isHeld` first: one export starts at a time, and a start is synchronous.
+  // Quiet when the other export has it: the caller checks `isHeld` first to know whether it did.
   function take(who: 'full' | 'single') {
-    holder.value = who
+    holder.value ??= who
   }
 
   function release(who: 'full' | 'single') {
