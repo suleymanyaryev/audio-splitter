@@ -3,7 +3,7 @@ name: store-wiring
 description: Where state and new code go, and how the stores connect. Use when adding a store or state to one, adding a slice or file, wiring two stores together, or adding something that changes the user's edits or plays sound.
 ---
 
-The import rules are in AGENTS.md "Code layout" and enforced by `pnpm lint`; this is the judgement behind them. The four stores, what each holds and who calls whom are in `docs/architecture.md` "The stores": read it before adding state.
+The import rules are in AGENTS.md "Code layout" and enforced by `pnpm lint`; this is the judgement behind them. The stores, what each holds and who calls whom are in `docs/architecture.md` "The stores": read it before adding state.
 
 ## Placing state
 

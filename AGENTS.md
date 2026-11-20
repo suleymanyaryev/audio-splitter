@@ -43,6 +43,7 @@ The list below says where, not what: one line per slice on what it is for, never
 - `src/pages/review/`: `ReviewPage.vue`: the review screen's panels and actions, and the wiring between stores
 - `src/widgets/source-waveform/`: The whole-file waveform and what the pointer does on it
 - `src/widgets/loudness-curve/`: The loudness curve, its settings, and the replace-your-edits guard
+- `src/widgets/shortcuts-dialog/`: The dialog that lists every key and pointer gesture of the review screen
 - `src/widgets/split-zoom/`: The zoom panel's two views, `SplitZoom` and `RangeView`, and `model/audition.ts`, the one player
 - `src/widgets/track-list/`: The tracks as a table
 - `src/widgets/track-strip/`: The tracks as proportional blocks, and the export to a folder

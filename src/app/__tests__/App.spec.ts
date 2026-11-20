@@ -39,12 +39,27 @@ function dialogButton(text: string) {
   return button
 }
 
+function shortcutsButton(wrapper: ReturnType<typeof mount>) {
+  return wrapper.find('header button[aria-label="Keyboard shortcuts"]')
+}
+
+function shortcutsDialog() {
+  return document.querySelector('[role="dialog"]')
+}
+
+function newFileButton(wrapper: ReturnType<typeof mount>) {
+  const button = wrapper
+    .findAll('header button')
+    .find((candidate) => candidate.text() === 'New file')
+  if (!button) throw new Error('no New file button')
+  return button
+}
+
 async function loadAndEdit() {
   const wrapper = mount(App, { attachTo: document.body })
   await chooseFile(wrapper, file)
   useSplitStore().renameTrack(null, 'Opener')
-  const newFile = wrapper.findAll('header button').find((button) => button.text() === 'New file')
-  await newFile?.trigger('click')
+  await newFileButton(wrapper).trigger('click')
   await flushPromises()
   return wrapper
 }
@@ -89,7 +104,7 @@ describe('App', () => {
     expect(headings(wrapper)).toContain('Tracks (1)')
     expect(wrapper.findAll('tbody tr')).toHaveLength(1)
 
-    await wrapper.get('header button').trigger('click')
+    await newFileButton(wrapper).trigger('click')
     expect(split.tracks).toEqual([])
   })
 
@@ -142,6 +157,48 @@ describe('App', () => {
     expect(wrapper.text()).not.toContain('evening-set-vol3.m4a')
   })
 
+  describe('the shortcuts button', () => {
+    it('is not on the load page', () => {
+      const wrapper = mount(App)
+
+      expect(shortcutsButton(wrapper).exists()).toBe(false)
+    })
+
+    it('is in the header once the review screen is up, with its tooltip and key', async () => {
+      const wrapper = mount(App, { attachTo: document.body })
+      await chooseFile(wrapper, file)
+
+      const button = shortcutsButton(wrapper)
+      expect(button.exists()).toBe(true)
+      await button.trigger('focus')
+
+      expect(document.querySelector('[role="tooltip"]')?.textContent).toBe('Keyboard shortcuts (?)')
+      wrapper.unmount()
+    })
+
+    it('opens the shortcuts dialog', async () => {
+      const wrapper = mount(App, { attachTo: document.body })
+      await chooseFile(wrapper, file)
+
+      await shortcutsButton(wrapper).trigger('click')
+      await flushPromises()
+
+      expect(shortcutsDialog()?.textContent).toContain('Keyboard shortcuts')
+      wrapper.unmount()
+    })
+
+    it('goes with the review screen on "New file"', async () => {
+      const wrapper = mount(App, { attachTo: document.body })
+      await chooseFile(wrapper, file)
+
+      await newFileButton(wrapper).trigger('click')
+      await flushPromises()
+
+      expect(shortcutsButton(wrapper).exists()).toBe(false)
+      wrapper.unmount()
+    })
+  })
+
   describe('"New file" with edits to lose', () => {
     it('asks first, counting the edits, and stays on the review page', async () => {
       const wrapper = await loadAndEdit()
@@ -181,7 +238,7 @@ describe('App', () => {
       const wrapper = mount(App, { attachTo: document.body })
       await chooseFile(wrapper, file)
 
-      await wrapper.get('header button').trigger('click')
+      await newFileButton(wrapper).trigger('click')
       await flushPromises()
 
       expect(dialog()).toBeNull()

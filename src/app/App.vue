@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import { CircleQuestionMark } from 'lucide-vue-next'
 
 import { useSourceFileStore } from '@/entities/source-file/model/source-file.ts'
 import { formatEdits } from '@/entities/split/lib/format-edits.ts'
@@ -9,10 +10,13 @@ import ReviewPage from '@/pages/review/ui/ReviewPage.vue'
 import { formatDuration } from '@/shared/lib/time/format-duration.ts'
 import UiButton from '@/shared/ui/UiButton.vue'
 import UiDialog from '@/shared/ui/UiDialog.vue'
+import UiIconButton from '@/shared/ui/UiIconButton.vue'
+import { useShortcutsDialogStore } from '@/widgets/shortcuts-dialog/model/shortcuts-dialog.ts'
 
 // No router: the page follows whether a file is loaded (docs/adr/0001-fsd-subset.md).
 const sourceFile = useSourceFileStore()
 const split = useSplitStore()
+const shortcuts = useShortcutsDialogStore()
 
 // The file chip: the name while loading, then its duration once the probe has read it.
 const chip = computed(() => {
@@ -55,6 +59,15 @@ function discardAndReset() {
     <span class="ml-auto shrink-0 text-xs text-on-vinyl-muted"
       >Local only · nothing is uploaded</span
     >
+    <UiIconButton
+      v-if="sourceFile.status === 'ready'"
+      variant="inverse"
+      label="Keyboard shortcuts"
+      hint="?"
+      @click="shortcuts.show()"
+    >
+      <CircleQuestionMark class="size-4 shrink-0" />
+    </UiIconButton>
     <UiButton v-if="sourceFile.status === 'ready'" variant="inverse" @click="newFile">
       New file
     </UiButton>

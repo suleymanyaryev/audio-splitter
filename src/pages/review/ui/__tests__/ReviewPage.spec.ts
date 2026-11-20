@@ -1,9 +1,10 @@
 import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 
-import { enableAutoUnmount, mount } from '@vue/test-utils'
+import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils'
 import { useSourceFileStore } from '@/entities/source-file/model/source-file.ts'
 import { useSplitStore } from '@/entities/split/model/split.ts'
+import { useShortcutsDialogStore } from '@/widgets/shortcuts-dialog/model/shortcuts-dialog.ts'
 import { useAuditionStore } from '@/widgets/split-zoom/model/audition.ts'
 import { useExportTracksStore } from '@/widgets/track-strip/model/export-tracks.ts'
 import ReviewPage from '../ReviewPage.vue'
@@ -50,6 +51,13 @@ async function mountPageWithRange() {
 // named by their words.
 function nameOf(button: { attributes: (name: string) => string | undefined; text: () => string }) {
   return button.attributes('aria-label') ?? button.text()
+}
+
+const shortcutsDialog = () => document.querySelector('[role="dialog"]')
+const firstSection = () => shortcutsDialog()?.querySelector('h3')?.textContent
+
+function pressQuestionMark(target: Element | Document = document) {
+  target.dispatchEvent(new KeyboardEvent('keydown', { key: '?', bubbles: true, cancelable: true }))
 }
 
 // What the tooltip says once the button takes the keyboard.
@@ -741,6 +749,79 @@ describe('ReviewPage', () => {
       audition.stretchStatus = 'paused'
       await wrapper.vm.$nextTick()
       expect(nameOf(rangeButton(wrapper))).toBe('Play')
+    })
+  })
+
+  describe('the shortcuts dialog', () => {
+    it('opens on ? pressed anywhere on the page', async () => {
+      mountPage()
+      expect(shortcutsDialog()).toBeNull()
+
+      pressQuestionMark()
+      await flushPromises()
+
+      expect(shortcutsDialog()?.textContent).toContain('Keyboard shortcuts')
+    })
+
+    it('does not open on ? typed into a track name, which stays a question mark', async () => {
+      const wrapper = mountPage()
+      const field = wrapper.get('input[aria-label="Name of track 1"]')
+
+      pressQuestionMark(field.element)
+      await flushPromises()
+
+      expect(shortcutsDialog()).toBeNull()
+    })
+
+    it('puts the Split view first while it is on show', async () => {
+      mountPage()
+
+      pressQuestionMark()
+      await flushPromises()
+
+      expect(firstSection()).toBe('Split view')
+    })
+
+    it('puts the Track view first while a track is on show', async () => {
+      await mountPageWithTrack(2)
+
+      pressQuestionMark()
+      await flushPromises()
+
+      expect(firstSection()).toBe('Track view')
+    })
+
+    it('puts the Range view first while a range is on show', async () => {
+      await mountPageWithRange()
+
+      pressQuestionMark()
+      await flushPromises()
+
+      expect(firstSection()).toBe('Range view')
+    })
+
+    it('closes on Escape', async () => {
+      mountPage()
+      pressQuestionMark()
+      await flushPromises()
+
+      shortcutsDialog()?.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }),
+      )
+      await flushPromises()
+
+      expect(shortcutsDialog()).toBeNull()
+    })
+
+    it('is closed when the page goes away', async () => {
+      const wrapper = mountPage()
+      pressQuestionMark()
+      await flushPromises()
+
+      wrapper.unmount()
+      await flushPromises()
+
+      expect(useShortcutsDialogStore().isOpen).toBe(false)
     })
   })
 

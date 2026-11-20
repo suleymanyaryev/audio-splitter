@@ -17,6 +17,10 @@ Versions follow [Semantic Versioning](https://semver.org/) applied to the produc
 
 ## [Unreleased]
 
+### Added
+
+- A `?` button in the header, "Keyboard shortcuts (?)", on the review screen, or the `?` key anywhere on the page, opens a dialog that lists every key and pointer gesture of the review screen, grouped by area: Split view, Track view, Range view, whole-file view and Track list, with the view on show first. `?` typed into a track name stays a question mark. Escape, a click outside or "Close" closes it.
+
 ### Changed
 
 - Every button in the zoom panel's title row, in all three views, is now an icon button with a tooltip that says what it does and, where there is one, its key: "Add split" (Enter in the Range view), "Delete split (Delete)", "Back to track start (Home)", and Play across split, Play, Pause and Stop with "(Space)". The tooltip opens when the pointer rests on the button and when the keyboard focuses it, and closes on Escape. Play's icon and tooltip follow what a press will do. The Track list's merge and trash buttons show their names as tooltips too. The `Split | Track | Range` control, "Export to folder…" and "New file" keep their words.

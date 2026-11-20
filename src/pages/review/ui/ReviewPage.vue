@@ -15,6 +15,9 @@ import { rangeTitle } from '@/widgets/split-zoom/lib/range-title.ts'
 import { trackExtent } from '@/widgets/split-zoom/lib/track-extent.ts'
 import { trackTitle } from '@/widgets/split-zoom/lib/track-title.ts'
 import { zoomTitle } from '@/widgets/split-zoom/lib/zoom-title.ts'
+import { useQuestionMarkKey } from '@/widgets/shortcuts-dialog/lib/use-question-mark-key.ts'
+import { useShortcutsDialogStore } from '@/widgets/shortcuts-dialog/model/shortcuts-dialog.ts'
+import ShortcutsDialog from '@/widgets/shortcuts-dialog/ui/ShortcutsDialog.vue'
 import { useAuditionStore } from '@/widgets/split-zoom/model/audition.ts'
 import RangeView from '@/widgets/split-zoom/ui/RangeView.vue'
 import SplitZoom from '@/widgets/split-zoom/ui/SplitZoom.vue'
@@ -47,6 +50,12 @@ const sourceFile = useSourceFileStore()
 const split = useSplitStore()
 const audition = useAuditionStore()
 const exporter = useExportTracksStore()
+const shortcuts = useShortcutsDialogStore()
+
+// `?` anywhere on the page opens the shortcuts dialog, as the header's button does.
+useQuestionMarkKey(() => {
+  shortcuts.show()
+})
 
 const { loudness, loudnessWindowSeconds, durationSeconds } = sourceFile
 if (loudness && loudnessWindowSeconds !== null && durationSeconds !== null) {
@@ -56,6 +65,7 @@ onUnmounted(() => {
   // First, so that no clip is left playing over a page that has no split to show.
   audition.stop()
   split.reset()
+  shortcuts.hide()
 })
 
 // A clip must not play over the export, which locks the page.
@@ -254,5 +264,6 @@ watch(
     </UiPanel>
 
     <ExportDialog />
+    <ShortcutsDialog />
   </main>
 </template>

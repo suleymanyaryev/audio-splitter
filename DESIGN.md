@@ -333,7 +333,7 @@ Borders are 1px: hairline for panels and row rules, control edge for controls, v
 
 ## Components
 
-Every kit component lives in `src/shared/ui/` as `Ui<Name>.vue` (`UiButton`, `UiIconButton`, `UiTextField`, `UiSlider`, `UiSegmentedControl`, `UiPanel`, `UiProgressBar`, `UiDialog`, `UiTooltip`; the prefix keeps a kit component from reading like a native element) and is a Reka UI 2 primitive (or a native element) styled with Tailwind 4 utilities on the tokens below. Classes are given exactly; `focus-ring` is the custom utility defined in the token block.
+Every kit component lives in `src/shared/ui/` as `Ui<Name>.vue` (`UiButton`, `UiIconButton`, `UiTextField`, `UiSlider`, `UiSegmentedControl`, `UiPanel`, `UiProgressBar`, `UiDialog`, `UiPlainDialog`, `UiTooltip`; the prefix keeps a kit component from reading like a native element) and is a Reka UI 2 primitive (or a native element) styled with Tailwind 4 utilities on the tokens below. Classes are given exactly; `focus-ring` is the custom utility defined in the token block.
 
 **Focus.** Every interactive element shows `focus-visible:focus-ring`: a 2px solid ink outline at 2px offset. On the vinyl band the ring uses `on-vinyl`. On a track block (clicking one selects its track) it uses `on-track`.
 
@@ -341,7 +341,7 @@ Every kit component lives in `src/shared/ui/` as `Ui<Name>.vue` (`UiButton`, `Ui
 
 **Motion.** `transition-colors duration-100` on buttons and icon buttons; nothing else animates.
 
-**Icons.** `lucide-vue-next`, 16 px (`size-4`), stroke width 2, round caps and joins, `shrink-0`, coloured `currentColor`. Play, Pause and Square (stop) are drawn filled (`fill="currentColor"`, no stroke). Icons used so far: Play, Pause, Square, SkipBack (back to range start), ChevronsLeft, ChevronsRight (step 3 s), Trash2 (delete split), Merge (remove track), Plus (add split), Download (export). Unicode glyphs are never icons; typographic separators such as the middle dot and the minus sign are text.
+**Icons.** `lucide-vue-next`, 16 px (`size-4`), stroke width 2, round caps and joins, `shrink-0`, coloured `currentColor`. Play, Pause and Square (stop) are drawn filled (`fill="currentColor"`, no stroke). Icons used so far: Play, Pause, Square, SkipBack (back to range start), ChevronsLeft, ChevronsRight (step 3 s), Trash2 (delete split), Merge (remove track), Plus (add split), Download (export), CircleQuestionMark (keyboard shortcuts). Unicode glyphs are never icons; typographic separators such as the middle dot and the minus sign are text.
 
 ### Buttons
 
@@ -363,6 +363,7 @@ Character: firm and quiet; ink does the talking, colour only for danger.
 - A 36 px square styled like a secondary button, holding one 16 px icon. The `label` is required: it is the button's accessible name (`aria-label`) and its tooltip, so the icon costs a screen reader nothing and a sighted user never has to guess. An optional `hint` names the button's key, and the tooltip says it after the label ("Add split (Enter)"); the accessible name stays the label alone.
 - **Small (`sm`):** `size-8` in place of `size-9`, for table rows and title rows.
 - **Primary:** `bg-ink text-surface enabled:hover:bg-wave` in place of the secondary fill and border: a title row's one main action, Play, as the filled button is elsewhere. One per panel at most.
+- **Inverse:** the inverse button's fill and spelled-out ring (`bg-on-vinyl text-vinyl enabled:hover:bg-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-on-vinyl`), 36 px, only on the vinyl header band: the `?` button. Its tooltip is the ordinary one, which flips below the button because the band is at the top of the page.
 - A caller's `class` and listeners go to the button, not to the tooltip around it.
 
 ### Tooltip
@@ -419,9 +420,17 @@ Reka `AlertDialog`: the confirm before a setting change or "New file" replaces e
 - **Frame:** the panel frame, centred: `fixed top-1/2 left-1/2 z-50 w-[calc(100vw-32px)] max-w-md -translate-1/2 rounded-panel border border-hairline bg-surface p-4 focus:outline-none` (focus moves to the first button, which shows the ring). No shadow.
 - **Content:** title in Title (`text-base font-semibold`), the description below it in Body (`mt-1`), optional content (`mt-4`, e.g. a `ProgressBar`), then the actions right-aligned (`mt-4 flex justify-end gap-2`): a secondary button first that keeps things as they are ("Keep edits", or "Cancel"), the action last (danger when it discards edits: "Replace", "New file").
 
+### Plain dialog
+
+Reka `Dialog` (`UiPlainDialog`): a dialog that gives information or asks for a name, where the alert dialog asks a yes-or-no question. It looks like the alert dialog (the same opaque ground and panel frame, no shadow) and differs in what closes it: Escape and a press outside it both close it, where the alert dialog ignores a press outside. The keyboard shortcuts dialog is the first.
+
+- **Frame:** the alert dialog's frame, with `max-h-[calc(100vh-32px)] overflow-y-auto` so a long list scrolls inside it and the dialog never leaves the screen. `md` is `max-w-md` (448 px); `lg` is `max-w-2xl` (672 px), for a dialog that holds a list.
+- **Content:** title in Title, the description below it in Body (`mt-1`), the content (`mt-4`), then the actions, right-aligned, only when there are any (`mt-4 flex justify-end gap-2`). The shortcuts dialog's one action is a secondary "Close".
+- **Shortcut list:** one `section` per area (`mt-4`, none above the first), its `h3` in Label with a hairline rule below (`border-b border-hairline pb-1 text-sm font-semibold`), then a two-column `dl` (`grid-cols-[minmax(0,13rem)_minmax(0,1fr)] gap-x-4 gap-y-1 text-sm`): the key or gesture in `font-semibold` ink, what it does in `text-muted`. The view on show is the first section.
+
 ### Header band
 
-`flex h-12 items-center gap-4 border-b border-vinyl-edge bg-vinyl px-4 text-on-vinyl`, in both themes. Left to right: the centre-label mark (a 20px vermilion disc with a 6px vinyl hole, `aria-hidden`), the product name in Headline, the file chip (`rounded-control border border-vinyl-edge px-2.5 py-1 text-xs font-semibold`), quiet text pushed right in `text-xs text-on-vinyl-muted`, and inverse buttons.
+`flex h-12 items-center gap-4 border-b border-vinyl-edge bg-vinyl px-4 text-on-vinyl`, in both themes. Left to right: the centre-label mark (a 20px vermilion disc with a 6px vinyl hole, `aria-hidden`), the product name in Headline, the file chip (`rounded-control border border-vinyl-edge px-2.5 py-1 text-xs font-semibold`), quiet text pushed right in `text-xs text-on-vinyl-muted`, and inverse buttons: the `?` icon button ("Keyboard shortcuts (?)", review screen only), then "New file".
 
 ### Track strip and track blocks
 
