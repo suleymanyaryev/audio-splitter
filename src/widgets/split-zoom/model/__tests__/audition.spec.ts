@@ -1836,6 +1836,16 @@ describe('the audition store', () => {
       expect(audition.volumeDecibels).toBe(0)
     })
 
+    it('ignores a level that is not a number, which the element would throw on', async () => {
+      const { audition } = await playing()
+      audition.setVolume(-12)
+
+      audition.setVolume(NaN)
+
+      expect(audition.volumeDecibels).toBe(-12)
+      expect(audio().volume).toBeCloseTo(0.2512, 4)
+    })
+
     it('keeps the level and the mute, so a store made later reads them back', () => {
       const first = setUp().audition
       first.setVolume(-15)

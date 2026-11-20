@@ -6,7 +6,7 @@ The diagrams are drawn from the code. When a change alters what one of them show
 
 ## The stores
 
-Seven Pinia setup stores hold all state, in memory only. Two are entities; five belong to the widget that owns the behaviour.
+Seven Pinia setup stores hold all state in memory; only the player's volume and mute flag are also kept in `localStorage`. Two are entities; five belong to the widget that owns the behaviour.
 
 | Store              | Slice                      | Holds                                                                                                                                                                                                                                                                                                    |
 | ------------------ | -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

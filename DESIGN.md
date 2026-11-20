@@ -384,7 +384,7 @@ Reka `TooltipProvider` / `TooltipRoot` / `TooltipTrigger` / `TooltipContent`, wr
 
 ### Slider
 
-Reka `SliderRoot` / `SliderTrack` / `SliderRange` / `SliderThumb`; focus and ARIA live on the thumb (`aria-label` names the setting).
+Reka `SliderRoot` / `SliderTrack` / `SliderRange` / `SliderThumb`; focus and ARIA live on the thumb (`aria-label` names the setting, `aria-valuetext` is the readout).
 
 - **Root:** `relative flex h-5 min-w-32 flex-1 items-center`; the width comes from the context, set on the component (`class="w-72"`) and shared by name, track and readout; disabled: `data-disabled:opacity-40`.
 - **Track:** `relative h-1 w-full rounded-full bg-hairline`. **Range:** `absolute h-1 rounded-full bg-ink` (Reka sets its ends).

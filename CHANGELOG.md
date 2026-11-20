@@ -26,6 +26,7 @@ Versions follow [Semantic Versioning](https://semver.org/) applied to the produc
 
 ### Changed
 
+- Every slider now announces its value with its unit to a screen reader ("−27.0 dB", "2.0 s") instead of the bare number.
 - In the Range view a single click places the mark wherever it lands, even next to a split's line, and never leaves the view. A double-click moves the playhead there, or, within 6 px of a split's line, selects that split and opens the Split view. Left and Right now move the playhead 1 s, with Shift 10 s, as in the Track view; the mark is placed with the pointer only. The view is a slider on the playhead.
 - Every button in the zoom panel's title row, in all three views, is now an icon button with a tooltip that says what it does and, where there is one, its key: "Add split" (Enter in the Range view), "Delete split (Delete)", "Back to track start (Home)", and Play across split, Play, Pause and Stop with "(Space)". The tooltip opens when the pointer rests on the button and when the keyboard focuses it, and closes on Escape. Play's icon and tooltip follow what a press will do. The Track list's merge and trash buttons show their names as tooltips too. The `Split | Track | Range` control, "Export to folder…" and "New file" keep their words.
 - A freshly analysed file opens with track 1 selected in the Track view, ready to play, instead of on the first split. Changing the silence threshold or the minimum gap length selects track 1 again, and shows the Track view unless the Range view is on show. The Split view then opens on the file's first seconds with no split selected.
@@ -50,6 +51,7 @@ Versions follow [Semantic Versioning](https://semver.org/) applied to the produc
 
 ### Changed
 
+- Every slider now announces its value with its unit to a screen reader ("−27.0 dB", "2.0 s") instead of the bare number.
 - The tab icon is the header's centre-label mark, a vermilion disc with a spindle hole on vinyl black, in place of the default icon. The page has a description, and a link to it shows a preview card with the title, a line about what the app does and a waveform cut into tracks.
 
 ## [1.0.0] - 2026-11-15

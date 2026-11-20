@@ -5,9 +5,9 @@ import { FileReplacedError, useSourceFileStore } from '@/entities/source-file/mo
 import type { TimeRange } from '@/entities/split/lib/range-between.ts'
 import { useSplitStore } from '@/entities/split/model/split.ts'
 import { decibelsToGain } from '@/shared/lib/audio/decibels-to-gain.ts'
+import { readSavedVolume, saveVolume } from '../api/saved-volume.ts'
 import { MAX_VOLUME_DB, MIN_VOLUME_DB } from '../config/volume.ts'
 import { decodeWindow, nextWindow, windowHolds } from '../lib/decode-window.ts'
-import { readSavedVolume, saveVolume } from '../lib/saved-volume.ts'
 
 // How far the audition reaches either side of the split.
 const REACH_SECONDS = 4
@@ -118,6 +118,8 @@ export const useAuditionStore = defineStore('audition', () => {
 
   // Whole dB from the quietest to full: the slider's own range, held here too.
   function setVolume(decibels: number) {
+    // Not a number (the element's `volume` would throw on it): nothing changes.
+    if (!Number.isFinite(decibels)) return
     volumeDecibels.value = Math.min(Math.max(Math.round(decibels), MIN_VOLUME_DB), MAX_VOLUME_DB)
   }
 

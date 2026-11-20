@@ -9,7 +9,7 @@ The import rules are in AGENTS.md "Code layout" and enforced by `pnpm lint`; thi
 
 - **Entity store** (`entities/source-file`, `entities/split`): state that more than one widget reads, about the file or the splits.
 - **Widget-owned store** (`widgets/split-zoom/model/audition.ts`, `widgets/track-strip/model/export-tracks.ts`): state that belongs to one behaviour, which the page and other widgets only start or stop.
-- Pinia setup stores, in memory only.
+- Pinia setup stores, in memory only, except the player's volume and mute flag, which `localStorage` also keeps (`widgets/split-zoom/api/saved-volume.ts`).
 - The store owns its state and changes it only through actions. Widgets call `selectSplit`, `moveZoomTo` and `setRange`, never assign. An action given out-of-range input refuses quietly and keeps the state it had (an unknown id, a range under 1 s, `addSplit` with no room).
 - Put a tuned constant in its own `config/` file, imported by the store and the widgets (`entities/split/config/range-limits.ts`).
 - Put pure maths in `lib/` with its own spec, and have the store call it. When a live preview and the store compute the same thing, they share one function, so the two agree: `entities/split/lib/range-between.ts` serves both the waveform's drag overlay and `setRange`.
