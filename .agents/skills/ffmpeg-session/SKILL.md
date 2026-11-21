@@ -11,7 +11,7 @@ One ffmpeg session per loaded file, owned by the `source-file` store. Read `docs
   - the watchdog timeout (a hung call terminates the worker)
   - a fresh worker every 20 calls
   - `interrupt()`, which rejects the running call with "ffmpeg was stopped" and leaves the session usable
-- `@/shared/api/ffmpeg/core-preloader.ts` downloads the ffmpeg core before any worker starts: one shared promise for the page, progress as a fraction of the wasm's size, a 30 s stall rule and no total limit. `openFfmpeg` awaits it (so the load watchdog never counts the network), passes its progress on, and stops waiting when its `signal` aborts (the store aborts it on Cancel or a newer load); a failure is a `CoreDownloadError`, which the store reports as the step "downloading ffmpeg". A new worker entry or call never fetches the core itself.
+- `@/shared/api/ffmpeg/core-preloader.ts` downloads the ffmpeg core before any worker starts: one shared promise for the page, progress as a fraction of the wasm's size, a 30 s stall rule and no total limit. `openFfmpeg` awaits it (so the load watchdog never counts the network), passes its progress on, and stops waiting when its `signal` aborts (the store aborts it on Cancel or a newer load); a failure is a `CoreDownloadError`, which the store reports as the step "downloading ffmpeg". `preloadCoreWhenIdle()` (called from `main.ts`) starts it while the page waits for a file, never under Save-Data, and silently. A new worker entry or call never fetches the core itself.
 - `@/entities/source-file/api/` has one file per job: `probe.ts`, `decode-slice.ts`, `decode-clip.ts`, `cut-track.ts`. Each one:
   - builds its command line
   - passes its own timeout

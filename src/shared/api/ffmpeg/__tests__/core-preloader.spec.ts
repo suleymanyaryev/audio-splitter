@@ -58,6 +58,23 @@ async function outcomeOf(promise: Promise<unknown>) {
   }
 }
 
+/*
+A browser with `requestIdleCallback`: `idle()` runs what was asked for, as the browser does
+when it has nothing else to do. `isSavingData` is the Save-Data signal the browser sends.
+*/
+function idleBrowser(isSavingData = false) {
+  const callbacks: (() => void)[] = []
+  vi.stubGlobal('navigator', { connection: { saveData: isSavingData } })
+  vi.stubGlobal('requestIdleCallback', (callback: () => void) => {
+    callbacks.push(callback)
+  })
+  return {
+    idle() {
+      for (const callback of callbacks.splice(0)) callback()
+    },
+  }
+}
+
 describe('preloadCore', () => {
   beforeEach(() => {
     vi.useFakeTimers()
@@ -315,6 +332,111 @@ describe('preloadCore', () => {
       expect(() => {
         network.push(wasmURL, 10)
       }).toThrow()
+    })
+  })
+
+  describe('the idle start', () => {
+    it('starts downloading when the browser is idle, and not before', async () => {
+      const network = fakeNetwork()
+      const browser = idleBrowser()
+      const { preloadCoreWhenIdle } = await freshPreloader()
+
+      preloadCoreWhenIdle()
+      await vi.advanceTimersByTimeAsync(60_000)
+      expect(network.requests).toEqual([])
+
+      browser.idle()
+      await vi.advanceTimersByTimeAsync(0)
+      expect(network.requests).toHaveLength(2)
+    })
+
+    it('starts after a short wait in a browser without requestIdleCallback', async () => {
+      const network = fakeNetwork()
+      vi.stubGlobal('navigator', { connection: { saveData: false } })
+      vi.stubGlobal('requestIdleCallback', undefined)
+      const { preloadCoreWhenIdle } = await freshPreloader()
+
+      preloadCoreWhenIdle()
+      await vi.advanceTimersByTimeAsync(0)
+      expect(network.requests).toEqual([])
+
+      await vi.advanceTimersByTimeAsync(1000)
+      expect(network.requests).toHaveLength(2)
+    })
+
+    it('starts nothing when the browser asks to save data', async () => {
+      const network = fakeNetwork()
+      const browser = idleBrowser(true)
+      const { preloadCoreWhenIdle } = await freshPreloader()
+
+      preloadCoreWhenIdle()
+      browser.idle()
+      await vi.advanceTimersByTimeAsync(60_000)
+
+      expect(network.requests).toEqual([])
+    })
+
+    it('still downloads for a caller that asks under Save-Data', async () => {
+      const network = fakeNetwork()
+      const browser = idleBrowser(true)
+      const { preloadCoreWhenIdle, preloadCore } = await freshPreloader()
+
+      preloadCoreWhenIdle()
+      browser.idle()
+      preloadCore()
+      await vi.advanceTimersByTimeAsync(0)
+
+      expect(network.requests).toHaveLength(2)
+    })
+
+    it('says nothing when the download fails, and the next call starts afresh', async () => {
+      const network = fakeNetwork()
+      const browser = idleBrowser()
+      const unhandled = vi.fn()
+      process.on('unhandledRejection', unhandled)
+      const { preloadCoreWhenIdle, preloadCore } = await freshPreloader()
+
+      preloadCoreWhenIdle()
+      browser.idle()
+      await vi.advanceTimersByTimeAsync(0)
+      network.fail(wasmURL)
+      await vi.advanceTimersByTimeAsync(0)
+      // Unhandled rejections are reported on the next turn of the event loop.
+      await vi.advanceTimersByTimeAsync(10)
+      process.off('unhandledRejection', unhandled)
+      expect(unhandled).not.toHaveBeenCalled()
+
+      const progress: number[] = []
+      preloadCore((fraction) => {
+        progress.push(fraction)
+      })
+      await vi.advanceTimersByTimeAsync(0)
+      expect(network.requests).toHaveLength(4)
+      expect(progress).toEqual([0])
+    })
+
+    it('is joined by a load that begins mid-download: the current fraction, no second request', async () => {
+      const network = fakeNetwork()
+      const browser = idleBrowser()
+      const { preloadCoreWhenIdle, preloadCore } = await freshPreloader()
+
+      preloadCoreWhenIdle()
+      browser.idle()
+      await vi.advanceTimersByTimeAsync(0)
+      network.push(wasmURL, Math.floor(WASM_BYTES / 2))
+      await vi.advanceTimersByTimeAsync(0)
+      const progress: number[] = []
+      const { done } = preloadCore((fraction) => {
+        progress.push(fraction)
+      })
+      network.finish(coreURL)
+      network.push(wasmURL, WASM_BYTES)
+      network.finish(wasmURL)
+      await done
+
+      expect(progress[0]).toBeCloseTo(0.5, 2)
+      expect(progress.at(-1)).toBe(1)
+      expect(network.requests).toHaveLength(2)
     })
   })
 })

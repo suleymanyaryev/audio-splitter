@@ -136,3 +136,32 @@ export function preloadCore(onProgress?: Listener) {
     },
   }
 }
+
+// Where a browser without `requestIdleCallback` (Safari) waits, so the page has drawn by then.
+const IDLE_FALLBACK_MS = 1000
+
+// `navigator.connection` is in Chrome and Android browsers only, and the DOM types lack it.
+function isSavingData() {
+  const connection = (navigator as { connection?: { saveData?: boolean } }).connection
+  return connection !== undefined && connection.saveData === true
+}
+
+// Nobody is waiting for the idle download; a load that wants the core asks again.
+async function preloadQuietly() {
+  try {
+    await preloadCore().done
+  } catch {
+    // Dropped: the failure cleared the shared download already.
+  }
+}
+
+/*
+Starts the download while the page waits for a file: once the browser is idle, which is after the
+page has drawn, and not at all when the browser asks to save data (the download then starts when a
+file is chosen). It makes no noise: a failure is dropped, and the next `preloadCore` starts afresh.
+*/
+export function preloadCoreWhenIdle() {
+  if (isSavingData()) return
+  if (typeof requestIdleCallback === 'function') requestIdleCallback(() => void preloadQuietly())
+  else setTimeout(() => void preloadQuietly(), IDLE_FALLBACK_MS)
+}
