@@ -13,7 +13,8 @@ Versions follow [Semantic Versioning](https://semver.org/) applied to the produc
 ## Keeping it
 
 - Each user-visible change adds a line under `## [Unreleased]` in the same commit, in one of Keep a Changelog's groups: Added, Changed, Deprecated, Removed, Fixed, Security. Write what the user notices, not how the code changed. Refactors, tests, tooling and docs get no entry.
-- A release renames `## [Unreleased]` to `## [X.Y.Z] - YYYY-MM-DD`, opens a fresh `## [Unreleased]` above it, sets `version` in `package.json`, and tags the commit `vX.Y.Z`. Pushing a `v*` tag that is on `main` publishes that commit to GitHub Pages (`.github/workflows/deploy.yml`).
+- A release is `pnpm release <patch|minor|major>` on a clean `main` (`--dry-run` to preview). It renames `## [Unreleased]` to `## [X.Y.Z] - YYYY-MM-DD` under a fresh `## [Unreleased]`, updates the links at the bottom, sets `version` in `package.json`, commits and tags `vX.Y.Z` (`scripts/release.ts`). It warns when the groups suggest another level, and prints the push command rather than running it.
+- Pushing a `v*` tag that is on `main` publishes that commit to GitHub Pages (`.github/workflows/deploy.yml`).
 
 ## [Unreleased]
 
@@ -90,6 +91,8 @@ The first release: milestones 0 to 7.
 - A question before a setting change ("Replace your edits?") or "New file" ("Discard your edits?") throws edits away.
 - "Export to folder…": every track written by stream copy, without re-encoding, into a new subfolder named after the source file (`name (2)/` the second time). Files are named `01.m4a` or `01 Name.m4a` and tagged with title, track number and album. Cancel keeps the tracks already written.
 
-[unreleased]: https://github.com/suleymanyaryev/audio-splitter/compare/v1.0.1...HEAD
+[unreleased]: https://github.com/suleymanyaryev/audio-splitter/compare/v1.2.0...HEAD
+[1.2.0]: https://github.com/suleymanyaryev/audio-splitter/compare/v1.1.0...v1.2.0
+[1.1.0]: https://github.com/suleymanyaryev/audio-splitter/compare/v1.0.2...v1.1.0
 [1.0.1]: https://github.com/suleymanyaryev/audio-splitter/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/suleymanyaryev/audio-splitter/releases/tag/v1.0.0

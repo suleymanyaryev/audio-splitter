@@ -21,6 +21,7 @@
     "knip:fix": "knip --fix",
     "cpd": "jscpd",
     "verify": "pnpm typecheck && pnpm test && pnpm build-only",
+    "release": "node scripts/release.ts",
     "format": "prettier --write src/ scripts/",
     "depcruise": "depcruise src --output-type err-long"
   },
