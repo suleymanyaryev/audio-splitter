@@ -341,7 +341,7 @@ Every kit component lives in `src/shared/ui/` as `Ui<Name>.vue` (`UiButton`, `Ui
 
 **Motion.** `transition-colors duration-100` on buttons and icon buttons; nothing else animates.
 
-**Icons.** `lucide-vue-next`, 16 px (`size-4`), stroke width 2, round caps and joins, `shrink-0`, coloured `currentColor`. Play, Pause and Square (stop) are drawn filled (`fill="currentColor"`, no stroke). Icons used so far: Play, Pause, Square, SkipBack (back to range start), ChevronsLeft, ChevronsRight (step 3 s), Trash2 (delete split), Merge (remove track), Plus (add split), Download (export to folder), FileDown (single export), CircleQuestionMark (keyboard shortcuts), BookmarkPlus (add pending split), Check (apply), BookmarkMinus (delete pending split). Unicode glyphs are never icons; typographic separators such as the middle dot and the minus sign are text.
+**Icons.** `lucide-vue-next`, 16 px (`size-4`), stroke width 2, round caps and joins, `shrink-0`, coloured `currentColor`. Play, Pause and Square (stop) are drawn filled (`fill="currentColor"`, no stroke). Icons used so far: Play, Pause, Square, SkipBack (back to range start), ChevronsLeft, ChevronsRight (step 3 s), Trash2 (delete split), Merge (remove track), Plus (add split), Download (export to folder), FileDown (single export), CircleQuestionMark (keyboard shortcuts), BookmarkPlus (add pending split), Check (apply), BookmarkMinus (delete pending split), Monitor, Sun, Moon (the theme switch). Unicode glyphs are never icons; typographic separators such as the middle dot and the minus sign are text.
 
 ### Buttons
 
@@ -368,7 +368,7 @@ Character: firm and quiet; ink does the talking, colour only for danger.
 
 ### Tooltip
 
-Reka `TooltipProvider` / `TooltipRoot` / `TooltipTrigger` / `TooltipContent`, wrapped as `UiTooltip` (a `label` and an optional `hint`); the icon button is its one user so far. The trigger is the control itself, so it keeps its own focus and click.
+Reka `TooltipProvider` / `TooltipRoot` / `TooltipTrigger` / `TooltipContent`, wrapped as `UiTooltip` (a `label`, an optional `hint` and a `disabled` switch); the icon button and an icon option of the segmented control use it. The trigger is the control itself, so it keeps its own focus and click.
 
 - **Opens** on hover after 400 ms and on keyboard focus at once; **closes** on pointer leave, on blur, on Escape and on a press. A disabled button takes no keyboard focus, so only hover shows its tooltip (Chrome does).
 - **Content:** `z-50 rounded-control bg-ink px-2 py-1 text-xs font-semibold whitespace-nowrap text-surface`, above the trigger with a 6 px gap: an inverted chip in Caption-strong, the same ink and surface as the primary button, so it holds in both themes. Text only, "Label (Key)". No arrow, no shadow, no animation: the Flat Sleeve Rule applies here as to everything that lies over the page.
@@ -401,8 +401,11 @@ The end of the zoom panel's title row, in all three views: a `size-8` icon butto
 Reka `RadioGroupRoot` / `RadioGroupItem`: a choice of one among a few views, such as the zoom panel's `Split | Track | Range`. Exactly one option is always chosen; arrow keys move between options, and a disabled option cannot be chosen.
 
 - **Root:** `inline-flex h-8 items-center gap-0.5 rounded-control border border-edge bg-surface p-0.5`, `aria-label` names the control. 32 px tall, as a small button, for a panel's title row.
-- **Option:** `h-full cursor-pointer rounded-control border border-transparent px-3 text-sm font-semibold whitespace-nowrap text-ink transition-colors duration-100 focus-visible:focus-ring enabled:hover:bg-land/40 disabled:cursor-not-allowed disabled:opacity-40`.
-- **Chosen:** `border-ink bg-land/50`: state carried by ink and border, as the selected track block is, never by a filled button, so the panel's one primary button stays the one filled control.
+- **Option:** `inline-flex h-full cursor-pointer items-center justify-center rounded-control border border-transparent px-3 text-sm font-semibold whitespace-nowrap text-ink transition-colors duration-100 focus-visible:focus-ring enabled:hover:bg-land/40 disabled:cursor-not-allowed disabled:opacity-40`.
+- **Chosen:** `aria-checked:border-ink aria-checked:bg-land/50`: state carried by ink and border, as the selected track block is, never by a filled button, so the panel's one primary button stays the one filled control. It keys on `aria-checked`, not `data-state`, because the tooltip around an icon option sets its own `data-state` on the same button.
+- **Icon option:** an option given an `icon` shows the 16 px icon alone (`px-2` in place of `px-3`); its label is its tooltip and its `aria-label`, so the icon costs a screen reader nothing.
+- **Inverse:** `variant="inverse"`, only on the vinyl header band: the root is `border-vinyl-edge` with no fill, an option is `text-on-vinyl` with `enabled:hover:bg-on-vinyl/15`, the chosen one `border-on-vinyl bg-on-vinyl/20`, and the ring is spelled out as the inverse button's is (`focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-on-vinyl`).
+- **Theme switch:** the one use of both, in the header band on both screens (see Header band).
 
 ### Panel
 
@@ -439,7 +442,7 @@ Reka `Dialog` (`UiPlainDialog`): a dialog that gives information or asks for a n
 
 ### Header band
 
-`flex h-12 items-center gap-4 border-b border-vinyl-edge bg-vinyl px-4 text-on-vinyl`, in both themes. Left to right: the centre-label mark (a 20px vermilion disc with a 6px vinyl hole, `aria-hidden`), the product name in Headline, the file chip (`rounded-control border border-vinyl-edge px-2.5 py-1 text-xs font-semibold`), quiet text pushed right in `text-xs text-on-vinyl-muted`, and inverse buttons: the `?` icon button ("Keyboard shortcuts (?)", review screen only), then "New file".
+`flex h-12 items-center gap-4 border-b border-vinyl-edge bg-vinyl px-4 text-on-vinyl`, in both themes. Left to right: the centre-label mark (a 20px vermilion disc with a 6px vinyl hole, `aria-hidden`), the product name in Headline, the file chip (`rounded-control border border-vinyl-edge px-2.5 py-1 text-xs font-semibold`), the theme switch pushed right (an inverse segmented control named "Theme": System (Monitor), Light (Sun), Dark (Moon), bound to the theme module's choice), quiet text in `text-xs text-on-vinyl-muted`, and inverse buttons: the `?` icon button ("Keyboard shortcuts (?)", review screen only), then "New file".
 
 ### Track strip and track blocks
 

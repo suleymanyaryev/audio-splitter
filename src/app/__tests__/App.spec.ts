@@ -10,6 +10,7 @@ import {
   vorbisProbeLog,
 } from '@/shared/api/ffmpeg/__tests__/fake-ffmpeg.ts'
 import { useSplitStore } from '@/entities/split/model/split.ts'
+import { useTheme } from '@/shared/lib/theme/theme.ts'
 import App from '../App.vue'
 
 vi.mock('@/shared/api/ffmpeg/ffmpeg.ts', () => ({ openFfmpeg: vi.fn() }))
@@ -45,6 +46,18 @@ function shortcutsButton(wrapper: ReturnType<typeof mount>) {
 
 function shortcutsDialog() {
   return document.querySelector('[role="dialog"]')
+}
+
+function themeRadios(wrapper: ReturnType<typeof mount>) {
+  return wrapper.findAll('header [role="radiogroup"][aria-label="Theme"] [role="radio"]')
+}
+
+function themeRadio(wrapper: ReturnType<typeof mount>, name: string) {
+  const found = themeRadios(wrapper).find(
+    (candidate) => candidate.attributes('aria-label') === name,
+  )
+  if (!found) throw new Error(`no ${name} option`)
+  return found
 }
 
 function newFileButton(wrapper: ReturnType<typeof mount>) {
@@ -155,6 +168,50 @@ describe('App', () => {
 
     expect(wrapper.text()).toContain('Choose file…')
     expect(wrapper.text()).not.toContain('evening-set-vol3.m4a')
+  })
+
+  describe('the theme switch', () => {
+    beforeEach(() => {
+      useTheme().setThemeChoice('system')
+    })
+
+    it('is in the header on the load page, before "Local only", with the choice checked', () => {
+      const wrapper = mount(App)
+
+      expect(themeRadios(wrapper).map((option) => option.attributes('aria-label'))).toEqual([
+        'System',
+        'Light',
+        'Dark',
+      ])
+      expect(themeRadio(wrapper, 'System').attributes('aria-checked')).toBe('true')
+      const header = wrapper.get('header').html()
+      expect(header.indexOf('role="radiogroup"')).toBeLessThan(header.indexOf('Local only'))
+    })
+
+    it('is in the header on the review page too', async () => {
+      const wrapper = mount(App)
+      await chooseFile(wrapper, file)
+
+      expect(headings(wrapper)).toContain('Whole file')
+      expect(themeRadios(wrapper)).toHaveLength(3)
+    })
+
+    it('sets the theme choice when an option is chosen', async () => {
+      const wrapper = mount(App)
+
+      await themeRadio(wrapper, 'Dark').trigger('click')
+
+      expect(useTheme().themeChoice.value).toBe('dark')
+      expect(themeRadio(wrapper, 'Dark').attributes('aria-checked')).toBe('true')
+    })
+
+    it('shows the saved choice', () => {
+      useTheme().setThemeChoice('light')
+
+      const wrapper = mount(App)
+
+      expect(themeRadio(wrapper, 'Light').attributes('aria-checked')).toBe('true')
+    })
   })
 
   describe('the shortcuts button', () => {

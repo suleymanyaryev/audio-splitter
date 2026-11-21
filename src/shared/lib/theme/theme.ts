@@ -1,7 +1,7 @@
 import { computed, readonly, ref, watch } from 'vue'
 
 const THEME_CHOICES = ['system', 'light', 'dark'] as const
-type ThemeChoice = (typeof THEME_CHOICES)[number]
+export type ThemeChoice = (typeof THEME_CHOICES)[number]
 type ThemeInEffect = 'light' | 'dark'
 
 /*

@@ -88,6 +88,7 @@ flowchart LR
 - The theme in effect is the choice, or the OS's scheme while the choice is `system`. The OS is listened to only then.
 - It sets `data-theme` and `color-scheme` on `<html>`. The CSS keys its one dark block on the attribute.
 - A script in the head of `index.html` sets the same two from the same saved choice before the first paint. `startTheme` in `main.ts` takes over from there.
+- The switch in the header (`App.vue`) shows the choice and sets it.
 - `useCanvasRedraw` redraws every canvas when the theme in effect changes.
 
 ## The ffmpeg session

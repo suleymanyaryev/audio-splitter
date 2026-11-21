@@ -18,6 +18,10 @@ Versions follow [Semantic Versioning](https://semver.org/) applied to the produc
 
 ## [Unreleased]
 
+### Added
+
+- A System, Light and Dark switch in the header, on the load screen and the review screen. Your choice is remembered and applied before the page first paints; on System the app follows your computer's theme as it changes, and every waveform and curve redraws at once.
+
 ## [1.2.0] - 2026-11-21
 
 ### Changed
