@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onUnmounted, useTemplateRef, watch } from 'vue'
+import { computed, onUnmounted, watch } from 'vue'
 import {
   BookmarkMinus,
   BookmarkPlus,
@@ -56,8 +56,7 @@ the zoom view, at the mark in the Range view; the Track view adds no split but h
 splits' buttons: "Add pending split" (at the mark, enabled while there is room and none is
 selected), "Apply" (turns them all into splits and shows the Split view on the first) and "Delete
 pending split" (only while one is selected). "Export track…" is off while the track has pending
-splits, and its tooltip says why. A button that acts on the Range view or the Track view gives the
-keyboard back to it. The zoom view also has
+splits, and its tooltip says why. The zoom view also has
 "Delete split", which deletes the selected split as Delete does on its handle (disabled with none
 selected), and "Play across split", which plays the selected split's clip (and reads "Stop" while
 it loads or plays). The
@@ -121,8 +120,8 @@ function confirmSingleExport(name: string) {
 }
 
 /*
-The line that says where a single export went stays until the user's next press or key in the
-view, a view switch, a selection change or a new range. The Split view has no such line. One getter
+The line that says where a single export went stays until the user's next press in the view or
+a key it acts on, a view switch, a selection change or a new range. The Split view has no such line. One getter
 each: a getter returning an array is a new array every time, so it would fire on any change at all.
 */
 watch(
@@ -149,58 +148,28 @@ const savedLine = computed(() =>
 )
 
 /*
-In the zoom view a new split is selected and its handle takes the keyboard, ready for the arrow
-keys. In the Range view it goes at the mark and nothing else changes: the user stays where they are.
+In the Split view a new split is selected, so the arrow keys move it at once, wherever the focus is.
+In the Range view it goes at the mark and nothing else changes: the user stays where they are.
 */
-const zoom = useTemplateRef('zoom')
-const trackView = useTemplateRef('trackView')
-const rangeView = useTemplateRef('rangeView')
-
-/*
-A button that acts on the Range view or the Track view gives the keyboard back to it, so the keys
-go on working (the delete button is gone once it has deleted). Only one of the two is on the page.
-*/
-function focusStretchView() {
-  rangeView.value?.focus()
-  trackView.value?.focus()
-}
-
 function addSplit() {
-  if (split.view === 'range') {
-    split.addSplitAtMark()
-    focusStretchView()
-    return
-  }
-  split.addSplit()
-  void zoom.value?.focusHandle()
+  if (split.view === 'range') split.addSplitAtMark()
+  else split.addSplit()
 }
 
 // The Track view's buttons, with the same effect as its keys.
 function addPendingSplit() {
   split.addPendingSplitAtMark()
-  focusStretchView()
 }
 
 function deletePendingSplit() {
   split.deleteSelectedPendingSplit()
-  focusStretchView()
 }
 
-/*
-The Split view opens on the first new split, whose handle takes the keyboard, as a new split's does.
-The view is not on the page until the next render, so the handle is asked for then.
-*/
-function applyPendingSplits() {
-  split.applyPendingSplits()
-  void nextTick(() => zoom.value?.focusHandle())
-}
-
-// The same delete as the handle's key, and the keyboard goes to the split selected next.
+// The same delete as the key, and the arrow keys go to the split selected next.
 function deleteSplit() {
   const selected = split.selectedSplit
   if (selected === null) return
   split.deleteSplit(selected.id)
-  void zoom.value?.focusHandle()
 }
 
 const canAddSplit = computed(() =>
@@ -234,12 +203,10 @@ const stretch = computed(() => {
 
 function backToStretchStart() {
   if (stretch.value !== null) audition.backToStretchStart(stretch.value)
-  focusStretchView()
 }
 
 function toggleStretch() {
   if (stretch.value !== null) audition.toggleStretch(stretch.value)
-  focusStretchView()
 }
 
 // The dialog is open while the store holds a question; closing it any other way is a cancel.
@@ -312,7 +279,7 @@ watch(
           size="sm"
           label="Apply"
           :disabled="split.pendingSplits.length === 0"
-          @click="applyPendingSplits"
+          @click="split.applyPendingSplits()"
         >
           <Check class="size-4 shrink-0" />
         </UiIconButton>
@@ -395,14 +362,11 @@ watch(
         </UiIconButton>
         <VolumeControl />
       </template>
-      <!-- Capturing, so a press or key the view handles itself still clears the saved line. -->
-      <div
-        @pointerdown.capture="singleExport.dismissSaved()"
-        @keydown.capture="singleExport.dismissSaved()"
-      >
-        <RangeView v-if="split.view === 'range'" ref="rangeView" />
-        <TrackView v-else-if="split.view === 'track'" ref="trackView" />
-        <SplitZoom v-else ref="zoom" />
+      <!-- Capturing, so a press the view handles itself still clears the saved line. -->
+      <div @pointerdown.capture="singleExport.dismissSaved()">
+        <RangeView v-if="split.view === 'range'" @acted="singleExport.dismissSaved()" />
+        <TrackView v-else-if="split.view === 'track'" @acted="singleExport.dismissSaved()" />
+        <SplitZoom v-else />
       </div>
       <p v-if="savedLine" role="status" class="mt-2 text-sm text-muted">
         Saved <span class="font-semibold text-ink">{{ savedLine.file }}</span> in

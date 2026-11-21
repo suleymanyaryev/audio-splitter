@@ -10,6 +10,7 @@ import { BAR_PITCH, drawPeakBars } from '@/shared/lib/canvas/draw-peak-bars.ts'
 import { prepareCanvas } from '@/shared/lib/canvas/prepare-canvas.ts'
 import { useCanvasRedraw } from '@/shared/lib/canvas/use-canvas-redraw.ts'
 import { zoomTimeToX } from '@/shared/lib/canvas/zoom-axis.ts'
+import { usePageKeys } from '@/shared/lib/keyboard/use-page-keys.ts'
 import { formatHundredths } from '@/shared/lib/time/format-hundredths.ts'
 import { roundToMillisecond } from '@/shared/lib/time/round-to-millisecond.ts'
 import { draggedTime } from '../lib/dragged-time.ts'
@@ -40,7 +41,7 @@ Split view (`lib/use-range-press.ts` has the order).
 
 The pending splits (GLOSSARY.md) of the track are drawn over the split lines in a look nothing else
 has (`shared/lib/canvas/draw-pending-splits.ts`), the selected one heavier. The view is a slider on the
-playhead and takes the keyboard: Left and Right move it 1 s, with Shift 10 s, Space plays or pauses
+playhead and takes the page's keys, wherever the focus is: Left and Right move it 1 s, with Shift 10 s, Space plays or pauses
 the track, as the panel's button does, and Home takes the playhead back to the track's start. Enter
 adds a pending split at the mark and selects it; Shift+Enter adds one where the playhead is, without
 selecting it, so a tap along a playing track is always taken. Delete and Backspace delete the
@@ -209,14 +210,11 @@ const { overPlayhead, dragging, onPointerDown, onPointerMove, onPointerEnd, onDo
     selectPending: (index) => {
       const selected = split.pendingSplits[index]
       if (selected !== undefined) split.selectPendingSplit(selected)
-      frame.value?.focus()
     },
     placeMark: (seconds) => {
       // Any press that is not on a pending split lets go of the selected one.
       split.deselectPendingSplit()
       split.placeTrackMark(seconds)
-      // A click focuses the view, so the keys work on the playhead at once.
-      frame.value?.focus()
     },
   })
 
@@ -244,43 +242,54 @@ function actOnSelectedPendingSplit(key: string) {
   else split.deleteSelectedPendingSplit()
 }
 
-function onKeydown(event: KeyboardEvent) {
-  // Ctrl, Cmd and Alt with a key belong to the browser (word and page navigation).
-  if (event.ctrlKey || event.metaKey || event.altKey) return
+// Whether the key was the view's: a key it leaves alone is the browser's, and is not reported.
+function isKeyActedOn(event: KeyboardEvent) {
   switch (event.key) {
     case ' ': {
       // A held key must not start and stop the sound over and over.
       if (!event.repeat && extent.value !== null) audition.toggleStretch(extent.value)
-      break
+      return true
     }
     case 'Enter': {
+      // With no mark, Enter has nothing to add a pending split at; Shift+Enter always has the playhead.
+      if (!event.shiftKey && split.trackMarkSeconds === null) return false
       if (!event.repeat) addPendingSplitFromKey(event.shiftKey)
-      break
+      return true
     }
     case 'Delete':
     case 'Backspace':
     case 'Escape': {
       // Only the selected pending split is theirs; with none, the key is left alone.
-      if (split.selectedPendingSplit === null) return
+      if (split.selectedPendingSplit === null) return false
       actOnSelectedPendingSplit(event.key)
-      break
+      return true
     }
     case 'Home': {
       if (extent.value !== null) audition.backToStretchStart(extent.value)
-      break
+      return true
     }
     case 'ArrowLeft':
     case 'ArrowRight': {
       moveBy(event.key === 'ArrowLeft' ? -1 : 1, event.shiftKey)
-      break
+      return true
     }
     default: {
-      return
+      return false
     }
   }
-  // Never a page scroll.
-  event.preventDefault()
 }
+
+/*
+The keys are the page's, not the frame's: this view is the one on show, so they work wherever the
+focus is, and `acted` tells the page which key was used (src/shared/lib/keyboard/use-page-keys.ts).
+*/
+const emit = defineEmits<{ acted: [] }>()
+usePageKeys(isKeyActedOn, {
+  root: () => frame.value,
+  onActed: () => {
+    emit('acted')
+  },
+})
 
 usePlayheadFrames(
   () => audition.stretchStatus === 'playing',
@@ -291,13 +300,6 @@ usePlayheadFrames(
 )
 
 useCanvasRedraw(canvas, draw)
-
-// A title-row button that acts on the view gives the keyboard back to it.
-defineExpose({
-  focus: () => {
-    frame.value?.focus()
-  },
-})
 
 watch(
   () => [
@@ -317,18 +319,19 @@ watch(
 
 <template>
   <div class="relative h-40">
+    <!-- A slider must take the focus for a screen reader, but it is no tab stop: the keys reach the view
+    wherever the focus is. -->
     <div
       ref="frame"
-      tabindex="0"
       role="slider"
+      tabindex="-1"
       aria-label="Playhead in the track"
       :aria-valuemin="extent?.startSeconds"
       :aria-valuemax="extent?.endSeconds"
       :aria-valuenow="sliderSeconds"
       :aria-valuetext="formatHundredths(sliderSeconds)"
-      class="size-full select-none focus-visible:focus-ring"
+      class="size-full select-none"
       :class="{ 'cursor-ew-resize': overPlayhead || dragging }"
-      @keydown="onKeydown"
       @pointerdown="onPointerDown"
       @dblclick="onDoubleClick"
       @pointermove="onPointerMove"

@@ -1,6 +1,8 @@
 <script setup lang="ts" generic="Value extends string">
 import { RadioGroupItem, RadioGroupRoot } from 'reka-ui'
 
+import { releaseFocus } from '@/shared/lib/keyboard/release-focus.ts'
+
 defineProps<{
   // Names the whole control for a screen reader ("Panel view").
   label: string
@@ -23,6 +25,7 @@ const model = defineModel<Value>({ required: true })
       :value="option.value"
       :disabled="option.disabled"
       class="h-full cursor-pointer rounded-control border border-transparent px-3 text-sm font-semibold whitespace-nowrap text-ink transition-colors duration-100 focus-visible:focus-ring enabled:hover:bg-land/40 disabled:cursor-not-allowed disabled:opacity-40 data-[state=checked]:border-ink data-[state=checked]:bg-land/50"
+      @mousedown="releaseFocus"
     >
       {{ option.label }}
     </RadioGroupItem>

@@ -3,6 +3,7 @@ import { computed, useTemplateRef, watch } from 'vue'
 import { Merge, Trash2 } from 'lucide-vue-next'
 
 import { useSplitStore, type Split, type Track } from '@/entities/split/model/split.ts'
+import { releaseFocus } from '@/shared/lib/keyboard/release-focus.ts'
 import { formatDuration } from '@/shared/lib/time/format-duration.ts'
 import { formatHundredths } from '@/shared/lib/time/format-hundredths.ts'
 import UiIconButton from '@/shared/ui/UiIconButton.vue'
@@ -21,9 +22,10 @@ carry different icons, so one is not taken for the other. The box is as tall as 
 
 A click on a row selects what it shows, a track or a split (the first track included), and the
 marked row, whichever kind it is, follows the selection and is kept in view; focusing a name field
-selects its track too. A button stops the click, so it does only what it says. The box has 4 px of
-padding (undone by the negative margin) so the focus ring of a button at the left edge is not cut
-off by the scroll box.
+selects its track too. A button stops the click, so it does only what it says. The number button
+takes no focus from a mouse press, so the next key goes to the view on show; Tab still reaches it.
+The box has 4 px of padding (undone by the negative margin) so the focus ring of a button at the
+left edge is not cut off by the scroll box.
 */
 const split = useSplitStore()
 const list = useTemplateRef('list')
@@ -93,6 +95,7 @@ watch(
                 type="button"
                 :aria-label="`Select track ${row.track.number}, starts at ${formatHundredths(row.track.startSeconds)}`"
                 class="inline-flex size-5 cursor-pointer items-center justify-center rounded-control text-muted focus-visible:focus-ring"
+                @mousedown="releaseFocus"
               >
                 {{ row.track.number }}
               </button>

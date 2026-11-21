@@ -9,6 +9,7 @@ import { BAR_PITCH, drawPeakBars } from '@/shared/lib/canvas/draw-peak-bars.ts'
 import { prepareCanvas } from '@/shared/lib/canvas/prepare-canvas.ts'
 import { useCanvasRedraw } from '@/shared/lib/canvas/use-canvas-redraw.ts'
 import { zoomTimeToX } from '@/shared/lib/canvas/zoom-axis.ts'
+import { usePageKeys } from '@/shared/lib/keyboard/use-page-keys.ts'
 import { formatHundredths } from '@/shared/lib/time/format-hundredths.ts'
 import { roundToMillisecond } from '@/shared/lib/time/round-to-millisecond.ts'
 import { draggedTime } from '../lib/dragged-time.ts'
@@ -32,7 +33,7 @@ playhead can be dragged along the range, and any other single press places the m
 line, even next to a split's line: a double-click moves the playhead there, or, within 6 px of a
 split's line, selects that split and opens the Split view (`lib/use-range-press.ts` has the order,
 and the playhead's pause and resume for a drag). The view is a slider on the playhead and takes the
-keyboard: Left and Right move the playhead 1 s, with Shift 10 s, as in the Track view, and the mark
+page's keys, wherever the focus is: Left and Right move the playhead 1 s, with Shift 10 s, as in the Track view, and the mark
 has no keys. Enter adds a split at the mark and Shift+Enter one where the playhead is, so a split
 can be put where it is heard while the range plays, and neither stops the sound or leaves the view.
 Space plays or pauses the range, as the panel's button does, and Home takes the playhead back to the
@@ -171,8 +172,6 @@ const { overPlayhead, dragging, onPointerDown, onPointerMove, onPointerEnd, onDo
     },
     placeMark: (seconds) => {
       split.placeMark(seconds)
-      // A click focuses the view, so the keys work on the playhead at once.
-      frame.value?.focus()
     },
   })
 
@@ -182,39 +181,56 @@ function moveBy(direction: -1 | 1, isShifted: boolean) {
   audition.seekStretch(split.range, roundToMillisecond(playheadSeconds() + direction * step))
 }
 
-function onKeydown(event: KeyboardEvent) {
-  // Ctrl, Cmd and Alt with a key belong to the browser (word and page navigation).
-  if (event.ctrlKey || event.metaKey || event.altKey) return
+/*
+Enter adds a split at the mark, and Shift+Enter one where the playhead is, so a split goes where the
+sound is heard. With no mark, Enter has nothing to add a split at and is left alone; Shift+Enter
+always has the playhead. A held key adds one split, not one per repeat.
+*/
+function addSplitFromKey(event: KeyboardEvent) {
+  if (!event.shiftKey && split.markSeconds === null) return false
+  if (event.repeat) return true
+  if (event.shiftKey) split.addSplitAt(playheadSeconds())
+  else split.addSplitAtMark()
+  return true
+}
+
+// Whether the key was the view's: a key it leaves alone is the browser's, and is not reported.
+function isKeyActedOn(event: KeyboardEvent) {
   switch (event.key) {
     case ' ': {
-      // A held key must not start and stop the sound, or add splits, over and over.
+      // A held key must not start and stop the sound over and over.
       if (!event.repeat && split.range !== null) audition.toggleStretch(split.range)
-      break
+      return true
     }
     case 'Enter': {
-      // Shift: where the playhead is, so a split goes where the sound is heard.
-      if (!event.repeat) {
-        if (event.shiftKey) split.addSplitAt(playheadSeconds())
-        else split.addSplitAtMark()
-      }
-      break
+      return addSplitFromKey(event)
     }
     case 'Home': {
       if (split.range !== null) audition.backToStretchStart(split.range)
-      break
+      return true
     }
     case 'ArrowLeft':
     case 'ArrowRight': {
       moveBy(event.key === 'ArrowLeft' ? -1 : 1, event.shiftKey)
-      break
+      return true
     }
     default: {
-      return
+      return false
     }
   }
-  // Never a page scroll.
-  event.preventDefault()
 }
+
+/*
+The keys are the page's, not the frame's: this view is the one on show, so they work wherever the
+focus is, and `acted` tells the page which key was used (src/shared/lib/keyboard/use-page-keys.ts).
+*/
+const emit = defineEmits<{ acted: [] }>()
+usePageKeys(isKeyActedOn, {
+  root: () => frame.value,
+  onActed: () => {
+    emit('acted')
+  },
+})
 
 usePlayheadFrames(
   () => audition.stretchStatus === 'playing',
@@ -225,13 +241,6 @@ usePlayheadFrames(
 )
 
 useCanvasRedraw(canvas, draw)
-
-// A title-row button that acts on the view gives the keyboard back to it.
-defineExpose({
-  focus: () => {
-    frame.value?.focus()
-  },
-})
 
 watch(
   () => [
@@ -249,18 +258,19 @@ watch(
 
 <template>
   <div class="relative h-40">
+    <!-- A slider must take the focus for a screen reader, but it is no tab stop: the keys reach the view
+    wherever the focus is. -->
     <div
       ref="frame"
-      tabindex="0"
       role="slider"
+      tabindex="-1"
       aria-label="Playhead in the range"
       :aria-valuemin="split.range?.startSeconds"
       :aria-valuemax="split.range?.endSeconds"
       :aria-valuenow="sliderSeconds"
       :aria-valuetext="formatHundredths(sliderSeconds)"
-      class="size-full select-none focus-visible:focus-ring"
+      class="size-full select-none"
       :class="{ 'cursor-ew-resize': overPlayhead || dragging }"
-      @keydown="onKeydown"
       @pointerdown="onPointerDown"
       @dblclick="onDoubleClick"
       @pointermove="onPointerMove"

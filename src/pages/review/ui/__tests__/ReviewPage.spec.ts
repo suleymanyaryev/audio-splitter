@@ -5,6 +5,7 @@ import { DOMWrapper, enableAutoUnmount, flushPromises, mount } from '@vue/test-u
 import { useSourceFileStore } from '@/entities/source-file/model/source-file.ts'
 import { useSplitStore } from '@/entities/split/model/split.ts'
 import { useShortcutsDialogStore } from '@/widgets/shortcuts-dialog/model/shortcuts-dialog.ts'
+import { trackExtent } from '@/widgets/split-zoom/lib/track-extent.ts'
 import { useAuditionStore } from '@/widgets/split-zoom/model/audition.ts'
 import { FakeFolder } from '@/widgets/track-strip/model/__tests__/fake-folder.ts'
 import { useExportSingleStore } from '@/widgets/track-strip/model/export-single.ts'
@@ -189,8 +190,6 @@ const addPendingButton = (wrapper: ReturnType<typeof mount>) =>
 const applyButton = (wrapper: ReturnType<typeof mount>) => wrapper.get('button[aria-label="Apply"]')
 const deletePendingButton = (wrapper: ReturnType<typeof mount>) =>
   wrapper.find('button[aria-label="Delete pending split"]')
-const playheadInTrack = (wrapper: ReturnType<typeof mount>) =>
-  wrapper.get('[role="slider"][aria-label="Playhead in the track"]').element
 const playheadInRange = (wrapper: ReturnType<typeof mount>) =>
   wrapper.get('[role="slider"][aria-label="Playhead in the range"]').element
 
@@ -210,6 +209,58 @@ async function mountWithPending() {
   split.addPendingSplit(50, false)
   await wrapper.vm.$nextTick()
   return { split, wrapper }
+}
+
+// A key as the user presses it: on the focused element, or on the page when nothing has the focus.
+function pressKey(
+  key: string,
+  init: KeyboardEventInit = {},
+  target: Element | Document = document,
+) {
+  const event = new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true, ...init })
+  target.dispatchEvent(event)
+  return event
+}
+
+/*
+A mouse click as a browser does it: the press moves the focus to the control unless the press is
+prevented (jsdom moves nothing by itself), then the click.
+*/
+async function mouseClick(element: Element) {
+  const press = new MouseEvent('mousedown', { bubbles: true, cancelable: true })
+  element.dispatchEvent(press)
+  if (!press.defaultPrevented && element instanceof HTMLElement) element.focus()
+  await clickElement(element)
+}
+
+// A key pressed where the focus is: on the focused control, or on the page when nothing has it.
+function pressWhereFocused(key: string) {
+  const focused = document.activeElement
+  return pressKey(key, {}, focused === null || focused === document.body ? document : focused)
+}
+
+// jsdom has no PointerEvent: a mouse event of that name, with the pointer's id.
+function pointerEvent(type: string) {
+  const event = new MouseEvent(type, { bubbles: true, cancelable: true, button: 0 })
+  Object.defineProperty(event, 'pointerId', { value: 1 })
+  return event
+}
+
+// A drag on a slider as a browser does it: Reka takes the focus for the thumb when it starts.
+async function dragSlider(thumb: Element) {
+  Element.prototype.setPointerCapture = () => {}
+  Element.prototype.hasPointerCapture = () => true
+  Element.prototype.releasePointerCapture = () => {}
+  const roots: Element[] = []
+  for (let up = thumb.parentElement; up; up = up.parentElement) {
+    if (up instanceof HTMLElement && up.dataset.orientation !== undefined) roots.push(up)
+  }
+  const root = roots.at(-1)
+  if (!root) throw new Error('no slider root')
+  root.dispatchEvent(pointerEvent('pointerdown'))
+  await flushPromises()
+  root.dispatchEvent(pointerEvent('pointerup'))
+  await flushPromises()
 }
 
 const question = () => document.querySelector('[role="alertdialog"]')
@@ -340,17 +391,16 @@ describe('ReviewPage', () => {
       expect(split.selectedSplit?.seconds).toBe(46)
     })
 
-    it('hands the keyboard to the new split, so it can be nudged at once', async () => {
+    it('leaves the arrow keys moving the new split, so it can be nudged at once', async () => {
       const wrapper = mountPage()
-      useSplitStore().moveZoomTo(46)
+      const split = useSplitStore()
+      split.moveZoomTo(46)
       await wrapper.vm.$nextTick()
 
       await addSplitButton(wrapper).trigger('click')
-      await wrapper.vm.$nextTick()
+      pressKey('ArrowRight')
 
-      expect(document.activeElement).toBe(
-        wrapper.get('[role="slider"][aria-label="Split 2"]').element,
-      )
+      expect(split.selectedSplit?.seconds).toBeCloseTo(46.01)
     })
   })
 
@@ -386,15 +436,14 @@ describe('ReviewPage', () => {
       expect(split.editCount).toBe(1)
     })
 
-    it('hands the keyboard to the split that is selected next, so it can be nudged at once', async () => {
+    it('leaves the arrow keys moving the split that is selected next', async () => {
       const wrapper = await mountPageOnSplit()
+      const split = useSplitStore()
 
       await deleteSplitButton(wrapper).trigger('click')
-      await wrapper.vm.$nextTick()
+      pressKey('ArrowLeft')
 
-      expect(document.activeElement).toBe(
-        wrapper.get('[role="slider"][aria-label="Split 1"]').element,
-      )
+      expect(split.selectedSplit?.seconds).toBeCloseTo(71.49)
     })
 
     it('is disabled once the last split is deleted', async () => {
@@ -471,16 +520,6 @@ describe('ReviewPage', () => {
       expect(wrapper.find('[aria-label="Waveform of the range"]').exists()).toBe(true)
       // A split within a second of the mark now, so it cannot be added twice.
       expect(addSplitButton(wrapper).attributes('disabled')).toBeDefined()
-    })
-
-    it('hands the keyboard back to the view, so its keys go on working', async () => {
-      const wrapper = await mountPageWithRange()
-      useSplitStore().placeMark(15)
-      await wrapper.vm.$nextTick()
-
-      await addSplitButton(wrapper).trigger('click')
-
-      expect(document.activeElement).toBe(playheadInRange(wrapper))
     })
 
     it('comes before the "Back to range start" and range buttons', async () => {
@@ -826,16 +865,6 @@ describe('ReviewPage', () => {
       await backButton(wrapper).trigger('click')
 
       expect(backToRangeStart).toHaveBeenCalledTimes(1)
-      expect(document.activeElement).toBe(playheadInRange(wrapper))
-    })
-
-    it('in the Track view, hands the keyboard back to the view too', async () => {
-      const wrapper = await mountPageWithTrack(2)
-      vi.spyOn(useAuditionStore(), 'backToStretchStart').mockImplementation(() => {})
-
-      await wrapper.get('button[aria-label="Back to track start"]').trigger('click')
-
-      expect(document.activeElement).toBe(playheadInTrack(wrapper))
     })
   })
 
@@ -860,16 +889,6 @@ describe('ReviewPage', () => {
       await rangeButton(wrapper).trigger('click')
 
       expect(toggleRange).toHaveBeenCalledTimes(1)
-      expect(document.activeElement).toBe(playheadInRange(wrapper))
-    })
-
-    it('in the Track view, hands the keyboard back to the view too', async () => {
-      const wrapper = await mountPageWithTrack(2)
-      vi.spyOn(useAuditionStore(), 'toggleStretch').mockImplementation(() => {})
-
-      await rangeButton(wrapper).trigger('click')
-
-      expect(document.activeElement).toBe(playheadInTrack(wrapper))
     })
 
     it('reads "Stop" while the range is decoded, "Pause" while it plays and "Play" when paused', async () => {
@@ -1124,12 +1143,23 @@ describe('ReviewPage', () => {
         expect(savedLine(wrapper).exists()).toBe(false)
       })
 
-      it('goes at the next key in the view', async () => {
+      it('goes at a key the view acts on', async () => {
         const wrapper = await exportTrack2()
 
-        await wrapper.get('[aria-label="Playhead in the track"]').trigger('keydown', { key: 'x' })
+        pressKey('ArrowRight')
+        await wrapper.vm.$nextTick()
 
         expect(savedLine(wrapper).exists()).toBe(false)
+      })
+
+      it('stays at a key no view acts on, Tab or a letter', async () => {
+        const wrapper = await exportTrack2()
+
+        pressKey('Tab')
+        pressKey('x')
+        await wrapper.vm.$nextTick()
+
+        expect(savedLine(wrapper).exists()).toBe(true)
       })
 
       it('goes at a selection change', async () => {
@@ -1309,7 +1339,7 @@ describe('ReviewPage', () => {
         expect(addPendingButton(wrapper).attributes('disabled')).toBeUndefined()
       })
 
-      it('adds a pending split at the mark, selects it and hands the keyboard back to the view', async () => {
+      it('adds a pending split at the mark and selects it', async () => {
         const wrapper = await mountWithMark()
         const split = useSplitStore()
 
@@ -1318,12 +1348,11 @@ describe('ReviewPage', () => {
         expect(split.pendingSplits).toEqual([40])
         expect(split.selectedPendingSplit).toBe(40)
         expect(split.splits).toHaveLength(2)
-        expect(document.activeElement).toBe(playheadInTrack(wrapper))
       })
     })
 
     describe('Delete pending split', () => {
-      it('deletes the selected one and hands the keyboard back to the view', async () => {
+      it('deletes the selected one', async () => {
         const wrapper = await mountWithMark()
         const split = useSplitStore()
         split.addPendingSplit(30, false)
@@ -1334,7 +1363,6 @@ describe('ReviewPage', () => {
 
         expect(split.pendingSplits).toEqual([30])
         expect(deletePendingButton(wrapper).exists()).toBe(false)
-        expect(document.activeElement).toBe(playheadInTrack(wrapper))
       })
     })
 
@@ -1371,17 +1399,18 @@ describe('ReviewPage', () => {
         expect(wrapper.find('[aria-label="Zoomed waveform of the split"]').exists()).toBe(true)
       })
 
-      it('hands the keyboard to the new split, so it can be nudged at once', async () => {
+      it('leaves the arrow keys moving the new split, with nothing focused', async () => {
         const wrapper = await mountWithMark()
-        useSplitStore().addPendingSplit(30, false)
+        const split = useSplitStore()
+        split.addPendingSplit(30, false)
         await wrapper.vm.$nextTick()
 
         await applyButton(wrapper).trigger('click')
         await flushPromises()
+        if (document.activeElement instanceof HTMLElement) document.activeElement.blur()
+        pressKey('ArrowRight')
 
-        expect(document.activeElement).toBe(
-          wrapper.get('[role="slider"][aria-label="Split 2"]').element,
-        )
+        expect(split.selectedSplit?.seconds).toBeCloseTo(30.01)
       })
     })
 
@@ -1631,6 +1660,245 @@ describe('ReviewPage', () => {
 
       const inTrackView = await volumeSlider(wrapper)
       expect(inTrackView.attributes('aria-valuetext')).toBe('−40 dB')
+    })
+  })
+
+  describe('the keys on the page', () => {
+    it('move the selected split in the Split view after a click on its track-list row, with the focus on the page', async () => {
+      const wrapper = await mountPageOnSplit()
+      const split = useSplitStore()
+      const row = wrapper.findAll('tr').find((candidate) => candidate.text().startsWith('Split 2'))
+      await row!.trigger('click')
+      expect(document.activeElement).toBe(document.body)
+
+      pressKey('ArrowLeft')
+      expect(split.selectedSplit?.seconds).toBeCloseTo(71.49)
+
+      pressKey('ArrowRight', { shiftKey: true })
+      expect(split.selectedSplit?.seconds).toBeCloseTo(71.59)
+    })
+
+    it('change nothing in the Split view with Cmd+Backspace or Alt+Left', async () => {
+      await mountPageOnSplit()
+      const split = useSplitStore()
+
+      pressKey('Backspace', { metaKey: true })
+      pressKey('ArrowLeft', { altKey: true })
+
+      expect(split.splits.map((point) => point.seconds)).toEqual([21, 71.5])
+    })
+
+    it('act in the Track view with the focus on the page, after a click on a track-list row', async () => {
+      const wrapper = await mountWithMark()
+      const split = useSplitStore()
+      const toggleStretch = vi
+        .spyOn(useAuditionStore(), 'toggleStretch')
+        .mockImplementation(() => {})
+      expect(document.activeElement).toBe(document.body)
+
+      pressKey(' ')
+      pressKey('Enter')
+      await wrapper.vm.$nextTick()
+
+      expect(toggleStretch).toHaveBeenCalledTimes(1)
+      expect(split.pendingSplits).toEqual([40])
+    })
+
+    it('act in the Range view without its frame ever having the focus', async () => {
+      const wrapper = await mountPageWithRange()
+      const split = useSplitStore()
+      split.placeMark(15)
+      await wrapper.vm.$nextTick()
+      const audition = useAuditionStore()
+      const range = split.range!
+
+      pressKey('ArrowLeft')
+      pressKey('Enter')
+      await wrapper.vm.$nextTick()
+
+      expect(audition.stretchPlayheadSeconds(range)).toBe(10)
+      expect(split.splits.map((point) => point.seconds)).toContain(15)
+      expect(document.activeElement).not.toBe(playheadInRange(wrapper))
+    })
+
+    it('leave a track name its Backspace, and the selected pending split its place', async () => {
+      const wrapper = await mountWithMark()
+      const split = useSplitStore()
+      split.addPendingSplit(40, true)
+      await wrapper.vm.$nextTick()
+      const field = wrapper.get('input')
+
+      const event = pressKey('Backspace', {}, field.element)
+      await wrapper.vm.$nextTick()
+
+      expect(event.defaultPrevented).toBe(false)
+      expect(split.pendingSplits).toEqual([40])
+      expect(split.selectedPendingSplit).toBe(40)
+    })
+
+    it('stay out while the discard question is open, and Escape closes only the question', async () => {
+      const { split, wrapper } = await mountWithPending()
+      split.selectPendingSplit(30)
+      await wrapper.get('[aria-label^="Select track 3"]').trigger('click')
+      await flushPromises()
+      expect(question()).not.toBeNull()
+
+      pressKey('Delete', {}, question()!)
+      pressKey('Escape', {}, question()!)
+      await flushPromises()
+
+      expect(question()).toBeNull()
+      expect(split.pendingSplits).toEqual([30, 50])
+      expect(split.selectedPendingSplit).toBe(30)
+    })
+
+    it('stay out while the shortcuts dialog is open', async () => {
+      const wrapper = await mountWithMark()
+      const toggleStretch = vi
+        .spyOn(useAuditionStore(), 'toggleStretch')
+        .mockImplementation(() => {})
+      pressQuestionMark()
+      await flushPromises()
+
+      pressKey(' ')
+      pressKey('Enter')
+
+      expect(toggleStretch).not.toHaveBeenCalled()
+      expect(useSplitStore().pendingSplits).toEqual([])
+      wrapper.unmount()
+    })
+
+    it('leave Space and Enter to a button reached with Tab, and give it the arrows', async () => {
+      const wrapper = await mountWithMark()
+      const split = useSplitStore()
+      const audition = useAuditionStore()
+      const toggleStretch = vi.spyOn(audition, 'toggleStretch').mockImplementation(() => {})
+      const stretch = trackExtent(split.selectedTrack!)
+      const button = rangeButton(wrapper).element as HTMLElement
+      button.focus()
+
+      pressKey(' ', {}, button)
+      pressKey('Enter', {}, button)
+      expect(toggleStretch).not.toHaveBeenCalled()
+      expect(split.pendingSplits).toEqual([])
+
+      pressKey('ArrowRight', {}, button)
+      expect(audition.stretchPlayheadSeconds(stretch)).toBe(22)
+    })
+
+    it('are left to the browser with Ctrl, Cmd or Alt held', async () => {
+      const wrapper = await mountWithMark()
+      const toggleStretch = vi
+        .spyOn(useAuditionStore(), 'toggleStretch')
+        .mockImplementation(() => {})
+
+      pressKey(' ', { ctrlKey: true })
+      pressKey(' ', { metaKey: true })
+      pressKey(' ', { altKey: true })
+      await wrapper.vm.$nextTick()
+
+      expect(toggleStretch).not.toHaveBeenCalled()
+    })
+
+    describe('after a mouse click', () => {
+      it('on Play in the Track view, Space pauses the track and does not press Play again', async () => {
+        const wrapper = await mountWithMark()
+        const toggleStretch = vi
+          .spyOn(useAuditionStore(), 'toggleStretch')
+          .mockImplementation(() => {})
+
+        await mouseClick(rangeButton(wrapper).element)
+        expect(toggleStretch).toHaveBeenCalledTimes(1)
+        pressWhereFocused(' ')
+
+        expect(toggleStretch).toHaveBeenCalledTimes(2)
+      })
+
+      it('on Play while a track name is being edited, the field lets go and Space acts on the view', async () => {
+        const wrapper = await mountWithMark()
+        const toggleStretch = vi
+          .spyOn(useAuditionStore(), 'toggleStretch')
+          .mockImplementation(() => {})
+        const field = wrapper.get('input').element
+        field.focus()
+        expect(document.activeElement).toBe(field)
+
+        await mouseClick(rangeButton(wrapper).element)
+        pressWhereFocused(' ')
+
+        expect(document.activeElement).not.toBe(field)
+        expect(toggleStretch).toHaveBeenCalledTimes(2)
+      })
+
+      it('on the Split | Track | Range control, the arrows go to the view now on show', async () => {
+        const wrapper = await mountPageWithRange()
+        const split = useSplitStore()
+        const audition = useAuditionStore()
+
+        await mouseClick(viewOption(wrapper, 'Track').element)
+        pressWhereFocused('ArrowRight')
+
+        expect(split.view).toBe('track')
+        const start = trackExtent(split.selectedTrack!)
+        expect(audition.stretchPlayheadSeconds(start)).toBe(start.startSeconds + 1)
+      })
+
+      it('on a track-list row, Space acts on the view on show', async () => {
+        const wrapper = await mountWithMark()
+        const toggleStretch = vi
+          .spyOn(useAuditionStore(), 'toggleStretch')
+          .mockImplementation(() => {})
+
+        await mouseClick(wrapper.get('[aria-label^="Select track 2"]').element)
+        pressWhereFocused(' ')
+
+        expect(toggleStretch).toHaveBeenCalledTimes(1)
+      })
+
+      it('on a track-strip block, Space acts on the view on show', async () => {
+        const wrapper = await mountWithMark()
+        const toggleStretch = vi
+          .spyOn(useAuditionStore(), 'toggleStretch')
+          .mockImplementation(() => {})
+        const block = wrapper
+          .findAll('button')
+          .find((candidate) => nameOf(candidate).startsWith('2, '))
+
+        await mouseClick(block!.element)
+        pressWhereFocused(' ')
+
+        expect(toggleStretch).toHaveBeenCalledTimes(1)
+      })
+
+      it('on a drag of the silence threshold, Left moves the playhead and the threshold stays', async () => {
+        const wrapper = await mountWithMark()
+        const split = useSplitStore()
+        const audition = useAuditionStore()
+
+        await dragSlider(wrapper.get('[role="slider"][aria-label="Silence threshold"]').element)
+        // The drag may have found other splits, so the track is the one the drag left selected.
+        const stretch = trackExtent(split.selectedTrack!)
+        const threshold = split.silenceThreshold
+        pressWhereFocused('ArrowRight')
+
+        expect(audition.stretchPlayheadSeconds(stretch)).toBe(stretch.startSeconds + 1)
+        expect(split.silenceThreshold).toBe(threshold)
+      })
+    })
+
+    it('switch to the new view as the view on show changes', async () => {
+      const wrapper = await mountWithMark()
+      const split = useSplitStore()
+      const toggleStretch = vi
+        .spyOn(useAuditionStore(), 'toggleStretch')
+        .mockImplementation(() => {})
+      split.setRange(10, 20)
+      split.showView('range')
+      await wrapper.vm.$nextTick()
+
+      pressKey(' ')
+
+      expect(toggleStretch).toHaveBeenCalledExactlyOnceWith(split.range)
     })
   })
 })

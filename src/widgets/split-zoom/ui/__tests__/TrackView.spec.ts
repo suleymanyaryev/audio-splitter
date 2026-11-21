@@ -36,6 +36,12 @@ function setup() {
   return { audition, split, stretch, toggleStretch, backToStretchStart, wrapper }
 }
 
+// Keys belong to the page: the view hears them wherever the focus is.
+async function press(init: KeyboardEventInit) {
+  document.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, cancelable: true, ...init }))
+  await nextTick()
+}
+
 /*
 jsdom has no PointerEvent: a mouse event of that name, with the pointer's id. The main button is
 held from the press to the release, as a move during a drag reports it.
@@ -77,13 +83,13 @@ describe('TrackView', () => {
     vi.restoreAllMocks()
   })
 
-  it('is a focusable slider on the playhead, with the track’s waveform in it', () => {
+  it('is a slider on the playhead, not a tab stop, with the track’s waveform in it', () => {
     const { wrapper } = setup()
 
     const view = wrapper.get('[role="slider"]')
 
     expect(view.attributes('aria-label')).toBe('Playhead in the track')
-    expect(view.attributes('tabindex')).toBe('0')
+    expect(view.attributes('tabindex')).toBe('-1')
     expect(view.find('canvas[aria-label="Waveform of the track"]').exists()).toBe(true)
   })
 
@@ -147,50 +153,70 @@ describe('TrackView', () => {
     })
   })
 
+  describe('a key the view acts on', () => {
+    it('is reported, and a key it leaves alone is not', async () => {
+      const { wrapper } = setup()
+
+      await press({ key: 'ArrowRight' })
+      await press({ key: 'x' })
+      await press({ key: 'Escape' })
+
+      expect(wrapper.emitted('acted')).toHaveLength(1)
+    })
+
+    it('is not Enter with no mark, which has nothing to add a pending split at', async () => {
+      const { wrapper } = setup()
+      const event = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true })
+
+      document.dispatchEvent(event)
+
+      expect(wrapper.emitted('acted')).toBeUndefined()
+      expect(event.defaultPrevented).toBe(false)
+    })
+  })
+
   describe('Left and Right', () => {
     it('move the playhead 1 s, and 10 s with Shift', async () => {
-      const { audition, stretch, wrapper } = setup()
-      const view = wrapper.get('[role="slider"]')
+      const { audition, stretch } = setup()
 
-      await view.trigger('keydown', { key: 'ArrowRight' })
+      await press({ key: 'ArrowRight' })
       expect(audition.stretchPlayheadSeconds(stretch)).toBe(22)
 
-      await view.trigger('keydown', { key: 'ArrowRight', shiftKey: true })
+      await press({ key: 'ArrowRight', shiftKey: true })
       expect(audition.stretchPlayheadSeconds(stretch)).toBe(32)
 
-      await view.trigger('keydown', { key: 'ArrowLeft' })
+      await press({ key: 'ArrowLeft' })
       expect(audition.stretchPlayheadSeconds(stretch)).toBe(31)
 
-      await view.trigger('keydown', { key: 'ArrowLeft', shiftKey: true })
+      await press({ key: 'ArrowLeft', shiftKey: true })
       expect(audition.stretchPlayheadSeconds(stretch)).toBe(21)
     })
 
     it('hold the playhead inside the track, and are not a page scroll', async () => {
-      const { audition, stretch, wrapper } = setup()
-      const view = wrapper.get('[role="slider"]')
+      const { audition, stretch } = setup()
       const event = new KeyboardEvent('keydown', {
         key: 'ArrowLeft',
         bubbles: true,
         cancelable: true,
       })
 
-      view.element.dispatchEvent(event)
+      document.dispatchEvent(event)
       expect(audition.stretchPlayheadSeconds(stretch)).toBe(21)
       expect(event.defaultPrevented).toBe(true)
 
-      await view.trigger('keydown', { key: 'ArrowRight', shiftKey: true })
-      await view.trigger('keydown', { key: 'ArrowRight', shiftKey: true })
-      await view.trigger('keydown', { key: 'ArrowRight', shiftKey: true })
-      await view.trigger('keydown', { key: 'ArrowRight', shiftKey: true })
-      await view.trigger('keydown', { key: 'ArrowRight', shiftKey: true })
-      await view.trigger('keydown', { key: 'ArrowRight', shiftKey: true })
+      await press({ key: 'ArrowRight', shiftKey: true })
+      await press({ key: 'ArrowRight', shiftKey: true })
+      await press({ key: 'ArrowRight', shiftKey: true })
+      await press({ key: 'ArrowRight', shiftKey: true })
+      await press({ key: 'ArrowRight', shiftKey: true })
+      await press({ key: 'ArrowRight', shiftKey: true })
       expect(audition.stretchPlayheadSeconds(stretch)).toBe(71.5)
     })
 
     it('leave playback and the splits alone', async () => {
-      const { split, toggleStretch, wrapper } = setup()
+      const { split, toggleStretch } = setup()
 
-      await wrapper.get('[role="slider"]').trigger('keydown', { key: 'ArrowRight' })
+      await press({ key: 'ArrowRight' })
 
       expect(toggleStretch).not.toHaveBeenCalled()
       expect(split.splits).toHaveLength(2)
@@ -200,8 +226,7 @@ describe('TrackView', () => {
 
   describe('a key with Ctrl, Cmd or Alt held', () => {
     it('is left to the browser', () => {
-      const { audition, stretch, toggleStretch, backToStretchStart, wrapper } = setup()
-      const view = wrapper.get('[role="slider"]')
+      const { audition, stretch, toggleStretch, backToStretchStart } = setup()
 
       for (const modifier of ['ctrlKey', 'metaKey', 'altKey']) {
         for (const key of ['ArrowLeft', 'ArrowRight', 'Home', ' ']) {
@@ -211,7 +236,7 @@ describe('TrackView', () => {
             bubbles: true,
             cancelable: true,
           })
-          view.element.dispatchEvent(event)
+          document.dispatchEvent(event)
           expect(event.defaultPrevented).toBe(false)
         }
       }
@@ -224,22 +249,21 @@ describe('TrackView', () => {
 
   describe('Space', () => {
     it('plays or pauses the track, and is not a page scroll', () => {
-      const { stretch, toggleStretch, wrapper } = setup()
+      const { stretch, toggleStretch } = setup()
       const event = new KeyboardEvent('keydown', { key: ' ', bubbles: true, cancelable: true })
 
-      wrapper.get('[role="slider"]').element.dispatchEvent(event)
+      document.dispatchEvent(event)
 
       expect(toggleStretch).toHaveBeenCalledExactlyOnceWith(stretch)
       expect(event.defaultPrevented).toBe(true)
     })
 
     it('ignores the auto-repeat of a held key', async () => {
-      const { toggleStretch, wrapper } = setup()
-      const view = wrapper.get('[role="slider"]')
+      const { toggleStretch } = setup()
 
-      await view.trigger('keydown', { key: ' ' })
-      await view.trigger('keydown', { key: ' ', repeat: true })
-      await view.trigger('keydown', { key: ' ', repeat: true })
+      await press({ key: ' ' })
+      await press({ key: ' ', repeat: true })
+      await press({ key: ' ', repeat: true })
 
       expect(toggleStretch).toHaveBeenCalledTimes(1)
     })
@@ -247,10 +271,10 @@ describe('TrackView', () => {
 
   describe('Home', () => {
     it('moves the playhead to the track’s start, and is not a page scroll', () => {
-      const { stretch, backToStretchStart, wrapper } = setup()
+      const { stretch, backToStretchStart } = setup()
       const event = new KeyboardEvent('keydown', { key: 'Home', bubbles: true, cancelable: true })
 
-      wrapper.get('[role="slider"]').element.dispatchEvent(event)
+      document.dispatchEvent(event)
 
       expect(backToStretchStart).toHaveBeenCalledExactlyOnceWith(stretch)
       expect(event.defaultPrevented).toBe(true)
@@ -259,11 +283,11 @@ describe('TrackView', () => {
 
   describe('Enter', () => {
     it('adds a pending split at the mark and selects it, and is not a page action', () => {
-      const { split, wrapper } = setup()
+      const { split } = setup()
       split.placeTrackMark(30)
       const event = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true })
 
-      wrapper.get('[role="slider"]').element.dispatchEvent(event)
+      document.dispatchEvent(event)
 
       expect(split.pendingSplits).toEqual([30])
       expect(split.selectedPendingSplit).toBe(30)
@@ -271,37 +295,35 @@ describe('TrackView', () => {
     })
 
     it('adds nothing with no mark, or while a pending split is selected', async () => {
-      const { split, wrapper } = setup()
-      const view = wrapper.get('[role="slider"]')
+      const { split } = setup()
 
-      await view.trigger('keydown', { key: 'Enter' })
+      await press({ key: 'Enter' })
       expect(split.pendingSplits).toEqual([])
 
       split.placeTrackMark(30)
-      await view.trigger('keydown', { key: 'Enter' })
+      await press({ key: 'Enter' })
       split.placeTrackMark(40)
-      await view.trigger('keydown', { key: 'Enter' })
+      await press({ key: 'Enter' })
       expect(split.pendingSplits).toEqual([30])
     })
 
     it('ignores the auto-repeat of a held key, so one press adds one', async () => {
-      const { split, wrapper } = setup()
+      const { split } = setup()
       split.placeTrackMark(30)
-      const view = wrapper.get('[role="slider"]')
 
-      await view.trigger('keydown', { key: 'Enter' })
+      await press({ key: 'Enter' })
       split.deselectPendingSplit()
       split.placeTrackMark(40)
-      await view.trigger('keydown', { key: 'Enter', repeat: true })
+      await press({ key: 'Enter', repeat: true })
 
       expect(split.pendingSplits).toEqual([30])
     })
 
     it('leaves the splits, the playhead and the playback alone', async () => {
-      const { audition, split, stretch, toggleStretch, wrapper } = setup()
+      const { audition, split, stretch, toggleStretch } = setup()
       split.placeTrackMark(30)
 
-      await wrapper.get('[role="slider"]').trigger('keydown', { key: 'Enter' })
+      await press({ key: 'Enter' })
 
       expect(split.splits).toHaveLength(2)
       expect(split.editCount).toBe(0)
@@ -312,7 +334,7 @@ describe('TrackView', () => {
 
   describe('Shift+Enter', () => {
     it('adds a pending split where the playhead is, without selecting it', async () => {
-      const { audition, split, stretch, wrapper } = setup()
+      const { audition, split, stretch } = setup()
       audition.seekStretch(stretch, 40.004)
       await nextTick()
       const event = new KeyboardEvent('keydown', {
@@ -322,7 +344,7 @@ describe('TrackView', () => {
         cancelable: true,
       })
 
-      wrapper.get('[role="slider"]').element.dispatchEvent(event)
+      document.dispatchEvent(event)
 
       expect(split.pendingSplits).toEqual([40])
       expect(split.selectedPendingSplit).toBeNull()
@@ -330,16 +352,15 @@ describe('TrackView', () => {
     })
 
     it('takes every tap along the track, and is never blocked by a selection', async () => {
-      const { audition, split, stretch, wrapper } = setup()
+      const { audition, split, stretch } = setup()
       split.placeTrackMark(30)
-      const view = wrapper.get('[role="slider"]')
-      await view.trigger('keydown', { key: 'Enter' })
+      await press({ key: 'Enter' })
       expect(split.selectedPendingSplit).toBe(30)
 
       for (const seconds of [35, 45, 55]) {
         audition.seekStretch(stretch, seconds)
         await nextTick()
-        await view.trigger('keydown', { key: 'Enter', shiftKey: true })
+        await press({ key: 'Enter', shiftKey: true })
       }
 
       expect(split.pendingSplits).toEqual([30, 35, 45, 55])
@@ -347,43 +368,41 @@ describe('TrackView', () => {
     })
 
     it('is refused within 1 s of another pending split or of the track’s ends', async () => {
-      const { audition, split, stretch, wrapper } = setup()
-      const view = wrapper.get('[role="slider"]')
+      const { audition, split, stretch } = setup()
 
-      await view.trigger('keydown', { key: 'Enter', shiftKey: true })
+      await press({ key: 'Enter', shiftKey: true })
       expect(split.pendingSplits).toEqual([])
 
       audition.seekStretch(stretch, 40)
       await nextTick()
-      await view.trigger('keydown', { key: 'Enter', shiftKey: true })
+      await press({ key: 'Enter', shiftKey: true })
       audition.seekStretch(stretch, 40.5)
       await nextTick()
-      await view.trigger('keydown', { key: 'Enter', shiftKey: true })
+      await press({ key: 'Enter', shiftKey: true })
 
       expect(split.pendingSplits).toEqual([40])
     })
 
     it('ignores the auto-repeat of a held key, so one press adds one', async () => {
-      const { audition, split, stretch, wrapper } = setup()
-      const view = wrapper.get('[role="slider"]')
+      const { audition, split, stretch } = setup()
       audition.seekStretch(stretch, 40)
       await nextTick()
-      await view.trigger('keydown', { key: 'Enter', shiftKey: true })
+      await press({ key: 'Enter', shiftKey: true })
       audition.seekStretch(stretch, 50)
       await nextTick()
 
-      await view.trigger('keydown', { key: 'Enter', shiftKey: true, repeat: true })
+      await press({ key: 'Enter', shiftKey: true, repeat: true })
 
       expect(split.pendingSplits).toEqual([40])
     })
 
     it('leaves the mark, the playback and the view as they are', async () => {
-      const { audition, split, stretch, toggleStretch, wrapper } = setup()
+      const { audition, split, stretch, toggleStretch } = setup()
       split.placeTrackMark(30)
       audition.seekStretch(stretch, 40)
       await nextTick()
 
-      await wrapper.get('[role="slider"]').trigger('keydown', { key: 'Enter', shiftKey: true })
+      await press({ key: 'Enter', shiftKey: true })
 
       expect(split.trackMarkSeconds).toBe(30)
       expect(split.view).toBe('track')
@@ -393,12 +412,12 @@ describe('TrackView', () => {
 
   describe('Delete and Backspace with a pending split selected', () => {
     it.each(['Delete', 'Backspace'])('%s deletes it, and is not a page action', (key) => {
-      const { split, wrapper } = setup()
+      const { split } = setup()
       split.addPendingSplit(30, false)
       split.addPendingSplit(40, true)
       const event = new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true })
 
-      wrapper.get('[role="slider"]').element.dispatchEvent(event)
+      document.dispatchEvent(event)
 
       expect(split.pendingSplits).toEqual([30])
       expect(split.selectedPendingSplit).toBeNull()
@@ -406,10 +425,10 @@ describe('TrackView', () => {
     })
 
     it('never deletes a split or a track', async () => {
-      const { split, wrapper } = setup()
+      const { split } = setup()
       split.addPendingSplit(40, true)
 
-      await wrapper.get('[role="slider"]').trigger('keydown', { key: 'Delete' })
+      await press({ key: 'Delete' })
 
       expect(split.splits).toHaveLength(2)
       expect(split.selectedTrack?.number).toBe(2)
@@ -418,11 +437,11 @@ describe('TrackView', () => {
 
   describe('Escape', () => {
     it('deselects the selected pending split, and keeps it', () => {
-      const { split, wrapper } = setup()
+      const { split } = setup()
       split.addPendingSplit(40, true)
       const event = new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true })
 
-      wrapper.get('[role="slider"]').element.dispatchEvent(event)
+      document.dispatchEvent(event)
 
       expect(split.selectedPendingSplit).toBeNull()
       expect(split.pendingSplits).toEqual([40])
@@ -430,10 +449,10 @@ describe('TrackView', () => {
     })
 
     it('is left alone with none selected', () => {
-      const { wrapper } = setup()
+      setup()
       const event = new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true })
 
-      wrapper.get('[role="slider"]').element.dispatchEvent(event)
+      document.dispatchEvent(event)
 
       expect(event.defaultPrevented).toBe(false)
     })
@@ -441,13 +460,12 @@ describe('TrackView', () => {
 
   describe('Delete and Backspace', () => {
     it('do nothing with no pending split selected: no split goes, no track goes, the key is left alone', () => {
-      const { audition, split, stretch, toggleStretch, wrapper } = setup()
+      const { audition, split, stretch, toggleStretch } = setup()
       const deleteSplit = vi.spyOn(split, 'deleteSplit')
-      const view = wrapper.get('[role="slider"]')
 
       for (const key of ['Delete', 'Backspace']) {
         const event = new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true })
-        view.element.dispatchEvent(event)
+        document.dispatchEvent(event)
         expect(event.defaultPrevented).toBe(false)
       }
 
@@ -459,19 +477,18 @@ describe('TrackView', () => {
     })
 
     it('leave other keys alone too', async () => {
-      const { toggleStretch, wrapper } = setup()
+      const { toggleStretch } = setup()
 
-      await wrapper.get('[role="slider"]').trigger('keydown', { key: 'a' })
+      await press({ key: 'a' })
 
       expect(toggleStretch).not.toHaveBeenCalled()
     })
   })
 
   describe('a press', () => {
-    it('places the mark where it lands and focuses the view, leaving the playhead and playback alone', async () => {
+    it('places the mark where it lands, leaving the playhead and playback alone', async () => {
       const { audition, split, stretch, toggleStretch, wrapper } = setup()
       const view = measured(wrapper)
-      document.body.append(wrapper.element)
 
       // 400 px of 1000 is 40 % of 50.5 s from 21 s.
       await pointer(view, 'pointerdown', 400)
@@ -479,7 +496,6 @@ describe('TrackView', () => {
 
       expect(split.trackMarkSeconds).toBeCloseTo(41.2, 9)
       expect(audition.stretchPlayheadSeconds(stretch)).toBe(21)
-      expect(document.activeElement).toBe(view.element)
       expect(toggleStretch).not.toHaveBeenCalled()
     })
 
@@ -531,14 +547,12 @@ describe('TrackView', () => {
       split.addPendingSplit(41.2, false)
       split.placeTrackMark(30)
       const view = measured(wrapper)
-      document.body.append(wrapper.element)
 
       await pointer(view, 'pointerdown', 405)
       await pointer(view, 'pointerup', 405)
 
       expect(split.selectedPendingSplit).toBeCloseTo(41.2, 9)
       expect(split.trackMarkSeconds).toBe(30)
-      expect(document.activeElement).toBe(view.element)
     })
 
     it('takes the playhead before a pending split under the same press', async () => {

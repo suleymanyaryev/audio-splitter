@@ -1,4 +1,6 @@
 <script setup lang="ts">
+// A mouse press leaves the focus off the button, so the next key goes to the view on show.
+import { releaseFocus } from '@/shared/lib/keyboard/release-focus.ts'
 const { variant = 'secondary', size = 'md' } = defineProps<{
   variant?: 'primary' | 'secondary' | 'danger' | 'inverse'
   // `md` is 36 px; `sm` (32 px) is for title rows and table rows, `lg` (40 px) only for Export.
@@ -32,6 +34,7 @@ const SIZE_CLASSES = {
     type="button"
     class="inline-flex cursor-pointer items-center gap-2 rounded-control text-sm font-semibold whitespace-nowrap transition-colors duration-100 disabled:cursor-not-allowed disabled:opacity-40"
     :class="[VARIANT_CLASSES[variant], SIZE_CLASSES[size]]"
+    @mousedown="releaseFocus"
   >
     <slot />
   </button>
