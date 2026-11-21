@@ -228,11 +228,15 @@ export const useSplitStore = defineStore('split', () => {
     return action
   }
 
-  // Apply first: the pending splits become splits, then what the user asked for runs.
+  /*
+  Apply first: the pending splits become splits, then what the user asked for runs. Unlike Apply it
+  does not show the Split view: the held action decides where the user goes, so a split added at the
+  playhead keeps the Range view and its sound.
+  */
   function applyFirst() {
     const action = closeQuestion()
     if (action === null) return
-    applyPendingSplits()
+    insertPendingSplits()
     action()
   }
 
@@ -463,8 +467,11 @@ export const useSplitStore = defineStore('split', () => {
   function addPendingSplit(seconds: number, isSelected: boolean) {
     const onGrid = snapToGrid(seconds)
     if (!hasRoomForPending(onGrid)) return
-    const index = pendingSeconds.value.findIndex((other) => other > onGrid)
-    pendingSeconds.value.splice(index === -1 ? pendingSeconds.value.length : index, 0, onGrid)
+    const list = pendingSeconds.value
+    const index = list.findIndex((other) => other > onGrid)
+    const at = index === -1 ? list.length : index
+    // A new array, not a splice: the Track view redraws when the list is replaced.
+    pendingSeconds.value = [...list.slice(0, at), onGrid, ...list.slice(at)]
     if (isSelected) selectedPendingSeconds.value = onGrid
   }
 
@@ -491,16 +498,19 @@ export const useSplitStore = defineStore('split', () => {
 
   /*
   Turns every pending split into a split, each an added edit through the same insert as any added
-  split, then selects the first new one, which centres the window on it and shows the Split view,
-  where each can be fine-tuned. The list is taken first and emptied: the first insert changes the
-  track, which would empty it under the loop.
+  split. The list is taken first and emptied: the first insert changes the track, which would empty
+  it under the loop.
   */
-  function applyPendingSplits() {
+  function insertPendingSplits() {
     const times = pendingSeconds.value
-    if (times.length === 0) return
     clearPending()
-    const inserted = times.map((seconds) => insertSplit(seconds))
-    showSplit(inserted[0]!.id)
+    return times.map((seconds) => insertSplit(seconds))
+  }
+
+  // Apply: then the first new split is selected, centred and shown in the Split view, to fine-tune.
+  function applyPendingSplits() {
+    const [first] = insertPendingSplits()
+    if (first !== undefined) showSplit(first.id)
   }
 
   // A view needs something to show: asked for with no range or no selected track, the panel stays.

@@ -65,6 +65,11 @@ export const useExportSingleStore = defineStore('export-single', () => {
 
   // Set by `cancel`: ffmpeg's stop rejects the cut like a failure, and this tells the two apart.
   let wasCancelled = false
+  /*
+  Only the cut can be stopped. Once it has ended, the write is short and leaves a whole file or
+  none, so a cancel that late does nothing and the file is saved.
+  */
+  let isCutting = false
 
   // A new file starts with no folder, so one file's tracks never land in another's.
   watch(
@@ -119,7 +124,7 @@ export const useExportSingleStore = defineStore('export-single', () => {
     failure.value = null
   }
 
-  // Takes the line away: the next press or key in the view, a view switch or a selection change.
+  // Takes the line away: the next press or key in the view, a view switch, a selection or a range.
   function dismissSaved() {
     if (status.value !== 'saved') return
     status.value = 'idle'
@@ -222,6 +227,7 @@ export const useExportSingleStore = defineStore('export-single', () => {
         }
 
         // The cut is asked for before anything else is awaited, so a Cancel always has it to stop.
+        isCutting = true
         const cut = sourceFile.cutTrack({
           startSeconds: target.startSeconds,
           endSeconds: target.endSeconds,
@@ -232,6 +238,7 @@ export const useExportSingleStore = defineStore('export-single', () => {
           cut,
           fileNameFor(target, name, where, format),
         ])
+        isCutting = false
         // A cancel that came as the cut ended: the file is not written.
         if (wasCancelled) {
           status.value = 'idle'
@@ -251,7 +258,8 @@ export const useExportSingleStore = defineStore('export-single', () => {
   }
 
   function cancel() {
-    if (status.value !== 'running') return
+    // A failed cut leaves `isCutting` set, but the run has ended by then.
+    if (!isCutting || status.value !== 'running') return
     wasCancelled = true
     sourceFile.stopCuts()
   }

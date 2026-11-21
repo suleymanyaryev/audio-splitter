@@ -1,5 +1,6 @@
 import { beforeEach, describe, it, expect } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
+import { watch } from 'vue'
 
 import { DEFAULT_MINIMUM_GAP_SECONDS, DEFAULT_OFFSET_DB } from '../../config/defaults.ts'
 import { MAX_TRACK_NAME_LENGTH } from '../../config/track-name.ts'
@@ -1858,6 +1859,22 @@ describe('the split store', () => {
         expect(store.selectedPendingSplit).toBe(27)
       })
 
+      it('is seen by a watcher of the list, which the Track view redraws on', () => {
+        const store = pendingStore()
+        const seen: number[][] = []
+        watch(
+          () => store.pendingSplits,
+          (list) => {
+            seen.push([...list])
+          },
+          { flush: 'sync' },
+        )
+
+        store.addPendingSplit(27, false)
+
+        expect(seen).toEqual([[27]])
+      })
+
       it('is allowed while another pending split is selected, and leaves that one selected', () => {
         const store = pendingStore()
         store.addPendingSplitAtMark()
@@ -2377,9 +2394,20 @@ describe('the split store', () => {
         expect(store.discardQuestion).toBeNull()
         expect(store.splits.map((point) => point.seconds)).toEqual([22, 27, 36, 42])
         expect(store.editCount).toBe(2)
-        // The held selection came after the apply's own, so it is the one that stands.
         expect(store.selectedSplit?.id).toBe(target.id)
         expect(store.pendingSplits).toEqual([])
+      })
+
+      it('leaves the view to the held action: a split at the playhead keeps the Range view', () => {
+        const store = pendingTwo()
+        store.setRange(20, 50)
+        store.addSplitAt(31)
+
+        store.applyFirst()
+
+        expect(store.splits.map((point) => point.seconds)).toEqual([22, 27, 31, 36, 42])
+        expect(store.view).toBe('range')
+        expect(store.range).toEqual({ startSeconds: 20, endSeconds: 50 })
       })
 
       it('runs a held track selection on the track it named', () => {

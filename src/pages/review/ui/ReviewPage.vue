@@ -56,7 +56,8 @@ the zoom view, at the mark in the Range view; the Track view adds no split but h
 splits' buttons: "Add pending split" (at the mark, enabled while there is room and none is
 selected), "Apply" (turns them all into splits and shows the Split view on the first) and "Delete
 pending split" (only while one is selected). "Export track…" is off while the track has pending
-splits, and its tooltip says why. A button that acts on the Track view gives the keyboard back to it. The zoom view also has
+splits, and its tooltip says why. A button that acts on the Range view or the Track view gives the
+keyboard back to it. The zoom view also has
 "Delete split", which deletes the selected split as Delete does on its handle (disabled with none
 selected), and "Play across split", which plays the selected split's clip (and reads "Stop" while
 it loads or plays). The
@@ -121,10 +122,16 @@ function confirmSingleExport(name: string) {
 
 /*
 The line that says where a single export went stays until the user's next press or key in the
-view, a view switch or a selection change. The Split view has no such line.
+view, a view switch, a selection change or a new range. The Split view has no such line. One getter
+each: a getter returning an array is a new array every time, so it would fire on any change at all.
 */
 watch(
-  () => [split.view, split.selectedTrack?.number, split.selectedSplit?.id],
+  [
+    () => split.view,
+    () => split.selectedTrack?.number,
+    () => split.selectedSplit?.id,
+    () => split.range,
+  ],
   () => {
     singleExport.dismissSaved()
   },
@@ -147,27 +154,36 @@ keys. In the Range view it goes at the mark and nothing else changes: the user s
 */
 const zoom = useTemplateRef('zoom')
 const trackView = useTemplateRef('trackView')
+const rangeView = useTemplateRef('rangeView')
+
+/*
+A button that acts on the Range view or the Track view gives the keyboard back to it, so the keys
+go on working (the delete button is gone once it has deleted). Only one of the two is on the page.
+*/
+function focusStretchView() {
+  rangeView.value?.focus()
+  trackView.value?.focus()
+}
+
 function addSplit() {
   if (split.view === 'range') {
     split.addSplitAtMark()
+    focusStretchView()
     return
   }
   split.addSplit()
   void zoom.value?.focusHandle()
 }
 
-/*
-The Track view's buttons, with the same effect as its keys. A button that acts on the view gives the
-keyboard back to it, so the keys go on working (the delete button is gone once it has deleted).
-*/
+// The Track view's buttons, with the same effect as its keys.
 function addPendingSplit() {
   split.addPendingSplitAtMark()
-  trackView.value?.focus()
+  focusStretchView()
 }
 
 function deletePendingSplit() {
   split.deleteSelectedPendingSplit()
-  trackView.value?.focus()
+  focusStretchView()
 }
 
 /*
@@ -218,10 +234,12 @@ const stretch = computed(() => {
 
 function backToStretchStart() {
   if (stretch.value !== null) audition.backToStretchStart(stretch.value)
+  focusStretchView()
 }
 
 function toggleStretch() {
   if (stretch.value !== null) audition.toggleStretch(stretch.value)
+  focusStretchView()
 }
 
 // The dialog is open while the store holds a question; closing it any other way is a cancel.
@@ -382,7 +400,7 @@ watch(
         @pointerdown.capture="singleExport.dismissSaved()"
         @keydown.capture="singleExport.dismissSaved()"
       >
-        <RangeView v-if="split.view === 'range'" />
+        <RangeView v-if="split.view === 'range'" ref="rangeView" />
         <TrackView v-else-if="split.view === 'track'" ref="trackView" />
         <SplitZoom v-else ref="zoom" />
       </div>

@@ -191,6 +191,8 @@ const deletePendingButton = (wrapper: ReturnType<typeof mount>) =>
   wrapper.find('button[aria-label="Delete pending split"]')
 const playheadInTrack = (wrapper: ReturnType<typeof mount>) =>
   wrapper.get('[role="slider"][aria-label="Playhead in the track"]').element
+const playheadInRange = (wrapper: ReturnType<typeof mount>) =>
+  wrapper.get('[role="slider"][aria-label="Playhead in the range"]').element
 
 // The volume's mute button, whichever way it reads, and its slider once Reka has placed the thumb.
 const muteButton = (wrapper: ReturnType<typeof mount>) =>
@@ -469,6 +471,16 @@ describe('ReviewPage', () => {
       expect(wrapper.find('[aria-label="Waveform of the range"]').exists()).toBe(true)
       // A split within a second of the mark now, so it cannot be added twice.
       expect(addSplitButton(wrapper).attributes('disabled')).toBeDefined()
+    })
+
+    it('hands the keyboard back to the view, so its keys go on working', async () => {
+      const wrapper = await mountPageWithRange()
+      useSplitStore().placeMark(15)
+      await wrapper.vm.$nextTick()
+
+      await addSplitButton(wrapper).trigger('click')
+
+      expect(document.activeElement).toBe(playheadInRange(wrapper))
     })
 
     it('comes before the "Back to range start" and range buttons', async () => {
@@ -814,6 +826,16 @@ describe('ReviewPage', () => {
       await backButton(wrapper).trigger('click')
 
       expect(backToRangeStart).toHaveBeenCalledTimes(1)
+      expect(document.activeElement).toBe(playheadInRange(wrapper))
+    })
+
+    it('in the Track view, hands the keyboard back to the view too', async () => {
+      const wrapper = await mountPageWithTrack(2)
+      vi.spyOn(useAuditionStore(), 'backToStretchStart').mockImplementation(() => {})
+
+      await wrapper.get('button[aria-label="Back to track start"]').trigger('click')
+
+      expect(document.activeElement).toBe(playheadInTrack(wrapper))
     })
   })
 
@@ -838,6 +860,16 @@ describe('ReviewPage', () => {
       await rangeButton(wrapper).trigger('click')
 
       expect(toggleRange).toHaveBeenCalledTimes(1)
+      expect(document.activeElement).toBe(playheadInRange(wrapper))
+    })
+
+    it('in the Track view, hands the keyboard back to the view too', async () => {
+      const wrapper = await mountPageWithTrack(2)
+      vi.spyOn(useAuditionStore(), 'toggleStretch').mockImplementation(() => {})
+
+      await rangeButton(wrapper).trigger('click')
+
+      expect(document.activeElement).toBe(playheadInTrack(wrapper))
     })
 
     it('reads "Stop" while the range is decoded, "Pause" while it plays and "Play" when paused', async () => {
@@ -1113,6 +1145,29 @@ describe('ReviewPage', () => {
 
         await viewOption(wrapper, 'Split').trigger('click')
         await viewOption(wrapper, 'Track').trigger('click')
+
+        expect(savedLine(wrapper).exists()).toBe(false)
+      })
+
+      it('stays when a track is renamed', async () => {
+        const wrapper = await exportTrack2()
+        const split = useSplitStore()
+
+        split.renameTrack(split.splits[1]!.id, 'Outro')
+        await wrapper.vm.$nextTick()
+
+        expect(savedLine(wrapper).exists()).toBe(true)
+      })
+
+      it('goes when a new range is dragged out, whose line it is not', async () => {
+        const wrapper = await mountPageWithRange()
+        await exportButtonOf(wrapper, 'Export range…').trigger('click')
+        await flushPromises()
+        await pressEnterInField()
+        expect(savedLine(wrapper).exists()).toBe(true)
+
+        useSplitStore().setRange(30, 40)
+        await wrapper.vm.$nextTick()
 
         expect(savedLine(wrapper).exists()).toBe(false)
       })

@@ -226,6 +226,13 @@ usePlayheadFrames(
 
 useCanvasRedraw(canvas, draw)
 
+// A title-row button that acts on the view gives the keyboard back to it.
+defineExpose({
+  focus: () => {
+    frame.value?.focus()
+  },
+})
+
 watch(
   () => [
     sourceFile.peaks,

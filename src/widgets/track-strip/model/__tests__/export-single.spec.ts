@@ -545,6 +545,27 @@ describe('the single export store', () => {
       expect(folder.files.size).toBe(0)
     })
 
+    it('is too late once the file is being written: no cut is stopped and the file is saved', async () => {
+      const { split, exporter } = setUp()
+      const gate = deferred<undefined>()
+      const getFileHandle = folder.getFileHandle.bind(folder)
+      vi.spyOn(folder, 'getFileHandle').mockImplementation(async (name, options) => {
+        await gate.promise
+        return getFileHandle(name, options)
+      })
+      exporter.openTrack(trackOf(split, 1))
+      const run = exporter.confirm('One')
+      await flush()
+
+      exporter.cancel()
+      gate.resolve(undefined)
+      await run
+
+      expect(stopCuts).not.toHaveBeenCalled()
+      expect(exporter.status).toBe('saved')
+      expect(folder.files.size).toBe(1)
+    })
+
     it('stops a cut that is asked for right after a cancel, however early the cancel came', async () => {
       const { split, exporter } = setUp()
       exporter.openTrack(trackOf(split, 1))
