@@ -133,8 +133,10 @@ describe('openFfmpeg', () => {
         return { done: Promise.resolve(), unsubscribe: vi.fn() }
       })
 
-      await openFfmpeg(file, (fraction) => {
-        heard.push(fraction)
+      await openFfmpeg(file, {
+        onDownloadProgress: (fraction) => {
+          heard.push(fraction)
+        },
       })
 
       expect(heard).toEqual([0.4])
@@ -179,7 +181,7 @@ describe('openFfmpeg', () => {
     it('stops waiting when its signal aborts: no worker starts, even once the download is in', async () => {
       const download = pendingDownload()
       const cancel = new AbortController()
-      const outcome = outcomeOf(openFfmpeg(file, undefined, cancel.signal))
+      const outcome = outcomeOf(openFfmpeg(file, { signal: cancel.signal }))
 
       cancel.abort(new Error('cancelled'))
 
@@ -194,8 +196,21 @@ describe('openFfmpeg', () => {
       const cancel = new AbortController()
       cancel.abort(new Error('cancelled'))
 
-      expect(await outcomeOf(openFfmpeg(file, undefined, cancel.signal))).toBe('Error: cancelled')
+      expect(await outcomeOf(openFfmpeg(file, { signal: cancel.signal }))).toBe('Error: cancelled')
       expect(workers).toHaveLength(0)
+    })
+
+    it('leaves no listener on its signal once the download is in, however many workers start', async () => {
+      const cancel = new AbortController()
+      const added = vi.spyOn(cancel.signal, 'addEventListener')
+      const removed = vi.spyOn(cancel.signal, 'removeEventListener')
+
+      const session = await openFfmpeg(file, { signal: cancel.signal })
+      for (let call = 0; call < 41; call++) await session.run(['-version'], 1000)
+
+      expect(workers).toHaveLength(3)
+      expect(added).toHaveBeenCalledTimes(3)
+      expect(removed).toHaveBeenCalledTimes(3)
     })
 
     it('makes a fresh worker wait for the download too', async () => {

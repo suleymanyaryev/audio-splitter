@@ -31,17 +31,18 @@ const config = defineConfig({
   /*
   The installed Google Chrome (`channel: 'chrome'`), the same browser the playwright-cli skill
   drives, so no Playwright browser build is ever downloaded. The export spec runs on the dev
-  server; the offline spec on a production build, the only place the service worker is registered.
+  server; the stored-core spec on a production build, the only place the service worker is
+  registered.
   */
   projects: [
     {
       name: 'chrome',
-      testIgnore: 'offline.spec.ts',
+      testIgnore: 'stored-core.spec.ts',
       use: { ...devices['Desktop Chrome'], channel: 'chrome', baseURL: DEV_URL },
     },
     {
-      name: 'offline',
-      testMatch: 'offline.spec.ts',
+      name: 'stored-core',
+      testMatch: 'stored-core.spec.ts',
       use: { ...devices['Desktop Chrome'], channel: 'chrome', baseURL: PREVIEW_URL },
     },
   ],

@@ -54,7 +54,7 @@ The list below says where, not what: one line per slice on what it is for, never
 - `src/shared/lib/time/`: Time formatting (`h:mm:ss`, `h:mm:ss.cc`) and millisecond rounding for ffmpeg command lines
 - `src/shared/lib/canvas/`: Drawing the canvases share: axes, split hit test, lands, split lines, bars, dashes, font, canvas setup and redraw
 - `src/shared/ui/`: The kit, `Ui<Name>.vue`; the look is DESIGN.md's, read it before touching one
-- `e2e/`: Playwright: `export.spec.ts` exports each supported format, whole and as single exports, and reads the files back; `offline.spec.ts` loads a second visit on a production build with the core served from the service worker
+- `e2e/`: Playwright: `export.spec.ts` exports each supported format, whole and as single exports, and reads the files back; `stored-core.spec.ts` loads a second visit on a production build with the core served from the service worker
 - `e2e/fixtures/`: The committed 30 s fixtures per supported format plus a Vorbis `.ogg`, and `make-fixtures.sh`, which made them
 
 - Slice folders are kebab-case, `.vue` files PascalCase. A segment folder (`ui`, `model`, `lib`, `api`, `config`) exists only when it holds a file.

@@ -13,7 +13,7 @@ describe('answerCoreRequest', () => {
 
   it('answers a core file from Cache Storage, without a request', async () => {
     const storage = fakeCacheStorage()
-    await storage.seed(CORE, 'the wasm')
+    storage.seed(CORE, 'the wasm')
     const fetchStub = vi.fn()
     vi.stubGlobal('fetch', fetchStub)
 
@@ -26,7 +26,7 @@ describe('answerCoreRequest', () => {
   it('answers a core file the page stored although the worker asks with an Origin header', async () => {
     const storage = fakeCacheStorage()
     // The server says the response varies on Origin; the page's own fetch sent none.
-    await storage.seed(CORE, 'the wasm', { vary: 'Origin' })
+    storage.seed(CORE, 'the wasm', { vary: 'Origin' })
     const fetchStub = vi.fn()
     vi.stubGlobal('fetch', fetchStub)
 

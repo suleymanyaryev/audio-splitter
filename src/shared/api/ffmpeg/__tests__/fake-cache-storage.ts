@@ -67,8 +67,9 @@ export function fakeCacheStorage(options: FakeCacheOptions = {}) {
   return {
     open,
     urls: () => Object.keys(entries),
-    async seed(url: string, text = 'stored', headers?: Record<string, string>) {
-      await cache.put(url, new Response(text, { headers }))
+    // Bypasses `put`, so a cache that refuses writes can still hold an older core.
+    seed(url: string, text = 'stored', headers?: Record<string, string>) {
+      entries[absolute(url)] = new Response(text, { headers })
     },
     async textOf(url: string) {
       return entries[absolute(url)]?.text()

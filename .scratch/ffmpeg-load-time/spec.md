@@ -1,6 +1,6 @@
 # The ffmpeg core: downloaded while idle, kept in the browser
 
-Status: ready-for-agent
+Status: resolved
 
 A change outside the milestone sets. Vocabulary is in `GLOSSARY.md`; this spec adds **ffmpeg core** (see Further Notes). The storage decision is ADR 0002, "The ffmpeg core lives in Cache Storage, served by a core-only service worker".
 

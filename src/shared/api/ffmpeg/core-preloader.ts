@@ -1,12 +1,7 @@
-/*
-The same pinned files `ffmpeg.ts` hands to `load()`, so the bytes kept here are the ones the
-worker asks for next (the service worker answers it from Cache Storage, else the browser's HTTP
-cache has them).
-*/
-import coreURL from '@ffmpeg/core?url'
-import wasmURL from '@ffmpeg/core/wasm?url'
-
 import { CORE_CACHE_NAME } from './core-cache.ts'
+import { CORE_FILES } from './core-files.ts'
+
+const { coreURL, wasmURL } = CORE_FILES
 
 // A download fails when no bytes arrive for this long. It has no total time limit.
 const STALL_MS = 30_000
@@ -25,13 +20,13 @@ export class CoreDownloadError extends Error {
 type Listener = (fraction: number) => void
 
 /*
-The page's one download. `download` is set by the first call, kept after it succeeds and cleared
-by a failure. `isRunning` holds from the call until the core is in the browser; `isDownloading`
-from the moment nothing was found in Cache Storage, and `fraction` is how much of the wasm has
+The page's one download. `done` is set by the first call, kept after it succeeds and cleared by a
+failure. `isRunning` holds from the call until the core is in the browser; `isDownloading` from the
+moment the stored copy was found missing or unusable, and `fraction` is how much of the wasm has
 arrived by then (0 to 1).
 */
-const shared = {
-  download: undefined as Promise<void> | undefined,
+const coreDownload = {
+  done: undefined as Promise<void> | undefined,
   isRunning: false,
   isDownloading: false,
   fraction: 0,
@@ -39,8 +34,8 @@ const shared = {
 }
 
 function report(next: number) {
-  shared.fraction = next
-  for (const listener of shared.listeners) listener(next)
+  coreDownload.fraction = next
+  for (const listener of coreDownload.listeners) listener(next)
 }
 
 /*
@@ -53,6 +48,20 @@ async function openCoreCache(): Promise<Cache | undefined> {
   } catch {
     return undefined
   }
+}
+
+/*
+Whether the ffmpeg worker's requests reach the service worker, the only thing that answers them
+from Cache Storage. They don't in dev (it is never registered), on a Shift+Reload (the browser
+bypasses it), or when its registration failed. A stored copy is then no use: `load()` would fetch
+the 32 MB itself, with no progress, no stall rule and the load watchdog running.
+*/
+function isServedFromCache() {
+  return (
+    typeof navigator !== 'undefined' &&
+    'serviceWorker' in navigator &&
+    navigator.serviceWorker.controller !== null
+  )
 }
 
 // Both files, complete: one without the other is a miss, and the download replaces both.
@@ -72,9 +81,8 @@ that breaks off leaves nothing behind. A refusal (the quota is full) is not wort
 async function keepCopy(cache: Cache, url: string, copy: Response) {
   try {
     await cache.put(url, copy)
-    return true
   } catch {
-    return false
+    // The next visit downloads it again, once the old core's space is free (see `downloadCore`).
   }
 }
 
@@ -98,7 +106,7 @@ async function dropOldCopies(cache: Cache) {
 /*
 Reads one file to its end. With a cache, a second reader of the same response stores the copy as
 the bytes arrive; the bytes are otherwise dropped, and the browser's HTTP cache keeps the response.
-`onChunk` hears every chunk's size. Resolves to whether the copy was stored.
+`onChunk` hears every chunk's size. Resolves once the copy is stored or refused.
 */
 async function fetchThrough(
   url: string,
@@ -109,16 +117,17 @@ async function fetchThrough(
   const response = await fetch(url, { signal })
   if (!response.ok) throw new Error(`${url} answered ${response.status}`)
   if (!response.body) throw new Error(`${url} came with no body`)
-  const stored = cache ? keepCopy(cache, url, response.clone()) : Promise.resolve(false)
+  const stored = cache ? keepCopy(cache, url, response.clone()) : Promise.resolve()
   const reader = response.body.getReader()
   for (;;) {
     const { done, value } = await reader.read()
-    if (done) return stored
+    if (done) break
     onChunk(value.byteLength)
   }
+  await stored
 }
 
-// Downloads both files, and tells whether both copies were stored.
+// Downloads both files, and resolves once each copy is stored or refused.
 async function downloadFiles(cache: Cache | undefined) {
   const controller = new AbortController()
   let stallTimer: ReturnType<typeof setTimeout> | undefined
@@ -134,9 +143,8 @@ async function downloadFiles(cache: Cache | undefined) {
 
   let wasmBytes = 0
   armStallTimer()
-  let stored: boolean[]
   try {
-    stored = await Promise.all([
+    await Promise.all([
       // Only the wasm's bytes count toward the progress; the script is small.
       fetchThrough(coreURL, controller.signal, cache, armStallTimer),
       fetchThrough(wasmURL, controller.signal, cache, (byteCount) => {
@@ -157,25 +165,27 @@ async function downloadFiles(cache: Cache | undefined) {
     clearTimeout(stallTimer)
   }
   report(1)
-  return stored.every(Boolean)
 }
 
 /*
-What a call does once: look in Cache Storage, and only when both files are not there, download
-them (a complete copy also clears any older core still beside it). The stall timer starts with the download, never with the look.
+What a call does once: look in Cache Storage, and download both files unless they are there and
+the service worker will serve them. The stall timer starts with the download, never with the look.
 */
 async function downloadCore() {
   const cache = await openCoreCache()
-  if (cache && (await hasBoth(cache))) {
+  if (cache && isServedFromCache() && (await hasBoth(cache))) {
     // An old core a failed clean-up left behind goes now, without a request.
     await dropOldCopies(cache)
     return
   }
-  shared.isDownloading = true
+  coreDownload.isDownloading = true
   report(0)
-  const areBothStored = await downloadFiles(cache)
-  // Only now is the old core safe to drop: a download that broke off keeps the one that works.
-  if (cache && areBothStored) await dropOldCopies(cache)
+  await downloadFiles(cache)
+  /*
+  Only after a complete download: one that broke off has thrown by now and keeps the old core.
+  Dropped even when a write was refused, because the old core's space is what a full quota needs.
+  */
+  if (cache) await dropOldCopies(cache)
 }
 
 // A failure clears the shared download before any caller hears of it, so the next call is afresh.
@@ -183,12 +193,12 @@ async function runDownload() {
   try {
     await downloadCore()
   } catch (error) {
-    shared.download = undefined
+    coreDownload.done = undefined
     throw error
   } finally {
-    shared.isRunning = false
-    shared.isDownloading = false
-    shared.listeners.clear()
+    coreDownload.isRunning = false
+    coreDownload.isDownloading = false
+    coreDownload.listeners.clear()
   }
 }
 
@@ -198,30 +208,45 @@ already running, and one that has finished is not repeated. `done` resolves when
 and rejects with a `CoreDownloadError` when the download fails or stalls; a failure clears the
 shared download, so the next call starts afresh.
 
-Both files are looked for in Cache Storage first, and a complete copy resolves with no request. A
-miss downloads them and stores each file once all its bytes have arrived; after both are stored,
-every other entry in that cache (an older ffmpeg core) is deleted. Without Cache Storage, or with a
-write it refuses, the download goes the same way and resolves, and nothing is reported.
+Both files are looked for in Cache Storage first, and a complete copy resolves with no request
+when a service worker controls the page (it is what serves the copy to ffmpeg's worker); without
+one the files are downloaded as on a miss. A download stores each file once all its bytes have
+arrived, and once it is complete, every other entry in that cache (an older ffmpeg core) is
+deleted. Without Cache Storage, or with a write it refuses, the download goes the same way and
+resolves, and nothing is reported.
 
 `onProgress` hears the fraction of the wasm that has arrived, from 0 (once the download starts, or
 from where the running download is) to 1. A call that finds the core stored reports nothing.
 `unsubscribe` stops the reports and never the download.
 */
 export function preloadCore(onProgress?: Listener) {
-  if (!shared.download) {
-    shared.isRunning = true
-    shared.fraction = 0
-    shared.download = runDownload()
+  if (!coreDownload.done) {
+    coreDownload.isRunning = true
+    coreDownload.fraction = 0
+    coreDownload.done = runDownload()
   }
-  if (onProgress && shared.isRunning) {
-    shared.listeners.add(onProgress)
-    if (shared.isDownloading) onProgress(shared.fraction)
+  if (onProgress && coreDownload.isRunning) {
+    coreDownload.listeners.add(onProgress)
+    if (coreDownload.isDownloading) onProgress(coreDownload.fraction)
   }
   return {
-    done: shared.download,
+    done: coreDownload.done,
     unsubscribe() {
-      if (onProgress) shared.listeners.delete(onProgress)
+      if (onProgress) coreDownload.listeners.delete(onProgress)
     },
+  }
+}
+
+/*
+Asks the browser to keep this site's stored data, the core in Cache Storage, when space runs low.
+Where the call is missing, refused or fails, nothing changes, so no answer or error is used. The
+caller decides when to ask (see the `source-file` store).
+*/
+export async function askToKeepCore() {
+  try {
+    await navigator.storage.persist()
+  } catch {
+    // The core is then downloaded again after a clean-up, as before.
   }
 }
 

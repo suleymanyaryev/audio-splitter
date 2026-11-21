@@ -82,6 +82,14 @@ function idleBrowser(isSavingData = false) {
   }
 }
 
+/*
+A page a service worker controls, which is when the worker's requests are answered from Cache
+Storage. Without it (dev, a Shift+Reload, a failed registration) a stored copy is downloaded again.
+*/
+function controlledPage() {
+  vi.stubGlobal('navigator', { serviceWorker: { controller: {} } })
+}
+
 // Runs a whole download to its end with both files complete.
 async function finishBoth(network: ReturnType<typeof fakeNetwork>) {
   network.push(coreURL, 10)
@@ -459,9 +467,10 @@ describe('preloadCore', () => {
   describe('the stored copy', () => {
     it('finds a complete copy in Cache Storage and makes no request', async () => {
       const network = fakeNetwork()
+      controlledPage()
       const storage = fakeCacheStorage()
-      await storage.seed(SCRIPT_KEY)
-      await storage.seed(WASM_KEY)
+      storage.seed(SCRIPT_KEY)
+      storage.seed(WASM_KEY)
       const { preloadCore } = await freshPreloader()
       const progress: number[] = []
 
@@ -475,10 +484,11 @@ describe('preloadCore', () => {
 
     it('removes an older core still stored beside a complete copy, without a request', async () => {
       const network = fakeNetwork()
+      controlledPage()
       const storage = fakeCacheStorage()
-      await storage.seed(OLD_KEY)
-      await storage.seed(SCRIPT_KEY)
-      await storage.seed(WASM_KEY)
+      storage.seed(OLD_KEY)
+      storage.seed(SCRIPT_KEY)
+      storage.seed(WASM_KEY)
       const { preloadCore } = await freshPreloader()
 
       await preloadCore().done
@@ -486,6 +496,27 @@ describe('preloadCore', () => {
       expect(network.requests).toEqual([])
       expect(storage.urls()).toHaveLength(2)
       expect(storage.urls()).not.toContain(OLD_KEY)
+    })
+
+    it('downloads a complete copy again, with progress, when no service worker controls the page', async () => {
+      const network = fakeNetwork()
+      const storage = fakeCacheStorage()
+      storage.seed(SCRIPT_KEY)
+      storage.seed(WASM_KEY)
+      const { preloadCore } = await freshPreloader()
+      const progress: number[] = []
+
+      const { done } = preloadCore((fraction) => {
+        progress.push(fraction)
+      })
+      await vi.advanceTimersByTimeAsync(0)
+      await finishBoth(network)
+      await done
+
+      expect(network.requests).toHaveLength(2)
+      expect(progress[0]).toBe(0)
+      expect(progress.at(-1)).toBe(1)
+      expect(storage.urls()).toHaveLength(2)
     })
 
     it('reports nothing at first, then 0 once it has found nothing stored', async () => {
@@ -506,7 +537,7 @@ describe('preloadCore', () => {
     it('downloads again when only one of the two files is stored', async () => {
       const network = fakeNetwork()
       const storage = fakeCacheStorage()
-      await storage.seed(WASM_KEY)
+      storage.seed(WASM_KEY)
       const { preloadCore } = await freshPreloader()
 
       preloadCore()
@@ -557,7 +588,7 @@ describe('preloadCore', () => {
     it('deletes older entries only after both new files are stored', async () => {
       const network = fakeNetwork()
       const storage = fakeCacheStorage()
-      await storage.seed(OLD_KEY)
+      storage.seed(OLD_KEY)
       const { preloadCore } = await freshPreloader()
 
       const { done } = preloadCore()
@@ -576,10 +607,24 @@ describe('preloadCore', () => {
       expect(storage.urls()).toContain(WASM_KEY)
     })
 
+    it('frees the older core when the quota refused a new file, so the next visit can store it', async () => {
+      const network = fakeNetwork()
+      const storage = fakeCacheStorage({ isFull: true })
+      storage.seed(OLD_KEY)
+      const { preloadCore } = await freshPreloader()
+
+      const { done } = preloadCore()
+      await vi.advanceTimersByTimeAsync(0)
+      await finishBoth(network)
+
+      expect(await outcomeOf(done)).toBe('resolved')
+      expect(storage.urls()).toEqual([])
+    })
+
     it('keeps the older entries when the download fails', async () => {
       const network = fakeNetwork()
       const storage = fakeCacheStorage()
-      await storage.seed(OLD_KEY)
+      storage.seed(OLD_KEY)
       const { preloadCore } = await freshPreloader()
 
       const outcome = outcomeOf(preloadCore().done)

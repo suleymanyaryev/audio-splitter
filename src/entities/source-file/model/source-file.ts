@@ -1,7 +1,7 @@
 import { ref, shallowRef } from 'vue'
 import { defineStore } from 'pinia'
 
-import { CoreDownloadError } from '@/shared/api/ffmpeg/core-preloader.ts'
+import { askToKeepCore, CoreDownloadError } from '@/shared/api/ffmpeg/core-preloader.ts'
 import { openFfmpeg, type FfmpegSession } from '@/shared/api/ffmpeg/ffmpeg.ts'
 import { downmix } from '@/shared/lib/audio/downmix.ts'
 import {
@@ -52,18 +52,6 @@ function failureOf(error: unknown, step: string): LoadFailure {
     kind: 'failed',
     step: error instanceof CoreDownloadError ? 'downloading ffmpeg' : step,
     reason: error instanceof Error ? error.message : String(error),
-  }
-}
-
-/*
-Asks the browser to keep this site's stored data (the ffmpeg core in Cache Storage) when space runs
-low. Where the call is missing, refused or fails, nothing changes, so no answer or error is used.
-*/
-async function askToKeepStoredData() {
-  try {
-    await navigator.storage.persist()
-  } catch {
-    // The core is then downloaded again after a clean-up, as before.
   }
 }
 
@@ -120,7 +108,7 @@ export const useSourceFileStore = defineStore('source-file', () => {
   */
   let stopCount = 0
   // The request goes out once in the page's life, at the first ready file.
-  let hasAskedToKeepData = false
+  let hasAskedToKeepCore = false
 
   function reset() {
     currentLoad++
@@ -164,13 +152,12 @@ export const useSourceFileStore = defineStore('source-file', () => {
       A cancelled or replaced load aborts the signal, which stops its listening and its ffmpeg
       worker; the download goes on, and the next load joins it (see core-preloader.ts).
       */
-      ffmpeg = await openFfmpeg(
-        chosen,
-        (fraction) => {
+      ffmpeg = await openFfmpeg(chosen, {
+        onDownloadProgress: (fraction) => {
           if (!isStale()) downloadFraction.value = fraction < 1 ? fraction : null
         },
-        abort.signal,
-      )
+        signal: abort.signal,
+      })
       // Cancelled while ffmpeg was loading: `finally` closes it, and a newer load keeps its session.
       if (isStale()) return
       session = ffmpeg
@@ -209,9 +196,9 @@ export const useSourceFileStore = defineStore('source-file', () => {
       Asked now and not when the page opens: a browser that prompts for it (Firefox) does so
       once the visitor has seen the tool work, and a file that failed asks nothing.
       */
-      if (!hasAskedToKeepData) {
-        hasAskedToKeepData = true
-        void askToKeepStoredData()
+      if (!hasAskedToKeepCore) {
+        hasAskedToKeepCore = true
+        void askToKeepCore()
       }
     } catch (error) {
       if (isStale()) return

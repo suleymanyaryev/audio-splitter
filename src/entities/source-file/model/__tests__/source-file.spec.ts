@@ -343,9 +343,9 @@ describe('the source-file store', () => {
       let finish!: (session: ReturnType<typeof readySession>) => void
       let fail!: (error: Error) => void
       vi.mocked(openFfmpeg).mockImplementationOnce(
-        (_file, callback) =>
+        (_file, options) =>
           new Promise((resolve, reject) => {
-            onProgress = callback
+            onProgress = options?.onDownloadProgress
             finish = resolve as typeof finish
             fail = reject
           }),
@@ -387,11 +387,10 @@ describe('the source-file store', () => {
 
       await store.load(file)
 
-      expect(vi.mocked(openFfmpeg)).toHaveBeenCalledWith(
-        file,
-        expect.any(Function),
-        expect.any(AbortSignal),
-      )
+      expect(vi.mocked(openFfmpeg)).toHaveBeenCalledWith(file, {
+        onDownloadProgress: expect.any(Function),
+        signal: expect.any(AbortSignal),
+      })
       expect(store.downloadFraction).toBeNull()
     })
 
@@ -449,7 +448,7 @@ describe('the source-file store', () => {
       pendingDownload()
       const store = useSourceFileStore()
       void store.load(file)
-      const first = vi.mocked(openFfmpeg).mock.calls.at(-1)?.[2]
+      const first = vi.mocked(openFfmpeg).mock.calls.at(-1)?.[1]?.signal
       expect(first?.aborted).toBe(false)
 
       store.cancel()
@@ -457,7 +456,7 @@ describe('the source-file store', () => {
 
       pendingDownload()
       void store.load(file)
-      const second = vi.mocked(openFfmpeg).mock.calls.at(-1)?.[2]
+      const second = vi.mocked(openFfmpeg).mock.calls.at(-1)?.[1]?.signal
       expect(second?.aborted).toBe(false)
       pendingDownload()
       void store.load(file)
