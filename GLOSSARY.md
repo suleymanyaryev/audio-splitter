@@ -24,6 +24,10 @@ _Avoid_: Title, label
 Writing every track as its own audio file, in the source file's format, into a new folder named after the source file, made inside a folder the user picks (a second export of the same file makes `name (2)`).
 _Avoid_: Download, save, split (as a verb)
 
+**Single export**:
+Writing one track, or the range, as one audio file under a name the user confirms, into a folder the user picks once per file.
+_Avoid_: Cut, extract, chunk
+
 **Gap**:
 A stretch of the source file whose loudness stays under the silence threshold for at least the minimum gap length.
 _Avoid_: Silence, pause, quiet region
@@ -37,12 +41,16 @@ The one split the user is reviewing: at most one at a time. Selecting a split ce
 _Avoid_: Current split, active split, focused split
 
 **Selected track**:
-The one track the user is reviewing, heard end to end whatever its length. Its ends are its splits, so it follows them when they move; no split is added inside it. A split and a track are never selected at the same time.
+The one track the user is reviewing, heard end to end whatever its length. Its ends are its splits, so it follows them when they move; a split is added inside it by applying pending splits, or from the Range view, which asks first when pending splits would be lost. A split and a track are never selected at the same time.
 _Avoid_: Track range, current track, active track
 
 **Track view**:
-The zoom panel's view of the selected track, stretched across the whole panel with its gaps and its two end splits, to listen to.
+The zoom panel's view of the selected track, stretched across the whole panel with its gaps and its two end splits, to listen to and to place pending splits in.
 _Avoid_: Track panel, track range view
+
+**Pending split**:
+A spot in the selected track marked to become a split once the pending splits are applied. Until then it makes no track, has no name and is no edit; it belongs to the selected track, and the user is asked before anything that would discard it. One pending split can be selected inside the Track view while the track stays selected.
+_Avoid_: Candidate, draft split, ghost split
 
 **Removing a track**:
 Merging a track into its neighbours by deleting the splits at both its ends. Its name goes with it: the merged track keeps the previous track's name, or the next track's when the first track is removed.
@@ -65,11 +73,11 @@ The zoom panel's other view: the range stretched across the whole panel, with it
 _Avoid_: Range panel, overview
 
 **Mark**:
-The spot in a range where "Add split" puts a split.
-_Avoid_: Cursor, marker
+The dashed spot the user clicks in the stretch on show: in the Range view where a split goes, in the Track view where a pending split goes. Each of the two views keeps its own.
+_Avoid_: Cursor, marker, ghost playhead
 
 **Playhead**:
-The 1 px line that marks the point being heard, or where playback will resume: in the zoom view during an audition, and in the Range view always.
+The 1 px line that marks the point being heard, or where playback will resume: in the zoom view during an audition, and in the Range view and the Track view always.
 _Avoid_: Cursor, scrubber, position marker
 
 **Loudness curve**:

@@ -4,6 +4,8 @@ import { computed, ref, useTemplateRef, watch } from 'vue'
 import { useSourceFileStore } from '@/entities/source-file/model/source-file.ts'
 import { useSplitStore } from '@/entities/split/model/split.ts'
 import { drawLands, drawSplitLines } from '@/shared/lib/canvas/draw-lands-and-splits.ts'
+import { drawMark } from '@/shared/lib/canvas/draw-mark.ts'
+import { drawPendingSplits } from '@/shared/lib/canvas/draw-pending-splits.ts'
 import { BAR_PITCH, drawPeakBars } from '@/shared/lib/canvas/draw-peak-bars.ts'
 import { prepareCanvas } from '@/shared/lib/canvas/prepare-canvas.ts'
 import { useCanvasRedraw } from '@/shared/lib/canvas/use-canvas-redraw.ts'
@@ -24,17 +26,28 @@ The Track view (GLOSSARY.md): the selected track stretched across a 160 px canva
 length, in the zoom view's place and at its height, so the page does not jump when the panel
 switches. Like the Range view it draws the peaks the whole-file view already holds, merged over the
 track's buckets, with the lands and the split lines that fall inside the track on the same axis: its
-two end splits sit on the edges, and a track has no split inside it. No split is selected, moved or
-added here, so nothing on the canvas is a split's to take.
+two end splits sit on the edges, and a track has no split inside it. No split is moved or added
+here, and one is selected only by a double-click on an end split's line.
 
 A 1 px ink playhead is drawn at all times: at the track's start for a new track, then where the
-track is heard or where it resumes, on every animation frame while it plays. A press within 6 px of
-it takes hold of it and drags it along the track; any other press, a press near an end split
-included, moves it there. The view is a slider on the playhead and takes the keyboard: Left and
-Right move it 1 s, with Shift 10 s, Space plays or pauses the track, as the panel's button does (a
-held key is ignored, so it does not start and stop the sound over and over), and Home takes the
-playhead back to the track's start. Delete and Backspace do nothing: removing a track deletes
-splits and has its own button. A failure to play is said in a line at the bottom of the view.
+track is heard or where it resumes, on every animation frame while it plays. The track's own mark, a
+1 px dashed line, is drawn under it (the split store keeps it while the track stays selected). A press
+within 6 px of the playhead takes hold of it and drags it along the track; a press within 6 px of a
+pending split selects it; any other press places the mark and lets go of the selected pending split,
+even next to an end split, so pointing never moves the playhead. A double-click moves the playhead
+there, or, within 6 px of one of the track's two end split lines, selects that split and opens the
+Split view (`lib/use-range-press.ts` has the order).
+
+The pending splits (GLOSSARY.md) of the track are drawn over the split lines in a look nothing else
+has (`shared/lib/canvas/draw-pending-splits.ts`), the selected one heavier. The view is a slider on the
+playhead and takes the keyboard: Left and Right move it 1 s, with Shift 10 s, Space plays or pauses
+the track, as the panel's button does, and Home takes the playhead back to the track's start. Enter
+adds a pending split at the mark and selects it; Shift+Enter adds one where the playhead is, without
+selecting it, so a tap along a playing track is always taken. Delete and Backspace delete the
+selected pending split and Escape deselects it; with none selected those keys are left alone, since
+removing a track deletes splits and has its own button. A held Space, Enter or Shift+Enter is
+ignored, so it does not start and stop the sound or add pending splits over and over. A failure to
+play is said in a line at the bottom of the view.
 
 The player plays the whole track, however long: a track over 10 min is heard through a window that
 moves along it (`model/audition.ts`), which this view does not see.
@@ -108,7 +121,24 @@ function draw() {
     height,
   )
 
-  // The playhead goes over the split lines and under the frame, which stays the outermost line.
+  // Pending splits go over the split lines and under the mark, which can sit on one.
+  drawPendingSplits(
+    context,
+    split.pendingSplits.map((seconds) => zoomTimeToX(seconds, centreSeconds, windowSeconds, width)),
+    style.getPropertyValue('--color-ink'),
+    height,
+    split.selectedPendingSplit === null
+      ? null
+      : split.pendingSplits.indexOf(split.selectedPendingSplit),
+  )
+
+  // The mark is a dashed line under the playhead, which must stay readable against it.
+  if (split.trackMarkSeconds !== null) {
+    const markX = zoomTimeToX(split.trackMarkSeconds, centreSeconds, windowSeconds, width)
+    drawMark(context, markX, style.getPropertyValue('--color-ink'), height)
+  }
+
+  // The playhead goes over the split lines and the mark, and under the frame, the outermost line.
   const x = zoomTimeToX(playheadSeconds(), centreSeconds, windowSeconds, width)
   context.fillStyle = style.getPropertyValue('--color-ink')
   // Snapped to a whole CSS pixel so the line is not smeared over two.
@@ -130,39 +160,65 @@ function axis() {
 }
 
 /*
-The Range view's press, with no split line to take and the playhead where the mark would go: a press
-within 6 px of the playhead drags it, and any other press moves it there.
+The Range view's press: a press within 6 px of the playhead drags it, any other places the track's
+mark; a double-click moves the playhead, or selects the end split whose line is within 6 px.
 */
-const { overPlayhead, dragging, onPointerDown, onPointerMove, onPointerEnd } = useRangePress({
-  playheadX: () => {
-    const map = axis()
-    return map === null
-      ? null
-      : zoomTimeToX(playheadSeconds(), map.centreSeconds, map.windowSeconds, map.width)
-  },
-  splitXs: () => [],
-  seconds: (x) => {
-    const map = axis()
-    // Without a track there is nothing to point at, so this is not asked. Rounded to 10 ms, as the
-    // Range view's times are, so a click and a drag land on the same grid.
-    return map === null ? 0 : draggedTime(x, 0, map.centreSeconds, map.windowSeconds, map.width)
-  },
-  grab: () => {
-    audition.grabPlayhead()
-  },
-  move: (seconds) => {
-    if (extent.value !== null) audition.seekStretch(extent.value, seconds)
-  },
-  drop: () => {
-    if (extent.value !== null) audition.dropPlayhead(extent.value)
-  },
-  selectSplit: () => {},
-  placeMark: (seconds) => {
-    if (extent.value !== null) audition.seekStretch(extent.value, seconds)
-    // A click focuses the view, so the keys work on the playhead at once.
-    frame.value?.focus()
-  },
-})
+const { overPlayhead, dragging, onPointerDown, onPointerMove, onPointerEnd, onDoubleClick } =
+  useRangePress({
+    playheadX: () => {
+      const map = axis()
+      return map === null
+        ? null
+        : zoomTimeToX(playheadSeconds(), map.centreSeconds, map.windowSeconds, map.width)
+    },
+    splitXs: () => {
+      const map = axis()
+      return map === null
+        ? []
+        : split.selectedTrackEndSplits.map((point) =>
+            zoomTimeToX(point.seconds, map.centreSeconds, map.windowSeconds, map.width),
+          )
+    },
+    seconds: (x) => {
+      const map = axis()
+      // Without a track there is nothing to point at, so this is not asked. Rounded to 10 ms, as the
+      // Range view's times are, so a click and a drag land on the same grid.
+      return map === null ? 0 : draggedTime(x, 0, map.centreSeconds, map.windowSeconds, map.width)
+    },
+    grab: () => {
+      audition.grabPlayhead()
+    },
+    move: (seconds) => {
+      if (extent.value !== null) audition.seekStretch(extent.value, seconds)
+    },
+    drop: () => {
+      if (extent.value !== null) audition.dropPlayhead(extent.value)
+    },
+    selectSplit: (index) => {
+      const selected = split.selectedTrackEndSplits[index]
+      if (selected !== undefined) split.selectSplit(selected.id)
+    },
+    pendingXs: () => {
+      const map = axis()
+      return map === null
+        ? []
+        : split.pendingSplits.map((seconds) =>
+            zoomTimeToX(seconds, map.centreSeconds, map.windowSeconds, map.width),
+          )
+    },
+    selectPending: (index) => {
+      const selected = split.pendingSplits[index]
+      if (selected !== undefined) split.selectPendingSplit(selected)
+      frame.value?.focus()
+    },
+    placeMark: (seconds) => {
+      // Any press that is not on a pending split lets go of the selected one.
+      split.deselectPendingSplit()
+      split.placeTrackMark(seconds)
+      // A click focuses the view, so the keys work on the playhead at once.
+      frame.value?.focus()
+    },
+  })
 
 function moveBy(direction: -1 | 1, isShifted: boolean) {
   if (extent.value === null) return
@@ -173,6 +229,21 @@ function moveBy(direction: -1 | 1, isShifted: boolean) {
   )
 }
 
+/*
+A held key adds one only (the caller sees to it). Shift: where the playhead is, so a tap along a
+playing track is taken whatever is selected; otherwise at the mark.
+*/
+function addPendingSplitFromKey(isShifted: boolean) {
+  if (isShifted) split.addPendingSplit(playheadSeconds(), false)
+  else split.addPendingSplitAtMark()
+}
+
+// Escape lets go of the selected pending split; Delete and Backspace delete it.
+function actOnSelectedPendingSplit(key: string) {
+  if (key === 'Escape') split.deselectPendingSplit()
+  else split.deleteSelectedPendingSplit()
+}
+
 function onKeydown(event: KeyboardEvent) {
   // Ctrl, Cmd and Alt with a key belong to the browser (word and page navigation).
   if (event.ctrlKey || event.metaKey || event.altKey) return
@@ -180,6 +251,18 @@ function onKeydown(event: KeyboardEvent) {
     case ' ': {
       // A held key must not start and stop the sound over and over.
       if (!event.repeat && extent.value !== null) audition.toggleStretch(extent.value)
+      break
+    }
+    case 'Enter': {
+      if (!event.repeat) addPendingSplitFromKey(event.shiftKey)
+      break
+    }
+    case 'Delete':
+    case 'Backspace':
+    case 'Escape': {
+      // Only the selected pending split is theirs; with none, the key is left alone.
+      if (split.selectedPendingSplit === null) return
+      actOnSelectedPendingSplit(event.key)
       break
     }
     case 'Home': {
@@ -192,7 +275,6 @@ function onKeydown(event: KeyboardEvent) {
       break
     }
     default: {
-      // Delete and Backspace do nothing here, as does every other key.
       return
     }
   }
@@ -210,6 +292,13 @@ usePlayheadFrames(
 
 useCanvasRedraw(canvas, draw)
 
+// A title-row button that acts on the view gives the keyboard back to it.
+defineExpose({
+  focus: () => {
+    frame.value?.focus()
+  },
+})
+
 watch(
   () => [
     sourceFile.peaks,
@@ -217,6 +306,9 @@ watch(
     extent.value?.endSeconds,
     split.gaps,
     split.splits.map((point) => point.seconds),
+    split.trackMarkSeconds,
+    split.pendingSplits,
+    split.selectedPendingSplit,
     playheadSeconds(),
   ],
   draw,
@@ -238,6 +330,7 @@ watch(
       :class="{ 'cursor-ew-resize': overPlayhead || dragging }"
       @keydown="onKeydown"
       @pointerdown="onPointerDown"
+      @dblclick="onDoubleClick"
       @pointermove="onPointerMove"
       @pointerup="onPointerEnd"
       @pointercancel="onPointerEnd"

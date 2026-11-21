@@ -3,13 +3,13 @@ name: store-wiring
 description: Where state and new code go, and how the stores connect. Use when adding a store or state to one, adding a slice or file, wiring two stores together, or adding something that changes the user's edits or plays sound.
 ---
 
-The import rules are in AGENTS.md "Code layout" and enforced by `pnpm lint`; this is the judgement behind them. The four stores, what each holds and who calls whom are in `docs/architecture.md` "The stores": read it before adding state.
+The import rules are in AGENTS.md "Code layout" and enforced by `pnpm lint`; this is the judgement behind them. The stores, what each holds and who calls whom are in `docs/architecture.md` "The stores": read it before adding state.
 
 ## Placing state
 
 - **Entity store** (`entities/source-file`, `entities/split`): state that more than one widget reads, about the file or the splits.
 - **Widget-owned store** (`widgets/split-zoom/model/audition.ts`, `widgets/track-strip/model/export-tracks.ts`): state that belongs to one behaviour, which the page and other widgets only start or stop.
-- Pinia setup stores, in memory only.
+- Pinia setup stores, in memory only, except the player's volume and mute flag, which `localStorage` also keeps (`widgets/split-zoom/api/saved-volume.ts`).
 - The store owns its state and changes it only through actions. Widgets call `selectSplit`, `moveZoomTo` and `setRange`, never assign. An action given out-of-range input refuses quietly and keeps the state it had (an unknown id, a range under 1 s, `addSplit` with no room).
 - Put a tuned constant in its own `config/` file, imported by the store and the widgets (`entities/split/config/range-limits.ts`).
 - Put pure maths in `lib/` with its own spec, and have the store call it. When a live preview and the store compute the same thing, they share one function, so the two agree: `entities/split/lib/range-between.ts` serves both the waveform's drag overlay and `setRange`.
@@ -23,7 +23,7 @@ The import rules are in AGENTS.md "Code layout" and enforced by `pnpm lint`; thi
 
 ## The user's edits
 
-- `split.editCount` counts changes since the last detection. Anything that would replace the user's edits goes through the replace guard: `widgets/loudness-curve/lib/use-replace-guard.ts` with `ReplaceEditsDialog.vue`, and "New file" in `App.vue`. The guard holds the change back and asks; "Replace" applies it. `entities/split/lib/format-edits.ts` words the count.
+- `split.editCount` counts changes since the last detection. Anything that would replace the user's edits goes through the replace guard: `widgets/loudness-curve/lib/use-replace-guard.ts` with `ReplaceEditsDialog.vue`, and "New file" in `App.vue`. The guard holds the change back and asks; "Replace" applies it. `entities/split/lib/format-edits.ts` words the count. Pending splits count as work to lose too: the guard and "New file" ask with them, and an action in `split` that would drop them is held as `discardQuestion` (`unlessItDiscards` in `entities/split/model/split.ts`), so a new action that selects another thing or changes the selected track's ends goes through it.
 - A change counts as an edit only when the value really changed: `TrackNameField.vue` saves nothing for an unchanged name.
 
 ## Sound

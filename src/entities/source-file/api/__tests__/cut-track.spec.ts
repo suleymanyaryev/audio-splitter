@@ -104,6 +104,20 @@ describe('cutTrack', () => {
     expect(commandOf(ffmpeg)).toContain(`title=${title}`)
   })
 
+  it('blanks the track tag of a file that is no track, so one the source had is not carried over', async () => {
+    const ffmpeg = fakeFfmpegSession({ probeLog: m4aProbeLog(30) })
+
+    await cutTrack(ffmpeg, {
+      format: 'm4a',
+      startSeconds: 0,
+      endSeconds: 10,
+      tags: { ...tags, track: null },
+    })
+
+    const command = commandOf(ffmpeg) ?? []
+    expect(command.filter((argument) => argument.startsWith('track='))).toEqual(['track='])
+  })
+
   it("gives the track's bytes and takes the file out of ffmpeg", async () => {
     const track = Uint8Array.of(0, 0, 0, 24, 0x66, 0x74, 0x79, 0x70)
     const ffmpeg = fakeFfmpegSession({ probeLog: m4aProbeLog(30), track })

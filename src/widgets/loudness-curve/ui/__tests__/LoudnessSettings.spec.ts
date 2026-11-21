@@ -104,6 +104,46 @@ describe('LoudnessSettings', () => {
       wrapper.unmount()
     })
 
+    it('asks with pending splits and no edits, counting them, and keeps the buttons it has', async () => {
+      const { split, wrapper } = await mountEdited(0)
+      split.addPendingSplit(4, false)
+      split.addPendingSplit(7, false)
+      expect(split.hasEdits).toBe(false)
+
+      await wrapper
+        .get('[aria-label="Silence threshold"]')
+        .trigger('keydown', { key: 'ArrowRight' })
+      await flushPromises()
+
+      expect(dialog()?.textContent).toContain('Replace your edits?')
+      expect(dialog()?.textContent).toContain(
+        'This replaces your 2 pending splits with freshly detected splits.',
+      )
+      expect(
+        [...(dialog()?.querySelectorAll('button') ?? [])].map((button) => button.textContent),
+      ).toEqual(['Keep edits', 'Replace'])
+      wrapper.unmount()
+    })
+
+    it('counts the edits and the pending splits together, and "Replace" drops both', async () => {
+      const { split, wrapper } = await mountEdited(1)
+      split.addPendingSplit(4, false)
+      await wrapper
+        .get('[aria-label="Silence threshold"]')
+        .trigger('keydown', { key: 'ArrowRight' })
+      await flushPromises()
+      expect(dialog()?.textContent).toContain(
+        'This replaces your 1 edit and 1 pending split with freshly detected splits.',
+      )
+
+      dialogButton('Replace').dispatchEvent(new MouseEvent('click', { bubbles: true }))
+      await flushPromises()
+
+      expect(split.hasEdits).toBe(false)
+      expect(split.pendingSplits).toEqual([])
+      wrapper.unmount()
+    })
+
     it('says "1 edit" for a single edit', async () => {
       const { wrapper } = await mountEdited(1)
 

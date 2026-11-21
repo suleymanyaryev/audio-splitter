@@ -40,6 +40,11 @@ async function pointer(
   await nextTick()
 }
 
+async function doubleClick(view: { element: Element }, clientX: number) {
+  view.element.dispatchEvent(new MouseEvent('dblclick', { clientX, bubbles: true }))
+  await nextTick()
+}
+
 // The view is 1,000 px wide, from the page's left edge: the range's 10 s is 100 px a second.
 function measured(wrapper: ReturnType<typeof setup>['wrapper']) {
   const view = wrapper.get('[role="slider"]')
@@ -56,90 +61,107 @@ describe('RangeView', () => {
     setActivePinia(createPinia())
   })
 
-  it('is a focusable slider on the mark, with the range’s waveform in it', () => {
+  it('is a focusable slider on the playhead, with the range’s waveform in it', () => {
     const { wrapper } = setup()
 
     const view = wrapper.get('[role="slider"]')
 
-    expect(view.attributes('aria-label')).toBe('Mark in the range')
+    expect(view.attributes('aria-label')).toBe('Playhead in the range')
     expect(view.attributes('tabindex')).toBe('0')
     expect(view.find('canvas[aria-label="Waveform of the range"]').exists()).toBe(true)
   })
 
   describe('ARIA', () => {
-    it('spans the range, and says there is no mark while there is none', () => {
+    it('spans the range, with the playhead at its start for a new range', () => {
       const { wrapper } = setup()
       const view = wrapper.get('[role="slider"]')
 
       expect(view.attributes('aria-valuemin')).toBe('10')
       expect(view.attributes('aria-valuemax')).toBe('20')
-      expect(view.attributes('aria-valuenow')).toBeUndefined()
-      expect(view.attributes('aria-valuetext')).toBe('No mark')
+      expect(view.attributes('aria-valuenow')).toBe('10')
+      expect(view.attributes('aria-valuetext')).toBe('0:00:10.00')
     })
 
-    it('gives the mark’s time, with hundredths', async () => {
-      const { split, wrapper } = setup()
+    it('follows the playhead, with hundredths, and not the mark', async () => {
+      const { audition, split, wrapper } = setup()
 
-      split.placeMark(14.25)
+      split.placeMark(18)
+      audition.seekStretch(split.range!, 14.256)
       await nextTick()
 
       const view = wrapper.get('[role="slider"]')
-      expect(view.attributes('aria-valuenow')).toBe('14.25')
-      expect(view.attributes('aria-valuetext')).toBe('0:00:14.25')
+      expect(view.attributes('aria-valuenow')).toBe('14.256')
+      expect(view.attributes('aria-valuetext')).toBe('0:00:14.26')
+    })
+
+    it('follows the sound while the range plays, to the whole second, frame by frame', async () => {
+      const frames: FrameRequestCallback[] = []
+      vi.spyOn(globalThis, 'requestAnimationFrame').mockImplementation((callback) => {
+        frames.push(callback)
+        return frames.length
+      })
+      vi.spyOn(globalThis, 'cancelAnimationFrame').mockImplementation(() => {})
+      const { audition, wrapper } = setup()
+      const heard = vi.spyOn(audition, 'stretchPlayheadSeconds').mockReturnValue(13.7)
+      audition.stretchStatus = 'playing'
+      await nextTick()
+
+      frames.at(-1)?.(0)
+      await nextTick()
+      const view = wrapper.get('[role="slider"]')
+      expect(view.attributes('aria-valuenow')).toBe('13')
+      heard.mockReturnValue(14.2)
+      frames.at(-1)?.(0)
+      await nextTick()
+      expect(view.attributes('aria-valuenow')).toBe('14')
+      expect(view.attributes('aria-valuetext')).toBe('0:00:14.00')
     })
   })
 
-  describe('the mark’s keys', () => {
-    it('move the mark 100 ms with Left and Right, and 1 s with Shift', async () => {
-      const { split, wrapper } = setup((store) => {
-        store.placeMark(15)
-      })
+  describe('Left and Right', () => {
+    it('move the playhead 1 s, and 10 s with Shift', async () => {
+      const { audition, split, wrapper } = setup()
       const view = wrapper.get('[role="slider"]')
+      audition.seekStretch(split.range!, 12)
 
       await view.trigger('keydown', { key: 'ArrowRight' })
-      expect(split.markSeconds).toBeCloseTo(15.1, 9)
+      expect(audition.stretchPlayheadSeconds(split.range!)).toBe(13)
+
+      await view.trigger('keydown', { key: 'ArrowLeft' })
+      await view.trigger('keydown', { key: 'ArrowLeft' })
+      expect(audition.stretchPlayheadSeconds(split.range!)).toBe(11)
 
       await view.trigger('keydown', { key: 'ArrowRight', shiftKey: true })
-      expect(split.markSeconds).toBeCloseTo(16.1, 9)
-
-      await view.trigger('keydown', { key: 'ArrowLeft' })
-      await view.trigger('keydown', { key: 'ArrowLeft' })
-      expect(split.markSeconds).toBeCloseTo(15.9, 9)
-
-      await view.trigger('keydown', { key: 'ArrowLeft', shiftKey: true })
-      expect(split.markSeconds).toBeCloseTo(14.9, 9)
+      expect(audition.stretchPlayheadSeconds(split.range!)).toBe(20)
     })
 
-    it('do not drift: ten steps of 100 ms make exactly a second', async () => {
-      const { split, wrapper } = setup((store) => {
-        store.placeMark(15)
-      })
+    it('do not drift: ten steps of 1 s from a hundredth make exactly ten seconds on', async () => {
+      const { audition, split, wrapper } = setup()
       const view = wrapper.get('[role="slider"]')
+      audition.seekStretch(split.range!, 10.01)
 
-      for (let step = 0; step < 10; step++) await view.trigger('keydown', { key: 'ArrowRight' })
+      for (let step = 0; step < 9; step++) await view.trigger('keydown', { key: 'ArrowRight' })
 
-      expect(split.markSeconds).toBe(16)
+      expect(audition.stretchPlayheadSeconds(split.range!)).toBeCloseTo(19.01, 9)
     })
 
-    it('hold the mark inside the range', async () => {
-      const { split, wrapper } = setup((store) => {
-        store.placeMark(19.95)
-      })
+    it('hold the playhead inside the range', async () => {
+      const { audition, split, wrapper } = setup()
       const view = wrapper.get('[role="slider"]')
+      audition.seekStretch(split.range!, 19.5)
 
       await view.trigger('keydown', { key: 'ArrowRight' })
-      expect(split.markSeconds).toBe(20)
+      expect(audition.stretchPlayheadSeconds(split.range!)).toBe(20)
 
       await view.trigger('keydown', { key: 'ArrowLeft', shiftKey: true })
       await view.trigger('keydown', { key: 'ArrowLeft', shiftKey: true })
-      for (let step = 0; step < 20; step++)
-        await view.trigger('keydown', { key: 'ArrowLeft', shiftKey: true })
-      expect(split.markSeconds).toBe(10)
+      expect(audition.stretchPlayheadSeconds(split.range!)).toBe(10)
     })
 
-    it('start from the playhead when there is no mark yet, and are not a page scroll', async () => {
-      const { audition, split, wrapper } = setup()
-      audition.seekStretch(split.range!, 12)
+    it('leave the mark and the playback alone, and are not a page scroll', async () => {
+      const { split, toggleRange, wrapper } = setup((store) => {
+        store.placeMark(15)
+      })
       const event = new KeyboardEvent('keydown', {
         key: 'ArrowRight',
         bubbles: true,
@@ -148,18 +170,19 @@ describe('RangeView', () => {
 
       wrapper.get('[role="slider"]').element.dispatchEvent(event)
 
-      expect(split.markSeconds).toBeCloseTo(12.1, 9)
+      expect(split.markSeconds).toBe(15)
+      expect(toggleRange).not.toHaveBeenCalled()
       expect(event.defaultPrevented).toBe(true)
     })
 
-    it('leave playback alone', async () => {
-      const { toggleRange, wrapper } = setup((store) => {
-        store.placeMark(15)
-      })
+    it('move the playhead of a range that plays, by the sound’s place', async () => {
+      const { audition, split, wrapper } = setup()
+      const seek = vi.spyOn(audition, 'seekStretch')
+      vi.spyOn(audition, 'stretchPlayheadSeconds').mockReturnValue(14.37)
 
       await wrapper.get('[role="slider"]').trigger('keydown', { key: 'ArrowRight' })
 
-      expect(toggleRange).not.toHaveBeenCalled()
+      expect(seek).toHaveBeenCalledExactlyOnceWith(split.range, 15.37)
     })
   })
 
@@ -212,6 +235,110 @@ describe('RangeView', () => {
       await wrapper.get('[role="slider"]').trigger('keydown', { key: 'Enter' })
 
       expect(split.splits).toEqual([])
+    })
+
+    it('ignores the auto-repeat of a held key', async () => {
+      const { split, wrapper } = setup((store) => {
+        store.placeMark(15)
+      })
+      const view = wrapper.get('[role="slider"]')
+
+      await view.trigger('keydown', { key: 'Enter' })
+      await view.trigger('keydown', { key: 'Enter', repeat: true })
+      split.placeMark(17.5)
+      await view.trigger('keydown', { key: 'Enter', repeat: true })
+
+      expect(split.splits.map((point) => point.seconds)).toEqual([15])
+    })
+  })
+
+  describe('Shift and Enter', () => {
+    it('add a split where the playhead is, and keep the mark, the view and the selection', async () => {
+      const { audition, split, wrapper } = setup((store) => {
+        store.placeMark(12)
+      })
+      audition.seekStretch(split.range!, 16.4)
+      const event = new KeyboardEvent('keydown', {
+        key: 'Enter',
+        shiftKey: true,
+        bubbles: true,
+        cancelable: true,
+      })
+
+      wrapper.get('[role="slider"]').element.dispatchEvent(event)
+
+      expect(split.splits.map((point) => point.seconds)).toEqual([16.4])
+      expect(split.selectedSplit).toBeNull()
+      expect(split.view).toBe('range')
+      expect(split.markSeconds).toBe(12)
+      expect(event.defaultPrevented).toBe(true)
+    })
+
+    it('add it on the 10 ms grid, wherever the sound is', async () => {
+      const { audition, wrapper } = setup()
+      const split = useSplitStore()
+      vi.spyOn(audition, 'stretchPlayheadSeconds').mockReturnValue(16.4371)
+
+      await wrapper.get('[role="slider"]').trigger('keydown', { key: 'Enter', shiftKey: true })
+
+      expect(split.splits.map((point) => point.seconds)).toEqual([16.44])
+    })
+
+    it('do not stop the sound, pause it or move the playhead', async () => {
+      const { audition, split, toggleRange, wrapper } = setup()
+      const stop = vi.spyOn(audition, 'stop')
+      const seek = vi.spyOn(audition, 'seekStretch')
+      audition.stretchStatus = 'playing'
+      vi.spyOn(audition, 'stretchPlayheadSeconds').mockReturnValue(16.4)
+
+      await wrapper.get('[role="slider"]').trigger('keydown', { key: 'Enter', shiftKey: true })
+
+      expect(split.splits).toHaveLength(1)
+      expect(audition.stretchStatus).toBe('playing')
+      expect(stop).not.toHaveBeenCalled()
+      expect(seek).not.toHaveBeenCalled()
+      expect(toggleRange).not.toHaveBeenCalled()
+    })
+
+    it('add several splits in one listen, a second apart or more', async () => {
+      const { audition, split, wrapper } = setup()
+      const view = wrapper.get('[role="slider"]')
+      const heard = vi.spyOn(audition, 'stretchPlayheadSeconds')
+
+      for (const seconds of [11, 12.5, 12.9, 15]) {
+        heard.mockReturnValue(seconds)
+        await view.trigger('keydown', { key: 'Enter', shiftKey: true })
+      }
+
+      expect(split.splits.map((point) => point.seconds)).toEqual([11, 12.5, 15])
+    })
+
+    it('ignore the auto-repeat of a held key', async () => {
+      const { audition, split, wrapper } = setup()
+      const view = wrapper.get('[role="slider"]')
+      const heard = vi.spyOn(audition, 'stretchPlayheadSeconds')
+
+      heard.mockReturnValue(11)
+      await view.trigger('keydown', { key: 'Enter', shiftKey: true })
+      heard.mockReturnValue(14)
+      await view.trigger('keydown', { key: 'Enter', shiftKey: true, repeat: true })
+
+      expect(split.splits.map((point) => point.seconds)).toEqual([11])
+    })
+
+    it('add nothing within a second of a split or of the file’s ends', async () => {
+      const { audition, split, wrapper } = setup((store) => {
+        store.addSplitAt(15)
+      })
+      const view = wrapper.get('[role="slider"]')
+      const heard = vi.spyOn(audition, 'stretchPlayheadSeconds')
+
+      for (const seconds of [15.5, 14.5, 0.5, 99.5]) {
+        heard.mockReturnValue(seconds)
+        await view.trigger('keydown', { key: 'Enter', shiftKey: true })
+      }
+
+      expect(split.splits.map((point) => point.seconds)).toEqual([15])
     })
   })
 
@@ -344,7 +471,7 @@ describe('RangeView', () => {
       expect(split.markSeconds).toBe(17)
     })
 
-    it('selects the split whose line is within 6 px, and switches to the Split view', async () => {
+    it('on a split’s line places the mark there, and never leaves the view', async () => {
       const { split, wrapper } = setup((store) => {
         // A split at 15 s, nothing selected, and the range's view shown.
         store.moveZoomTo(15)
@@ -355,11 +482,68 @@ describe('RangeView', () => {
       const view = measured(wrapper)
       expect(split.selectedSplit).toBeNull()
 
-      await pointer(view, 'pointerdown', 505)
+      await pointer(view, 'pointerdown', 502)
+
+      expect(split.markSeconds).toBeCloseTo(15.02, 9)
+      expect(split.selectedSplit).toBeNull()
+      expect(split.view).toBe('range')
+    })
+  })
+
+  describe('a double-click', () => {
+    it('moves the playhead there, and not the mark', async () => {
+      const { audition, split, wrapper } = setup((store) => {
+        store.placeMark(12)
+      })
+      const view = measured(wrapper)
+
+      await doubleClick(view, 700)
+
+      expect(audition.stretchPlayheadSeconds(split.range!)).toBe(17)
+      expect(split.markSeconds).toBe(12)
+      expect(split.view).toBe('range')
+    })
+
+    it('moves the playhead through the player’s seek, which a playing range plays on from', async () => {
+      const { audition, split, wrapper } = setup()
+      const seek = vi.spyOn(audition, 'seekStretch')
+      const view = measured(wrapper)
+
+      await doubleClick(view, 300)
+
+      expect(seek).toHaveBeenCalledExactlyOnceWith(split.range, 13)
+    })
+
+    it('within 6 px of a split’s line selects that split and opens the Split view', async () => {
+      const { split, wrapper } = setup((store) => {
+        store.moveZoomTo(15)
+        store.addSplit()
+        store.moveZoomTo(0)
+        store.showView('range')
+      })
+      const view = measured(wrapper)
+      expect(split.selectedSplit).toBeNull()
+
+      await doubleClick(view, 505)
 
       expect(split.selectedSplit?.seconds).toBe(15)
       expect(split.view).toBe('split')
-      expect(split.markSeconds).toBeNull()
+    })
+
+    it('7 px from a split’s line moves the playhead instead', async () => {
+      const { audition, split, wrapper } = setup((store) => {
+        store.moveZoomTo(15)
+        store.addSplit()
+        store.moveZoomTo(0)
+        store.showView('range')
+      })
+      const view = measured(wrapper)
+
+      await doubleClick(view, 507)
+
+      expect(split.selectedSplit).toBeNull()
+      expect(split.view).toBe('range')
+      expect(audition.stretchPlayheadSeconds(split.range!)).toBeCloseTo(15.07, 9)
     })
   })
 

@@ -52,6 +52,11 @@ async function pointer(
   await nextTick()
 }
 
+async function doubleClick(view: { element: Element }, clientX: number) {
+  view.element.dispatchEvent(new MouseEvent('dblclick', { clientX, bubbles: true }))
+  await nextTick()
+}
+
 // The view is 1,000 px wide, from the page's left edge: the track's 50.5 s is 19.8 px a second.
 function measured(wrapper: ReturnType<typeof setup>['wrapper']) {
   const view = wrapper.get('[role="slider"]')
@@ -252,8 +257,190 @@ describe('TrackView', () => {
     })
   })
 
+  describe('Enter', () => {
+    it('adds a pending split at the mark and selects it, and is not a page action', () => {
+      const { split, wrapper } = setup()
+      split.placeTrackMark(30)
+      const event = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true })
+
+      wrapper.get('[role="slider"]').element.dispatchEvent(event)
+
+      expect(split.pendingSplits).toEqual([30])
+      expect(split.selectedPendingSplit).toBe(30)
+      expect(event.defaultPrevented).toBe(true)
+    })
+
+    it('adds nothing with no mark, or while a pending split is selected', async () => {
+      const { split, wrapper } = setup()
+      const view = wrapper.get('[role="slider"]')
+
+      await view.trigger('keydown', { key: 'Enter' })
+      expect(split.pendingSplits).toEqual([])
+
+      split.placeTrackMark(30)
+      await view.trigger('keydown', { key: 'Enter' })
+      split.placeTrackMark(40)
+      await view.trigger('keydown', { key: 'Enter' })
+      expect(split.pendingSplits).toEqual([30])
+    })
+
+    it('ignores the auto-repeat of a held key, so one press adds one', async () => {
+      const { split, wrapper } = setup()
+      split.placeTrackMark(30)
+      const view = wrapper.get('[role="slider"]')
+
+      await view.trigger('keydown', { key: 'Enter' })
+      split.deselectPendingSplit()
+      split.placeTrackMark(40)
+      await view.trigger('keydown', { key: 'Enter', repeat: true })
+
+      expect(split.pendingSplits).toEqual([30])
+    })
+
+    it('leaves the splits, the playhead and the playback alone', async () => {
+      const { audition, split, stretch, toggleStretch, wrapper } = setup()
+      split.placeTrackMark(30)
+
+      await wrapper.get('[role="slider"]').trigger('keydown', { key: 'Enter' })
+
+      expect(split.splits).toHaveLength(2)
+      expect(split.editCount).toBe(0)
+      expect(audition.stretchPlayheadSeconds(stretch)).toBe(21)
+      expect(toggleStretch).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('Shift+Enter', () => {
+    it('adds a pending split where the playhead is, without selecting it', async () => {
+      const { audition, split, stretch, wrapper } = setup()
+      audition.seekStretch(stretch, 40.004)
+      await nextTick()
+      const event = new KeyboardEvent('keydown', {
+        key: 'Enter',
+        shiftKey: true,
+        bubbles: true,
+        cancelable: true,
+      })
+
+      wrapper.get('[role="slider"]').element.dispatchEvent(event)
+
+      expect(split.pendingSplits).toEqual([40])
+      expect(split.selectedPendingSplit).toBeNull()
+      expect(event.defaultPrevented).toBe(true)
+    })
+
+    it('takes every tap along the track, and is never blocked by a selection', async () => {
+      const { audition, split, stretch, wrapper } = setup()
+      split.placeTrackMark(30)
+      const view = wrapper.get('[role="slider"]')
+      await view.trigger('keydown', { key: 'Enter' })
+      expect(split.selectedPendingSplit).toBe(30)
+
+      for (const seconds of [35, 45, 55]) {
+        audition.seekStretch(stretch, seconds)
+        await nextTick()
+        await view.trigger('keydown', { key: 'Enter', shiftKey: true })
+      }
+
+      expect(split.pendingSplits).toEqual([30, 35, 45, 55])
+      expect(split.selectedPendingSplit).toBe(30)
+    })
+
+    it('is refused within 1 s of another pending split or of the track’s ends', async () => {
+      const { audition, split, stretch, wrapper } = setup()
+      const view = wrapper.get('[role="slider"]')
+
+      await view.trigger('keydown', { key: 'Enter', shiftKey: true })
+      expect(split.pendingSplits).toEqual([])
+
+      audition.seekStretch(stretch, 40)
+      await nextTick()
+      await view.trigger('keydown', { key: 'Enter', shiftKey: true })
+      audition.seekStretch(stretch, 40.5)
+      await nextTick()
+      await view.trigger('keydown', { key: 'Enter', shiftKey: true })
+
+      expect(split.pendingSplits).toEqual([40])
+    })
+
+    it('ignores the auto-repeat of a held key, so one press adds one', async () => {
+      const { audition, split, stretch, wrapper } = setup()
+      const view = wrapper.get('[role="slider"]')
+      audition.seekStretch(stretch, 40)
+      await nextTick()
+      await view.trigger('keydown', { key: 'Enter', shiftKey: true })
+      audition.seekStretch(stretch, 50)
+      await nextTick()
+
+      await view.trigger('keydown', { key: 'Enter', shiftKey: true, repeat: true })
+
+      expect(split.pendingSplits).toEqual([40])
+    })
+
+    it('leaves the mark, the playback and the view as they are', async () => {
+      const { audition, split, stretch, toggleStretch, wrapper } = setup()
+      split.placeTrackMark(30)
+      audition.seekStretch(stretch, 40)
+      await nextTick()
+
+      await wrapper.get('[role="slider"]').trigger('keydown', { key: 'Enter', shiftKey: true })
+
+      expect(split.trackMarkSeconds).toBe(30)
+      expect(split.view).toBe('track')
+      expect(toggleStretch).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('Delete and Backspace with a pending split selected', () => {
+    it.each(['Delete', 'Backspace'])('%s deletes it, and is not a page action', (key) => {
+      const { split, wrapper } = setup()
+      split.addPendingSplit(30, false)
+      split.addPendingSplit(40, true)
+      const event = new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true })
+
+      wrapper.get('[role="slider"]').element.dispatchEvent(event)
+
+      expect(split.pendingSplits).toEqual([30])
+      expect(split.selectedPendingSplit).toBeNull()
+      expect(event.defaultPrevented).toBe(true)
+    })
+
+    it('never deletes a split or a track', async () => {
+      const { split, wrapper } = setup()
+      split.addPendingSplit(40, true)
+
+      await wrapper.get('[role="slider"]').trigger('keydown', { key: 'Delete' })
+
+      expect(split.splits).toHaveLength(2)
+      expect(split.selectedTrack?.number).toBe(2)
+    })
+  })
+
+  describe('Escape', () => {
+    it('deselects the selected pending split, and keeps it', () => {
+      const { split, wrapper } = setup()
+      split.addPendingSplit(40, true)
+      const event = new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true })
+
+      wrapper.get('[role="slider"]').element.dispatchEvent(event)
+
+      expect(split.selectedPendingSplit).toBeNull()
+      expect(split.pendingSplits).toEqual([40])
+      expect(event.defaultPrevented).toBe(true)
+    })
+
+    it('is left alone with none selected', () => {
+      const { wrapper } = setup()
+      const event = new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true })
+
+      wrapper.get('[role="slider"]').element.dispatchEvent(event)
+
+      expect(event.defaultPrevented).toBe(false)
+    })
+  })
+
   describe('Delete and Backspace', () => {
-    it('do nothing: no split goes, no track goes, and the key is left alone', () => {
+    it('do nothing with no pending split selected: no split goes, no track goes, the key is left alone', () => {
       const { audition, split, stretch, toggleStretch, wrapper } = setup()
       const deleteSplit = vi.spyOn(split, 'deleteSplit')
       const view = wrapper.get('[role="slider"]')
@@ -281,8 +468,8 @@ describe('TrackView', () => {
   })
 
   describe('a press', () => {
-    it('moves the playhead where it lands and focuses the view, leaving playback alone', async () => {
-      const { audition, stretch, toggleStretch, wrapper } = setup()
+    it('places the mark where it lands and focuses the view, leaving the playhead and playback alone', async () => {
+      const { audition, split, stretch, toggleStretch, wrapper } = setup()
       const view = measured(wrapper)
       document.body.append(wrapper.element)
 
@@ -290,12 +477,23 @@ describe('TrackView', () => {
       await pointer(view, 'pointerdown', 400)
       await pointer(view, 'pointerup', 400)
 
-      expect(audition.stretchPlayheadSeconds(stretch)).toBeCloseTo(41.2, 9)
+      expect(split.trackMarkSeconds).toBeCloseTo(41.2, 9)
+      expect(audition.stretchPlayheadSeconds(stretch)).toBe(21)
       expect(document.activeElement).toBe(view.element)
       expect(toggleStretch).not.toHaveBeenCalled()
     })
 
-    it('moves the playhead from a press near an end split, and selects no split', async () => {
+    it('rounds the mark to 10 ms, as the Range view’s is', async () => {
+      const { split, wrapper } = setup()
+      const view = measured(wrapper)
+
+      // 41.204 s is at x = 400.08.
+      await pointer(view, 'pointerdown', 400.08)
+
+      expect(split.trackMarkSeconds).toBeCloseTo(41.2, 9)
+    })
+
+    it('near an end split places the mark there, and selects no split', async () => {
       const { audition, split, stretch, wrapper } = setup()
       const grab = vi.spyOn(audition, 'grabPlayhead')
       const view = measured(wrapper)
@@ -306,10 +504,161 @@ describe('TrackView', () => {
       await pointer(view, 'pointerup', 997)
 
       expect(grab).not.toHaveBeenCalled()
-      // 3 px short of the end split's line, which is 71.5 s: the playhead goes there, no split does.
-      expect(audition.stretchPlayheadSeconds(stretch)).toBeCloseTo(71.35, 9)
+      // 3 px short of the end split's line, which is 71.5 s: the mark goes there, no split does.
+      expect(split.trackMarkSeconds).toBeCloseTo(71.35, 9)
+      expect(audition.stretchPlayheadSeconds(stretch)).toBeCloseTo(40, 9)
       expect(split.selectedSplit).toBeNull()
       expect(split.selectedTrack?.number).toBe(2)
+      expect(split.view).toBe('track')
+    })
+
+    it('leaves the Range view’s mark alone', async () => {
+      const { split, wrapper } = setup()
+      split.setRange(30, 50)
+      split.placeMark(40)
+      split.showView('track')
+      const view = measured(wrapper)
+
+      await pointer(view, 'pointerdown', 400)
+
+      expect(split.markSeconds).toBe(40)
+    })
+  })
+
+  describe('a press and the pending splits', () => {
+    it('within 6 px of one selects it, and places no mark', async () => {
+      const { split, wrapper } = setup()
+      split.addPendingSplit(41.2, false)
+      split.placeTrackMark(30)
+      const view = measured(wrapper)
+      document.body.append(wrapper.element)
+
+      await pointer(view, 'pointerdown', 405)
+      await pointer(view, 'pointerup', 405)
+
+      expect(split.selectedPendingSplit).toBeCloseTo(41.2, 9)
+      expect(split.trackMarkSeconds).toBe(30)
+      expect(document.activeElement).toBe(view.element)
+    })
+
+    it('takes the playhead before a pending split under the same press', async () => {
+      const { audition, split, wrapper } = setup()
+      const grab = vi.spyOn(audition, 'grabPlayhead')
+      split.addPendingSplit(22, false)
+      const view = measured(wrapper)
+
+      // The playhead is at the track's start, x = 0, and the pending split at 22 s, x = 19.8.
+      await pointer(view, 'pointerdown', 4)
+
+      expect(grab).toHaveBeenCalledOnce()
+      expect(split.selectedPendingSplit).toBeNull()
+    })
+
+    it('elsewhere places the mark and deselects the selected one', async () => {
+      const { split, wrapper } = setup()
+      split.addPendingSplit(41.2, true)
+      const view = measured(wrapper)
+
+      await pointer(view, 'pointerdown', 700)
+
+      expect(split.selectedPendingSplit).toBeNull()
+      expect(split.pendingSplits).toEqual([41.2])
+      expect(split.trackMarkSeconds).toBeCloseTo(56.35, 9)
+    })
+
+    it('can select another pending split at once', async () => {
+      const { split, wrapper } = setup()
+      split.addPendingSplit(41.2, true)
+      split.addPendingSplit(61.3, false)
+      const view = measured(wrapper)
+
+      // 61.3 s is (61.3 - 21) / 50.5 of the way: x = 798.
+      await pointer(view, 'pointerdown', 798)
+
+      expect(split.selectedPendingSplit).toBeCloseTo(61.3, 9)
+    })
+  })
+
+  describe('a double-click', () => {
+    it('moves the playhead there, and not the mark', async () => {
+      const { audition, split, stretch, wrapper } = setup()
+      split.placeTrackMark(30)
+      const view = measured(wrapper)
+
+      await doubleClick(view, 400)
+
+      expect(audition.stretchPlayheadSeconds(stretch)).toBeCloseTo(41.2, 9)
+      expect(split.trackMarkSeconds).toBe(30)
+      expect(split.view).toBe('track')
+    })
+
+    it('moves the playhead through the player’s seek, which a playing track plays on from', async () => {
+      const { audition, stretch, wrapper } = setup()
+      const seek = vi.spyOn(audition, 'seekStretch')
+      const view = measured(wrapper)
+
+      await doubleClick(view, 400)
+
+      expect(seek).toHaveBeenCalledExactlyOnceWith(stretch, 41.2)
+    })
+
+    it('within 6 px of the end split’s line selects that split and opens the Split view', async () => {
+      const { split, wrapper } = setup()
+      const view = measured(wrapper)
+
+      await doubleClick(view, 995)
+
+      expect(split.selectedSplit?.seconds).toBe(71.5)
+      expect(split.view).toBe('split')
+    })
+
+    it('within 6 px of the start split’s line selects that split too', async () => {
+      const { split, wrapper } = setup()
+      const view = measured(wrapper)
+
+      await doubleClick(view, 5)
+
+      expect(split.selectedSplit?.seconds).toBe(21)
+      expect(split.view).toBe('split')
+    })
+
+    it('on an end split’s line with pending splits asks before it leaves the track', async () => {
+      const { split, wrapper } = setup()
+      split.addPendingSplit(40, false)
+      const view = measured(wrapper)
+
+      await doubleClick(view, 995)
+
+      expect(split.discardQuestion).toEqual({ pendingCount: 1 })
+      expect(split.selectedSplit).toBeNull()
+      expect(split.view).toBe('track')
+
+      split.discardPending()
+
+      expect(split.selectedSplit?.seconds).toBe(71.5)
+      expect(split.view).toBe('split')
+    })
+
+    it('7 px from an end split’s line moves the playhead instead', async () => {
+      const { audition, split, stretch, wrapper } = setup()
+      const view = measured(wrapper)
+
+      await doubleClick(view, 993)
+
+      expect(split.selectedSplit).toBeNull()
+      expect(split.view).toBe('track')
+      expect(audition.stretchPlayheadSeconds(stretch)).toBeCloseTo(71.15, 9)
+    })
+
+    it('takes no split that lies outside the track, though the view draws all', async () => {
+      const { split, wrapper } = setup()
+      // Track 1 (0 s to 21 s) has the split at 21 s on its right edge, and nothing on its left.
+      split.selectTrack(split.tracks[0]!)
+      const view = measured(wrapper)
+
+      await doubleClick(view, 5)
+
+      expect(split.selectedSplit).toBeNull()
       expect(split.view).toBe('track')
     })
   })

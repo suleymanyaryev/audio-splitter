@@ -22,6 +22,8 @@ function setup() {
   useSourceFileStore().durationSeconds = 100
   const split = useSplitStore()
   split.detect(curveWithTwoGaps(), { windowSeconds: 0.05, durationSeconds: 100 })
+  // Detection opens on track 1; this spec is about the zoom view, on split 1.
+  split.selectSplit(split.splits[0]!.id)
   return { split, wrapper: mount(SplitZoom, { attachTo: document.body }) }
 }
 

@@ -4,6 +4,9 @@ import { defineStore } from 'pinia'
 import { FileReplacedError, useSourceFileStore } from '@/entities/source-file/model/source-file.ts'
 import type { TimeRange } from '@/entities/split/lib/range-between.ts'
 import { useSplitStore } from '@/entities/split/model/split.ts'
+import { decibelsToGain } from '@/shared/lib/audio/decibels-to-gain.ts'
+import { readSavedVolume, saveVolume } from '../api/saved-volume.ts'
+import { MAX_VOLUME_DB, MIN_VOLUME_DB } from '../config/volume.ts'
 import { decodeWindow, nextWindow, windowHolds } from '../lib/decode-window.ts'
 
 // How far the audition reaches either side of the split.
@@ -64,6 +67,10 @@ Every press takes a number, and a clip that arrives for an older number is dropp
 was stopped, or a selection or range that changed while ffmpeg was working, must never start sound
 later. The window ahead has its own guard, the fetch itself: releasing the windows, or `stop`,
 forgets it and stops its decode, so a seek's window or an export's cut does not wait behind it.
+
+The volume (docs/concepts/09-volume-is-gain.md) is the player's too: `volumeDecibels` and `isMuted`,
+applied to the element as a linear gain when it is made and on every change, and kept in
+`localStorage`. It is playback only: an export never passes through the element.
 */
 export const useAuditionStore = defineStore('audition', () => {
   const sourceFile = useSourceFileStore()
@@ -102,6 +109,39 @@ export const useAuditionStore = defineStore('audition', () => {
   let ahead: { done: Promise<void>; stopper: AbortController } | undefined
   // Whether the stretch was playing when the playhead was grabbed, so the drop plays it on.
   let shouldResume = false
+
+  // How loud it is heard, set on the page and kept between visits. Playback only: an export never
+  // passes through the element.
+  const saved = readSavedVolume()
+  const volumeDecibels = ref(saved.volumeDecibels)
+  const isMuted = ref(saved.isMuted)
+
+  // Whole dB from the quietest to full: the slider's own range, held here too.
+  function setVolume(decibels: number) {
+    // Not a number (the element's `volume` would throw on it): nothing changes.
+    if (!Number.isFinite(decibels)) return
+    volumeDecibels.value = Math.min(Math.max(Math.round(decibels), MIN_VOLUME_DB), MAX_VOLUME_DB)
+  }
+
+  function toggleMute() {
+    isMuted.value = !isMuted.value
+  }
+
+  // `volume` is the element's linear gain and `muted` a second switch, so unmuting keeps the level.
+  function applyVolume(target: HTMLAudioElement) {
+    target.volume = decibelsToGain(volumeDecibels.value)
+    target.muted = isMuted.value
+  }
+
+  // Sync, so sound that is playing changes at once. An element not made yet gets it when it is.
+  watch(
+    [volumeDecibels, isMuted],
+    () => {
+      if (element !== undefined) applyVolume(element)
+      saveVolume({ volumeDecibels: volumeDecibels.value, isMuted: isMuted.value })
+    },
+    { flush: 'sync' },
+  )
 
   function release() {
     if (element !== undefined) {
@@ -204,6 +244,7 @@ export const useAuditionStore = defineStore('audition', () => {
   function audioElement() {
     if (element === undefined) {
       element = new Audio()
+      applyVolume(element)
       element.addEventListener('ended', () => {
         if (status.value === 'playing') stop()
         else if (stretchStatus.value === 'playing') void carryOn()
@@ -559,6 +600,10 @@ export const useAuditionStore = defineStore('audition', () => {
     stretchStatus,
     failure,
     isActive,
+    volumeDecibels,
+    isMuted,
+    setVolume,
+    toggleMute,
     toggle,
     toggleStretch,
     seekStretch,

@@ -1,4 +1,4 @@
-import { computed, ref, shallowRef } from 'vue'
+import { computed, ref, shallowRef, watch } from 'vue'
 import { defineStore } from 'pinia'
 
 import { median } from '@/shared/lib/audio/median.ts'
@@ -14,6 +14,12 @@ compared with a hair of tolerance, because a split a step away from its limit ca
 */
 const MINIMUM_DISTANCE_SECONDS = 1
 const LIMIT_TOLERANCE = 1e-9
+// Splits sit on the same 10 ms grid the arrow keys and a drag step in.
+const GRID_STEPS_PER_SECOND = 100
+
+function snapToGrid(seconds: number) {
+  return Math.round(seconds * GRID_STEPS_PER_SECOND) / GRID_STEPS_PER_SECOND
+}
 
 // `id` is stable for the split's life, so a selection and a count of edits can hold it.
 // `name` is the name of the track that starts at this split, null while it is unnamed.
@@ -62,7 +68,9 @@ deletes with the names and edits of a delete. Every change of a setting replaces
 
 One selection (`Selection`) holds what is under review: a split, a track or nothing. The selected
 split, its index and the selected track are derived from it, so they follow the splits as they move
-(the track is kept by the split where it starts, so only deleting that split moves the key). The zoom window is
+(the track is kept by the split where it starts, so only deleting that split moves the key). Every
+detection selects the first track and puts the window at the file's start, so a file opens on
+track 1, ready to play. The zoom window is
 `ZOOM_WINDOW_SECONDS` wide around `zoomCentreSeconds`: selecting a split centres it there and
 nothing else moves it except `moveZoomTo`. A split can only be moved inside the window, which never follows the move. A split
 is added at the window's centre, and `editCount` says how many things the user changed since the
@@ -73,8 +81,8 @@ the whole-file view, or none. It belongs to the file, not to the detection, so a
 the edits leave it alone; `reset` clears it. The panel shows the range's view after a new range and
 the zoom view again as soon as the user selects a split or moves the window, since both are about
 the zoom view; the range stays while the zoom view is shown. The mark is a spot inside the range,
-placed by the user, cleared by a new range and kept otherwise; `addSplitAtMark` adds a split there
-without selecting it, so the user stays in the Range view.
+placed by the user, cleared by a new range and kept otherwise; `addSplitAtMark` adds a split there,
+and `addSplitAt` at any time (the playhead), without selecting it, so the user stays in the Range view.
 */
 export const useSplitStore = defineStore('split', () => {
   const curve = shallowRef<Float32Array | null>(null)
@@ -91,6 +99,21 @@ export const useSplitStore = defineStore('split', () => {
   const range = ref<TimeRange | null>(null)
   // The spot in the range where "Add split" puts a split (GLOSSARY.md), or none.
   const markSeconds = ref<number | null>(null)
+  // The Track view's own mark, inside the selected track, or none (see `trackSpan` below).
+  const trackMarkSeconds = ref<number | null>(null)
+  /*
+  The pending splits of the selected track (GLOSSARY.md), in time order, each on the 10 ms grid, and
+  the one the user selected, or none. A pending split has no id: it never moves, so its time is it.
+  */
+  const pendingSeconds = ref<number[]>([])
+  const selectedPendingSeconds = ref<number | null>(null)
+  /*
+  The open question, or none: an action that would empty a non-empty pending list is held here with
+  the number of pending splits it would lose, until `applyFirst`, `discardPending` or
+  `cancelDiscard` answers it. The held action is a closure, so it is no state a widget reads.
+  */
+  const discardQuestion = ref<{ pendingCount: number } | null>(null)
+  let heldAction: (() => void) | null = null
   const view = ref<PanelView>('split')
   let nextSplitId = 0
   /*
@@ -145,6 +168,96 @@ export const useSplitStore = defineStore('split', () => {
       : null
   })
 
+  /*
+  The two splits that bound the selected track, the ones that exist: the first track has no start
+  split and the last no end split. They are what a double-click in the Track view can reach.
+  */
+  const selectedTrackEndSplits = computed(() => {
+    const track = selectedTrack.value
+    if (track === null) return []
+    const index = splits.value.findIndex((split) => split.id === track.startSplit?.id)
+    const end = splits.value[index + 1]
+    return [track.startSplit, end].filter((split) => split !== null && split !== undefined)
+  })
+
+  /*
+  What makes the selected track the same track: the split where it starts and where it starts and
+  ends in time. The Track view's mark belongs to it, so any change of it, another track selected, a
+  split selected, an end split moved or deleted, or a split added inside, clears the mark.
+  */
+  const trackSpan = computed(() => {
+    const track = selectedTrack.value
+    return track === null
+      ? null
+      : `${track.startSplit?.id ?? 'first'}/${track.startSeconds}/${track.startSeconds + track.lengthSeconds}`
+  })
+  function clearPending() {
+    pendingSeconds.value = []
+    selectedPendingSeconds.value = null
+  }
+  // The pending splits are the track's too: they are only valid between its two ends.
+  watch(
+    trackSpan,
+    () => {
+      trackMarkSeconds.value = null
+      clearPending()
+    },
+    { flush: 'sync' },
+  )
+
+  /*
+  Runs `action`, unless it `isDiscarding` the pending splits (it empties them, or ends the track
+  they belong to) while there are some: then it does not run but is held as the one open question.
+  An action that arrives while a question is open is ignored: the first one is the one asked about.
+  */
+  function unlessItDiscards(action: () => void, isDiscarding = true) {
+    if (discardQuestion.value !== null) return
+    if (!isDiscarding || pendingSeconds.value.length === 0) {
+      action()
+      return
+    }
+    heldAction = action
+    discardQuestion.value = { pendingCount: pendingSeconds.value.length }
+  }
+
+  // Closes the question and hands back the action it held.
+  function closeQuestion() {
+    const action = heldAction
+    heldAction = null
+    discardQuestion.value = null
+    return action
+  }
+
+  /*
+  Apply first: the pending splits become splits, then what the user asked for runs. Unlike Apply it
+  does not show the Split view: the held action decides where the user goes, so a split added at the
+  playhead keeps the Range view and its sound.
+  */
+  function applyFirst() {
+    const action = closeQuestion()
+    if (action === null) return
+    insertPendingSplits()
+    action()
+  }
+
+  // Discard: the pending splits are dropped, then what the user asked for runs.
+  function discardPending() {
+    const action = closeQuestion()
+    if (action === null) return
+    clearPending()
+    action()
+  }
+
+  // Cancel: nothing happens, and the pending splits stay.
+  function cancelDiscard() {
+    closeQuestion()
+  }
+
+  // Whether a split is one of the two that bound the selected track, where the pending splits sit.
+  function isSelectedTrackEnd(id: number) {
+    return selectedTrackEndSplits.value.some((split) => split.id === id)
+  }
+
   function clearEdits() {
     movedIds.value.clear()
     addedIds.value.clear()
@@ -175,12 +288,43 @@ export const useSplitStore = defineStore('split', () => {
     )
   }
 
+  /*
+  Room for a pending split at a time: inside the selected track and 1 s from its two ends and from
+  every other pending split. The track's ends are splits or the file's ends, so a pending split that
+  has room here makes valid tracks when applied.
+  */
+  function hasRoomForPending(seconds: number) {
+    const track = selectedTrack.value
+    if (track === null) return false
+    const end = track.startSeconds + track.lengthSeconds
+    const isClearOf = (other: number) =>
+      Math.abs(other - seconds) >= MINIMUM_DISTANCE_SECONDS - LIMIT_TOLERANCE
+    return (
+      seconds > track.startSeconds &&
+      seconds < end &&
+      isClearOf(track.startSeconds) &&
+      isClearOf(end) &&
+      pendingSeconds.value.every((other) => isClearOf(other))
+    )
+  }
+
   // "Add split" in the zoom view puts the split at the window's centre.
   const canAddSplit = computed(() => hasRoomFor(zoomCentreSeconds.value))
 
   // "Add split" in the Range view puts it at the mark, when there is one.
   const canAddSplitAtMark = computed(
     () => markSeconds.value !== null && hasRoomFor(markSeconds.value),
+  )
+
+  /*
+  "Add pending split" puts one at the Track view's mark, while there is room and no pending split is
+  selected: the user finishes with the selected one first.
+  */
+  const canAddPendingSplit = computed(
+    () =>
+      trackMarkSeconds.value !== null &&
+      selectedPendingSeconds.value === null &&
+      hasRoomForPending(snapToGrid(trackMarkSeconds.value)),
   )
 
   // Finds the gaps again and replaces all splits and all track names with the proposed ones.
@@ -198,11 +342,15 @@ export const useSplitStore = defineStore('split', () => {
     }))
     firstTrackName.value = null
     clearEdits()
-    const first = splits.value[0]
-    selection.value = first === undefined ? null : { kind: 'split', id: first.id }
-    zoomCentreSeconds.value = first?.seconds ?? ZOOM_WINDOW_SECONDS / 2
-    // The Track view has no track to show now; the Range view keeps its range.
-    if (view.value === 'track') view.value = 'split'
+    // A detection starts over, even when the first track is still the same stretch.
+    trackMarkSeconds.value = null
+    clearPending()
+    // The first track starts with the file, so it is keyed by no split and exists with no gap too.
+    selection.value = { kind: 'track', startSplitId: null }
+    // The window starts at 0:00, so the Split view shows the file's opening seconds.
+    zoomCentreSeconds.value = ZOOM_WINDOW_SECONDS / 2
+    // The Range view keeps the stretch the user is listening to; any other view shows the track.
+    if (view.value !== 'range') view.value = 'track'
   }
 
   /*
@@ -216,6 +364,8 @@ export const useSplitStore = defineStore('split', () => {
     silenceThreshold.value = Math.round((median(loudness) - DEFAULT_OFFSET_DB) * 10) / 10
     minimumGapLength.value = DEFAULT_MINIMUM_GAP_SECONDS
     findAgain()
+    // The first detection of a file always lands on its first track.
+    view.value = 'track'
   }
 
   function setSilenceThreshold(decibels: number) {
@@ -228,12 +378,18 @@ export const useSplitStore = defineStore('split', () => {
     findAgain()
   }
 
-  function selectSplit(id: number) {
+  // Selects the split, centres the window on it and shows the Split view, with no question.
+  function showSplit(id: number) {
     const split = splits.value.find((candidate) => candidate.id === id)
     if (split === undefined) return
     selection.value = { kind: 'split', id: split.id }
     zoomCentreSeconds.value = split.seconds
     view.value = 'split'
+  }
+
+  // A split no longer selected for a track ends the pending splits, so it asks first.
+  function selectSplit(id: number) {
+    if (splits.value.some((candidate) => candidate.id === id)) unlessItDiscards(() => showSplit(id))
   }
 
   /*
@@ -247,8 +403,11 @@ export const useSplitStore = defineStore('split', () => {
     const isLive =
       startSplitId === null || splits.value.some((candidate) => candidate.id === startSplitId)
     if (!isLive) return
-    selection.value = { kind: 'track', startSplitId }
-    view.value = 'track'
+    // The track already selected asks nothing: its pending splits stay.
+    unlessItDiscards(() => {
+      selection.value = { kind: 'track', startSplitId }
+      view.value = 'track'
+    }, !isTrackSelected(track))
   }
 
   function isTrackSelected(track: Track) {
@@ -258,9 +417,11 @@ export const useSplitStore = defineStore('split', () => {
 
   // A click on empty ground in the whole-file view: the window goes there, with nothing selected.
   function moveZoomTo(seconds: number) {
-    zoomCentreSeconds.value = seconds
-    selection.value = null
-    view.value = 'split'
+    unlessItDiscards(() => {
+      zoomCentreSeconds.value = seconds
+      selection.value = null
+      view.value = 'split'
+    })
   }
 
   /*
@@ -286,6 +447,70 @@ export const useSplitStore = defineStore('split', () => {
       Math.max(seconds, range.value.startSeconds),
       range.value.endSeconds,
     )
+  }
+
+  // Places the Track view's mark, held inside the selected track like the Range view's in its range.
+  function placeTrackMark(seconds: number) {
+    const track = selectedTrack.value
+    if (track === null) return
+    trackMarkSeconds.value = Math.min(
+      Math.max(seconds, track.startSeconds),
+      track.startSeconds + track.lengthSeconds,
+    )
+  }
+
+  /*
+  A pending split at a time, on the 10 ms grid and with room (`hasRoomForPending`). `isSelected` says
+  whether the new one becomes the selected one: at the mark it does, at the playhead it does not, so
+  the user can tap along a playing track and every tap is taken.
+  */
+  function addPendingSplit(seconds: number, isSelected: boolean) {
+    const onGrid = snapToGrid(seconds)
+    if (!hasRoomForPending(onGrid)) return
+    const list = pendingSeconds.value
+    const index = list.findIndex((other) => other > onGrid)
+    const at = index === -1 ? list.length : index
+    // A new array, not a splice: the Track view redraws when the list is replaced.
+    pendingSeconds.value = [...list.slice(0, at), onGrid, ...list.slice(at)]
+    if (isSelected) selectedPendingSeconds.value = onGrid
+  }
+
+  function addPendingSplitAtMark() {
+    if (trackMarkSeconds.value !== null && canAddPendingSplit.value) {
+      addPendingSplit(trackMarkSeconds.value, true)
+    }
+  }
+
+  function selectPendingSplit(seconds: number) {
+    if (pendingSeconds.value.includes(seconds)) selectedPendingSeconds.value = seconds
+  }
+
+  function deselectPendingSplit() {
+    selectedPendingSeconds.value = null
+  }
+
+  function deleteSelectedPendingSplit() {
+    const selected = selectedPendingSeconds.value
+    if (selected === null) return
+    pendingSeconds.value = pendingSeconds.value.filter((seconds) => seconds !== selected)
+    selectedPendingSeconds.value = null
+  }
+
+  /*
+  Turns every pending split into a split, each an added edit through the same insert as any added
+  split. The list is taken first and emptied: the first insert changes the track, which would empty
+  it under the loop.
+  */
+  function insertPendingSplits() {
+    const times = pendingSeconds.value
+    clearPending()
+    return times.map((seconds) => insertSplit(seconds))
+  }
+
+  // Apply: then the first new split is selected, centred and shown in the Split view, to fine-tune.
+  function applyPendingSplits() {
+    const [first] = insertPendingSplits()
+    if (first !== undefined) showSplit(first.id)
   }
 
   // A view needs something to show: asked for with no range or no selected track, the panel stays.
@@ -330,21 +555,54 @@ export const useSplitStore = defineStore('split', () => {
     return split
   }
 
+  /*
+  It selects the new split, which leaves the track: with pending splits it asks first. The time is
+  taken now and the room is checked again when it runs, since "Apply first" moves the window and
+  adds splits in between.
+  */
   function addSplit() {
     if (!canAddSplit.value) return
-    selectSplit(insertSplit(zoomCentreSeconds.value).id)
+    const seconds = zoomCentreSeconds.value
+    unlessItDiscards(() => {
+      if (hasRoomFor(seconds)) showSplit(insertSplit(seconds).id)
+    })
   }
 
   /*
-  A split where the mark is, for the user who is listening in the Range view: it is not selected,
-  so the view, the playback and the mark stay as they are.
+  A split at a time, for the user who is listening in the Range view (the playhead): the time is
+  rounded to the 10 ms grid first, then held to the same room as any split. It is not selected, so
+  the view, the playback and the mark stay as they are.
   */
-  function addSplitAtMark() {
-    if (markSeconds.value === null || !canAddSplitAtMark.value) return
-    insertSplit(markSeconds.value)
+  function addSplitAt(seconds: number) {
+    const onGrid = snapToGrid(seconds)
+    if (!hasRoomFor(onGrid)) return
+    // A split inside the selected track shortens it, ending its pending splits: it asks first.
+    const track = selectedTrack.value
+    const isInside =
+      track !== null &&
+      onGrid > track.startSeconds &&
+      onGrid < track.startSeconds + track.lengthSeconds
+    // The room is checked again when it runs: "Apply first" adds splits in between.
+    unlessItDiscards(() => {
+      if (hasRoomFor(onGrid)) insertSplit(onGrid)
+    }, isInside)
   }
 
+  // A split where the mark is.
+  function addSplitAtMark() {
+    if (markSeconds.value !== null) addSplitAt(markSeconds.value)
+  }
+
+  // Deleting an end split of the selected track changes the track, which ends its pending splits.
   function deleteSplit(id: number) {
+    if (splits.value.some((candidate) => candidate.id === id)) {
+      unlessItDiscards(() => {
+        removeSplit(id)
+      }, isSelectedTrackEnd(id))
+    }
+  }
+
+  function removeSplit(id: number) {
     const index = splits.value.findIndex((candidate) => candidate.id === id)
     if (index === -1) return
     const current = selection.value
@@ -386,10 +644,16 @@ export const useSplitStore = defineStore('split', () => {
     if (splits.value.length === 0 || (startIndex === -1 && track.startSplit !== null)) return
     const start = splits.value[startIndex]
     const end = splits.value[startIndex + 1]
-    const inheritedName = end?.name ?? null
-    if (end !== undefined) deleteSplit(end.id)
-    if (start !== undefined) deleteSplit(start.id)
-    if (start === undefined) renameTrack(null, inheritedName ?? '')
+    // The splits are taken now, so a held removal removes this track's, whatever is applied since.
+    const isDiscarding = [start, end].some(
+      (split) => split !== undefined && isSelectedTrackEnd(split.id),
+    )
+    unlessItDiscards(() => {
+      const inheritedName = end?.name ?? null
+      if (end !== undefined) removeSplit(end.id)
+      if (start !== undefined) removeSplit(start.id)
+      if (start === undefined) renameTrack(null, inheritedName ?? '')
+    }, isDiscarding)
   }
 
   /*
@@ -423,6 +687,9 @@ export const useSplitStore = defineStore('split', () => {
     zoomCentreSeconds.value = ZOOM_WINDOW_SECONDS / 2
     range.value = null
     markSeconds.value = null
+    trackMarkSeconds.value = null
+    clearPending()
+    closeQuestion()
     view.value = 'split'
     nextSplitId = 0
   }
@@ -440,6 +707,12 @@ export const useSplitStore = defineStore('split', () => {
     zoomCentreSeconds,
     range,
     markSeconds,
+    trackMarkSeconds,
+    selectedTrackEndSplits,
+    pendingSplits: pendingSeconds,
+    selectedPendingSplit: selectedPendingSeconds,
+    canAddPendingSplit,
+    discardQuestion,
     view,
     canAddSplit,
     canAddSplitAtMark,
@@ -455,9 +728,20 @@ export const useSplitStore = defineStore('split', () => {
     moveZoomTo,
     setRange,
     placeMark,
+    placeTrackMark,
+    addPendingSplit,
+    addPendingSplitAtMark,
+    selectPendingSplit,
+    deselectPendingSplit,
+    deleteSelectedPendingSplit,
+    applyPendingSplits,
+    applyFirst,
+    discardPending,
+    cancelDiscard,
     showView,
     moveSplit,
     addSplit,
+    addSplitAt,
     addSplitAtMark,
     deleteSplit,
     removeTrack,

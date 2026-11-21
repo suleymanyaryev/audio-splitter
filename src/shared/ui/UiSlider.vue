@@ -7,6 +7,7 @@ const {
   max = 100,
   step = 1,
   disabled = false,
+  compact = false,
 } = defineProps<{
   // The setting's name: shown on the left and read out for the thumb.
   label: string
@@ -16,6 +17,9 @@ const {
   max?: number
   step?: number
   disabled?: boolean
+  // For a title row: no visible name or readout (the thumb still has both, for a screen reader), and
+  // no minimum width: the caller sets one.
+  compact?: boolean
 }>()
 
 const model = defineModel<number>({ required: true })
@@ -31,23 +35,27 @@ const thumbValues = computed({
 
 <template>
   <div class="flex items-center gap-3">
-    <span class="whitespace-nowrap text-muted">{{ label }}</span>
+    <span v-if="!compact" class="whitespace-nowrap text-muted">{{ label }}</span>
     <SliderRoot
       v-model="thumbValues"
       :min
       :max
       :step
       :disabled
-      class="relative flex h-5 min-w-32 flex-1 items-center data-disabled:opacity-40"
+      class="relative flex h-5 flex-1 items-center data-disabled:opacity-40"
+      :class="{ 'min-w-32': !compact }"
     >
       <SliderTrack class="relative h-1 w-full rounded-full bg-hairline">
         <SliderRange class="absolute h-1 rounded-full bg-ink" />
       </SliderTrack>
       <SliderThumb
         :aria-label="label"
+        :aria-valuetext="readout"
         class="block size-4 cursor-grab rounded-full border-2 border-surface bg-ink not-data-disabled:hover:size-5 focus-visible:focus-ring data-disabled:cursor-not-allowed"
       />
     </SliderRoot>
-    <span class="w-18 text-right font-semibold whitespace-nowrap text-ink">{{ readout }}</span>
+    <span v-if="!compact" class="w-18 text-right font-semibold whitespace-nowrap text-ink">{{
+      readout
+    }}</span>
   </div>
 </template>

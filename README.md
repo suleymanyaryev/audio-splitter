@@ -18,9 +18,9 @@ The project has a second, equal reason: I wanted to learn how digital audio work
 2. **Analyse.** The file is decoded one slice at a time, and only two small summaries are kept: a waveform and a loudness curve. In Chrome on the author's machine, a 1 h file takes about 6 s (`.m4a`), 9 s (`.mp3` and `.opus`); a 3 h file about 19 s, 39 s and 26 s.
 3. **Propose splits.** A gap is a stretch whose loudness stays under the silence threshold for at least the minimum gap length. Each gap in the middle of the file gets a split at its centre. The threshold starts 18 dB below the file's median loudness and the minimum gap length at 2 s, both calibrated by ear on real files. Two sliders change them, and so does dragging the threshold line.
 4. **Review.** Select a track to see it whole and listen to it from start to end, or select a split to see its 20 s zoom window. Move it by dragging, or with the arrow keys in 10 ms steps. Add splits, delete them, and name tracks. "Play across split" plays the 8 s around the selected split, so you can hear where the cut falls.
-5. **Export.** Pick a folder. The tracks are written into a new subfolder named after the source file (`evening-set/`, or `evening-set (2)/` the second time) as `01.m4a` or `01 Sunrise Drive.m4a`, tagged with title, track number and album. They keep the source's format and are copied frame by frame, so nothing is re-encoded and nothing is lost. A cut lands on a frame boundary, at most one frame off (23 ms for AAC, 26 ms for MP3, 20 ms for Opus), and that frame sits inside a gap.
+5. **Export.** Pick a folder. The tracks are written into a new subfolder named after the source file (`evening-set/`, or `evening-set (2)/` the second time) as `01.m4a` or `01 Sunrise Drive.m4a`, tagged with title, track number and album. They keep the source's format and are copied frame by frame, so nothing is re-encoded and nothing is lost. A cut lands on a frame boundary, at most one frame off (23 ms for AAC, 26 ms for MP3, 20 ms for Opus), and that frame sits inside a gap. "Export track…" and "Export range…" in the zoom panel write one track, or the stretch you dragged out, as a single file under a name you confirm, into a folder you pick once per file (a name already there is never overwritten: the new file takes ` (2)`).
 
-**Requirements:** desktop Chrome, because the export writes through the File System Access API. Everything is kept in memory, so a reload starts over.
+**Requirements:** desktop Chrome, because the export writes through the File System Access API. Everything but the volume is kept in memory, so a reload starts over; the volume and mute are remembered.
 
 **Not in v1:** CUE sheets, smarter detection (hysteresis, an adaptive threshold, confidence scores), snapping to the quietest point, re-encoded or sample-accurate cuts, help with playlists that repeat, other containers and browsers, and keeping splits across a reload. The full list, with the reason for each, is in the [milestones doc](docs/audio-splitter-milestones.md#not-in-v1).
 
@@ -140,6 +140,7 @@ One screen each, plain words, worked numbers from a real 1 h file.
 6. [Seeking compressed audio](docs/concepts/06-seeking-compressed-audio.md): frames, VBR, why `<audio>` seeks MP3 wrong, WAV.
 7. [Cutting without re-encoding](docs/concepts/07-cutting-without-re-encoding.md): stream copy, cut grain, priming, tags.
 8. [Listening to a range](docs/concepts/08-listening-to-a-range.md): sample frames, byte rate, why a range stops at 10 min, and how a longer track is heard through a moving window.
+9. [Volume is gain](docs/concepts/09-volume-is-gain.md): amplitude, linear gain, decibels, why the slider steps in dB, and that volume is playback only.
 
 ### Planning record
 

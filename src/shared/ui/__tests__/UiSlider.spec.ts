@@ -3,7 +3,7 @@ import { describe, it, expect } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import UiSlider from '../UiSlider.vue'
 
-function mountSlider() {
+function mountSlider(extra: { compact?: boolean } = {}) {
   return mount(UiSlider, {
     props: {
       modelValue: 1,
@@ -12,6 +12,7 @@ function mountSlider() {
       min: 0.2,
       max: 5,
       step: 0.1,
+      ...extra,
     },
     attachTo: document.body,
   })
@@ -31,6 +32,14 @@ describe('UiSlider', () => {
     wrapper.unmount()
   })
 
+  it('reads its value out as the readout, so a screen reader hears "1.0 s" and not "1"', async () => {
+    const wrapper = mountSlider()
+    await flushPromises()
+
+    expect(wrapper.get('[role="slider"]').attributes('aria-valuetext')).toBe('1.0 s')
+    wrapper.unmount()
+  })
+
   it('shows the setting name and the readout', () => {
     const wrapper = mountSlider()
 
@@ -46,5 +55,18 @@ describe('UiSlider', () => {
 
     expect(wrapper.emitted('update:modelValue')).toEqual([[1.1]])
     wrapper.unmount()
+  })
+
+  describe('compact, for a title row', () => {
+    it('leaves the name and the readout to the thumb, for a screen reader', async () => {
+      const wrapper = mountSlider({ compact: true })
+      await flushPromises()
+
+      expect(wrapper.text()).toBe('')
+      const thumb = wrapper.get('[role="slider"]')
+      expect(thumb.attributes('aria-label')).toBe('Minimum gap length')
+      expect(thumb.attributes('aria-valuetext')).toBe('1.0 s')
+      wrapper.unmount()
+    })
   })
 })

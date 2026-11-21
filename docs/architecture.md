@@ -6,14 +6,17 @@ The diagrams are drawn from the code. When a change alters what one of them show
 
 ## The stores
 
-Four Pinia setup stores hold all state, in memory only. Two are entities; two belong to the widget that owns the behaviour.
+Seven Pinia setup stores hold all state in memory; only the player's volume and mute flag are also kept in `localStorage`. Two are entities; five belong to the widget that owns the behaviour.
 
-| Store           | Slice                  | Holds                                                                                                                                                                                                        |
-| --------------- | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `source-file`   | `entities/source-file` | The file, its format and duration, peaks, loudness curve, slice progress, load failure, the ffmpeg session                                                                                                   |
-| `split`         | `entities/split`       | The silence threshold and minimum gap length, the gaps, the splits with their track names, the derived tracks, the one selection (a split, a track or nothing; the selected split and the selected track are derived from it), the zoom window, the range, the mark and the panel's view, the edit count |
-| `audition`      | `widgets/split-zoom`   | Whether the audition's clip and the stretch's (range or track) are loading, playing or paused, the failure, the stretch's resting place                                                                                           |
-| `export-tracks` | `widgets/track-strip`  | The export's status, the track in hand, the counts, the subfolder's name, the failure                                                                                                                        |
+| Store              | Slice                      | Holds                                                                                                                                                                                                                                                                                                    |
+| ------------------ | -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `source-file`      | `entities/source-file`     | The file, its format and duration, peaks, loudness curve, slice progress, load failure, the ffmpeg session                                                                                                                                                                                               |
+| `split`            | `entities/split`           | The silence threshold and minimum gap length, the gaps, the splits with their track names, the derived tracks, the one selection (a split, a track or nothing; the selected split and the selected track are derived from it), the zoom window, the range, the Range view's mark and the Track view's mark, the selected track's pending splits and the selected one, the panel's view, the edit count |
+| `audition`         | `widgets/split-zoom`       | Whether the audition's clip and the stretch's (range or track) are loading, playing or paused, the failure, the stretch's resting place, the volume (dB) and the mute flag                                                                                                                               |
+| `export-tracks`    | `widgets/track-strip`      | The export's status, the track in hand, the counts, the subfolder's name, the failure                                                                                                                                                                                                                    |
+| `export-single`    | `widgets/track-strip`      | The single export's status (naming, running, saved, failed), the default name, the remembered folder, the saved file and folder names, the failure                                                                                                                                                       |
+| `export-lock`      | `widgets/track-strip`      | Which export is writing (the full or a single one), so the two never run at once                                                                                                                                                                                                                         |
+| `shortcuts-dialog` | `widgets/shortcuts-dialog` | Whether the shortcuts dialog is open                                                                                                                                                                                                                                                                     |
 
 ```mermaid
 flowchart LR
@@ -21,6 +24,8 @@ flowchart LR
   split[("split")]
   audition[("audition<br/>(the player)")]
   exporter[("export-tracks")]
+  exporterSingle[("export-single")]
+  exportLock[("export-lock")]
   reviewPage["ReviewPage"]
 
   sourceFile -- "loudness curve,<br/>once on mount" --> reviewPage
@@ -29,12 +34,20 @@ flowchart LR
   audition -- "clip(start, length, signal?)" --> sourceFile
   split -- "tracks and names,<br/>fixed when the export starts" --> exporter
   exporter -- "cutTrack(track)<br/>stopCuts()" --> sourceFile
+  split -- "track, its end and count;<br/>renameTrack when the name changed" --> exporterSingle
+  exporterSingle -- "cutTrack(track or range)<br/>stopCuts()" --> sourceFile
+  exporter -- "take, release" --> exportLock
+  exporterSingle -- "take, release" --> exportLock
 ```
 
 - **`split` can't import `source-file`**, because two slices of one layer never import each other. `ReviewPage` reads the curve and hands it to `split.detect` when it mounts, and `split` keeps a reference to it to find the gaps again when a setting changes. When the page unmounts, it stops the player and resets `split`.
 - **Widgets read the entity stores directly.** Every widget reads `split` for the splits, tracks and selection; all but the track list also read `source-file`, for the peaks, the curve, the duration or the session's calls.
 - **Deleting a split merges the tracks either side of it.** **Removing a track is two of these.** `split.removeTrack` deletes the splits at both ends of a track (one at an edge, none for the only track); the removed track's name goes with its start split, and when the first track goes the next track's name moves to the file's start. Three places call `split.deleteSplit`: the "Delete split" button in the zoom view's title row (`ReviewPage`), Delete and Backspace on the split's handle (`SplitZoom`), and the trash button on a split row of the Track list. It counts as one edit for a detected split and takes the "added" edit back for an added one. A selected split that goes falls back to its neighbour; a selected track whose start split goes is re-keyed to the merged track, and any other selection stays.
-- **A setting change replaces every split and name.** With edits made, the loudness panel's replace guard holds the change back and asks first; "Replace" applies it and clears the edit count. "New file" asks the same way in `App.vue`.
+- **The shortcuts dialog's flag is shared by three places.** The header's `?` button (`App.vue`) and the `?` key (`ReviewPage`, through `useQuestionMarkKey`, which ignores a text field, Ctrl, Cmd and Alt, and a page that already has a dialog open) set it; the dialog on `ReviewPage` shows it, and the page clears it when it unmounts. The dialog reads the split store's `view` only to put the view on show first. Its rows are written by hand in `widgets/shortcuts-dialog/config/shortcut-sections.ts`, so a change to a key or a gesture changes its row in the same commit.
+- **There is one mark per view, and both live in `split`.** The Range view's (`markSeconds`) belongs to the range and is cleared by a new range. The Track view's (`trackMarkSeconds`) belongs to the selected track, and a synchronous watcher on the track's identity (the split where it starts, and its start and end in time) clears it, so another track or split selected, an end split moved or deleted, or a split added inside the track all clear it. Both views place theirs through the same press helper (`use-range-press.ts`); the Track view gives it the track's two end splits (`selectedTrackEndSplits`) as the split lines a double-click can reach.
+- **Pending splits are the selected track's, and live in `split`.** `pendingSplits` are times on the 10 ms grid in order, with at most one selected (`selectedPendingSplit`); a pending split has no id, since it never moves. The same watcher that clears the Track view's mark empties them: another track or a split selected, the zoom window moved, an end split moved or deleted, a split added inside the track, a detection and a reset. Switching the view keeps them. They are added at the mark (button, Enter: selected) or at a time (Shift+Enter: not selected), 1 s from each other and from the track's ends. `applyPendingSplits` takes the list, empties it, inserts one split per time through the insert every added split uses (each an added edit), and selects the first through `selectSplit`, which centres the window and shows the Split view. Only the Track view draws them; "Export track…" is off while any exist.
+- **A setting change replaces every split and name.** With edits made or pending splits, the loudness panel's replace guard holds the change back and asks first; "Replace" applies it and clears both. "New file" asks the same way in `App.vue`, and both texts count the edits and the pending splits (`formatLoss`). Both keep their two buttons.
+- **The discard question belongs to the split store, which is where the pending splits are.** An action that would empty a non-empty list does not run: it is held as `discardQuestion` (carrying the pending count), and the store answers it: `applyFirst` (apply, then run the held action; unlike Apply it shows no Split view, so the held action decides the view and a split at the playhead keeps the Range view and its sound), `discardPending` (empty the list, then run it) or `cancelDiscard` (forget it). The actions that ask are selecting a split or another track (not the selected one again), moving the zoom window, deleting one of the selected track's end splits (alone, or by removing this track or a neighbour), adding a split at the window's centre (it selects the new one), and adding one inside the selected track from the Range view (it shortens the track). An action that arrives while a question is open is ignored, as the replace guard does; switching the view asks nothing. A held track removal keeps the two end splits it was asked about, so "Apply first" removes that track, not the part of it left of the first applied split. `ReviewPage` shows the question.
 
 ## The ffmpeg session
 
@@ -138,9 +151,11 @@ stateDiagram-v2
   playing --> idle: a new range, a track change, or the audition plays
 ```
 
-A track change is another selected track, none, or the selected track's start or end moving (a split deleted, moved or added at its edge, a neighbour removed). It stops the stretch in every view but the Range view, where the stretch is the range: a split added at the mark shortens the selected track, and the range plays on.
+A track change is another selected track, none, or the selected track's start or end moving (a split deleted, moved or added at its edge, a neighbour removed). It stops the stretch in every view but the Range view, where the stretch is the range: a split added at the mark or at the playhead (Shift+Enter) shortens the selected track, and the range plays on.
 
 Every press takes a number, and a clip that arrives for an older press is dropped, so a stopped press, a changed selection or a new range never starts sound later. "The selection changed" covers moving the selected split, selecting another, deselecting, deleting and a setting change; a synchronous watcher on the split store stops the audition at once. A second synchronous watcher on the range, and a third on the selected track (its identity, start and end, so a split that moves elsewhere changes nothing; it does nothing while the Range view is shown), stop all sound, drop the decoded stretch and put the playhead at the new stretch's start. The page stops the player on a view change, when the export starts and when it unmounts: a stretch that plays is paused, so its playhead stays where it was.
+
+**The volume** is state the same store owns: a level in whole dB from −40 to 0 and a mute flag, read from `localStorage` when the store is made (full volume and unmuted when nothing valid is saved or the browser blocks storage) and written on every change. A synchronous watcher applies them to the element, `volume` as the linear gain (`decibelsToGain`) and `muted` as its own switch, and `audioElement()` applies them when the element is first made, so a change reaches sound that is already playing and the element needs no clip decoded again. `VolumeControl` (the mute button and the slider) ends the zoom panel's title row in every view and only calls `setVolume` and `toggleMute`. The export never passes through the element, so the volume cannot reach a file.
 
 ## Export
 
@@ -194,3 +209,59 @@ stateDiagram-v2
 ```
 
 A failure names the track that failed, when there was one. The cut commands per format, and why `.mp3` and `.opus` seek twice, are in [concept note 07](concepts/07-cutting-without-re-encoding.md).
+
+## Single export
+
+One track or the range, as one file, under a name the user confirms. The `export-single` store sits beside the full export, in the same widget, and shares its file writing (`api/write-file.ts`, which aborts a failed writable and removes the empty file Chrome made), its file-name sanitising, number padding, track file names and tags.
+
+```mermaid
+sequenceDiagram
+  actor User
+  participant page as ReviewPage
+  participant dialog as SingleExportDialog
+  participant single as export-single store
+  participant folder as folder (File System Access)
+  participant store as source-file store
+
+  User->>page: Export track… or Export range…
+  page->>single: openTrack(track) or openRange(range)
+  Note right of single: status naming, default name filled in, the sound plays on
+  User->>dialog: confirms the name (Enter or OK)
+  dialog->>page: confirm(name)
+  page->>page: stop the player
+  page->>single: confirm(name)
+  alt no folder remembered
+    single->>folder: showDirectoryPicker, same id as the full export
+    Note right of single: closed picker: back to naming, nothing taken
+  end
+  single->>single: rename the track if the name changed
+  single->>folder: list the names, pick "03 Name.m4a" or "03 Name (2).m4a"
+  single->>store: cutTrack(its times, tags)
+  store-->>single: bytes
+  single->>folder: create, write, close
+  single-->>page: saved: "Saved 03 Name.m4a in Music"
+```
+
+- **The folder is remembered for the file.** The handle is kept in the store (not as reactive state) and forgotten when the source file changes; "Change folder" in the dialog picks another. Nothing is saved across a reload.
+- **Names.** A track's file is the full export's for that track (`NN name.ext`, padded to the current track count, and just `NN.ext` for an unnamed track whose default name was confirmed as it was offered); a range's is `name.ext`, sanitised, with the title tag the name as typed, the album the source's stem and no track number (the cut writes an empty `track=` so a number the source carried does not come along). A name that is taken gets ` (2)`, ` (3)` before the extension, compared without regard to case.
+- **The rename comes first.** A name changed in a track's dialog is given to the track before the cut, so a failed export keeps it; a range renames nothing.
+- **The two exports exclude each other** through the `export-lock` store, which each takes when it starts (before the picker opens) and gives back when it ends however it ends. The two export stores cannot import each other, and a store of their own keeps the dependency one way. The page also disables each export's buttons while the other runs.
+- **Cancel** stops the cut as the full export's does and closes the dialog; a failure stays in the dialog with its reason, over the name, to confirm again. Once the cut has ended a Cancel is too late: the short write leaves a whole file or none, so it runs on and the file is saved, and no ffmpeg session is restarted for nothing.
+- **The saved line** is the page's: `export-single` holds the file and folder names until the page dismisses it, on the next press or key in the view, a view switch, a selection change or a new range.
+
+```mermaid
+stateDiagram-v2
+  [*] --> idle
+  idle --> naming: Export track… or Export range…
+  naming --> naming: picker closed
+  naming --> running: name confirmed
+  naming --> failed: picker failed
+  naming --> idle: Cancel
+  running --> saved: file written
+  running --> idle: Cancel
+  running --> failed: a cut or a write failed
+  failed --> running: name confirmed again
+  failed --> idle: Cancel
+  saved --> idle: press, key, view switch, selection change or new range
+  saved --> naming: another export opened
+```
