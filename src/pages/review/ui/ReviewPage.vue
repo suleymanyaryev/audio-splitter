@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onUnmounted, useTemplateRef, watch } from 'vue'
+import { computed, onUnmounted, watch } from 'vue'
 import {
   BookmarkMinus,
   BookmarkPlus,
@@ -148,18 +148,12 @@ const savedLine = computed(() =>
 )
 
 /*
-In the zoom view a new split is selected and its handle takes the keyboard, ready for the arrow
-keys. In the Range view it goes at the mark and nothing else changes: the user stays where they are.
+In the Split view a new split is selected, so the arrow keys move it at once, wherever the focus is.
+In the Range view it goes at the mark and nothing else changes: the user stays where they are.
 */
-const zoom = useTemplateRef('zoom')
-
 function addSplit() {
-  if (split.view === 'range') {
-    split.addSplitAtMark()
-    return
-  }
-  split.addSplit()
-  void zoom.value?.focusHandle()
+  if (split.view === 'range') split.addSplitAtMark()
+  else split.addSplit()
 }
 
 // The Track view's buttons, with the same effect as its keys.
@@ -171,21 +165,11 @@ function deletePendingSplit() {
   split.deleteSelectedPendingSplit()
 }
 
-/*
-The Split view opens on the first new split, whose handle takes the keyboard, as a new split's does.
-The view is not on the page until the next render, so the handle is asked for then.
-*/
-function applyPendingSplits() {
-  split.applyPendingSplits()
-  void nextTick(() => zoom.value?.focusHandle())
-}
-
-// The same delete as the handle's key, and the keyboard goes to the split selected next.
+// The same delete as the key, and the arrow keys go to the split selected next.
 function deleteSplit() {
   const selected = split.selectedSplit
   if (selected === null) return
   split.deleteSplit(selected.id)
-  void zoom.value?.focusHandle()
 }
 
 const canAddSplit = computed(() =>
@@ -295,7 +279,7 @@ watch(
           size="sm"
           label="Apply"
           :disabled="split.pendingSplits.length === 0"
-          @click="applyPendingSplits"
+          @click="split.applyPendingSplits()"
         >
           <Check class="size-4 shrink-0" />
         </UiIconButton>
@@ -382,7 +366,7 @@ watch(
       <div @pointerdown.capture="singleExport.dismissSaved()">
         <RangeView v-if="split.view === 'range'" @acted="singleExport.dismissSaved()" />
         <TrackView v-else-if="split.view === 'track'" @acted="singleExport.dismissSaved()" />
-        <SplitZoom v-else ref="zoom" />
+        <SplitZoom v-else />
       </div>
       <p v-if="savedLine" role="status" class="mt-2 text-sm text-muted">
         Saved <span class="font-semibold text-ink">{{ savedLine.file }}</span> in

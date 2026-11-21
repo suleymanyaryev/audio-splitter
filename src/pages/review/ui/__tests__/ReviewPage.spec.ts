@@ -350,17 +350,16 @@ describe('ReviewPage', () => {
       expect(split.selectedSplit?.seconds).toBe(46)
     })
 
-    it('hands the keyboard to the new split, so it can be nudged at once', async () => {
+    it('leaves the arrow keys moving the new split, so it can be nudged at once', async () => {
       const wrapper = mountPage()
-      useSplitStore().moveZoomTo(46)
+      const split = useSplitStore()
+      split.moveZoomTo(46)
       await wrapper.vm.$nextTick()
 
       await addSplitButton(wrapper).trigger('click')
-      await wrapper.vm.$nextTick()
+      pressKey('ArrowRight')
 
-      expect(document.activeElement).toBe(
-        wrapper.get('[role="slider"][aria-label="Split 2"]').element,
-      )
+      expect(split.selectedSplit?.seconds).toBeCloseTo(46.01)
     })
   })
 
@@ -396,15 +395,14 @@ describe('ReviewPage', () => {
       expect(split.editCount).toBe(1)
     })
 
-    it('hands the keyboard to the split that is selected next, so it can be nudged at once', async () => {
+    it('leaves the arrow keys moving the split that is selected next', async () => {
       const wrapper = await mountPageOnSplit()
+      const split = useSplitStore()
 
       await deleteSplitButton(wrapper).trigger('click')
-      await wrapper.vm.$nextTick()
+      pressKey('ArrowLeft')
 
-      expect(document.activeElement).toBe(
-        wrapper.get('[role="slider"][aria-label="Split 1"]').element,
-      )
+      expect(split.selectedSplit?.seconds).toBeCloseTo(71.49)
     })
 
     it('is disabled once the last split is deleted', async () => {
@@ -1360,17 +1358,18 @@ describe('ReviewPage', () => {
         expect(wrapper.find('[aria-label="Zoomed waveform of the split"]').exists()).toBe(true)
       })
 
-      it('hands the keyboard to the new split, so it can be nudged at once', async () => {
+      it('leaves the arrow keys moving the new split, with nothing focused', async () => {
         const wrapper = await mountWithMark()
-        useSplitStore().addPendingSplit(30, false)
+        const split = useSplitStore()
+        split.addPendingSplit(30, false)
         await wrapper.vm.$nextTick()
 
         await applyButton(wrapper).trigger('click')
         await flushPromises()
+        if (document.activeElement instanceof HTMLElement) document.activeElement.blur()
+        pressKey('ArrowRight')
 
-        expect(document.activeElement).toBe(
-          wrapper.get('[role="slider"][aria-label="Split 2"]').element,
-        )
+        expect(split.selectedSplit?.seconds).toBeCloseTo(30.01)
       })
     })
 
@@ -1624,6 +1623,30 @@ describe('ReviewPage', () => {
   })
 
   describe('the keys on the page', () => {
+    it('move the selected split in the Split view after a click on its track-list row, with the focus on the page', async () => {
+      const wrapper = await mountPageOnSplit()
+      const split = useSplitStore()
+      const row = wrapper.findAll('tr').find((candidate) => candidate.text().startsWith('Split 2'))
+      await row!.trigger('click')
+      expect(document.activeElement).toBe(document.body)
+
+      pressKey('ArrowLeft')
+      expect(split.selectedSplit?.seconds).toBeCloseTo(71.49)
+
+      pressKey('ArrowRight', { shiftKey: true })
+      expect(split.selectedSplit?.seconds).toBeCloseTo(71.59)
+    })
+
+    it('change nothing in the Split view with Cmd+Backspace or Alt+Left', async () => {
+      await mountPageOnSplit()
+      const split = useSplitStore()
+
+      pressKey('Backspace', { metaKey: true })
+      pressKey('ArrowLeft', { altKey: true })
+
+      expect(split.splits.map((point) => point.seconds)).toEqual([21, 71.5])
+    })
+
     it('act in the Track view with the focus on the page, after a click on a track-list row', async () => {
       const wrapper = await mountWithMark()
       const split = useSplitStore()

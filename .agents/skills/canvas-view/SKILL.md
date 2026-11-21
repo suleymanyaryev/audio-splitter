@@ -35,12 +35,14 @@ The canvases (`widgets/source-waveform`, `widgets/loudness-curve`, `widgets/spli
 
 ## Keyboard
 
-- The keyboard goes to a focusable element with `role="slider"` over the canvas.
-  - Arrow keys step by a small amount, and with Shift by a larger one.
-  - Handled keys call `preventDefault`, so the page doesn't scroll.
-  - Space, and any key that adds or toggles, ignores `event.repeat`.
-  - The reference is `SplitZoom.vue`'s `onKeydown`.
-- When a page button should hand the keyboard to the view, the view exposes it: `defineExpose({ focusHandle })` in `SplitZoom.vue`, called from `ReviewPage.vue`'s "Add split".
+Keys belong to the view on show, not to a focused element (ADR 0002): only one of the Split, Track and Range views is mounted, and each listens on the document, so its keys work wherever the focus is.
+
+- Register the view's keys with `usePageKeys(isKeyActedOn, { root: () => frame.value })` (`@/shared/lib/keyboard/use-page-keys.ts`). `isKeyActedOn(event)` does the key's work and returns whether the key was the view's: `true` makes the composable call `preventDefault`, so the page doesn't scroll; `false` leaves the key to the browser. A key with nothing to act on returns `false` (Enter with no mark).
+- The composable owns the rules for which keys are the page's (`use-page-keys.ts` lists them); the view's handler only does its keys' work.
+- Pass the view's frame as `root`: a `role="slider"` inside it, such as the Split view's handle, is then never treated as a control that keeps the arrows for itself. The handle keeps its `aria-value*` and its tab stop, for screen readers, and takes no keys of its own. A frame that is itself a `role="slider"` (the Track and Range views) takes `tabindex="-1"`: a slider must take the focus for a screen reader, but it is no tab stop.
+- Arrow keys step by a small amount, and with Shift by a larger one. Space, and any key that adds, deletes or toggles, ignores `event.repeat` but still returns `true`.
+- Focus stays where the user put it: the view only registers `usePageKeys`. A view that must tell the page a key was used emits an event (`acted`), because slices of one layer don't import each other.
+- References: `SplitZoom.vue`, `TrackView.vue` and `RangeView.vue`'s `isKeyActedOn`.
 
 ## Specs
 

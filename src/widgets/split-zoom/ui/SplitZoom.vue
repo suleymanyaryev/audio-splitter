@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, useTemplateRef, watch } from 'vue'
+import { computed, useTemplateRef, watch } from 'vue'
 
 import { useSourceFileStore } from '@/entities/source-file/model/source-file.ts'
 import { ZOOM_WINDOW_SECONDS } from '@/entities/split/config/zoom-window.ts'
@@ -9,6 +9,7 @@ import { BAR_PITCH, drawPeakBars } from '@/shared/lib/canvas/draw-peak-bars.ts'
 import { prepareCanvas } from '@/shared/lib/canvas/prepare-canvas.ts'
 import { useCanvasRedraw } from '@/shared/lib/canvas/use-canvas-redraw.ts'
 import { zoomTimeToX } from '@/shared/lib/canvas/zoom-axis.ts'
+import { usePageKeys } from '@/shared/lib/keyboard/use-page-keys.ts'
 import { formatHundredths } from '@/shared/lib/time/format-hundredths.ts'
 import { draggedTime } from '../lib/dragged-time.ts'
 import { usePlayheadFrames } from '../lib/use-playhead-frames.ts'
@@ -18,14 +19,15 @@ import { landSpansInWindow, outsideFileSpans } from '../lib/zoom-spans.ts'
 import { useAuditionStore } from '../model/audition.ts'
 
 /*
-The zoom view: the 20 s around the zoom centre at 160 px, where the selected split is moved. It is
+The Split view: the 20 s around the zoom centre at 160 px, where the selected split is moved. It is
 the only place a split moves (ticket 13). The wave is the same peaks as the whole-file view, in the
 same bars; each gap is a land at its true width with a flat run-out line through it; the selected
 split is a wider line with a drag handle at its top. The handle is a real element over the canvas so
-it can take keyboard focus: Left and Right move the split 10 ms, with Shift 100 ms, and Delete
-(Backspace too, the delete key of a Mac keyboard) deletes it. Space plays the clip across the split
-or stops it, as the "Play across split" button does (ticket 14); while it plays a 1 px ink line
-shows where the sound is, and a failure to play is said in a line at the bottom of the view.
+it can be reached with Tab and read by a screen reader. The view takes the page's keys, wherever the
+focus is: Left and Right move the split 10 ms, with Shift 100 ms, and Delete (Backspace too, the
+delete key of a Mac keyboard) deletes it. Space plays the clip across the split or stops it, as the
+"Play across split" button does (ticket 14); while it plays a 1 px ink line shows where the sound
+is, and a failure to play is said in a line at the bottom of the view.
 */
 
 // DESIGN.md: the whole canvas is framed in 1.5 px ink; the run-out line is 1 px.
@@ -73,39 +75,33 @@ const { overLine, dragging, onPointerDown, onPointerMove, onPointerEnd } = useSp
   },
 })
 
-/*
-Puts the keyboard on the handle once the DOM has it, so a split just added or still selected after
-a delete can be nudged at once. With no split left there is no handle, and the zoom view itself
-takes the focus, so it does not fall back to the page.
-*/
-async function focusHandle() {
-  await nextTick()
-  const target = handle.value ?? frame.value
-  target?.focus()
-}
-
-defineExpose({ focusHandle })
-
-function onKeydown(event: KeyboardEvent) {
+// Whether the key was the view's: a key it leaves alone is the browser's, and is not reported.
+function isKeyActedOn(event: KeyboardEvent) {
+  // A held Space must not start and stop the sound over and over.
   if (event.key === ' ') {
-    // Never a page scroll, and a held key must not start and stop the sound over and over.
-    event.preventDefault()
     if (!event.repeat) audition.toggle()
-    return
+    return true
   }
   const selected = split.selectedSplit
-  if (selected !== null && (event.key === 'Delete' || event.key === 'Backspace')) {
-    event.preventDefault()
-    split.deleteSplit(selected.id)
-    void focusHandle()
-    return
+  if (selected === null) return false
+  // A held key deletes one split: the next one is selected at once and would go too, then the rest.
+  if (event.key === 'Delete' || event.key === 'Backspace') {
+    if (!event.repeat) split.deleteSplit(selected.id)
+    return true
   }
   const direction = { ArrowLeft: -1, ArrowRight: 1 }[event.key]
-  if (selected === null || direction === undefined) return
-  event.preventDefault()
+  if (direction === undefined) return false
   const step = event.shiftKey ? SHIFT_KEY_STEP_SECONDS : KEY_STEP_SECONDS
   split.moveSplit(selected.id, selected.seconds + direction * step)
+  return true
 }
+
+/*
+The keys are the page's, not the handle's: this view is the one on show, so they work wherever the
+focus is (src/shared/lib/keyboard/use-page-keys.ts). The frame is the view's own root, so the
+handle, a slider, never counts as a control that keeps the arrows for itself.
+*/
+usePageKeys(isKeyActedOn, { root: () => frame.value })
 
 function draw() {
   const peaks = sourceFile.peaks
@@ -192,8 +188,7 @@ watch(
 <template>
   <div
     ref="frame"
-    tabindex="-1"
-    class="relative h-40 select-none focus-visible:focus-ring"
+    class="relative h-40 select-none"
     :class="{ 'cursor-ew-resize': overLine || dragging }"
     @pointerdown="onPointerDown"
     @pointermove="onPointerMove"
@@ -213,7 +208,6 @@ watch(
       :aria-valuetext="formatHundredths(split.selectedSplit.seconds)"
       class="absolute top-0.5 h-2.5 w-3.5 -translate-x-1/2 cursor-ew-resize bg-split focus-visible:focus-ring"
       :style="{ left: handleLeft }"
-      @keydown="onKeydown"
     />
     <p
       v-if="audition.failure !== null"

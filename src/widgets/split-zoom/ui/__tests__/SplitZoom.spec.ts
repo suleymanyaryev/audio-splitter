@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, it, expect, vi, type MockInstance } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
+import { nextTick } from 'vue'
 
 import { enableAutoUnmount, mount } from '@vue/test-utils'
 import { useSourceFileStore } from '@/entities/source-file/model/source-file.ts'
@@ -29,6 +30,12 @@ function setup() {
 
 function focusElement(element: Element) {
   if (element instanceof HTMLElement) element.focus()
+}
+
+// Keys belong to the page: the view hears them wherever the focus is.
+async function press(init: KeyboardEventInit) {
+  document.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, cancelable: true, ...init }))
+  await nextTick()
 }
 
 function mountWithoutSplits() {
@@ -79,26 +86,24 @@ describe('SplitZoom', () => {
     })
 
     it('moves the split 10 ms with Left and Right', async () => {
-      const { split, wrapper } = setup()
-      const handle = wrapper.get('[role="slider"]')
+      const { split } = setup()
 
-      await handle.trigger('keydown', { key: 'ArrowRight' })
+      await press({ key: 'ArrowRight' })
       expect(split.selectedSplit?.seconds).toBeCloseTo(21.01)
 
-      await handle.trigger('keydown', { key: 'ArrowLeft' })
-      await handle.trigger('keydown', { key: 'ArrowLeft' })
+      await press({ key: 'ArrowLeft' })
+      await press({ key: 'ArrowLeft' })
       expect(split.selectedSplit?.seconds).toBeCloseTo(20.99)
     })
 
     it('moves the split 100 ms with Shift and Left or Right', async () => {
-      const { split, wrapper } = setup()
-      const handle = wrapper.get('[role="slider"]')
+      const { split } = setup()
 
-      await handle.trigger('keydown', { key: 'ArrowRight', shiftKey: true })
+      await press({ key: 'ArrowRight', shiftKey: true })
       expect(split.selectedSplit?.seconds).toBeCloseTo(21.1)
 
-      await handle.trigger('keydown', { key: 'ArrowLeft', shiftKey: true })
-      await handle.trigger('keydown', { key: 'ArrowLeft', shiftKey: true })
+      await press({ key: 'ArrowLeft', shiftKey: true })
+      await press({ key: 'ArrowLeft', shiftKey: true })
       expect(split.selectedSplit?.seconds).toBeCloseTo(20.9)
     })
 
@@ -106,7 +111,7 @@ describe('SplitZoom', () => {
       const { wrapper } = setup()
       const handle = wrapper.get('[role="slider"]')
 
-      await handle.trigger('keydown', { key: 'ArrowRight', shiftKey: true })
+      await press({ key: 'ArrowRight', shiftKey: true })
 
       expect(handle.attributes('aria-valuetext')).toBe('0:00:21.10')
       // 0.1 s right of the centre of a 20 s window: 50.5 %.
@@ -119,19 +124,18 @@ describe('SplitZoom', () => {
       if (selected) split.moveSplit(selected.id, 30.95)
       await wrapper.vm.$nextTick()
 
-      await wrapper.get('[role="slider"]').trigger('keydown', { key: 'ArrowRight', shiftKey: true })
+      await press({ key: 'ArrowRight', shiftKey: true })
 
       expect(split.selectedSplit?.seconds).toBeCloseTo(31)
     })
 
     it('does not scroll the page or handle other keys', async () => {
-      const { split, wrapper } = setup()
-      const handle = wrapper.get('[role="slider"]')
+      const { split } = setup()
 
       const arrow = new KeyboardEvent('keydown', { key: 'ArrowRight', cancelable: true })
-      handle.element.dispatchEvent(arrow)
+      document.dispatchEvent(arrow)
       const other = new KeyboardEvent('keydown', { key: 'a', cancelable: true })
-      handle.element.dispatchEvent(other)
+      document.dispatchEvent(other)
 
       expect(arrow.defaultPrevented).toBe(true)
       expect(other.defaultPrevented).toBe(false)
@@ -139,34 +143,34 @@ describe('SplitZoom', () => {
     })
   })
 
-  describe('Space on the handle', () => {
+  describe('Space', () => {
     it('plays or stops the audition, and does not scroll the page', () => {
-      const { wrapper } = setup()
+      setup()
       const toggle = vi.spyOn(useAuditionStore(), 'toggle').mockImplementation(() => {})
 
       const space = new KeyboardEvent('keydown', { key: ' ', cancelable: true })
-      wrapper.get('[role="slider"]').element.dispatchEvent(space)
+      document.dispatchEvent(space)
 
       expect(toggle).toHaveBeenCalledTimes(1)
       expect(space.defaultPrevented).toBe(true)
     })
 
     it('does not toggle again while the key is held down', () => {
-      const { wrapper } = setup()
+      setup()
       const toggle = vi.spyOn(useAuditionStore(), 'toggle').mockImplementation(() => {})
 
       const repeat = new KeyboardEvent('keydown', { key: ' ', repeat: true, cancelable: true })
-      wrapper.get('[role="slider"]').element.dispatchEvent(repeat)
+      document.dispatchEvent(repeat)
 
       expect(toggle).not.toHaveBeenCalled()
       expect(repeat.defaultPrevented).toBe(true)
     })
 
     it('leaves the split where it is', async () => {
-      const { split, wrapper } = setup()
+      const { split } = setup()
       vi.spyOn(useAuditionStore(), 'toggle').mockImplementation(() => {})
 
-      await wrapper.get('[role="slider"]').trigger('keydown', { key: ' ' })
+      await press({ key: ' ' })
 
       expect(split.selectedSplit?.seconds).toBe(21)
     })
@@ -257,59 +261,98 @@ describe('SplitZoom', () => {
 
   describe('deleting with the keyboard', () => {
     it('deletes the selected split on Delete and selects the next one', async () => {
-      const { split, wrapper } = setup()
+      const { split } = setup()
 
-      await wrapper.get('[role="slider"]').trigger('keydown', { key: 'Delete' })
+      await press({ key: 'Delete' })
 
       expect(split.splits.map((point) => point.seconds)).toEqual([71.5])
       expect(split.selectedSplit?.seconds).toBe(71.5)
     })
 
     it('takes Backspace for Delete, which is what the delete key of a Mac keyboard sends', async () => {
-      const { split, wrapper } = setup()
+      const { split } = setup()
 
-      await wrapper.get('[role="slider"]').trigger('keydown', { key: 'Backspace' })
+      await press({ key: 'Backspace' })
 
       expect(split.splits).toHaveLength(1)
     })
 
-    it('keeps focus on the handle while a split is still selected', async () => {
-      const { wrapper } = setup()
-      const handle = wrapper.get('[role="slider"]')
-      focusElement(handle.element)
-      expect(document.activeElement).toBe(handle.element)
+    it('deletes one split while the key is held down, not the next one and the rest', async () => {
+      const { split } = setup()
 
-      await handle.trigger('keydown', { key: 'Delete' })
-      await wrapper.vm.$nextTick()
+      await press({ key: 'Delete' })
+      await press({ key: 'Delete', repeat: true })
+      await press({ key: 'Backspace', repeat: true })
 
-      expect(document.activeElement).toBe(wrapper.get('[role="slider"]').element)
-      expect(wrapper.get('[role="slider"]').attributes('aria-valuetext')).toBe('0:01:11.50')
+      expect(split.splits.map((point) => point.seconds)).toEqual([71.5])
     })
 
-    it('moves focus to the zoom view itself when the last split is gone', async () => {
+    it('does nothing with no split selected', async () => {
       const { split, wrapper } = setup()
-      split.deleteSplit(split.splits[1]?.id ?? -1)
+      split.moveZoomTo(40)
       await wrapper.vm.$nextTick()
-      const handle = wrapper.get('[role="slider"]')
-      focusElement(handle.element)
+      const before = split.splits.map((point) => point.seconds)
 
-      await handle.trigger('keydown', { key: 'Delete' })
-      await wrapper.vm.$nextTick()
+      await press({ key: 'Delete' })
+      await press({ key: 'ArrowRight' })
 
-      expect(wrapper.find('[role="slider"]').exists()).toBe(false)
-      expect(document.activeElement).toBe(wrapper.element)
+      expect(split.splits.map((point) => point.seconds)).toEqual(before)
     })
   })
 
-  describe('focusHandle', () => {
-    it('puts the keyboard on the handle, so a split just added can be nudged at once', async () => {
+  describe("the keys are the page's", () => {
+    it('does nothing with Cmd, Ctrl or Alt: Cmd+Backspace does not delete, Alt+Left does not move', async () => {
+      const { split } = setup()
+
+      await press({ key: 'Backspace', metaKey: true })
+      await press({ key: 'ArrowLeft', altKey: true })
+      await press({ key: 'ArrowRight', ctrlKey: true })
+
+      expect(split.splits.map((point) => point.seconds)).toEqual([21, 71.5])
+    })
+
+    it('moves the split from the handle focused by Tab exactly as from elsewhere', async () => {
       const { split, wrapper } = setup()
-      split.moveZoomTo(46)
-      split.addSplit()
+      focusElement(wrapper.get('[role="slider"]').element)
 
-      await wrapper.vm.focusHandle()
+      const arrow = new KeyboardEvent('keydown', {
+        key: 'ArrowRight',
+        bubbles: true,
+        cancelable: true,
+      })
+      wrapper.get('[role="slider"]').element.dispatchEvent(arrow)
 
-      expect(document.activeElement).toBe(wrapper.get('[role="slider"]').element)
+      expect(split.selectedSplit?.seconds).toBeCloseTo(21.01)
+      expect(arrow.defaultPrevented).toBe(true)
+    })
+
+    it('leaves a key typed into a text field alone', async () => {
+      const { split } = setup()
+      const input = document.createElement('input')
+      document.body.append(input)
+      input.focus()
+
+      await press({ key: 'Backspace' })
+
+      expect(split.splits).toHaveLength(2)
+      input.remove()
+    })
+
+    it('stops listening when the view goes', async () => {
+      const { split, wrapper } = setup()
+      wrapper.unmount()
+
+      await press({ key: 'Delete' })
+
+      expect(split.splits).toHaveLength(2)
+    })
+
+    it('has no tab stop but the handle, and the handle does not take the keyboard by itself', () => {
+      const { wrapper } = setup()
+
+      expect(wrapper.attributes('tabindex')).toBeUndefined()
+      expect(wrapper.get('[role="slider"]').attributes('tabindex')).toBe('0')
+      expect(wrapper.vm).not.toHaveProperty('focusHandle')
     })
   })
 
