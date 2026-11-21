@@ -82,4 +82,40 @@ describe('UiIconButton', () => {
 
     expect(wrapper.get('button').attributes('disabled')).toBeDefined()
   })
+
+  describe('focus', () => {
+    it('is not taken by a mouse press, so the next key goes to the view on show', () => {
+      const wrapper = mount(UiIconButton, {
+        props: { label: 'Add split' },
+        slots: { default: '<svg />' },
+        attachTo: document.body,
+      })
+
+      const press = new MouseEvent('mousedown', { bubbles: true, cancelable: true })
+      wrapper.get('button').element.dispatchEvent(press)
+
+      expect(press.defaultPrevented).toBe(true)
+    })
+
+    it('is taken by Tab, with its ring and its native keys', async () => {
+      const onClick = vi.fn()
+      const wrapper = mount(UiIconButton, {
+        props: { label: 'Add split' },
+        attrs: { onClick },
+        slots: { default: '<svg />' },
+        attachTo: document.body,
+      })
+      const button = wrapper.get('button')
+
+      button.element.focus()
+      const space = new KeyboardEvent('keydown', { key: ' ', bubbles: true, cancelable: true })
+      button.element.dispatchEvent(space)
+      await button.trigger('click')
+
+      expect(document.activeElement).toBe(button.element)
+      expect(button.classes()).toContain('focus-visible:focus-ring')
+      expect(space.defaultPrevented).toBe(false)
+      expect(onClick).toHaveBeenCalledTimes(1)
+    })
+  })
 })

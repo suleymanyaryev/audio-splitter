@@ -42,6 +42,7 @@ Keys belong to the view on show, not to a focused element (ADR 0002): only one o
 - Pass the view's frame as `root`: a `role="slider"` inside it, such as the Split view's handle, is then never treated as a control that keeps the arrows for itself. The handle keeps its `aria-value*` and its tab stop, for screen readers, and takes no keys of its own. A frame that is itself a `role="slider"` (the Track and Range views) takes `tabindex="-1"`: a slider must take the focus for a screen reader, but it is no tab stop.
 - Arrow keys step by a small amount, and with Shift by a larger one. Space, and any key that adds, deletes or toggles, ignores `event.repeat` but still returns `true`.
 - Focus stays where the user put it: the view only registers `usePageKeys`. A view that must tell the page a key was used emits an event (`acted`), because slices of one layer don't import each other.
+- A control a mouse press lands on (a button, a track row's button) takes `@mousedown="releaseFocus"` (`@/shared/lib/keyboard/release-focus.ts`), so the click leaves the keys with the view; Tab still focuses it. A press inside a dialog is left alone, so the focus stays in the dialog.
 - References: `SplitZoom.vue`, `TrackView.vue` and `RangeView.vue`'s `isKeyActedOn`.
 
 ## Specs

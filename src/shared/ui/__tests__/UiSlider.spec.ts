@@ -18,6 +18,24 @@ function mountSlider(extra: { compact?: boolean } = {}) {
   })
 }
 
+// jsdom has no pointer capture, which Reka asks for when a drag starts.
+function stubPointerCapture() {
+  Element.prototype.setPointerCapture = () => {}
+  Element.prototype.hasPointerCapture = () => true
+  Element.prototype.releasePointerCapture = () => {}
+}
+
+// jsdom has no PointerEvent: a mouse event of that name, with the pointer's id.
+function pointer(type: string) {
+  const event = new MouseEvent(type, { bubbles: true, cancelable: true, button: 0 })
+  Object.defineProperty(event, 'pointerId', { value: 1 })
+  return event
+}
+
+function focusElement(element: Element) {
+  if (element instanceof HTMLElement) element.focus()
+}
+
 describe('UiSlider', () => {
   it('puts the slider role, name and value on the thumb', async () => {
     const wrapper = mountSlider()
@@ -66,6 +84,63 @@ describe('UiSlider', () => {
       const thumb = wrapper.get('[role="slider"]')
       expect(thumb.attributes('aria-label')).toBe('Minimum gap length')
       expect(thumb.attributes('aria-valuetext')).toBe('1.0 s')
+      wrapper.unmount()
+    })
+  })
+
+  describe('focus', () => {
+    /*
+    Not even while the drag goes on: a dialog the drag opens (the replace-your-edits question) would
+    remember the thumb and give it the focus back when it closes.
+    */
+    it('is never on the thumb during a pointer drag, so the next key goes to the view on show', async () => {
+      stubPointerCapture()
+      const wrapper = mountSlider()
+      await flushPromises()
+      const track = wrapper.get('[data-orientation]')
+      const thumb = wrapper.get('[role="slider"]').element
+
+      track.element.dispatchEvent(pointer('pointerdown'))
+      await flushPromises()
+      expect(document.activeElement).not.toBe(thumb)
+
+      track.element.dispatchEvent(pointer('pointermove'))
+      await flushPromises()
+      expect(document.activeElement).not.toBe(thumb)
+
+      track.element.dispatchEvent(pointer('pointerup'))
+      await flushPromises()
+      expect(document.activeElement).not.toBe(thumb)
+      wrapper.unmount()
+    })
+
+    it('can be taken by the thumb with Tab after a pointer drag has ended', async () => {
+      stubPointerCapture()
+      const wrapper = mountSlider()
+      await flushPromises()
+      const track = wrapper.get('[data-orientation]')
+      track.element.dispatchEvent(pointer('pointerdown'))
+      track.element.dispatchEvent(pointer('pointerup'))
+      await flushPromises()
+      const thumb = wrapper.get('[role="slider"]').element
+
+      focusElement(thumb)
+
+      expect(document.activeElement).toBe(thumb)
+      wrapper.unmount()
+    })
+
+    it('is kept by a thumb reached with Tab, which keeps its native keys and its ring', async () => {
+      const wrapper = mountSlider()
+      await flushPromises()
+      const thumb = wrapper.get('[role="slider"]')
+
+      focusElement(thumb.element)
+      await thumb.trigger('keydown', { key: 'ArrowRight' })
+
+      expect(document.activeElement).toBe(thumb.element)
+      expect(thumb.classes()).toContain('focus-visible:focus-ring')
+      expect(wrapper.emitted('update:modelValue')).toEqual([[1.1]])
       wrapper.unmount()
     })
   })

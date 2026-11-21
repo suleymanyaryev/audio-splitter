@@ -21,9 +21,12 @@ function isTyping(element: Element | null) {
   )
 }
 
+// What a dialog is on the page, for the rules that leave a dialog alone.
+export const DIALOG_SELECTOR = '[role="dialog"], [role="alertdialog"]'
+
 // A dialog has the page: no key reaches what is behind it.
 function isDialogOpen() {
-  return document.querySelector('[role="dialog"], [role="alertdialog"]') !== null
+  return document.querySelector(DIALOG_SELECTOR) !== null
 }
 
 // What a control reached with Tab does with a key itself: a button presses, a slider and a radio move.

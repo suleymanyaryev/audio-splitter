@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, useTemplateRef } from 'vue'
 
 import { useSplitStore } from '@/entities/split/model/split.ts'
+import { releaseFocus } from '@/shared/lib/keyboard/release-focus.ts'
 import { formatDuration } from '@/shared/lib/time/format-duration.ts'
 import { formatHundredths } from '@/shared/lib/time/format-hundredths.ts'
 import { layoutTrackBlocks, SPLIT_ITEM_PX } from '../lib/layout-track-blocks.ts'
@@ -16,7 +17,8 @@ Every block is a button that selects its track, the first included, and the bloc
 track is marked with a 2 px `on-track` border (DESIGN.md's "Selected" bullet). A split item is a
 button that selects the split where the next block starts, which shows the zoom view centred on it.
 It is the land between the blocks at rest, and vermilion, the colour of a split, when it is hovered,
-focused or selected.
+focused or selected. A mouse press on either takes no focus, so the next key goes to the view on
+show (src/shared/lib/keyboard/use-page-keys.ts); Tab still reaches them.
 */
 const split = useSplitStore()
 
@@ -74,6 +76,7 @@ const blocks = computed(() => {
           :aria-current="block.splitItem.isSelected ? 'true' : undefined"
           class="block size-full cursor-pointer rounded-control hover:bg-split focus-visible:bg-split focus-visible:outline-none"
           :class="block.splitItem.isSelected ? 'bg-split' : ''"
+          @mousedown="releaseFocus"
           @click="split.selectSplit(block.splitItem.id)"
         />
       </li>
@@ -94,6 +97,7 @@ const blocks = computed(() => {
           type="button"
           :aria-label="`${block.track.name}, ${block.length}`"
           class="flex size-full min-w-0 cursor-pointer flex-col justify-center gap-0.5 text-left focus-visible:outline-2 focus-visible:-outline-offset-4 focus-visible:outline-on-track"
+          @mousedown="releaseFocus"
           @click="split.selectTrack(block.track)"
         >
           <template v-if="block.showName">

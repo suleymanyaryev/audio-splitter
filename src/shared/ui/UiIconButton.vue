@@ -1,4 +1,6 @@
 <script setup lang="ts">
+// A mouse press leaves the focus off the button, as UiButton's does.
+import { releaseFocus } from '@/shared/lib/keyboard/release-focus.ts'
 import UiTooltip from './UiTooltip.vue'
 
 // The tooltip wraps the button, so the caller's click and class go to the button itself.
@@ -43,6 +45,7 @@ const VARIANT_CLASSES = {
       :aria-label="label"
       class="inline-flex cursor-pointer items-center justify-center rounded-control transition-colors duration-100 disabled:cursor-not-allowed disabled:opacity-40"
       :class="[VARIANT_CLASSES[variant], size === 'sm' ? 'size-8' : 'size-9']"
+      @mousedown="releaseFocus"
     >
       <slot />
     </button>

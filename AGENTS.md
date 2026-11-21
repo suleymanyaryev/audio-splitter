@@ -52,7 +52,7 @@ The list below says where, not what: one line per slice on what it is for, never
 - `src/shared/api/ffmpeg/`: The ffmpeg.wasm session (`ffmpeg.ts`) and `__tests__/fake-ffmpeg.ts`, its stand-in in specs
 - `src/shared/lib/audio/`: Hand-written signal maths, one file per idea: downmix, peaks, loudness, median
 - `src/shared/lib/time/`: Time formatting (`h:mm:ss`, `h:mm:ss.cc`) and millisecond rounding for ffmpeg command lines
-- `src/shared/lib/keyboard/`: The page-level key listener a mounted component uses, and the rules for when a key is the page's
+- `src/shared/lib/keyboard/`: The page-level key listener a mounted component uses, the rules for when a key is the page's, and the mouse press that leaves the keys with the view
 - `src/shared/lib/canvas/`: Drawing the canvases share: axes, split hit test, lands, split lines, bars, dashes, font, canvas setup and redraw
 - `src/shared/ui/`: The kit, `Ui<Name>.vue`; the look is DESIGN.md's, read it before touching one
 - `e2e/`: Playwright: `export.spec.ts` exports each supported format, whole and as single exports, and reads the files back

@@ -20,6 +20,7 @@ Versions follow [Semantic Versioning](https://semver.org/) applied to the produc
 ### Changed
 
 - The keys of the Split, Track and Range views (Left and Right, Delete and Backspace, Space, Enter, Shift+Enter, Home and Escape, each in the views that have it) work wherever the focus is on the review screen, so you no longer click the view first. A key pressed with Ctrl, Cmd or Alt now does nothing in the Split view, as in the other two (Cmd+Backspace no longer deletes a split), and a held Delete or Backspace deletes one split, not the next ones too. They stay out while you type in a track name or a dialog is open, and a button you reached with Tab keeps Space and Enter. The "Saved … in …" line clears on a key the view acts on, and stays after Tab or a letter.
+- A mouse click on a button, a view option, a track row's number, a track block or a slider no longer leaves the keys with that control, so the next key goes to the view: after clicking Play, Space pauses instead of pressing Play again; after clicking `Split | Track | Range`, the arrows go to the new view; after dragging the silence threshold, Left and Right move the playhead instead of nudging the threshold, also after keeping your edits in the question the drag asked. A control you reach with Tab still takes the focus, shows its ring and keeps its keys.
 
 ## [1.1.0] - 2026-11-21
 

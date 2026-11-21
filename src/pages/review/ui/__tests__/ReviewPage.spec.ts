@@ -222,6 +222,47 @@ function pressKey(
   return event
 }
 
+/*
+A mouse click as a browser does it: the press moves the focus to the control unless the press is
+prevented (jsdom moves nothing by itself), then the click.
+*/
+async function mouseClick(element: Element) {
+  const press = new MouseEvent('mousedown', { bubbles: true, cancelable: true })
+  element.dispatchEvent(press)
+  if (!press.defaultPrevented && element instanceof HTMLElement) element.focus()
+  await clickElement(element)
+}
+
+// A key pressed where the focus is: on the focused control, or on the page when nothing has it.
+function pressWhereFocused(key: string) {
+  const focused = document.activeElement
+  return pressKey(key, {}, focused === null || focused === document.body ? document : focused)
+}
+
+// jsdom has no PointerEvent: a mouse event of that name, with the pointer's id.
+function pointerEvent(type: string) {
+  const event = new MouseEvent(type, { bubbles: true, cancelable: true, button: 0 })
+  Object.defineProperty(event, 'pointerId', { value: 1 })
+  return event
+}
+
+// A drag on a slider as a browser does it: Reka takes the focus for the thumb when it starts.
+async function dragSlider(thumb: Element) {
+  Element.prototype.setPointerCapture = () => {}
+  Element.prototype.hasPointerCapture = () => true
+  Element.prototype.releasePointerCapture = () => {}
+  const roots: Element[] = []
+  for (let up = thumb.parentElement; up; up = up.parentElement) {
+    if (up instanceof HTMLElement && up.dataset.orientation !== undefined) roots.push(up)
+  }
+  const root = roots.at(-1)
+  if (!root) throw new Error('no slider root')
+  root.dispatchEvent(pointerEvent('pointerdown'))
+  await flushPromises()
+  root.dispatchEvent(pointerEvent('pointerup'))
+  await flushPromises()
+}
+
 const question = () => document.querySelector('[role="alertdialog"]')
 function questionButton(text: string) {
   const button = [...(question()?.querySelectorAll('button') ?? [])].find(
@@ -1757,6 +1798,92 @@ describe('ReviewPage', () => {
       await wrapper.vm.$nextTick()
 
       expect(toggleStretch).not.toHaveBeenCalled()
+    })
+
+    describe('after a mouse click', () => {
+      it('on Play in the Track view, Space pauses the track and does not press Play again', async () => {
+        const wrapper = await mountWithMark()
+        const toggleStretch = vi
+          .spyOn(useAuditionStore(), 'toggleStretch')
+          .mockImplementation(() => {})
+
+        await mouseClick(rangeButton(wrapper).element)
+        expect(toggleStretch).toHaveBeenCalledTimes(1)
+        pressWhereFocused(' ')
+
+        expect(toggleStretch).toHaveBeenCalledTimes(2)
+      })
+
+      it('on Play while a track name is being edited, the field lets go and Space acts on the view', async () => {
+        const wrapper = await mountWithMark()
+        const toggleStretch = vi
+          .spyOn(useAuditionStore(), 'toggleStretch')
+          .mockImplementation(() => {})
+        const field = wrapper.get('input').element
+        field.focus()
+        expect(document.activeElement).toBe(field)
+
+        await mouseClick(rangeButton(wrapper).element)
+        pressWhereFocused(' ')
+
+        expect(document.activeElement).not.toBe(field)
+        expect(toggleStretch).toHaveBeenCalledTimes(2)
+      })
+
+      it('on the Split | Track | Range control, the arrows go to the view now on show', async () => {
+        const wrapper = await mountPageWithRange()
+        const split = useSplitStore()
+        const audition = useAuditionStore()
+
+        await mouseClick(viewOption(wrapper, 'Track').element)
+        pressWhereFocused('ArrowRight')
+
+        expect(split.view).toBe('track')
+        const start = trackExtent(split.selectedTrack!)
+        expect(audition.stretchPlayheadSeconds(start)).toBe(start.startSeconds + 1)
+      })
+
+      it('on a track-list row, Space acts on the view on show', async () => {
+        const wrapper = await mountWithMark()
+        const toggleStretch = vi
+          .spyOn(useAuditionStore(), 'toggleStretch')
+          .mockImplementation(() => {})
+
+        await mouseClick(wrapper.get('[aria-label^="Select track 2"]').element)
+        pressWhereFocused(' ')
+
+        expect(toggleStretch).toHaveBeenCalledTimes(1)
+      })
+
+      it('on a track-strip block, Space acts on the view on show', async () => {
+        const wrapper = await mountWithMark()
+        const toggleStretch = vi
+          .spyOn(useAuditionStore(), 'toggleStretch')
+          .mockImplementation(() => {})
+        const block = wrapper
+          .findAll('button')
+          .find((candidate) => nameOf(candidate).startsWith('2, '))
+
+        await mouseClick(block!.element)
+        pressWhereFocused(' ')
+
+        expect(toggleStretch).toHaveBeenCalledTimes(1)
+      })
+
+      it('on a drag of the silence threshold, Left moves the playhead and the threshold stays', async () => {
+        const wrapper = await mountWithMark()
+        const split = useSplitStore()
+        const audition = useAuditionStore()
+
+        await dragSlider(wrapper.get('[role="slider"][aria-label="Silence threshold"]').element)
+        // The drag may have found other splits, so the track is the one the drag left selected.
+        const stretch = trackExtent(split.selectedTrack!)
+        const threshold = split.silenceThreshold
+        pressWhereFocused('ArrowRight')
+
+        expect(audition.stretchPlayheadSeconds(stretch)).toBe(stretch.startSeconds + 1)
+        expect(split.silenceThreshold).toBe(threshold)
+      })
     })
 
     it('switch to the new view as the view on show changes', async () => {
