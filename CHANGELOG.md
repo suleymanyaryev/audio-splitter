@@ -17,6 +17,10 @@ Versions follow [Semantic Versioning](https://semver.org/) applied to the produc
 
 ## [Unreleased]
 
+### Changed
+
+- The Track view's and the Range view's keys (Space, Enter, Shift+Enter, Left and Right, Home, and in the Track view Delete, Backspace and Escape) work wherever the focus is on the review screen, so you no longer click the view first. They stay out while you type in a track name or a dialog is open, and a button you reached with Tab keeps Space and Enter. The "Saved … in …" line clears on a key the view acts on, and stays after Tab or a letter.
+
 ## [1.1.0] - 2026-11-21
 
 ### Added

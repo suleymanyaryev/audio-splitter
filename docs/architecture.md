@@ -247,7 +247,7 @@ sequenceDiagram
 - **The rename comes first.** A name changed in a track's dialog is given to the track before the cut, so a failed export keeps it; a range renames nothing.
 - **The two exports exclude each other** through the `export-lock` store, which each takes when it starts (before the picker opens) and gives back when it ends however it ends. The two export stores cannot import each other, and a store of their own keeps the dependency one way. The page also disables each export's buttons while the other runs.
 - **Cancel** stops the cut as the full export's does and closes the dialog; a failure stays in the dialog with its reason, over the name, to confirm again. Once the cut has ended a Cancel is too late: the short write leaves a whole file or none, so it runs on and the file is saved, and no ffmpeg session is restarted for nothing.
-- **The saved line** is the page's: `export-single` holds the file and folder names until the page dismisses it, on the next press or key in the view, a view switch, a selection change or a new range.
+- **The saved line** is the page's: `export-single` holds the file and folder names until the page dismisses it, on the next press in the view, a key the view acts on, a view switch, a selection change or a new range.
 
 ```mermaid
 stateDiagram-v2
