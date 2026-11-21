@@ -1,4 +1,4 @@
-import { beforeEach, describe, it, expect, vi } from 'vitest'
+import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 
 import { CoreDownloadError } from '@/shared/api/ffmpeg/core-preloader.ts'
@@ -25,6 +25,11 @@ const slicePcm = (index: number) =>
   index < 2
     ? toneThenSilencePcm(44_100, 30, 0.2 * (index + 1))
     : toneThenSilencePcm(44_100, 15, 0.6)
+
+// Stands in for `navigator.storage.persist`; the real one may answer false or throw.
+function stubPersist(persist: () => Promise<unknown>) {
+  vi.stubGlobal('navigator', { storage: { persist } })
+}
 
 // A one-second file that loads to ready.
 const readySession = () =>
@@ -473,6 +478,127 @@ describe('the source-file store', () => {
       expect(store.downloadFraction).toBeNull()
       second.progress(0.55)
       expect(store.downloadFraction).toBeCloseTo(0.55)
+    })
+  })
+
+  describe('asking the browser to keep its stored data', () => {
+    afterEach(() => {
+      vi.unstubAllGlobals()
+    })
+
+    it('asks once, when the first file is ready, and not while it is still loading', async () => {
+      const persist = vi.fn(() => Promise.resolve(true))
+      stubPersist(persist)
+      let finish!: (session: ReturnType<typeof readySession>) => void
+      vi.mocked(openFfmpeg).mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            finish = resolve as typeof finish
+          }),
+      )
+      const store = useSourceFileStore()
+
+      const loading = store.load(file)
+      expect(persist).not.toHaveBeenCalled()
+      finish(readySession())
+      await loading
+
+      expect(store.status).toBe('ready')
+      expect(persist).toHaveBeenCalledTimes(1)
+    })
+
+    it('does not ask after a failed load', async () => {
+      const persist = vi.fn(() => Promise.resolve(true))
+      stubPersist(persist)
+      vi.mocked(openFfmpeg).mockResolvedValue(
+        fakeFfmpegSession({
+          probeLog: m4aProbeLog(30),
+          decodeError: 'Error while decoding stream',
+        }),
+      )
+      const store = useSourceFileStore()
+
+      await store.load(file)
+
+      expect(store.status).toBe('failed')
+      expect(persist).not.toHaveBeenCalled()
+    })
+
+    it('does not ask again for a second file', async () => {
+      const persist = vi.fn(() => Promise.resolve(true))
+      stubPersist(persist)
+      const store = useSourceFileStore()
+      vi.mocked(openFfmpeg).mockResolvedValueOnce(readySession())
+      await store.load(file)
+      vi.mocked(openFfmpeg).mockResolvedValueOnce(readySession())
+
+      await store.load(file)
+
+      expect(store.status).toBe('ready')
+      expect(persist).toHaveBeenCalledTimes(1)
+    })
+
+    it('asks at the first ready file even when an earlier load failed', async () => {
+      const persist = vi.fn(() => Promise.resolve(true))
+      stubPersist(persist)
+      const store = useSourceFileStore()
+      vi.mocked(openFfmpeg).mockRejectedValueOnce(new Error('no core'))
+      await store.load(file)
+      expect(persist).not.toHaveBeenCalled()
+      vi.mocked(openFfmpeg).mockResolvedValueOnce(readySession())
+
+      await store.load(file)
+
+      expect(persist).toHaveBeenCalledTimes(1)
+    })
+
+    it('loads as usual when the browser refuses', async () => {
+      stubPersist(() => Promise.resolve(false))
+      vi.mocked(openFfmpeg).mockResolvedValue(readySession())
+      const store = useSourceFileStore()
+
+      await store.load(file)
+
+      expect(store.status).toBe('ready')
+      expect(store.failure).toBeNull()
+    })
+
+    it('loads as usual when the request rejects, and reports nothing', async () => {
+      stubPersist(() => Promise.reject(new Error('blocked')))
+      vi.mocked(openFfmpeg).mockResolvedValue(readySession())
+      const store = useSourceFileStore()
+
+      await store.load(file)
+      // A rejection nobody handles would fail the run as an unhandled rejection.
+      await Promise.resolve()
+
+      expect(store.status).toBe('ready')
+      expect(store.failure).toBeNull()
+    })
+
+    it('loads as usual when the request throws at once', async () => {
+      stubPersist(() => {
+        throw new Error('blocked')
+      })
+      vi.mocked(openFfmpeg).mockResolvedValue(readySession())
+      const store = useSourceFileStore()
+
+      await store.load(file)
+
+      expect(store.status).toBe('ready')
+    })
+
+    it.each([
+      ['no storage manager', {}],
+      ['no persist on it', { storage: {} }],
+    ])('loads as usual with %s', async (_name, navigatorStub) => {
+      vi.stubGlobal('navigator', navigatorStub)
+      vi.mocked(openFfmpeg).mockResolvedValue(readySession())
+      const store = useSourceFileStore()
+
+      await store.load(file)
+
+      expect(store.status).toBe('ready')
     })
   })
 

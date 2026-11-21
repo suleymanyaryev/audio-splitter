@@ -56,6 +56,18 @@ function failureOf(error: unknown, step: string): LoadFailure {
 }
 
 /*
+Asks the browser to keep this site's stored data (the ffmpeg core in Cache Storage) when space runs
+low. Where the call is missing, refused or fails, nothing changes, so no answer or error is used.
+*/
+async function askToKeepStoredData() {
+  try {
+    await navigator.storage.persist()
+  } catch {
+    // The core is then downloaded again after a clean-up, as before.
+  }
+}
+
+/*
 The one source file being worked on, and what the analysis keeps of it. The file is decoded one
 slice at a time (60 s, or 300 s for an MP3), and each slice's samples are thrown away as soon as
 the peaks and the loudness curve have taken what they need: only the small summaries stay.
@@ -107,6 +119,8 @@ export const useSourceFileStore = defineStore('source-file', () => {
   turn comes means it was stopped while it waited.
   */
   let stopCount = 0
+  // The request goes out once in the page's life, at the first ready file.
+  let hasAskedToKeepData = false
 
   function reset() {
     currentLoad++
@@ -191,6 +205,14 @@ export const useSourceFileStore = defineStore('source-file', () => {
       loudnessWindowSeconds.value = windowSecondsAt(probed.sampleRate)
       status.value = 'ready'
       isKept = true
+      /*
+      Asked now and not when the page opens: a browser that prompts for it (Firefox) does so
+      once the visitor has seen the tool work, and a file that failed asks nothing.
+      */
+      if (!hasAskedToKeepData) {
+        hasAskedToKeepData = true
+        void askToKeepStoredData()
+      }
     } catch (error) {
       if (isStale()) return
       fail(failureOf(error, step))
