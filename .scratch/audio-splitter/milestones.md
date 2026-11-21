@@ -1,16 +1,18 @@
 # Audio Splitter: Milestones
 
-A browser-only tool that proposes splits in a long source file (1–3 h of tracks played one after another, with audible gaps between them), lets the user review them, and exports each track as its own file. Nothing is uploaded. Vocabulary is in [GLOSSARY.md](../GLOSSARY.md).
+> **Retired 2026-11-22.** The v1 plan, kept as a record: milestones 0–7 shipped as 1.0.0, and 8 and 9 were added after. What the app does now lives in the code, `docs/architecture.md` and `CHANGELOG.md`; the rules that still hold are in `AGENTS.md`.
+
+A browser-only tool that proposes splits in a long source file (1–3 h of tracks played one after another, with audible gaps between them), lets the user review them, and exports each track as its own file. Nothing is uploaded. Vocabulary is in [GLOSSARY.md](../../GLOSSARY.md).
 
 The project exists for two equal reasons: the user needs the tool (split long work-music files, then shuffle them in a player), and the user is learning audio concepts by watching it being built. So each milestone teaches one idea, explains it before the code, and stops for confirmation.
 
-Every technical decision below is locked. The detail of each decision lives in exactly one place, the ticket linked from the milestone; this document says what to build in which order, not how each piece was decided. The planning record is the [wayfinding map](../.scratch/audio-splitter/map.md).
+Every technical decision below is locked. The detail of each decision lives in exactly one place, the ticket linked from the milestone; this document says what to build in which order, not how each piece was decided. The planning record is the [wayfinding map](map.md).
 
 ## Stack
 
 - Vue 3, Vite, TypeScript, Pinia (one setup store per entity). No router: `App.vue` switches between the load and review pages on state.
-- Code layout: a subset of Feature-Sliced Design ([ADR 0001](adr/0001-fsd-subset.md), [Code layout][05]), enforced by `eslint-plugin-boundaries`.
-- UI: Tailwind 4 (`@tailwindcss/vite`), Reka UI 2, `lucide-vue-next`, Manrope as a committed woff2, a `shared/ui` kit styled per [DESIGN.md](../DESIGN.md) ([Visual direction for the UI kit][11]). Canvas views are hand-drawn inside their widgets.
+- Code layout: a subset of Feature-Sliced Design ([ADR 0001](../../docs/adr/0001-fsd-subset.md), [Code layout][05]), enforced by `eslint-plugin-boundaries`.
+- UI: Tailwind 4 (`@tailwindcss/vite`), Reka UI 2, `lucide-vue-next`, Manrope as a committed woff2, a `shared/ui` kit styled per [DESIGN.md](../../DESIGN.md) ([Visual direction for the UI kit][11]). Canvas views are hand-drawn inside their widgets.
 - Container work: `@ffmpeg/ffmpeg` 0.12.15 with the single-thread `@ffmpeg/core` 0.12.10, self-hosted, no special headers, source file mounted read-only with WORKERFS, a fresh worker about every 20 calls ([ffmpeg.wasm with long files in Chrome][02]).
 - Desktop Chrome only. One source file at a time, state in memory only.
 
@@ -192,7 +194,7 @@ The real samples (`samples/sample1.{m4a,mp3,opus}`, 1 h 01 min, git-ignored) are
 
 ## Milestone 8: Listening to a range
 
-Spec and tickets: [`.scratch/select-section-and-play/spec.md`](../.scratch/select-section-and-play/spec.md).
+Spec and tickets: [`.scratch/select-section-and-play/spec.md`](../select-section-and-play/spec.md).
 
 **Concept.** A WAV is PCM behind a 44-byte header, so it grows with its length (about 176 KB per second at 44.1 kHz stereo 16-bit, 106 MB for 10 min, hence the limit), and a time in it is a byte that can be computed, so pausing and seeking are exact where a VBR MP3 seeks seconds off. Note: `docs/concepts/08-listening-to-a-range.md`.
 
@@ -212,7 +214,7 @@ Spec and tickets: [`.scratch/select-section-and-play/spec.md`](../.scratch/selec
 
 ## Milestone 9: Tracks and splits, apart
 
-Spec and tickets: [`.scratch/split-markers-ranges-and-tracks-separation/spec.md`](../.scratch/split-markers-ranges-and-tracks-separation/spec.md).
+Spec and tickets: [`.scratch/split-markers-ranges-and-tracks-separation/spec.md`](../split-markers-ranges-and-tracks-separation/spec.md).
 
 **Concept.** A track and a split are two things, selected one at a time: a track is a stretch heard end to end, a split is a point moved inside a 20 s window. The player already plays a stretch from a start to an end (milestone 8), so a track is one more stretch to hand it.
 
@@ -232,7 +234,7 @@ Spec and tickets: [`.scratch/split-markers-ranges-and-tracks-separation/spec.md`
 
 ## Not in v1
 
-Ruled out on the [map](../.scratch/audio-splitter/map.md); each returns only as a fresh effort.
+Ruled out on the [map](map.md); each returns only as a fresh effort.
 
 - The CUE sheet ([CUE sheet][17]).
 - Spectral features, timbre comparison and ML.
@@ -246,17 +248,17 @@ Ruled out on the [map](../.scratch/audio-splitter/map.md); each returns only as 
 - Keeping splits and names across a reload; several source files at once.
 - An app-owned Web Worker and any downsampling code.
 
-[02]: ../.scratch/audio-splitter/issues/02-ffmpeg-wasm-with-long-files.md
-[03]: ../.scratch/audio-splitter/issues/03-stream-copy-splitting-per-format.md
-[05]: ../.scratch/audio-splitter/issues/05-code-layout.md
-[07]: ../.scratch/audio-splitter/issues/07-decode-path-and-hand-written-steps.md
-[08]: ../.scratch/audio-splitter/issues/08-export-delivery-and-filenames.md
-[10]: ../.scratch/audio-splitter/issues/10-what-v1-claims-for-mp3-and-opus.md
-[11]: ../.scratch/audio-splitter/issues/11-visual-direction-for-the-ui-kit.md
-[13]: ../.scratch/audio-splitter/issues/13-review-screen-interaction-design.md
-[14]: ../.scratch/audio-splitter/issues/14-playback-for-auditioning-a-split.md
-[15]: ../.scratch/audio-splitter/issues/15-load-progress-cancel-and-failure.md
-[16]: ../.scratch/audio-splitter/issues/16-default-silence-threshold.md
-[17]: ../.scratch/audio-splitter/issues/17-cue-sheet.md
-[18]: ../.scratch/audio-splitter/issues/18-testing-approach-for-the-signal-code.md
-[19]: ../.scratch/audio-splitter/issues/19-mp3-playback.md
+[02]: issues/02-ffmpeg-wasm-with-long-files.md
+[03]: issues/03-stream-copy-splitting-per-format.md
+[05]: issues/05-code-layout.md
+[07]: issues/07-decode-path-and-hand-written-steps.md
+[08]: issues/08-export-delivery-and-filenames.md
+[10]: issues/10-what-v1-claims-for-mp3-and-opus.md
+[11]: issues/11-visual-direction-for-the-ui-kit.md
+[13]: issues/13-review-screen-interaction-design.md
+[14]: issues/14-playback-for-auditioning-a-split.md
+[15]: issues/15-load-progress-cancel-and-failure.md
+[16]: issues/16-default-silence-threshold.md
+[17]: issues/17-cue-sheet.md
+[18]: issues/18-testing-approach-for-the-signal-code.md
+[19]: issues/19-mp3-playback.md

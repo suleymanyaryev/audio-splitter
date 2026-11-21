@@ -1,76 +1,104 @@
 # Architecture
 
-The [README](../README.md#architecture) shows the pipeline and the layers. This page goes one level down: how the stores pass data to each other, how the one ffmpeg session is shared, and how the load, player and export flows run. The folder-by-folder map is in [AGENTS.md](../AGENTS.md#code-layout); the words are defined in [GLOSSARY.md](../GLOSSARY.md).
+How the code is put together: the layers, the stores and how they connect, the one ffmpeg session, and the load, player and export flows. The folder map is in [AGENTS.md](../AGENTS.md#code-layout), the words in [GLOSSARY.md](../GLOSSARY.md). What each feature does is in the code and its specs.
 
-The diagrams are drawn from the code. When a change alters what one of them shows (a store's status, a step in a flow, who calls whom), the diagram changes in the same commit.
+## Layers
+
+A Vue 3 single-page app with no backend, in a subset of Feature-Sliced Design ([ADR 0001](adr/0001-fsd-subset.md)).
+
+```mermaid
+flowchart TB
+  subgraph appLayer["app"]
+    appVue["App.vue: picks the page<br/>from the source file's status"]
+  end
+  subgraph pagesLayer["pages"]
+    loadPage["load"]
+    reviewPage["review"]
+  end
+  subgraph widgetsLayer["widgets"]
+    waveform["source-waveform"]
+    loudnessCurve["loudness-curve"]
+    splitZoom["split-zoom"]
+    trackList["track-list"]
+    trackStrip["track-strip"]
+    shortcuts["shortcuts-dialog"]
+  end
+  subgraph entitiesLayer["entities"]
+    sourceFile["source-file"]
+    split["split"]
+  end
+  subgraph sharedLayer["shared"]
+    ffmpeg["api/ffmpeg"]
+    lib["lib: audio, canvas,<br/>keyboard, time"]
+    ui["ui kit"]
+  end
+  appLayer --> pagesLayer --> widgetsLayer --> entitiesLayer --> sharedLayer
+```
+
+An arrow means "may import from". Two slices of one layer never import each other. `pnpm lint` enforces both rules.
 
 ## The stores
 
-Seven Pinia setup stores hold all state in memory; only the player's volume and mute flag are also kept in `localStorage`. Two are entities; five belong to the widget that owns the behaviour.
+All state lives in Pinia setup stores, in memory. Only the volume and mute flag are also saved, in `localStorage`.
 
-| Store              | Slice                      | Holds                                                                                                                                                                                                                                                                                                    |
-| ------------------ | -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `source-file`      | `entities/source-file`     | The file, its format and duration, peaks, loudness curve, slice progress, the ffmpeg core's download fraction, load failure, the ffmpeg session                                                                                                                                                                                               |
-| `split`            | `entities/split`           | The silence threshold and minimum gap length, the gaps, the splits with their track names, the derived tracks, the one selection (a split, a track or nothing; the selected split and the selected track are derived from it), the zoom window, the range, the Range view's mark and the Track view's mark, the selected track's pending splits and the selected one, the panel's view, the edit count |
-| `audition`         | `widgets/split-zoom`       | Whether the audition's clip and the stretch's (range or track) are loading, playing or paused, the failure, the stretch's resting place, the volume (dB) and the mute flag                                                                                                                               |
-| `export-tracks`    | `widgets/track-strip`      | The export's status, the track in hand, the counts, the subfolder's name, the failure                                                                                                                                                                                                                    |
-| `export-single`    | `widgets/track-strip`      | The single export's status (naming, running, saved, failed), the default name, the remembered folder, the saved file and folder names, the failure                                                                                                                                                       |
-| `export-lock`      | `widgets/track-strip`      | Which export is writing (the full or a single one), so the two never run at once                                                                                                                                                                                                                         |
-| `shortcuts-dialog` | `widgets/shortcuts-dialog` | Whether the shortcuts dialog is open                                                                                                                                                                                                                                                                     |
+| Store              | Slice                      | Holds                                                        |
+| ------------------ | -------------------------- | ------------------------------------------------------------ |
+| `source-file`      | `entities/source-file`     | The file, its analysis, load progress and the ffmpeg session |
+| `split`            | `entities/split`           | The settings, splits and track names, selection and edits    |
+| `audition`         | `widgets/split-zoom`       | The one player: what plays, its status, and the volume       |
+| `export-tracks`    | `widgets/track-strip`      | The export of every track into a folder                      |
+| `export-single`    | `widgets/track-strip`      | The export of one track or range as a single file            |
+| `export-lock`      | `widgets/track-strip`      | Which export is running, so the two never overlap            |
+| `shortcuts-dialog` | `widgets/shortcuts-dialog` | Whether the shortcuts dialog is open                         |
 
 ```mermaid
 flowchart LR
   sourceFile[("source-file")]
   split[("split")]
-  audition[("audition<br/>(the player)")]
+  audition[("audition")]
   exporter[("export-tracks")]
   exporterSingle[("export-single")]
   exportLock[("export-lock")]
   reviewPage["ReviewPage"]
 
-  sourceFile -- "loudness curve,<br/>once on mount" --> reviewPage
+  sourceFile -- "loudness curve, on mount" --> reviewPage
   reviewPage -- "detect(curve)" --> split
-  split -- "selected split, range, selected track, view<br/>(a change of the selected split stops the audition,<br/>a new range stops the stretch, and so does<br/>a track change outside the Range view)" --> audition
-  audition -- "clip(start, length, signal?)" --> sourceFile
-  split -- "tracks and names,<br/>fixed when the export starts" --> exporter
-  exporter -- "cutTrack(track)<br/>stopCuts()" --> sourceFile
-  split -- "track, its end and count;<br/>renameTrack when the name changed" --> exporterSingle
-  exporterSingle -- "cutTrack(track or range)<br/>stopCuts()" --> sourceFile
+  split -- "selection, range, view" --> audition
+  audition -- "clip" --> sourceFile
+  split -- "tracks and names" --> exporter
+  split -- "one track" --> exporterSingle
+  exporter -- "cutTrack" --> sourceFile
+  exporterSingle -- "cutTrack" --> sourceFile
   exporter -- "take, release" --> exportLock
   exporterSingle -- "take, release" --> exportLock
 ```
 
-- **`split` can't import `source-file`**, because two slices of one layer never import each other. `ReviewPage` reads the curve and hands it to `split.detect` when it mounts, and `split` keeps a reference to it to find the gaps again when a setting changes. When the page unmounts, it stops the player and resets `split`.
-- **Widgets read the entity stores directly.** Every widget reads `split` for the splits, tracks and selection; all but the track list also read `source-file`, for the peaks, the curve, the duration or the session's calls.
-- **Deleting a split merges the tracks either side of it.** **Removing a track is two of these.** `split.removeTrack` deletes the splits at both ends of a track (one at an edge, none for the only track); the removed track's name goes with its start split, and when the first track goes the next track's name moves to the file's start. Three places call `split.deleteSplit`: the "Delete split" button in the Split view's title row (`ReviewPage`), Delete and Backspace in the Split view (`SplitZoom`, a key of the page), and the trash button on a split row of the Track list. It counts as one edit for a detected split and takes the "added" edit back for an added one. A selected split that goes falls back to its neighbour; a selected track whose start split goes is re-keyed to the merged track, and any other selection stays.
-- **The shortcuts dialog's flag is shared by three places.** The header's `?` button (`App.vue`) and the `?` key (`ReviewPage`, through `useQuestionMarkKey`, a caller of the shared `usePageKeys`, which leaves a key alone in a text field, with Ctrl, Cmd or Alt, while a dialog is open and when a control reached with Tab uses it) set it; the dialog on `ReviewPage` shows it, and the page clears it when it unmounts. The dialog reads the split store's `view` only to put the view on show first. Its rows are written by hand in `widgets/shortcuts-dialog/config/shortcut-sections.ts`, so a change to a key or a gesture changes its row in the same commit.
-- **There is one mark per view, and both live in `split`.** The Range view's (`markSeconds`) belongs to the range and is cleared by a new range. The Track view's (`trackMarkSeconds`) belongs to the selected track, and a synchronous watcher on the track's identity (the split where it starts, and its start and end in time) clears it, so another track or split selected, an end split moved or deleted, or a split added inside the track all clear it. Both views place theirs through the same press helper (`use-range-press.ts`); the Track view gives it the track's two end splits (`selectedTrackEndSplits`) as the split lines a double-click can reach.
-- **Pending splits are the selected track's, and live in `split`.** `pendingSplits` are times on the 10 ms grid in order, with at most one selected (`selectedPendingSplit`); a pending split has no id, since it never moves. The same watcher that clears the Track view's mark empties them: another track or a split selected, the zoom window moved, an end split moved or deleted, a split added inside the track, a detection and a reset. Switching the view keeps them. They are added at the mark (button, Enter: selected) or at a time (Shift+Enter: not selected), 1 s from each other and from the track's ends. `applyPendingSplits` takes the list, empties it, inserts one split per time through the insert every added split uses (each an added edit), and selects the first through `selectSplit`, which centres the window and shows the Split view. Only the Track view draws them; "Export track…" is off while any exist.
-- **A setting change replaces every split and name.** With edits made or pending splits, the loudness panel's replace guard holds the change back and asks first; "Replace" applies it and clears both. "New file" asks the same way in `App.vue`, and both texts count the edits and the pending splits (`formatLoss`). Both keep their two buttons.
-- **The discard question belongs to the split store, which is where the pending splits are.** An action that would empty a non-empty list does not run: it is held as `discardQuestion` (carrying the pending count), and the store answers it: `applyFirst` (apply, then run the held action; unlike Apply it shows no Split view, so the held action decides the view and a split at the playhead keeps the Range view and its sound), `discardPending` (empty the list, then run it) or `cancelDiscard` (forget it). The actions that ask are selecting a split or another track (not the selected one again), moving the zoom window, deleting one of the selected track's end splits (alone, or by removing this track or a neighbour), adding a split at the window's centre (it selects the new one), and adding one inside the selected track from the Range view (it shortens the track). An action that arrives while a question is open is ignored, as the replace guard does; switching the view asks nothing. A held track removal keeps the two end splits it was asked about, so "Apply first" removes that track, not the part of it left of the first applied split. `ReviewPage` shows the question.
+- **`split` can't import `source-file`.** `ReviewPage` hands it the loudness curve once, on mount.
+- **Widgets read the entity stores directly.** They never go through another widget.
+- **Tracks are derived from the splits**, never stored. Deleting a split merges the tracks either side of it.
+- **One selection at a time:** a split, a track or nothing.
+- **Changes that drop the user's work ask first.** A setting change or "New file" goes through a replace guard. Any other action that would drop pending splits is held as a question in `split` (see `unlessItDiscards` in `split.ts`).
+- **The two export stores can't import each other**, so `export-lock` sits between them.
 
 ## The ffmpeg session
 
-[`shared/api/ffmpeg/ffmpeg.ts`](../src/shared/api/ffmpeg/ffmpeg.ts) wraps one ffmpeg.wasm worker with the source file mounted read-only (WORKERFS), so ffmpeg reads only the bytes it asks for. The ffmpeg core (the script and the 32 MB wasm) has to be in the browser before the first worker starts, and [`core-preloader.ts`](../src/shared/api/ffmpeg/core-preloader.ts) gets it there. Three rules keep the session alive through long files:
+[`ffmpeg.ts`](../src/shared/api/ffmpeg/ffmpeg.ts) wraps one ffmpeg.wasm worker. The source file is mounted read-only, so ffmpeg reads only the bytes it needs. Three rules keep it alive through long files:
 
-- **A watchdog on every call.** A call into the worker can hang without answering, so each one races a timeout. On timeout the worker is terminated, the only thing that stops it.
-- **A fresh worker every 20 calls.** ffmpeg ends each call by throwing, and its small call stack wears down; measured failures started at the 75th call. Before the 21st call (and after any terminated worker) the session starts a fresh worker and mounts the file again, which takes under 100 ms. Callers never see it.
-- **`interrupt()` stops the running command.** It rejects the call with "ffmpeg was stopped" and terminates the worker; the next call starts a fresh one.
+- **Every call has a timeout.** A hung call terminates the worker.
+- **A fresh worker every 20 calls.** A worker wears out after a few dozen calls; a new one takes under 100 ms.
+- **`interrupt()` stops the running command** by terminating the worker.
+
+The `source-file` store keeps the session open once the file is ready. Clips and cuts share it through `inSession`, a queue that runs one call at a time. A call for a file that has since been replaced rejects with `FileReplacedError`.
 
 ### The core download
 
-`openFfmpeg` awaits `preloadCore()` before it makes a worker, so the 180 s load watchdog covers only compiling and instantiating the core from bytes the browser already has, never the network. The preloader keeps one download for the whole page:
+The ffmpeg core (32 MB) must be in the browser before the first worker starts. [`core-preloader.ts`](../src/shared/api/ffmpeg/core-preloader.ts) gets it there:
 
-- **One shared promise.** Every caller (a load, a fresh worker) joins the download that is running, and one that has finished is not repeated. A caller that subscribes to progress hears the fraction so far at once, so a load started after a cancelled one continues from where the download is. `unsubscribe` stops the reports, never the download. A cancelled or replaced load aborts the `signal` it gave `openFfmpeg`, which unsubscribes it, rejects it at once and starts no worker, while the download goes on for the next load.
-- **Progress is a fraction of the wasm's unpacked size**, a constant Vite reads from the installed package at build time (`__FFMPEG_WASM_BYTES__`). The stream hands over unpacked bytes whatever the server compresses, so 100% means done; the small script isn't counted. It reads 1 only once both files are in.
-- **The stall rule.** A download fails when no bytes arrive for 30 s, from either file, and has no total time limit, so a slow but steady connection always finishes. A failure rejects every caller with a `CoreDownloadError` and clears the shared promise, so the next caller starts afresh (the server's weak ETag rules out resuming). The store names that failure's step "downloading ffmpeg"; a failure of the worker's own load stays "probe".
-- **It starts while the page waits for a file.** The app's entry calls `preloadCoreWhenIdle()` after mounting, in dev as in production: it starts the download when the browser is idle (`requestIdleCallback`, or after 1 s where that is missing), so the page has drawn first. It does nothing when the browser signals Save-Data (`navigator.connection.saveData`), because a visitor who asked to save data should spend it only on a file they chose; the download then starts with the load. It makes no noise: a failed idle download is dropped, and the load that follows starts afresh. A file chosen mid-download joins it and shows the percentage from where it is.
-- **The core is kept in Cache Storage** (the cache named in [`core-cache.ts`](../src/shared/api/ffmpeg/core-cache.ts), the one module the page and the service worker both read for its name and for which URLs are the core: the built `ffmpeg-core-<hash>.js` and `.wasm`). Every call looks there first, and a complete copy (both files) resolves with no request and no progress (and clears any older core still beside it), so a returning visitor goes straight to "Reading <file>…". A copy counts only when a service worker controls the page, since that is what serves it to ffmpeg's worker: in dev, on a Shift+Reload or after a failed registration, `load()` would otherwise fetch the 32 MB itself under the load watchdog, so the files are downloaded as on a miss, with progress and the stall rule. On a miss the download stores each file once all its bytes have arrived (`cache.put` keeps nothing from a body that breaks off), and once the download is complete it deletes every other entry, an older core's hashed names, so a failed download never costs the working copy. It deletes them even when the quota refused a new file: the old core's space is what the next visit's write needs. Without Cache Storage (missing, blocked in a private window, or a write refused for quota) it downloads as before and resolves; a failed write is not reported. [ADR 0002](adr/0003-ffmpeg-core-in-cache-storage.md) has the reasons.
-- **A service worker answers the worker's requests for the core.** `sw.js` (built from `src/app/sw.worker.ts` by a second Vite build in `vite.config.ts`, as one self-contained file with an unhashed name at the build's root, so its scope is the app's folder) answers the two core URLs from Cache Storage, else from the network, through [`core-request.ts`](../src/shared/api/ffmpeg/core-request.ts); it never writes the cache, because the page does, so a first visit, when the page is not controlled yet, loses nothing. It matches ignoring `Vary`, since the server varies on `Origin` and the ffmpeg worker's module import sends one that the page's own download did not. Every other request is left to the browser, so the app's pages and code update as always. It takes control on activation and replaces an older version at once, so a bad worker is fixed by shipping a new `sw.js`. It is registered from `main.ts` in production builds only: the dev server's core URLs carry no hash, so a copy kept there could go stale. The URLs given to `load()` stay the built hashed ones, which is what the worker answers.
-- **The browser is asked to keep the stored core once, after the first file is ready.** The `source-file` store calls the preloader's `askToKeepCore()` (`navigator.storage.persist()`) the first time a load reaches `ready` in the page's life, so a browser is less likely to clear the core when space runs low. It waits for that moment, not for the page to open, because Firefox answers with a prompt, and a visitor who has just seen a file load has a reason to say yes; a failed load asks nothing. The answer is not used: a refusal, a rejection and a browser without the call change nothing, and the core is downloaded again after a clean-up, as without it.
-- **Safari clears a site's storage after 7 days without a visit**, so a Safari visitor away that long downloads the core again, with the visible, stall-tolerant download above.
+- One shared download for the whole page, started when the page is idle.
+- It fails only when no bytes arrive for 30 s, so a slow connection still finishes.
+- The core is kept in Cache Storage, and a service worker serves it to ffmpeg's worker, so a returning visitor downloads nothing. The service worker is registered in production builds only.
 
-The `source-file` store opens the session when a load starts and keeps it open once the file is ready. After that, audition and range clips and export cuts go through `inSession`, a promise queue that runs one call at a time, because one worker runs one command and the session's log belongs to one call. A call whose file was reset or replaced while it waited rejects with `FileReplacedError`, so a result from the old file never reaches the new one.
+The reasons are in [ADR 0003](adr/0003-ffmpeg-core-in-cache-storage.md).
 
 ## Load
 
@@ -80,216 +108,135 @@ sequenceDiagram
   participant page as LoadPage
   participant store as source-file store
   participant session as ffmpeg session
-  participant preloader as core preloader
-  participant cache as Cache Storage
-  participant sw as service worker
-  participant worker as ffmpeg.wasm worker
 
   User->>page: choose or drop a file
   page->>store: load(file)
-  store->>session: openFfmpeg(file, { onDownloadProgress, signal })
-  session->>preloader: preloadCore(onProgress): one shared download
-  preloader->>cache: both core files stored, and a service worker in control?
-  alt not stored, or nothing to serve them
-    loop while bytes arrive (fails after 30 s with none)
-      preloader-->>store: downloadFraction, shown as "Downloading ffmpeg… N%"
-    end
-    preloader->>cache: store each file once complete, then drop older cores
-  end
-  preloader-->>session: both core files are in the browser
-  session->>worker: load the core, mount the file
-  worker->>sw: asks for the core's two files
-  sw-->>worker: from Cache Storage, else the network
-  store->>session: probe: -i source
-  session->>worker: run
-  worker-->>store: log: container, codec, duration, rate, channels
-  alt not a supported format, or unreadable
-    store-->>page: status failed, with the message
+  store->>session: openFfmpeg: download the core if needed, mount the file
+  store->>session: probe
+  session-->>store: container, codec, duration, rate, channels
+  alt not supported, or unreadable
+    store-->>page: failed, with the message
   else supported
-    loop each slice: 60 s, or 300 s for MP3
-      store->>session: decodeSlice(i): -ss S-1 -i source -ss 1 -t 60 (or 300) -f f32le
-      opt 20 calls served by this worker
-        session->>preloader: preloadCore() resolves at once
-        session->>worker: terminate, start a fresh worker, mount again
-      end
-      session->>worker: run, read the output, delete it
-      worker-->>store: PCM bytes
-      store->>store: downmix, push into the peaks and loudness builders, drop the PCM
+    loop each slice
+      store->>session: decodeSlice(i)
+      session-->>store: PCM
+      store->>store: downmix, add to peaks and loudness, drop the PCM
     end
-    store->>store: status ready, session stays open
-    Note over page,store: App.vue swaps in ReviewPage, which runs split.detect(curve)
+    store->>store: ready, session stays open
   end
 ```
-
-Each load takes a number. A load that finishes after "New file", Cancel or a newer load finds its number stale and changes nothing; its session is closed.
 
 ```mermaid
 stateDiagram-v2
   [*] --> empty
   empty --> loading: load(file)
   loading --> ready: last slice analysed
-  loading --> failed: unsupported format, or the probe or a slice failed
+  loading --> failed: unsupported, or a step failed
   loading --> empty: Cancel
   failed --> loading: Choose another file
-  ready --> empty: New file, asking first when there are edits
+  ready --> empty: New file
 ```
 
-`App.vue` shows the load page in `empty`, `loading` and `failed`, and the review page in `ready`. A failure names the step ("downloading ffmpeg", "probe" or "slice 41 of 62") and the reason: ffmpeg's last log line, or why the download failed.
+- `App.vue` shows the load page until the store is `ready`, then the review page.
+- A failure names the step and ffmpeg's last log line.
+- Each load takes a number. A load that a newer one replaced changes nothing.
 
 ## Player
 
-One store, `audition`, is the one player: a hidden `<audio>` element plays a WAV the `source-file` store decodes (a start and a length, `-c:a pcm_s16le -f wav`, with the same 1 s pre-roll as a slice), and at most one decoded window of one stretch (and the window after it) is held. It has two kinds of listening, each with its own status, and starting one stops the other.
+The `audition` store is the one player. The `source-file` store decodes a stretch of the file to WAV, and a hidden `<audio>` element plays it. A WAV seeks exactly, which a compressed file does not ([note 06](concepts/06-seeking-compressed-audio.md)).
 
-**The audition** is the 8 s across the selected split (the split ±4 s). "Play across split" and Space in the Split view both call `toggle`. The Split view draws the playhead each animation frame from the element's `currentTime` plus the clip's start.
+There are two kinds of listening. Starting one stops the other.
+
+**The audition** plays the 8 s across the selected split.
 
 ```mermaid
 stateDiagram-v2
   [*] --> idle
-  idle --> loading: toggle
+  idle --> loading: play
   loading --> playing: clip decoded
-  loading --> idle: toggle, or the selection changed
-  loading --> idle: clip failed, failure shown
-  playing --> idle: clip ended, toggle, or the selection changed
-  playing --> idle: play refused, failure shown
-  loading --> idle: a stretch plays, a new range, or the selected track changes
-  playing --> idle: a stretch plays, a new range, or the selected track changes
+  playing --> idle: clip ended
+  loading --> idle: pressed again, split changed, or failed
+  playing --> idle: pressed again, or split changed
 ```
 
-**The stretch** is the range the user dragged out (note 08) or the selected track. The Range view's and the Track view's Play button and Space both call `toggleStretch(stretch)`: the player plays a stretch (a start and an end the caller hands in: the range as it is, a track as its whole extent). It reads the split store only to word a failure and to stop when the range or the selected track changes. A stretch of 10 min or less is one window: decoded once and kept, tied to the stretch it was decoded for (a different stretch, a range after a track or the other way round, releases it and decodes its own), so a pause costs nothing: playing again sets the element's `currentTime` inside the WAV, which is exact, and plays at once. Both views draw the playhead each animation frame while it plays, and at its resting place otherwise: the stretch's start for a new stretch and after the end. The resting place names the stretch it belongs to, so a view of another stretch never draws it. The playhead moves without changing the status: `seekStretch` sets `currentTime` while the stretch plays, and the resting place otherwise (which `toggleStretch`, or the clip still being decoded, starts from); a drag of it goes through `grabPlayhead`, which pauses a playing stretch, and `dropPlayhead`, which plays it on only if it was playing.
-
-**A long track moves a window along it.** At most 10 min of WAV is decoded at a time, so `lib/decode-window.ts` decides, for a stretch and a playhead, the window to decode (the 10 min from the playhead, held to the stretch's end; the whole stretch when it is 10 min or less), whether a time is inside a window, and when the next window is due. The first press decodes the window that holds the playhead. A seek inside the held window sets `currentTime`; a seek outside it releases the windows and decodes one from the seek point (the stretch reads as decoding meanwhile), and a seek to the stretch's very end ends the stretch. While a window plays, `timeupdate` asks for the window ahead once the playhead is 30 s from the end of the playing one, once per window. When the element's `ended` event comes, the player points the element at that window and plays on: no decode, and a break of about 60 ms, which is the element loading a new source (note 08). When the window ahead is not decoded yet (a seek close to the end of the window) the stretch reads as decoding until it arrives, and a decode that failed ahead is tried again then, with its failure shown. The window ahead is dropped if the windows are released meanwhile, or on `stop()` (a view change, the export): its fetch is forgotten and its decode stopped (`clip` takes an `AbortSignal`; a queued clip never runs and a running one is interrupted), so a seek's window or the export's cuts do not wait behind it, and a window that arrives late is never held. At most two windows are held.
+**The stretch** plays a range or the selected track. It can pause, resume and seek without decoding again.
 
 ```mermaid
 stateDiagram-v2
   [*] --> idle
-  idle --> loading: toggleStretch, no WAV held
-  idle --> playing: toggleStretch, WAV held
-  loading --> playing: stretch's window decoded
-  loading --> idle: toggleStretch, stop, a new range, a track change, or the audition plays
-  loading --> idle: decode failed, failure shown
-  playing --> idle: play refused, failure shown
-  playing --> paused: toggleStretch, or stop (a view change, the export)
-  paused --> playing: toggleStretch
-  playing --> paused: grabPlayhead, a drag of the playhead
-  paused --> playing: dropPlayhead, if it was playing when grabbed
-  playing --> idle: the stretch's last window ended, playhead back at the start
-  playing --> playing: a window ended, the window ahead plays on
-  playing --> loading: seekStretch outside the held window, or a window ended before the one ahead was decoded
-  paused --> idle: a new range, a track change, or the audition plays
-  playing --> idle: a new range, a track change, or the audition plays
+  idle --> loading: play, nothing decoded
+  idle --> playing: play, already decoded
+  loading --> playing: window decoded
+  playing --> paused: pause, a view change, or the export
+  paused --> playing: play
+  playing --> loading: seek outside the window
+  playing --> idle: end of the stretch
+  loading --> idle: range or track changed, or failed
+  paused --> idle: range or track changed
+  playing --> idle: range or track changed
 ```
 
-A track change is another selected track, none, or the selected track's start or end moving (a split deleted, moved or added at its edge, a neighbour removed). It stops the stretch in every view but the Range view, where the stretch is the range: a split added at the mark or at the playhead (Shift+Enter) shortens the selected track, and the range plays on.
-
-Every press takes a number, and a clip that arrives for an older press is dropped, so a stopped press, a changed selection or a new range never starts sound later. "The selection changed" covers moving the selected split, selecting another, deselecting, deleting and a setting change; a synchronous watcher on the split store stops the audition at once. A second synchronous watcher on the range, and a third on the selected track (its identity, start and end, so a split that moves elsewhere changes nothing; it does nothing while the Range view is shown), stop all sound, drop the decoded stretch and put the playhead at the new stretch's start. The page stops the player on a view change, when the export starts and when it unmounts: a stretch that plays is paused, so its playhead stays where it was.
-
-**The volume** is state the same store owns: a level in whole dB from −40 to 0 and a mute flag, read from `localStorage` when the store is made (full volume and unmuted when nothing valid is saved or the browser blocks storage) and written on every change. A synchronous watcher applies them to the element, `volume` as the linear gain (`decibelsToGain`) and `muted` as its own switch, and `audioElement()` applies them when the element is first made, so a change reaches sound that is already playing and the element needs no clip decoded again. `VolumeControl` (the mute button and the slider) ends the zoom panel's title row in every view and only calls `setVolume` and `toggleMute`. The export never passes through the element, so the volume cannot reach a file.
+- **A long track plays through a moving window.** At most 10 min is decoded at a time. The next window is decoded while the current one plays, and at most two are held ([`decode-window.ts`](../src/widgets/split-zoom/lib/decode-window.ts), [note 08](concepts/08-listening-to-a-range.md)).
+- **Watchers on the `split` store stop the sound at once** when the split, range or track it belongs to changes. A view change or the export only pauses a stretch, so its playhead stays.
+- **Every press takes a number.** A clip that arrives for an older press is dropped, so stale sound never starts.
+- **The volume applies to the element only**, so it never reaches an exported file ([note 09](concepts/09-volume-is-gain.md)).
 
 ## Export
 
 ```mermaid
 sequenceDiagram
   actor User
-  participant page as ReviewPage
   participant exporter as export-tracks store
   participant folder as folder (File System Access)
   participant store as source-file store
-  participant session as ffmpeg session
 
-  User->>page: Export to folder…
-  page->>page: stop the player (and the decode of the window ahead, so no cut waits behind it)
-  page->>exporter: start()
-  exporter->>folder: showDirectoryPicker, same id every time
-  alt picker closed
-    folder-->>exporter: AbortError, stays idle
-  else folder picked
-    exporter->>exporter: plan the tracks from the split store
-    exporter->>folder: list the names, create "stem" or "stem (2)"
-    loop each track
-      exporter->>store: cutTrack(its times, tags)
-      store->>session: waits its turn in the queue, then -c copy
-      session-->>store: the track's bytes
-      store-->>exporter: bytes
-      exporter->>folder: create "03 Name.m4a", write, close
-      Note right of exporter: bytes dropped before the next cut
-    end
-    exporter-->>page: done: "8 tracks saved to stem/"
+  User->>exporter: Export to folder…
+  exporter->>folder: pick a folder
+  exporter->>folder: create "stem" or "stem (2)"
+  loop each track
+    exporter->>store: cutTrack(times, tags)
+    store-->>exporter: bytes
+    exporter->>folder: write "03 Name.m4a"
   end
+  exporter-->>User: "8 tracks saved to stem/"
 ```
-
-- **Cancel** calls `stopCuts()`: the running call is interrupted, every cut still queued rejects without running, and the files already closed stay on disk.
-- **A failed write** aborts its writable and removes the empty file Chrome made for it, so the folder only ever holds whole tracks. That file is the only thing the app deletes, and it made it a moment before, in the subfolder it made.
-- **The tracks are fixed when the export starts**, and the overlay locks the page while it runs, so an edit can't change a run halfway through.
-- **One track is in memory at a time.** Each is cut, written and dropped before the next is cut.
 
 ```mermaid
 stateDiagram-v2
   [*] --> idle
-  idle --> idle: picker closed
   idle --> running: folder picked
-  idle --> failed: picker failed
   running --> done: every track written
   running --> cancelled: Cancel
-  running --> failed: the subfolder, a cut or a write failed
+  running --> failed: a cut or a write failed
   done --> idle: Close
   cancelled --> idle: Close
   failed --> idle: Close
 ```
 
-A failure names the track that failed, when there was one. The cut commands per format, and why `.mp3` and `.opus` seek twice, are in [concept note 07](concepts/07-cutting-without-re-encoding.md).
+- **The tracks are fixed when the export starts**, and an overlay locks the page.
+- **One track is in memory at a time**: cut, written and dropped before the next.
+- **Cancel** stops the running cut. Files already written stay.
+- **A failed write removes its empty file**, so the folder only holds whole tracks.
 
-## Single export
+The cut commands per format are in [note 07](concepts/07-cutting-without-re-encoding.md).
 
-One track or the range, as one file, under a name the user confirms. The `export-single` store sits beside the full export, in the same widget, and shares its file writing (`api/write-file.ts`, which aborts a failed writable and removes the empty file Chrome made), its file-name sanitising, number padding, track file names and tags.
+### Single export
 
-```mermaid
-sequenceDiagram
-  actor User
-  participant page as ReviewPage
-  participant dialog as SingleExportDialog
-  participant single as export-single store
-  participant folder as folder (File System Access)
-  participant store as source-file store
-
-  User->>page: Export track… or Export range…
-  page->>single: openTrack(track) or openRange(range)
-  Note right of single: status naming, default name filled in, the sound plays on
-  User->>dialog: confirms the name (Enter or OK)
-  dialog->>page: confirm(name)
-  page->>page: stop the player
-  page->>single: confirm(name)
-  alt no folder remembered
-    single->>folder: showDirectoryPicker, same id as the full export
-    Note right of single: closed picker: back to naming, nothing taken
-  end
-  single->>single: rename the track if the name changed
-  single->>folder: list the names, pick "03 Name.m4a" or "03 Name (2).m4a"
-  single->>store: cutTrack(its times, tags)
-  store-->>single: bytes
-  single->>folder: create, write, close
-  single-->>page: saved: "Saved 03 Name.m4a in Music"
-```
-
-- **The folder is remembered for the file.** The handle is kept in the store (not as reactive state) and forgotten when the source file changes; "Change folder" in the dialog picks another. Nothing is saved across a reload.
-- **Names.** A track's file is the full export's for that track (`NN name.ext`, padded to the current track count, and just `NN.ext` for an unnamed track whose default name was confirmed as it was offered); a range's is `name.ext`, sanitised, with the title tag the name as typed, the album the source's stem and no track number (the cut writes an empty `track=` so a number the source carried does not come along). A name that is taken gets ` (2)`, ` (3)` before the extension, compared without regard to case.
-- **The rename comes first.** A name changed in a track's dialog is given to the track before the cut, so a failed export keeps it; a range renames nothing.
-- **The two exports exclude each other** through the `export-lock` store, which each takes when it starts (before the picker opens) and gives back when it ends however it ends. The two export stores cannot import each other, and a store of their own keeps the dependency one way. The page also disables each export's buttons while the other runs.
-- **Cancel** stops the cut as the full export's does and closes the dialog; a failure stays in the dialog with its reason, over the name, to confirm again. Once the cut has ended a Cancel is too late: the short write leaves a whole file or none, so it runs on and the file is saved, and no ffmpeg session is restarted for nothing.
-- **The saved line** is the page's: `export-single` holds the file and folder names until the page dismisses it, on the next press in the view, a key the view acts on, a view switch, a selection change or a new range.
+`export-single` writes one track or the range as one file, under a name the user confirms. It shares the file writing ([`write-file.ts`](../src/widgets/track-strip/api/write-file.ts)), naming and tags with the full export.
 
 ```mermaid
 stateDiagram-v2
   [*] --> idle
   idle --> naming: Export track… or Export range…
-  naming --> naming: picker closed
   naming --> running: name confirmed
-  naming --> failed: picker failed
   naming --> idle: Cancel
   running --> saved: file written
-  running --> idle: Cancel
   running --> failed: a cut or a write failed
   failed --> running: name confirmed again
+  running --> idle: Cancel
   failed --> idle: Cancel
-  saved --> idle: press, key, view switch, selection change or new range
-  saved --> naming: another export opened
+  saved --> idle: dismissed
 ```
+
+- The folder is picked once per source file.
+- A name that is taken gets ` (2)`; nothing is overwritten.

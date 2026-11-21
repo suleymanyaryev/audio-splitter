@@ -9,28 +9,27 @@ The import rules are in AGENTS.md "Code layout" and enforced by `pnpm lint`; thi
 
 - **Entity store** (`entities/source-file`, `entities/split`): state that more than one widget reads, about the file or the splits.
 - **Widget-owned store** (`widgets/split-zoom/model/audition.ts`, `widgets/track-strip/model/export-tracks.ts`): state that belongs to one behaviour, which the page and other widgets only start or stop.
-- Pinia setup stores, in memory only, except the player's volume and mute flag, which `localStorage` also keeps (`widgets/split-zoom/api/saved-volume.ts`).
-- The store owns its state and changes it only through actions. Widgets call `selectSplit`, `moveZoomTo` and `setRange`, never assign. An action given out-of-range input refuses quietly and keeps the state it had (an unknown id, a range under 1 s, `addSplit` with no room).
-- Put a tuned constant in its own `config/` file, imported by the store and the widgets (`entities/split/config/range-limits.ts`).
-- Put pure maths in `lib/` with its own spec, and have the store call it. When a live preview and the store compute the same thing, they share one function, so the two agree: `entities/split/lib/range-between.ts` serves both the waveform's drag overlay and `setRange`.
+- Pinia setup stores, in memory only. The one exception is `widgets/split-zoom/api/saved-volume.ts`.
+- The store changes its state only through actions; widgets call them, never assign. An action given out-of-range input refuses quietly and keeps the state it had.
+- A tuned constant goes in its own `config/` file, imported by the store and the widgets (`entities/split/config/range-limits.ts`).
+- Pure maths goes in `lib/` with its own spec. When a live preview and the store compute the same thing, they share one function, so the two agree (`entities/split/lib/range-between.ts`).
 
 ## Wiring stores together
 
-- Two slices of one layer never import each other, so `split` can't read `source-file`. The page wires them: `ReviewPage.vue` hands the loudness curve to `split.detect` on mount and resets `split` on unmount. Wire a new cross-store need the same way, in the page, not in either store.
-- `App.vue` switches pages on the `source-file` store's status; there is no router.
-- Buttons enable on store getters (`canAddSplit`, `canAddSplitAtMark`) and take their labels from store status.
-- Selection views (`TrackList.vue`, `TrackStrip.vue`): a click calls `split.selectTrack`, and the selected item carries `aria-current="true"`. The strip's split items and the list's split rows do the same with `split.selectSplit`; a button inside a row stops the click (`@click.stop`) so it does only what it says.
+- Two slices of one layer never import each other, so the page wires them: `ReviewPage.vue` hands the loudness curve to `split.detect` on mount and resets `split` on unmount. Wire a new cross-store need the same way, in the page.
+- Buttons enable on store getters (`canAddSplit`) and take their labels from store status.
+- A click on a list or strip item selects through the store, and the selected item carries `aria-current="true"`. A button inside an item stops the click (`@click.stop`) so it does only what it says. Reference: `TrackList.vue`.
 
 ## The user's edits
 
-- `split.editCount` counts changes since the last detection. Anything that would replace the user's edits goes through the replace guard: `widgets/loudness-curve/lib/use-replace-guard.ts` with `ReplaceEditsDialog.vue`, and "New file" in `App.vue`. The guard holds the change back and asks; "Replace" applies it. `entities/split/lib/format-edits.ts` words the count. Pending splits count as work to lose too: the guard and "New file" ask with them, and an action in `split` that would drop them is held as `discardQuestion` (`unlessItDiscards` in `entities/split/model/split.ts`), so a new action that selects another thing or changes the selected track's ends goes through it.
-- A change counts as an edit only when the value really changed: `TrackNameField.vue` saves nothing for an unchanged name.
+- Anything that would drop the user's work asks first: replacing edits goes through the replace guard (`widgets/loudness-curve/lib/use-replace-guard.ts`), and a `split` action that would drop pending splits goes through `unlessItDiscards` in `entities/split/model/split.ts`.
+- A change counts as an edit only when the value really changed (`TrackNameField.vue`).
 
 ## Sound
 
-There is one player, `widgets/split-zoom/model/audition.ts`, with one hidden `<audio>`. Its two modes (the audition clip and a stretch: the range or the selected track) stop each other. Anything new that plays goes through it. Anything that should silence it calls `stop()`: the page does so on a view change, before the export and on unmount.
+There is one player, `widgets/split-zoom/model/audition.ts`. Anything new that plays goes through it, and anything that should silence it calls `stop()`.
 
-An async result can arrive after the user has moved on. The audition guards against this: every press takes a number, a result for an older number is dropped, and `flush: 'sync'` watchers on the split store stop the player at once. Use the same guard for any new async work started by a user action. Work the player starts by itself, such as the window decoded ahead of a long track (`fetchAhead`), is not a press: it keeps its own token, which releasing the held windows (or `stop()`) forgets, so what arrives late is dropped, and it aborts the token's `AbortSignal`, so its ffmpeg call stops holding the queue.
+An async result can arrive after the user has moved on. Every press takes a number and a result for an older number is dropped; `flush: 'sync'` watchers on the split store stop the player at once. Use the same guard for any new async work a user action starts. Work the player starts by itself (`fetchAhead`) keeps its own token and aborts its `AbortSignal` on release, so its ffmpeg call stops holding the queue.
 
 ## Jobs and browser APIs
 
@@ -39,4 +38,4 @@ An async result can arrive after the user has moved on. The audition guards agai
 
 ## Specs
 
-A store spec creates a fresh Pinia in `beforeEach` (`setActivePinia(createPinia())`), builds its input from small helpers (`entities/split/model/__tests__/split.spec.ts`'s `curveOf`), and tests through the store's actions and getters.
+A store spec creates a fresh Pinia in `beforeEach` (`setActivePinia(createPinia())`), builds its input from small helpers (`curveOf` in `entities/split/model/__tests__/split.spec.ts`), and tests through the store's actions and getters.
