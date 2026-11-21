@@ -2,29 +2,29 @@
 version: 1
 slug: "src-pages-review"
 primary_target: "src/pages/review"
-related_targets: ["src/shared/ui"]
+related_targets: ["src/shared/ui","src/pages/load"]
 ---
 
-# Review screen (and the shared/ui kit)
+# Review screen, load screen and the shared/ui kit
 
-Scope: the review screen of Audio Splitter and the `shared/ui` kit every screen uses. Mode: Operate. Built code-first.
+Scope: the review screen of Audio Splitter, the load screen, the header band, the dialogs and the `shared/ui` kit every screen uses. Mode: Operate. Built code-first. Canvas drawing code changes only through the `--color-*` tokens.
 
-Audience and task: the single user reviews proposed splits in a 1–3 h source file, fixes them by hand, renames tracks and exports. Daylight and evening use; the theme follows the system setting. Ruled out by the user: a studio-gear look, decoration that competes with the waveforms, dense tiny technical type.
+Audience and task: the single user reviews proposed splits in a 1–3 h source file, fixes them by hand, renames tracks and exports. Daylight and evening use. Light and dark themes both ship; a System/Light/Dark switch is a separate issue (GitHub #1). Ruled out by the user: a studio-gear look, a coloured or blue "dark audio editor" waveform, gradients or shadows over the waveforms, decoration that competes with the waveforms, text below 12 px.
 
-Chosen direction: Side of an LP (the user's pick from the decision round of 2026-11-13). Composition reference: the LP-side decision sketch.
+Chosen direction: Next to Silence (the user's pick from the decision round of 2026-11-22, a full redesign replacing Side of an LP). Composition reference: the chosen decision sketch, `.impeccable/mocks/decision/assigned.html`.
 
 Interaction (drag, zoom window, renaming, the warning before a setting change) is settled in .scratch/audio-splitter/issues/13-review-screen-interaction-design.md.
 
 ## Direction contract
 
-THESIS: On an LP you can see where one track ends: the textured groove bands stop and a smooth land runs between them. The screen draws a source file the same way, tracks as dense waveform bands and every gap as a flat land, so a split reads as something you can see before you read a number. It refuses the dark audio-editor with a bright blue waveform.
+THESIS: Silence is the material. As on an ECM sleeve, quiet is the field the music sits on: every gap is drawn as one sea-mist field in every view, so the file reads as music laid on quiet and a split shows before its number. It refuses the dark audio editor with a blue waveform and the grey screen with one accent.
 
-OWN-WORLD: Sleeve white ground and white panels by day; vinyl black ground and near-black panels by night. Ink is vinyl black (inverted at night), waveforms and track blocks in groove grey, gap lands in sheen grey, and one centre-label vermilion that only marks splits and the threshold. Manrope with tabular figures. Flat colour: no gradients, no shadows, panels separated by a hairline and the ground.
+OWN-WORLD: Fog ground #E3E8E6, sleeve surface #FAFBFA, graphite ink #1B2326 and audio #2C3639, slate header band #26343A, slate track blocks #3B4F57, sea-mist gaps #BCD2CD, rust #B83E0B only for splits, threshold, danger and invalid. Night: ground #101618, surface #182023, deep-sea gaps #24403D, rust #F28A4E. Albert Sans, bundled, tabular figures. Radii 3 px controls, 4 px panels; flat, hairlines. Raise (Warm Consumer App): only pressable things are slate. Raise (Terminal Yellow): the split's time is the one 32 px figure. Raise (Datamatics): no third grey.
 
-STORY: The user sees the whole file banded into tracks at a glance, sees why each split is there (the loudness curve dips under the vermilion threshold inside each land), checks one split up close, fixes it, and exports.
+STORY: The user sees the whole file banded into graphite tracks on sea-mist gaps, sees each gap dip under the rust threshold, checks one split up close, fixes it, and exports.
 
-FIRST VIEWPORT: Vinyl-black header with a vermilion centre-label dot, the product name, the file chip, "Local only" and "New file". Full-width whole-file waveform with lands and numbered vermilion split markers and an outlined zoom window; full-width loudness curve on the same time axis with the dashed vermilion threshold and the minimum-gap slider in its header; zoom view (left, about two thirds) with the split's time as the panel's largest type and "Play across split" as the primary button; track list (right) with an inline name field per row; "Add split" in the zoom view's title row; track strip at the bottom with groove blocks separated by lands and "Export to folder…" as the strongest button. Behaviour: .scratch/audio-splitter/issues/13-review-screen-interaction-design.md.
+FIRST VIEWPORT: 56 px slate header (mist mark, name, file chip, "Local only · nothing is uploaded", ?, New file). 32 px margins, 24 px gutters. Full-width whole file, then loudness with threshold and min-gap sliders. Zoom view at 8/12, its split time at 32 px, slate Play the only filled control; track list at 4/12. Strip: slate blocks on mist, a rust rule at each split, "Export to folder…" the strongest button. Signature interaction: selecting a split lights the same rust in the whole file, the list and the strip at once; motion is colour only, about 120 ms.
 
-FORM: Side of an LP, position 1 on my ordered list (IMPECCABLE'S PICK; the roll assigned position 3, Departure Timetable). seed:1810f64224c6b8e7
+FORM: Next to Silence (ECM sleeve world), position 4 on my ordered list (the roll's assignment; my top-ranked, Chart Datum, was shown as the pick). seed:0449f7c74468ccff
 
 FINISH: unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, DESIGN.md, and every shipping raster carrying its provenance
