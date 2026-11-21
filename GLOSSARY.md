@@ -44,6 +44,10 @@ _Avoid_: Current split, active split, focused split
 The one track the user is reviewing, heard end to end whatever its length. Its ends are its splits, so it follows them when they move; a split is added inside it by applying pending splits, or from the Range view, which asks first when pending splits would be lost. A split and a track are never selected at the same time.
 _Avoid_: Track range, current track, active track
 
+**Split view**:
+The zoom panel's view of the zoom window around the selected split, where the split is moved, deleted and auditioned. It is one of the panel's three views, with the Track view and the Range view.
+_Avoid_: Zoom view
+
 **Track view**:
 The zoom panel's view of the selected track, stretched across the whole panel with its gaps and its two end splits, to listen to and to place pending splits in.
 _Avoid_: Track panel, track range view
@@ -57,7 +61,7 @@ Merging a track into its neighbours by deleting the splits at both its ends. Its
 _Avoid_: Deleting a track, excluding a track
 
 **Zoom window**:
-The 20 second stretch of the source file around a centre time that the zoom view shows, outlined on the whole-file view.
+The 20 second stretch of the source file around a centre time that the Split view shows, outlined on the whole-file view.
 _Avoid_: Viewport, zoom range, visible range
 
 **Audition**:
@@ -69,7 +73,7 @@ A stretch of the source file, 1 s to 10 min, that the user drags out on the whol
 _Avoid_: Selection, section, region
 
 **Range view**:
-The zoom panel's other view: the range stretched across the whole panel, with its gaps and splits, in place of the zoom view. A `Split | Track | Range` control switches between the three; selecting a split or moving the zoom window switches back.
+The zoom panel's view of the range, stretched across the whole panel with its gaps and splits. A `Split | Track | Range` control switches between the three views; selecting a split or moving the zoom window switches back to the Split view.
 _Avoid_: Range panel, overview
 
 **Mark**:
@@ -77,7 +81,7 @@ The dashed spot the user clicks in the stretch on show: in the Range view where 
 _Avoid_: Cursor, marker, ghost playhead
 
 **Playhead**:
-The 1 px line that marks the point being heard, or where playback will resume: in the zoom view during an audition, and in the Range view and the Track view always.
+The 1 px line that marks the point being heard, or where playback will resume: in the Split view during an audition, and in the Range view and the Track view always.
 _Avoid_: Cursor, scrubber, position marker
 
 **Loudness curve**:
