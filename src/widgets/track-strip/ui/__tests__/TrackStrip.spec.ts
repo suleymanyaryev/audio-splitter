@@ -263,7 +263,7 @@ describe('TrackStrip', () => {
       expect(wrapper.findAll('button[aria-current]')).toHaveLength(0)
     })
 
-    it('is land at rest and vermilion when hovered, focused or selected', async () => {
+    it('is land at rest and rust when hovered, focused or selected', async () => {
       const { split, wrapper } = await mountWithTwoGaps()
       split.selectSplit(split.splits[0]!.id)
       await wrapper.vm.$nextTick()

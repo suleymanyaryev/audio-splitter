@@ -1,68 +1,79 @@
 ---
 name: Audio Splitter
-description: A long source file drawn like the side of an LP, grey groove bands for tracks, smooth lands for gaps, one vermilion for splits.
+description: Silence is the material. Every gap is one sea-mist field, audio is graphite on it, slate is for what you press, and rust marks only the cuts.
 colors:
-  ink: '#121212'
-  muted: '#5E6066'
-  ground: '#F7F7F5'
-  surface: '#FFFFFF'
-  hairline: '#E2E3E0'
-  edge: '#8A8D93'
-  wave: '#3A3A3A'
-  track: '#3A3A3A'
-  on-track: '#FFFFFF'
-  land: '#C9CCD1'
-  split: '#C8341F'
+  ink: '#1B2326'
+  muted: '#55615E'
+  ground: '#E3E8E6'
+  surface: '#FAFBFA'
+  hairline: '#D2D9D6'
+  edge: '#7F8B88'
+  wave: '#2C3639'
+  track: '#3B4F57'
+  on-track: '#F2F5F4'
+  land: '#BCD2CD'
+  split: '#B83E0B'
   on-split: '#FFFFFF'
-  vinyl: '#121212'
-  on-vinyl: '#EDEDEA'
-  on-vinyl-muted: '#A3A5AA'
-  vinyl-edge: '#3A3A3A'
-  ink-dark: '#EDEDEA'
-  muted-dark: '#A3A5AA'
-  ground-dark: '#0E0E0E'
-  surface-dark: '#171717'
-  hairline-dark: '#2A2B2D'
-  edge-dark: '#6E7076'
-  wave-dark: '#B9BCC1'
-  track-dark: '#5C5E63'
-  on-track-dark: '#EDEDEA'
-  land-dark: '#383A3E'
-  split-dark: '#FF5A43'
-  on-split-dark: '#0E0E0E'
+  fill: '#26343A'
+  fill-hover: '#3B4F57'
+  on-fill: '#F2F5F4'
+  band: '#26343A'
+  on-band: '#E6EEEC'
+  on-band-muted: '#A3B5B2'
+  band-edge: '#3A4A51'
+  mark: '#BCD2CD'
+  ink-dark: '#E2E9E7'
+  muted-dark: '#98A6A3'
+  ground-dark: '#101618'
+  surface-dark: '#182023'
+  hairline-dark: '#263033'
+  edge-dark: '#6B7977'
+  wave-dark: '#B4C0BD'
+  track-dark: '#4C6670'
+  on-track-dark: '#F0F4F3'
+  land-dark: '#24403D'
+  split-dark: '#F28A4E'
+  on-split-dark: '#101618'
+  fill-dark: '#8FB0BA'
+  fill-hover-dark: '#A8C5CE'
+  on-fill-dark: '#101618'
+  band-dark: '#0B1012'
+  on-band-dark: '#E2E9E7'
+  on-band-muted-dark: '#8FA19E'
+  band-edge-dark: '#263033'
 typography:
   headline:
-    fontFamily: 'Manrope, ui-sans-serif, system-ui, sans-serif'
+    fontFamily: '"Albert Sans", ui-sans-serif, system-ui, sans-serif'
     fontSize: '20px'
     fontWeight: 700
     lineHeight: '28px'
     fontFeature: 'tnum'
   title:
-    fontFamily: 'Manrope, ui-sans-serif, system-ui, sans-serif'
+    fontFamily: '"Albert Sans", ui-sans-serif, system-ui, sans-serif'
     fontSize: '16px'
     fontWeight: 600
     lineHeight: '24px'
     fontFeature: 'tnum'
   body:
-    fontFamily: 'Manrope, ui-sans-serif, system-ui, sans-serif'
+    fontFamily: '"Albert Sans", ui-sans-serif, system-ui, sans-serif'
     fontSize: '14px'
     fontWeight: 400
     lineHeight: '20px'
     fontFeature: 'tnum'
   label:
-    fontFamily: 'Manrope, ui-sans-serif, system-ui, sans-serif'
+    fontFamily: '"Albert Sans", ui-sans-serif, system-ui, sans-serif'
     fontSize: '14px'
     fontWeight: 600
     lineHeight: '20px'
     fontFeature: 'tnum'
   caption:
-    fontFamily: 'Manrope, ui-sans-serif, system-ui, sans-serif'
+    fontFamily: '"Albert Sans", ui-sans-serif, system-ui, sans-serif'
     fontSize: '12px'
     fontWeight: 400
     lineHeight: '16px'
     fontFeature: 'tnum'
   caption-strong:
-    fontFamily: 'Manrope, ui-sans-serif, system-ui, sans-serif'
+    fontFamily: '"Albert Sans", ui-sans-serif, system-ui, sans-serif'
     fontSize: '12px'
     fontWeight: 600
     lineHeight: '16px'
@@ -80,18 +91,18 @@ spacing:
   xl: '24px'
 components:
   button-primary:
-    backgroundColor: '{colors.ink}'
-    textColor: '{colors.surface}'
+    backgroundColor: '{colors.fill}'
+    textColor: '{colors.on-fill}'
     typography: '{typography.label}'
     rounded: '{rounded.control}'
     padding: '0 14px'
     height: '36px'
   button-primary-hover:
-    backgroundColor: '{colors.wave}'
-    textColor: '{colors.surface}'
+    backgroundColor: '{colors.fill-hover}'
+    textColor: '{colors.on-fill}'
   button-primary-lg:
-    backgroundColor: '{colors.ink}'
-    textColor: '{colors.surface}'
+    backgroundColor: '{colors.fill}'
+    textColor: '{colors.on-fill}'
     typography: '{typography.title}'
     rounded: '{rounded.control}'
     padding: '0 20px'
@@ -104,7 +115,7 @@ components:
     padding: '0 14px'
     height: '36px'
   button-secondary-hover:
-    backgroundColor: 'color-mix(in srgb, #C9CCD1 40%, #FFFFFF)'
+    backgroundColor: 'color-mix(in srgb, #BCD2CD 40%, #FAFBFA)'
     textColor: '{colors.ink}'
   button-danger:
     backgroundColor: '{colors.surface}'
@@ -117,8 +128,8 @@ components:
     backgroundColor: '{colors.split}'
     textColor: '{colors.on-split}'
   button-inverse:
-    backgroundColor: '{colors.on-vinyl}'
-    textColor: '{colors.vinyl}'
+    backgroundColor: '{colors.on-band}'
+    textColor: '{colors.band}'
     typography: '{typography.label}'
     rounded: '{rounded.control}'
     padding: '0 14px'
@@ -130,7 +141,7 @@ components:
     height: '32px'
   button-inverse-hover:
     backgroundColor: '#FFFFFF'
-    textColor: '{colors.vinyl}'
+    textColor: '{colors.band}'
   icon-button:
     backgroundColor: '{colors.surface}'
     textColor: '{colors.ink}'
@@ -142,8 +153,8 @@ components:
     rounded: '{rounded.control}'
     size: '32px'
   icon-button-primary:
-    backgroundColor: '{colors.ink}'
-    textColor: '{colors.surface}'
+    backgroundColor: '{colors.fill}'
+    textColor: '{colors.on-fill}'
     rounded: '{rounded.control}'
     size: '32px'
   tooltip:
@@ -203,8 +214,8 @@ components:
     padding: '16px'
     width: '448px'
   header-band:
-    backgroundColor: '{colors.vinyl}'
-    textColor: '{colors.on-vinyl}'
+    backgroundColor: '{colors.band}'
+    textColor: '{colors.on-band}'
     padding: '0 16px'
     height: '48px'
   track-block:
@@ -224,69 +235,76 @@ components:
 
 ## Overview
 
-**Creative North Star: "Side of an LP"**
+**Creative North Star: "Next to Silence"**
 
-On a record you can see where one track ends: the textured groove bands stop and a smooth land runs between them. Audio Splitter draws a source file the same way. Tracks are dense grey waveform bands, every gap is a flat land, and a split reads as something you can see before you read a number. The world refuses the dark audio editor with a bright blue waveform, the studio-gear look, decoration that competes with the waveforms, and dense tiny technical type.
+On an ECM sleeve, quiet is the field the music sits on. Audio Splitter draws a source file that way: every gap is one sea-mist field in every view, tracks are graphite waveforms and slate blocks laid on it, and a split reads as a rust line you can see before you read a number. The world refuses the dark audio editor with a bright blue waveform, the studio-gear look, the grey screen with one accent, decoration that competes with the waveforms, and dense tiny technical type.
 
-By day the ground is sleeve white and the panels are white; by night the ground is vinyl black and the panels near-black. Ink is vinyl black, inverted at night. Waveforms and track blocks are groove grey, lands are sheen grey, and one centre-label vermilion marks splits and the silence threshold. Colour is flat: no gradients, no shadows. Panels separate by a hairline and the ground between them. A `data-theme` attribute on `<html>` carries the theme in effect; how it is set is in [docs/architecture.md](docs/architecture.md#the-theme).
+By day the ground is fog and the panels are sleeve white; by night the ground is slate-black, the panels a step lighter and the gaps deep-sea. Ink and audio are graphite, inverted at night. Slate is the colour of what you press (the filled buttons) and of the header band and the track blocks; only a pressable thing is a slate fill. Rust marks splits and the silence threshold, and nothing else. Colour is flat: no gradients, no shadows. Panels separate by a hairline and the ground between them. A `data-theme` attribute on `<html>` carries the theme in effect; how it is set is in [docs/architecture.md](docs/architecture.md#the-theme).
 
-The waveforms and the loudness curve are the content, so the chrome is quiet: one face (Manrope) with tabular figures, two radii, a 16 px rhythm, and controls that carry state through ink and border rather than colour. Motion is limited to a 100 ms colour transition on controls.
+The waveforms and the loudness curve are the content, so the chrome is quiet: one face (Albert Sans), two radii, a 16 px rhythm, and controls that carry state through ink and border rather than colour. Motion is limited to a 100 ms colour transition on controls.
 
 **Key Characteristics:**
 
-- Groove grey for everything that is audio; sheen-grey lands for every gap.
-- One reserved vermilion: splits, the silence threshold, danger and invalid states, and the centre-label mark in the header.
-- A vinyl-black header band in both themes.
+- Graphite for everything that is audio; one sea-mist field for every gap.
+- One reserved rust: splits, the silence threshold, danger and invalid states.
+- Slate only for pressable fills, the header band and the track blocks; a sea-mist mark in the header.
+- A slate header band by day and a near-black one by night.
 - Flat colour throughout; depth comes from ground versus surface and a 1 px hairline.
-- Manrope everywhere, tabular figures everywhere, nothing smaller than 12 px.
+- Albert Sans everywhere, nothing smaller than 12 px.
 - Hand-drawn canvas views read the same colour tokens as the kit.
 
 ## Colors
 
-A near-monochrome palette of ink, paper and groove greys with one hot accent that means "cut here". `src/app/styles/__tests__/contrast.spec.ts` reads both themes from the CSS entry and holds the text pairs to 4.5:1 and the rest (lines, borders, the focus ring) to 3:1.
+Next to Silence: fog, sleeve white and graphite, one sea-mist for every gap, slate for what you press, and one rust that means "cut here". `src/app/styles/__tests__/contrast.spec.ts` reads both themes from the CSS entry and holds the text pairs to 4.5:1 and the rest (lines, borders, the focus ring) to 3:1. Ratios below are light, then dark.
 
 ### Primary
 
-- **Centre-Label Vermilion** (`split`; dark: `split-dark`): split lines, split numbers and the selected split's chip, the dashed silence threshold and its label and handle, the danger button, invalid field borders and messages, and the centre-label mark in the header. Measured 5.29:1 on white and 5.80:1 on the dark surface (6.25:1 on the dark ground), 3.69:1 on a dark land, so 1.5 px lines stay visible where they cross a land.
-- **On Vermilion** (`on-split`; dark: `on-split-dark`): numbers and labels set on a filled vermilion (the selected split chip, the danger button's hover).
+- **Rust** (`split`; dark: `split-dark`, a lighter orange): split lines, split numbers and the selected split's chip, the dashed silence threshold and its label and handle, the danger button, and invalid field borders and messages. Measured 5.42:1 on the surface and 6.71:1 on the dark surface, 3.55:1 on a land and 4.54:1 on a dark land, so 1.5 px lines stay visible where they cross a gap.
+- **On Rust** (`on-split`): numbers and labels set on a filled rust (the selected split chip, the danger button's hover). 5.63:1 and 7.41:1.
+- **Slate Fill** (`fill`, `fill-hover`, `on-fill`; dark: a light slate-blue with near-black text): the primary button, Play and Export, the only filled controls. The text is 11.71:1 (hover 7.84:1) in light and 7.90:1 (hover 10.04:1) in dark; the fill against the surface is 12.38:1 and 7.16:1, so its edge needs no border.
 
 ### Neutral
 
-- **Vinyl Ink** (`ink`; dark: `ink-dark`): body text, panel titles, the primary button, the slider range and thumb, progress fill, the zoom window and zoom frame outlines, the selected track's outline on the whole-file view, the Range view's and the Track view's playhead and marks and the Track view's pending splits, and the keyboard focus ring. 18.7:1 on white.
-- **Label Grey** (`muted`; dark: `muted-dark`): secondary text, axis times, table headings, field labels and idle progress counts. Measured 6.29:1 (light) and 7.27:1 (dark).
-- **Sleeve Ground** (`ground`; dark: `ground-dark`): the page behind the panels.
-- **Sleeve Surface** (`surface`; dark: `surface-dark`): panels, inputs, secondary/danger/icon button fills, the plate behind the threshold label, and the primary button's text.
+- **Graphite Ink** (`ink`; dark: `ink-dark`): body text, panel titles, the slider range and thumb, progress fill, the tooltip's fill, the zoom window and zoom frame outlines, the selected track's outline on the whole-file view, the Range view's and the Track view's playhead and marks and the Track view's pending splits, and the keyboard focus ring. 15.39:1 on the surface, 12.89:1 on the ground.
+- **Label Grey** (`muted`; dark: `muted-dark`): secondary text, axis times, table headings, field labels and idle progress counts. 6.21:1 on the surface and 5.20:1 on the ground (6.55:1 and 7.23:1 in dark).
+- **Fog Ground** (`ground`; dark: `ground-dark`): the page behind the panels.
+- **Sleeve Surface** (`surface`; dark: `surface-dark`): panels, inputs, secondary/danger/icon button fills, the plate behind the threshold label, and the tooltip's text.
 - **Hairline** (`hairline`; dark: `hairline-dark`): panel borders, table row rules, the empty slider track. Decorative separation only, never the sole boundary of a control.
-- **Control Edge** (`edge`; dark: `edge-dark`): borders of inputs, secondary buttons and icon buttons; 3.33:1 (light) and 3.62:1 (dark) against the surface, enough for a component boundary.
-- **Groove Grey** (`wave`; dark: `wave-dark`): waveform bars, the loudness curve and its 14% fill, the flat run-out line in a land, and the primary button's hover fill.
-- **Track Grey** (`track`; dark: `track-dark`): track blocks in the track strip. Same as the wave in light; a step darker than the wave at night so the white-ish name sits on it at 5.53:1.
+- **Control Edge** (`edge`; dark: `edge-dark`): borders of inputs, secondary buttons and icon buttons; 3.40:1 (light) and 3.64:1 (dark) against the surface, enough for a component boundary.
+- **Graphite Wave** (`wave`; dark: `wave-dark`): waveform bars, the loudness curve and its 14% fill, and the flat run-out line in a land. 11.95:1 on the surface and 7.82:1 on a land (8.83:1 and 5.98:1 in dark).
+- **Slate Track** (`track`; dark: `track-dark`): track blocks in the track strip. The name on it is `on-track`, 7.84:1 (5.50:1 in dark). At night a block against the strip's ground is only 1.83:1: the blocks are told apart by their names and the split items between them.
 - **On Track** (`on-track`; dark: `on-track-dark`): track names and durations on a track block, and the focus ring on a block.
-- **Sheen Land** (`land`; dark: `land-dark`): every gap (the band with no waveform), the track strip's ground between blocks, the empty progress track, text selection, and as a tint for hover (40%) and the selected table row (50%).
+- **Sea-Mist Land** (`land`; dark: `land-dark`, deep-sea): every gap (the band with no waveform) in every view, the track strip's ground between blocks, the empty progress track, text selection, and as a tint for hover (40%) and the selected table row (50%).
 
-### Header band (fixed in both themes)
+### Header band
 
-- **Vinyl** (`vinyl`): the header band's fill, identical by day and night.
-- **On Vinyl** (`on-vinyl`): the product name and file chip text; also the fill of the inverse button and its focus ring.
-- **On Vinyl Muted** (`on-vinyl-muted`): quiet header text such as "Local only" (7.6:1).
-- **Vinyl Edge** (`vinyl-edge`): the band's bottom rule and the file chip's border.
+- **Band** (`band`; dark: `band-dark`): the header band's fill, slate by day and near-black by night.
+- **On Band** (`on-band`): the product name and file chip text; also the fill of the inverse button and its focus ring. 10.89:1 (15.54:1 in dark).
+- **On Band Muted** (`on-band-muted`): quiet header text such as "Local only". 6.00:1 (7.07:1 in dark).
+- **Band Edge** (`band-edge`): the band's bottom rule and the file chip's border.
+- **Mark** (`mark`): the header's mark, a sea-mist disc with a hole, the same in both themes. 8.10:1 on the band (12.07:1 in dark). Rust on slate would be 2.28:1, which is why the mark is not rust.
 
 ### Named Rules
 
-**The Centre-Label Rule.** Vermilion marks a split, the silence threshold, a destructive action, an invalid value, or the centre-label mark in the header, and nothing else: not hover, not selection, not links, not emphasis, not a progress fill. A split item in the track strip is a split, so it takes vermilion when it is hovered, focused or selected.
+**The Rust Rule.** Rust marks a split, the silence threshold, a destructive action or an invalid value, and nothing else: not hover, not selection, not links, not emphasis, not a progress fill, not the brand mark. A split item in the track strip is a split, so it takes rust when it is hovered, focused or selected.
 
-**The Vinyl Band Rule.** The header band is vinyl black with on-vinyl text in both themes; its tokens never take dark-mode overrides.
+**The Slate Fill Rule.** Only a pressable thing is a slate fill: the primary button, Play and Export. Panels, tooltips, sliders and progress are never slate.
 
-**The Groove Grey Rule.** Audio is drawn in groove grey. A waveform, curve or track block is never coloured, never blue, never vermilion.
+**The Silence Rule.** A gap is one sea-mist field in every view, never a grey, never a second colour.
+
+**The Graphite Rule.** Audio is drawn in graphite. A waveform or curve is never coloured, never blue, never rust. A track block is slate, as the one block-shaped thing.
 
 ## Typography
 
 **Display Font:** none (no display face)
-**Body Font:** Manrope (with ui-sans-serif, system-ui, sans-serif)
-**Label/Mono Font:** none; numbers use Manrope's tabular figures
+**Body Font:** Albert Sans (with ui-sans-serif, system-ui, sans-serif)
+**Label/Mono Font:** none
 
-**Character:** One humanist-geometric sans at four weights (400, 500, 600, 700). It reads friendly rather than technical, and its tabular figures keep times, gaps and counts aligned in columns and steady while they change.
+**Character:** One clean geometric sans at four weights (400, 500, 600, 700). It reads calm and exact rather than technical.
 
-Manrope ships as one committed variable woff2 file in `src/app/styles/fonts/` (SIL OFL, licence in `OFL.txt` beside it), loaded by the `@font-face` rule in the token block below. The file is the Latin subset (from `@fontsource-variable/manrope` 5.3.0): Basic Latin, Latin-1, the minus sign, the ellipsis and general punctuation. Characters outside it fall back to the system face. Nothing is fetched from the network at runtime.
+Albert Sans ships as one committed variable woff2 file in `src/app/styles/fonts/` (SIL OFL, licence in `OFL.txt` beside it), loaded by the `@font-face` rule in the token block below. The file is the Latin subset (from `@fontsource-variable/albert-sans` 5.3.0): Basic Latin, Latin-1, the minus sign, the ellipsis and general punctuation. Characters outside it fall back to the system face. Nothing is fetched from the network at runtime.
+
+Albert Sans has no tabular figures: the file has no `tnum` feature, so a `1` is half as wide as a `0` and times and counts shift as they change. `font-variant-numeric: tabular-nums` stays on `body` and takes effect if the face gains the feature or is swapped.
 
 ### Hierarchy
 
@@ -299,7 +317,7 @@ Manrope ships as one committed variable woff2 file in `src/app/styles/fonts/` (S
 
 ### Named Rules
 
-**The Tabular Rule.** `font-variant-numeric: tabular-nums` is set once on `body` and is never switched off; every time, gap, count and dB value is tabular.
+**The Tabular Rule.** `font-variant-numeric: tabular-nums` is set once on `body` and is never switched off. Albert Sans has no tabular figures yet (see above), so for now it changes nothing.
 
 **The Twelve-Pixel Floor.** Nothing is set below 12 px, and nothing is uppercased or letter-spaced to look technical.
 
@@ -315,7 +333,7 @@ Inside a panel the title row comes first: the title on the left, metadata or the
 
 ## Elevation & Depth
 
-The system is flat. There are no shadows and no gradients anywhere, in either theme. Depth is two layers only: the ground and the surface on it, separated by a 1 px hairline border. Interactive state is shown by a change of fill or border (ink, groove grey, a 40% land tint) and by the focus ring, never by lift.
+The system is flat. There are no shadows and no gradients anywhere, in either theme. Depth is two layers only: the ground and the surface on it, separated by a 1 px hairline border. Interactive state is shown by a change of fill or border (ink, slate, a 40% land tint) and by the focus ring, never by lift.
 
 ### Named Rules
 
@@ -323,9 +341,9 @@ The system is flat. There are no shadows and no gradients anywhere, in either th
 
 ## Shapes
 
-Two radii. Controls (buttons, icon buttons, fields, the file chip, track blocks and the track strip) have gently softened corners (`control`, 6px). Panels have slightly rounder corners (`panel`, 8px). Pills (`full`) are reserved for things that are round by nature: the slider track, range and thumb, progress bars, split number chips and the header's centre-label mark.
+Two radii. Controls (buttons, icon buttons, fields, the file chip, track blocks and the track strip) have gently softened corners (`control`, 6px). Panels have slightly rounder corners (`panel`, 8px). Pills (`full`) are reserved for things that are round by nature: the slider track, range and thumb, progress bars, split number chips and the header's mark.
 
-Borders are 1px: hairline for panels and row rules, control edge for controls, vermilion for danger and invalid. Canvas outlines (zoom window, zoom frame) are 1.5px ink with square corners.
+Borders are 1px: hairline for panels and row rules, control edge for controls, rust for danger and invalid. Canvas outlines (zoom window, zoom frame) are 1.5px ink with square corners.
 
 ### Named Rules
 
@@ -335,7 +353,7 @@ Borders are 1px: hairline for panels and row rules, control edge for controls, v
 
 Every kit component lives in `src/shared/ui/` as `Ui<Name>.vue` (`UiButton`, `UiIconButton`, `UiTextField`, `UiSlider`, `UiSegmentedControl`, `UiPanel`, `UiProgressBar`, `UiDialog`, `UiPlainDialog`, `UiTooltip`; the prefix keeps a kit component from reading like a native element) and is a Reka UI 2 primitive (or a native element) styled with Tailwind 4 utilities on the tokens below. Classes are given exactly; `focus-ring` is the custom utility defined in the token block.
 
-**Focus.** Every interactive element shows `focus-visible:focus-ring`: a 2px solid ink outline at 2px offset. On the vinyl band the ring uses `on-vinyl`. On a track block (clicking one selects its track) it uses `on-track`. A mouse press takes no focus from a button, an icon button, a segmented-control option, a slider thumb or the track list's and the track strip's buttons, so the next key goes to the view on show (ADR 0002); Tab still focuses them, with the ring and their own keys. The `releaseFocus` handler on `mousedown` (`src/shared/lib/keyboard/release-focus.ts`) does it, and lets go of a text field being edited too, as a click elsewhere would; the slider lets go of its thumb each time Reka focuses it during a pointer drag, not only when the drag ends, because a dialog the drag opens would give the focus back to the thumb when it closes.
+**Focus.** Every interactive element shows `focus-visible:focus-ring`: a 2px solid ink outline at 2px offset. On the header band the ring uses `on-band`. On a track block (clicking one selects its track) it uses `on-track`. A mouse press takes no focus from a button, an icon button, a segmented-control option, a slider thumb or the track list's and the track strip's buttons, so the next key goes to the view on show (ADR 0002); Tab still focuses them, with the ring and their own keys. The `releaseFocus` handler on `mousedown` (`src/shared/lib/keyboard/release-focus.ts`) does it, and lets go of a text field being edited too, as a click elsewhere would; the slider lets go of its thumb each time Reka focuses it during a pointer drag, not only when the drag ends, because a dialog the drag opens would give the focus back to the thumb when it closes.
 
 **Disabled.** Opacity 40% on the whole control and `cursor-not-allowed`; no colour change, no hover response (hover utilities are gated by `enabled:`).
 
@@ -348,13 +366,13 @@ Every kit component lives in `src/shared/ui/` as `Ui<Name>.vue` (`UiButton`, `Ui
 Character: firm and quiet; ink does the talking, colour only for danger.
 
 - **Base:** `inline-flex h-9 cursor-pointer items-center gap-2 rounded-control px-3.5 text-sm font-semibold whitespace-nowrap transition-colors duration-100 disabled:cursor-not-allowed disabled:opacity-40`. Icon before the label, except a "forward" step where it follows. Every variant but inverse adds `focus-visible:focus-ring`.
-- **Primary:** `bg-ink text-surface enabled:hover:bg-wave`. One per panel at most; it is the panel's main action.
+- **Primary:** `bg-fill text-on-fill enabled:hover:bg-fill-hover`. One per panel at most; it is the panel's main action.
   The zoom panel's title row holds no labelled button: its actions are icon buttons (see IconButton), and the panel's one primary action, Play, is the filled one. After the `Split | Track | Range` control the zoom view has "Add split" (Plus), "Delete split" (Trash2, disabled with no split selected) and the primary "Play across split", which reads "Stop" with a filled Square in place of the Play icon while a clip is loading or playing. The Range view has "Add split", "Back to range start" (SkipBack, always enabled) and the primary "Play", which reads "Stop" (filled Square) while the range is decoded and "Pause" (filled Pause) while it plays. The Track view has no "Add split": after the control it has "Add pending split" (BookmarkPlus, key Enter, disabled with no mark, no room at the mark or a pending split selected), "Apply" (Check, disabled with no pending split), "Delete pending split" (BookmarkMinus, key Delete, there only while a pending split is selected), then "Back to track start" and "Play". Both views end with their single export, "Export track…" or "Export range…" (FileDown, secondary, disabled while the full export runs, and "Export track…" also while the track has pending splits, with the tooltip "Apply or delete pending splits first"); it opens the name dialog (see Plain dialog) and its tooltip has no key. Every view's row then ends with the volume control (see Slider, Volume). Only "Export to folder…", "New file" and the dialogs' actions keep their words.
 - **Primary lg:** primary plus `h-10 px-5 text-base`. Reserved for the Export action; no other button is large.
 - **Small (`sm`):** base with `h-8 px-3` in place of `h-9 px-3.5`. For actions in a panel title row and in table rows (for example "Add split").
 - **Secondary:** `border border-edge bg-surface text-ink enabled:hover:border-ink enabled:hover:bg-land/40`.
-- **Danger:** `border border-split bg-surface text-split enabled:hover:bg-split enabled:hover:text-on-split`. Outlined at rest, filled vermilion on hover.
-- **Inverse:** `bg-on-vinyl text-vinyl enabled:hover:bg-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-on-vinyl`. Only on the vinyl header band. The ring is spelled out rather than `focus-ring` plus a colour, because those two outline colours have no stable winner: the dev server and the build order the rules differently.
+- **Danger:** `border border-split bg-surface text-split enabled:hover:bg-split enabled:hover:text-on-split`. Outlined at rest, filled rust on hover.
+- **Inverse:** `bg-on-band text-band enabled:hover:bg-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-on-band`. Only on the header band. The ring is spelled out rather than `focus-ring` plus a colour, because those two outline colours have no stable winner: the dev server and the build order the rules differently.
 - **States:** default as above; hover as the `enabled:hover:` utilities; keyboard focus adds the ring without changing fill; disabled at 40% opacity.
 
 ### IconButton
@@ -362,8 +380,8 @@ Character: firm and quiet; ink does the talking, colour only for danger.
 - `inline-flex size-9 cursor-pointer items-center justify-center rounded-control border border-edge bg-surface text-ink transition-colors duration-100 enabled:hover:border-ink enabled:hover:bg-land/40 focus-visible:focus-ring disabled:cursor-not-allowed disabled:opacity-40`.
 - A 36 px square styled like a secondary button, holding one 16 px icon. The `label` is required: it is the button's accessible name (`aria-label`) and its tooltip, so the icon costs a screen reader nothing and a sighted user never has to guess. An optional `hint` names the button's key, and the tooltip says it after the label ("Add split (Enter)"); the accessible name stays the label alone. An optional `reason` says why the button is off ("Apply or delete pending splits first"): while it is set the tooltip says it in place of the label and the key.
 - **Small (`sm`):** `size-8` in place of `size-9`, for table rows and title rows.
-- **Primary:** `bg-ink text-surface enabled:hover:bg-wave` in place of the secondary fill and border: a title row's one main action, Play, as the filled button is elsewhere. One per panel at most.
-- **Inverse:** the inverse button's fill and spelled-out ring (`bg-on-vinyl text-vinyl enabled:hover:bg-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-on-vinyl`), 36 px, only on the vinyl header band: the `?` button. Its tooltip is the ordinary one, which flips below the button because the band is at the top of the page.
+- **Primary:** `bg-fill text-on-fill enabled:hover:bg-fill-hover` in place of the secondary fill and border: a title row's one main action, Play, as the filled button is elsewhere. One per panel at most.
+- **Inverse:** the inverse button's fill and spelled-out ring (`bg-on-band text-band enabled:hover:bg-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-on-band`), 36 px, only on the header band: the `?` button. Its tooltip is the ordinary one, which flips below the button because the band is at the top of the page.
 - A caller's `class` and listeners go to the button, not to the tooltip around it.
 
 ### Tooltip
@@ -378,7 +396,7 @@ Reka `TooltipProvider` / `TooltipRoot` / `TooltipTrigger` / `TooltipContent`, wr
 
 - **Default:** native `input`: `h-9 w-full max-w-56 rounded-control border border-edge bg-surface px-2.5 text-sm text-ink enabled:hover:border-ink focus-visible:focus-ring disabled:opacity-40`.
 - **Hover:** border goes to ink. **Focus:** ink ring. **Disabled:** 40% opacity.
-- **Invalid:** set `aria-invalid="true"` and the field takes `aria-invalid:border-split aria-invalid:outline-split` (vermilion border at rest, vermilion ring when focused). The message sits directly below: `mt-1 text-xs font-semibold text-split`, linked with `aria-describedby`, written as a plain sentence. The single export's name field uses it for a failed export's reason; a track name is never invalid.
+- **Invalid:** set `aria-invalid="true"` and the field takes `aria-invalid:border-split aria-invalid:outline-split` (rust border at rest, rust ring when focused). The message sits directly below: `mt-1 text-xs font-semibold text-split`, linked with `aria-describedby`, written as a plain sentence. The single export's name field uses it for a failed export's reason; a track name is never invalid.
 - **Wide variant** (the name in the single export's dialog): the default's look across the whole width, without `max-w-56`.
 - **Inline variant** (rename a track inside its track-list row): `-mx-1.5 h-6 w-[calc(100%+12px)] rounded-control border border-transparent bg-transparent px-1.5 text-sm text-ink enabled:hover:border-edge focus-visible:focus-ring`. It reads as the row's text until hovered (edge border) or focused (ink ring). It has no invalid state: export sanitises filenames, so no track name is wrong.
 
@@ -404,7 +422,7 @@ Reka `RadioGroupRoot` / `RadioGroupItem`: a choice of one among a few views, suc
 - **Option:** `inline-flex h-full cursor-pointer items-center justify-center rounded-control border border-transparent px-3 text-sm font-semibold whitespace-nowrap text-ink transition-colors duration-100 focus-visible:focus-ring enabled:hover:bg-land/40 disabled:cursor-not-allowed disabled:opacity-40`.
 - **Chosen:** `aria-checked:border-ink aria-checked:bg-land/50`: state carried by ink and border, as the selected track block is, never by a filled button, so the panel's one primary button stays the one filled control. It keys on `aria-checked`, not `data-state`, because the tooltip around an icon option sets its own `data-state` on the same button.
 - **Icon option:** an option given an `icon` shows the 16 px icon alone (`px-2` in place of `px-3`); its label is its tooltip and its `aria-label`, so the icon costs a screen reader nothing.
-- **Inverse:** `variant="inverse"`, only on the vinyl header band: the root is `border-vinyl-edge` with no fill, an option is `text-on-vinyl` with `enabled:hover:bg-on-vinyl/15`, the chosen one `border-on-vinyl bg-on-vinyl/20`, and the ring is spelled out as the inverse button's is (`focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-on-vinyl`).
+- **Inverse:** `variant="inverse"`, only on the header band: the root is `border-band-edge` with no fill, an option is `text-on-band` with `enabled:hover:bg-on-band/15`, the chosen one `border-on-band bg-on-band/20`, and the ring is spelled out as the inverse button's is (`focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-on-band`).
 - **Theme switch:** the one use of both, in the header band on both screens (see Header band).
 
 ### Panel
@@ -442,12 +460,12 @@ Reka `Dialog` (`UiPlainDialog`): a dialog that gives information or asks for a n
 
 ### Header band
 
-`flex h-12 items-center gap-4 border-b border-vinyl-edge bg-vinyl px-4 text-on-vinyl`, in both themes. Left to right: the centre-label mark (a 20px vermilion disc with a 6px vinyl hole, `aria-hidden`), the product name in Headline, the file chip (`rounded-control border border-vinyl-edge px-2.5 py-1 text-xs font-semibold`), the theme switch pushed right (an inverse segmented control named "Theme": System (Monitor), Light (Sun), Dark (Moon), bound to the theme module's choice), quiet text in `text-xs text-on-vinyl-muted`, and inverse buttons: the `?` icon button ("Keyboard shortcuts (?)", review screen only), then "New file".
+`flex h-12 items-center gap-4 border-b border-band-edge bg-band px-4 text-on-band`, slate by day and near-black by night. Left to right: the mark (a 20px sea-mist `mark` disc with a 6px `band` hole, `aria-hidden`), the product name in Headline, the file chip (`rounded-control border border-band-edge px-2.5 py-1 text-xs font-semibold`), the theme switch pushed right (an inverse segmented control named "Theme": System (Monitor), Light (Sun), Dark (Moon), bound to the theme module's choice), quiet text in `text-xs text-on-band-muted`, and inverse buttons: the `?` icon button ("Keyboard shortcuts (?)", review screen only), then "New file".
 
 ### Track strip and track blocks
 
 - **Strip:** `flex h-14 rounded-control bg-land`, with no gap: a split item sits between every two blocks, and the land shows through it at rest.
-- **Split item:** an `li` 8px wide (`SPLIT_ITEM_PX`, the whole height of the strip) holding one `button`, `block size-full cursor-pointer rounded-control hover:bg-split focus-visible:bg-split focus-visible:outline-none`: transparent over the land at rest, `split` when hovered, focused or selected (`bg-split`), so a split reads as a split here as everywhere else. Vermilion on the land is 3.3:1 in light and 3.8:1 in dark, so the fill alone is the focus indicator. `aria-label` and `title` "Split N, h:mm:ss.cc" (N is the number the whole-file view shows), `aria-current="true"` while the split is selected. A click selects the split and shows the zoom view centred on it. None before the first block or after the last.
+- **Split item:** an `li` 8px wide (`SPLIT_ITEM_PX`, the whole height of the strip) holding one `button`, `block size-full cursor-pointer rounded-control hover:bg-split focus-visible:bg-split focus-visible:outline-none`: transparent over the land at rest, `split` when hovered, focused or selected (`bg-split`), so a split reads as a split here as everywhere else. Rust on the land is 3.55:1 in light and 4.54:1 in dark, so the fill alone is the focus indicator. `aria-label` and `title` "Split N, h:mm:ss.cc" (N is the number the whole-file view shows), `aria-current="true"` while the split is selected. A click selects the split and shows the zoom view centred on it. None before the first block or after the last.
 - **Block:** an `li`, `min-w-0 flex-none rounded-control border-2 bg-track text-on-track`, with an inline pixel width from `layoutTrackBlocks`: proportional to the track's duration, after the 8px split items between blocks, and never under 12px (a very short track keeps a block that can be clicked, and the others share what is left; on a strip with so many tracks that the minimums do not fit, the blocks are equal and narrower). Every block carries its name and length in `title` and `aria-label`. The `li` holds one inner element, `flex size-full min-w-0 flex-col justify-center gap-0.5 text-left`, which lays out the text.
 - **Selected:** the selected track's block (a click on a block selects its track) has `aria-current="true"` and a 2px `on-track` border; every other block has a 2px transparent one, so nothing shifts.
 - **Button:** every block, the first included, has a `button` as its inner element, with `cursor-pointer` and the on-track focus ring inside the block (`focus-visible:outline-2 focus-visible:-outline-offset-4 focus-visible:outline-on-track`).
@@ -455,7 +473,7 @@ Reka `Dialog` (`UiPlainDialog`): a dialog that gives information or asks for a n
 
 ### Split number and selected row
 
-- The selected split's number is a filled vermilion chip wherever it appears: `inline-flex size-5 items-center justify-center rounded-full bg-split text-xs font-bold text-on-split`. Other split numbers in lists are plain `text-muted` in the same 20px box.
+- The selected split's number is a filled rust chip wherever it appears: `inline-flex size-5 items-center justify-center rounded-full bg-split text-xs font-bold text-on-split`. Other split numbers in lists are plain `text-muted` in the same 20px box.
 - Table rows are separated by `border-b border-hairline` with 6px vertical padding; the selected row takes `bg-land/50 font-semibold`.
 - **Track-list rows:** the list holds a track row for each track and a split row between every two, in time order. A row is clickable (`cursor-pointer hover:bg-land/40`) and a track row's number cell holds a button (`size-5 rounded-control text-muted focus-visible:focus-ring`, `aria-label` "Select track N, starts at …"); the selected row, a track row or a split row, is `aria-current="true"` with `bg-land/50` and weight 600. The number is the track's, so the selected row is marked by its tint and weight only, not by a chip.
 - **Track-list table:** `w-full border-separate border-spacing-0 text-left text-sm` inside a 160px (`h-40`) box that scrolls inside itself. The heading row is Caption in weight 500 and `muted` (`text-xs font-medium text-muted`); each `th` is `sticky top-0 border-b border-hairline bg-surface py-1` (`pr-2` except the last, `w-12` for the number column), so the headings stay in view over the scrolling rows. Cells are `border-b border-hairline py-1.5` (`pr-2` except the last).
@@ -464,13 +482,13 @@ Reka `Dialog` (`UiPlainDialog`): a dialog that gives information or asks for a n
 
 ### Canvas drawing rules (signature)
 
-The whole-file waveform, the loudness curve and the zoom view are hand-drawn canvases inside their widgets, not kit components. They read colours from the same tokens with `getComputedStyle(document.documentElement).getPropertyValue('--color-…')`, scale by `devicePixelRatio`, draw once `document.fonts.ready` resolves, and redraw on resize and when the theme in effect changes (`useCanvasRedraw`). Canvas text is `700 12px Manrope`.
+The whole-file waveform, the loudness curve and the zoom view are hand-drawn canvases inside their widgets, not kit components. They read colours from the same tokens with `getComputedStyle(document.documentElement).getPropertyValue('--color-…')`, scale by `devicePixelRatio`, draw once `document.fonts.ready` resolves, and redraw on resize and when the theme in effect changes (`useCanvasRedraw`). Canvas text is `700 12px "Albert Sans"` (`CANVAS_FONT`).
 
-- **Wave:** groove-grey (`wave`) vertical bars, 2px wide on a 3px pitch, symmetric about the centre line.
+- **Wave:** graphite (`wave`) vertical bars, 2px wide on a 3px pitch, symmetric about the centre line.
 - **Whole-file canvas:** 120px tall in all: a 22px split-number band above a 98px wave area. Lands and split lines cover the wave area only. The loudness curve's canvas is also 120px, with lands and split lines over its full height.
 - **Land:** a gap is a `land` band with no waveform in it. In whole-file views a 2 s gap is sub-pixel, so a land is drawn at least 12px wide, centred on its split. A land that is widened shifts inwards only as far as the canvas edge needs. A lead-in or run-out land has no split, so it grows from its canvas edge (a lead-in from the left, a run-out from the right). Widened neighbours may overlap: lands are one flat colour, so overlapping ones read as one band, and each split line stays at its own time.
 - **Split line:** `split`, 1.5px wide, the full height of the wave area. The selected split is 3px wide.
-- **Split numbers (whole-file view):** a 22px band above the waveform carries each split's number, centred on its line, in `split`. The selected split's number sits in a filled vermilion circle (20px) with the number in `on-split`.
+- **Split numbers (whole-file view):** a 22px band above the waveform carries each split's number, centred on its line, in `split`. The selected split's number sits in a filled rust circle (20px) with the number in `on-split`.
 - **Zoom window (whole-file view):** the stretch shown in the zoom view, outlined in 1.5px `ink`, the height of the wave area. It matches the zoom view's own frame. In the Track view the same outline is drawn on the selected track's stretch instead.
 - **Loudness curve:** a 1.5px `wave` line, with the area under it filled in `wave` at 14% alpha; lands run the full canvas height behind it.
 - **Silence threshold:** a dashed line (5px dash, 4px gap, 1.5px) in `split` across the full width. Its label ("−35 dB") is drawn in `split` on a `surface`-coloured plate (text width + 8px, 17px tall) above the line at the left, for contrast where it crosses the fill and lands. A drag handle (18 × 10 px, `split`) sits on the line at the right edge.
@@ -485,7 +503,7 @@ The whole-file waveform, the loudness curve and the zoom view are hand-drawn can
 
 **The Shared Token Rule.** Canvas code never hard-codes a colour; it reads the `--color-…` variables, so canvases and kit change theme together.
 
-**The Ink Focus Rule.** Keyboard focus is always a 2 px outline at 2 px offset in the ink of its ground (`ink`, `on-vinyl` on the header band, `on-track` on a track block, `split` on an invalid field).
+**The Ink Focus Rule.** Keyboard focus is always a 2 px outline at 2 px offset in the ink of its ground (`ink`, `on-band` on the header band, `on-track` on a track block, `split` on an invalid field).
 
 ## Do's and Don'ts
 
@@ -493,19 +511,19 @@ The whole-file waveform, the loudness curve and the zoom view are hand-drawn can
 
 - **Do** take every colour, radius and text size from the token block; add a token before adding a one-off value.
 - **Do** key the dark values on `[data-theme='dark']`, set only by the theme module; nothing in CSS, the kit or a canvas reads `prefers-color-scheme`.
-- **Do** draw every gap as a land, at least 12 px wide in whole-file views, and keep audio in groove grey.
-- **Do** keep vermilion for splits, the silence threshold, danger, invalid states and the header's centre-label mark.
+- **Do** draw every gap as a land, at least 12 px wide in whole-file views, and keep audio in graphite.
+- **Do** keep rust for splits, the silence threshold, danger and invalid states, and slate fills for what is pressed.
 - **Do** read canvas colours from the `--color-…` variables and redraw when the theme in effect changes.
 - **Do** give every control a visible keyboard focus ring (2 px outline, 2 px offset) and every icon button an `aria-label`.
 - **Do** use `lucide-vue-next` icons at 16 px with a 2 px round stroke.
-- **Do** keep figures tabular and text at 12 px or larger.
+- **Do** keep text at 12 px or larger, and keep `tabular-nums` on `body` for when the face has tabular figures.
 - **Do** reserve the large button size for the Export action.
 
 ### Don't:
 
 - **Don't** use gradients, shadows, blur or translucency over content.
 - **Don't** draw a bright blue (or any coloured) waveform, or dress the screen as studio gear.
-- **Don't** use vermilion for hover, selection, links, emphasis, progress or branding beyond the centre-label mark.
+- **Don't** use rust for hover, selection, links, emphasis, progress or branding, and don't fill anything slate that is not pressable.
 - **Don't** fetch fonts or any other asset from the network at runtime.
 - **Don't** use Unicode glyphs as icons.
 - **Don't** dim text with opacity to make hierarchy; use `muted`, size or weight.
@@ -520,32 +538,36 @@ Paste into the app's single CSS entry (`src/app/styles/main.css`). Light values 
 @import 'tailwindcss';
 
 @font-face {
-  font-family: 'Manrope';
-  src: url('./fonts/manrope-variable.woff2') format('woff2');
-  font-weight: 200 800;
+  font-family: 'Albert Sans';
+  src: url('./fonts/albert-sans-variable.woff2') format('woff2');
+  font-weight: 100 900;
   font-style: normal;
   font-display: swap;
 }
 
 @theme static {
-  --font-sans: 'Manrope', ui-sans-serif, system-ui, sans-serif;
+  --font-sans: 'Albert Sans', ui-sans-serif, system-ui, sans-serif;
 
-  --color-ground: #f7f7f5; /* sleeve white: page behind the panels */
-  --color-surface: #ffffff; /* panels, inputs, secondary buttons */
-  --color-ink: #121212; /* text, primary button, focus ring */
-  --color-muted: #5e6066; /* secondary text, axis labels */
-  --color-hairline: #e2e3e0; /* panel borders, row rules, slider track */
-  --color-edge: #8a8d93; /* control borders: 3:1 against surface */
-  --color-wave: #3a3a3a; /* waveform and loudness curve */
-  --color-track: #3a3a3a; /* track blocks in the strip */
-  --color-on-track: #ffffff;
-  --color-land: #c9ccd1; /* gaps: the smooth band between tracks */
-  --color-split: #c8341f; /* centre-label vermilion: splits, threshold, danger, invalid */
+  --color-ground: #e3e8e6; /* fog: page behind the panels */
+  --color-surface: #fafbfa; /* sleeve white: panels, inputs, secondary buttons */
+  --color-ink: #1b2326; /* graphite: text, focus ring */
+  --color-muted: #55615e; /* secondary text, axis labels */
+  --color-hairline: #d2d9d6; /* panel borders, row rules, slider track */
+  --color-edge: #7f8b88; /* control borders: 3:1 against surface */
+  --color-wave: #2c3639; /* waveform and loudness curve: graphite */
+  --color-track: #3b4f57; /* track blocks in the strip: slate */
+  --color-on-track: #f2f5f4;
+  --color-land: #bcd2cd; /* gaps: one sea-mist field in every view */
+  --color-split: #b83e0b; /* rust: splits, threshold, danger, invalid */
   --color-on-split: #ffffff;
-  --color-vinyl: #121212; /* header band: the same in both themes */
-  --color-on-vinyl: #ededea;
-  --color-on-vinyl-muted: #a3a5aa;
-  --color-vinyl-edge: #3a3a3a;
+  --color-fill: #26343a; /* slate fill of the pressable things: primary button, Play, Export */
+  --color-fill-hover: #3b4f57;
+  --color-on-fill: #f2f5f4;
+  --color-band: #26343a; /* header band */
+  --color-on-band: #e6eeec;
+  --color-on-band-muted: #a3b5b2;
+  --color-band-edge: #3a4a51;
+  --color-mark: #bcd2cd; /* the header's mark: sea-mist, the same in both themes */
 
   --radius-control: 6px;
   --radius-panel: 8px;
@@ -561,18 +583,25 @@ Paste into the app's single CSS entry (`src/app/styles/main.css`). Light values 
 }
 
 [data-theme='dark'] {
-  --color-ground: #0e0e0e;
-  --color-surface: #171717;
-  --color-ink: #ededea;
-  --color-muted: #a3a5aa;
-  --color-hairline: #2a2b2d;
-  --color-edge: #6e7076;
-  --color-wave: #b9bcc1;
-  --color-track: #5c5e63;
-  --color-on-track: #ededea;
-  --color-land: #383a3e;
-  --color-split: #ff5a43;
-  --color-on-split: #0e0e0e;
+  --color-ground: #101618;
+  --color-surface: #182023;
+  --color-ink: #e2e9e7;
+  --color-muted: #98a6a3;
+  --color-hairline: #263033;
+  --color-edge: #6b7977;
+  --color-wave: #b4c0bd;
+  --color-track: #4c6670;
+  --color-on-track: #f0f4f3;
+  --color-land: #24403d;
+  --color-split: #f28a4e;
+  --color-on-split: #101618;
+  --color-fill: #8fb0ba;
+  --color-fill-hover: #a8c5ce;
+  --color-on-fill: #101618;
+  --color-band: #0b1012;
+  --color-on-band: #e2e9e7;
+  --color-on-band-muted: #8fa19e;
+  --color-band-edge: #263033;
 }
 
 @layer base {

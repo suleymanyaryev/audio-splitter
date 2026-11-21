@@ -96,4 +96,4 @@ v1 is complete. v2 will be planned the same way, one audio concept per milestone
 
 The code is [MIT](LICENSE).
 
-Builds also include third-party code under its own licence. The ffmpeg core (`@ffmpeg/core` 0.12.10) is GPL-2.0-or-later and is copied into every build, so a public deployment distributes a GPL program and should link to [its source](https://github.com/ffmpegwasm/ffmpeg.wasm) and licence. The Manrope font is under the SIL Open Font License, included in `src/app/styles/fonts/`.
+Builds also include third-party code under its own licence. The ffmpeg core (`@ffmpeg/core` 0.12.10) is GPL-2.0-or-later and is copied into every build, so a public deployment distributes a GPL program and should link to [its source](https://github.com/ffmpegwasm/ffmpeg.wasm) and licence. The Albert Sans font is under the SIL Open Font License, included in `src/app/styles/fonts/`.

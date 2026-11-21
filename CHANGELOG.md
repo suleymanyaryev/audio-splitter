@@ -22,6 +22,10 @@ Versions follow [Semantic Versioning](https://semver.org/) applied to the produc
 
 - A System, Light and Dark switch in the header, on the load screen and the review screen. Your choice is remembered and applied before the page first paints; on System the app follows your computer's theme as it changes, and every waveform and curve redraws at once.
 
+### Changed
+
+- The app has a new look, in both themes: a fog ground, graphite waveforms, one sea-mist colour for every gap, rust only for splits and the silence threshold, a slate header and slate buttons, and the Albert Sans typeface in place of Manrope. Albert Sans has no fixed-width digits, so times and counts no longer line up in columns.
+
 ## [1.2.0] - 2026-11-21
 
 ### Changed

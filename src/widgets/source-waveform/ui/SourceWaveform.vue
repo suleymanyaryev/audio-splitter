@@ -177,7 +177,7 @@ const { liveRange, onPointerDown, onPointerMove, onPointerUp, onPointerCancel } 
   click: onClick,
 })
 
-// The split numbers are canvas text, so the first draw is repeated once Manrope has loaded.
+// The split numbers are canvas text, so the first draw is repeated once Albert Sans has loaded.
 useCanvasRedraw(canvas, draw)
 
 watch(

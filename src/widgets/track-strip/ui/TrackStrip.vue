@@ -16,7 +16,7 @@ and keeps room for the 8 px split items.
 Every block is a button that selects its track, the first included, and the block of the selected
 track is marked with a 2 px `on-track` border (DESIGN.md's "Selected" bullet). A split item is a
 button that selects the split where the next block starts, which shows the zoom view centred on it.
-It is the land between the blocks at rest, and vermilion, the colour of a split, when it is hovered,
+It is the land between the blocks at rest, and rust, the colour of a split, when it is hovered,
 focused or selected. A mouse press on either takes no focus, so the next key goes to the view on
 show (src/shared/lib/keyboard/use-page-keys.ts); Tab still reaches them.
 */

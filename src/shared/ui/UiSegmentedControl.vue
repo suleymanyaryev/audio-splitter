@@ -10,7 +10,7 @@ const { variant = 'default' } = defineProps<{
   label: string
   // An option with an `icon` shows the icon alone: its label is the tooltip and the accessible name.
   options: { value: Value; label: string; disabled?: boolean; icon?: Component }[]
-  // `inverse` is only for the vinyl header band.
+  // `inverse` is only for the header band.
   variant?: 'default' | 'inverse'
 }>()
 
@@ -23,7 +23,7 @@ sets its own `data-state` (closed, open) on the same button.
 */
 const ROOT_CLASSES = {
   default: 'border-edge bg-surface',
-  inverse: 'border-vinyl-edge',
+  inverse: 'border-band-edge',
 }
 
 /*
@@ -34,7 +34,7 @@ const OPTION_CLASSES = {
   default:
     'text-ink focus-visible:focus-ring enabled:hover:bg-land/40 aria-checked:border-ink aria-checked:bg-land/50',
   inverse:
-    'text-on-vinyl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-on-vinyl enabled:hover:bg-on-vinyl/15 aria-checked:border-on-vinyl aria-checked:bg-on-vinyl/20',
+    'text-on-band focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-on-band enabled:hover:bg-on-band/15 aria-checked:border-on-band aria-checked:bg-on-band/20',
 }
 </script>
 

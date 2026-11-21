@@ -51,18 +51,15 @@ function discardAndReset() {
 </script>
 
 <template>
-  <!-- The band's tokens have no dark values, so it stays vinyl black in both themes. -->
-  <header
-    class="flex h-12 items-center gap-4 border-b border-vinyl-edge bg-vinyl px-4 text-on-vinyl"
-  >
-    <!-- The centre-label mark: a vermilion disc with a spindle hole. -->
-    <span aria-hidden="true" class="grid size-5 shrink-0 place-items-center rounded-full bg-split">
-      <span class="size-1.5 rounded-full bg-vinyl" />
+  <header class="flex h-12 items-center gap-4 border-b border-band-edge bg-band px-4 text-on-band">
+    <!-- The mark: a sea-mist disc with a hole. -->
+    <span aria-hidden="true" class="grid size-5 shrink-0 place-items-center rounded-full bg-mark">
+      <span class="size-1.5 rounded-full bg-band" />
     </span>
     <span class="text-lg font-bold">Audio Splitter</span>
     <span
       v-if="chip"
-      class="min-w-0 truncate rounded-control border border-vinyl-edge px-2.5 py-1 text-xs font-semibold"
+      class="min-w-0 truncate rounded-control border border-band-edge px-2.5 py-1 text-xs font-semibold"
     >
       {{ chip }}
     </span>
@@ -74,7 +71,7 @@ function discardAndReset() {
       :model-value="themeChoice"
       @update:model-value="setThemeChoice"
     />
-    <span class="shrink-0 text-xs text-on-vinyl-muted">Local only · nothing is uploaded</span>
+    <span class="shrink-0 text-xs text-on-band-muted">Local only · nothing is uploaded</span>
     <UiIconButton
       v-if="sourceFile.status === 'ready'"
       variant="inverse"

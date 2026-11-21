@@ -154,7 +154,7 @@ function draw() {
   drawThreshold(context, style, width, height)
 }
 
-// The threshold label is canvas text, so the first draw is repeated once Manrope has loaded.
+// The threshold label is canvas text, so the first draw is repeated once Albert Sans has loaded.
 useCanvasRedraw(canvas, draw)
 
 watch(

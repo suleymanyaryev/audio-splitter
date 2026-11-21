@@ -8,18 +8,18 @@ const { variant = 'secondary', size = 'md' } = defineProps<{
 }>()
 
 const VARIANT_CLASSES = {
-  primary: 'bg-ink text-surface focus-visible:focus-ring enabled:hover:bg-wave',
+  primary: 'bg-fill text-on-fill focus-visible:focus-ring enabled:hover:bg-fill-hover',
   secondary:
     'border border-edge bg-surface text-ink focus-visible:focus-ring enabled:hover:border-ink enabled:hover:bg-land/40',
   danger:
     'border border-split bg-surface text-split focus-visible:focus-ring enabled:hover:bg-split enabled:hover:text-on-split',
   /*
-  Only on the vinyl header band, where the ring takes the band's own ink. It is spelled out
+  Only on the header band, where the ring takes the band's own ink. It is spelled out
   because `focus-ring` plus a second outline colour has no stable winner: the dev server and the
   build order the two rules differently.
   */
   inverse:
-    'bg-on-vinyl text-vinyl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-on-vinyl enabled:hover:bg-white',
+    'bg-on-band text-band focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-on-band enabled:hover:bg-white',
 }
 
 const SIZE_CLASSES = {

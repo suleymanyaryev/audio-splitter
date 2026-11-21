@@ -125,16 +125,16 @@ describe('UiSegmentedControl', () => {
       const inverse = mountControl('split', OPTIONS, 'inverse')
 
       expect(plain.get('[role="radiogroup"]').classes()).toContain('bg-surface')
-      expect(inverse.get('[role="radiogroup"]').classes()).toContain('border-vinyl-edge')
+      expect(inverse.get('[role="radiogroup"]').classes()).toContain('border-band-edge')
       expect(inverse.get('[role="radiogroup"]').classes()).not.toContain('bg-surface')
-      expect(radio(inverse, 'Split').classes()).toContain('text-on-vinyl')
+      expect(radio(inverse, 'Split').classes()).toContain('text-on-band')
       expect(radio(inverse, 'Split').classes()).not.toContain('text-ink')
     })
 
     it('spells its focus ring out in the band ink', () => {
       const option = radio(mountControl('split', OPTIONS, 'inverse'), 'Split')
 
-      expect(option.classes()).toContain('focus-visible:outline-on-vinyl')
+      expect(option.classes()).toContain('focus-visible:outline-on-band')
       expect(option.classes()).not.toContain('focus-visible:focus-ring')
     })
   })

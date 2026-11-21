@@ -22,18 +22,18 @@ const {
   // `md` is 36 px; `sm` (32 px) is for table rows and title rows.
   size?: 'sm' | 'md'
   // `primary` is the panel's one main action, filled like UiButton's primary; `inverse` is only
-  // for the vinyl header band.
+  // for the header band.
   variant?: 'secondary' | 'primary' | 'inverse'
 }>()
 
 const VARIANT_CLASSES = {
   secondary:
     'border border-edge bg-surface text-ink focus-visible:focus-ring enabled:hover:border-ink enabled:hover:bg-land/40',
-  primary: 'bg-ink text-surface focus-visible:focus-ring enabled:hover:bg-wave',
+  primary: 'bg-fill text-on-fill focus-visible:focus-ring enabled:hover:bg-fill-hover',
   // The ring is spelled out, as UiButton's inverse spells it: `focus-ring` plus a second outline
   // colour has no stable winner.
   inverse:
-    'bg-on-vinyl text-vinyl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-on-vinyl enabled:hover:bg-white',
+    'bg-on-band text-band focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-on-band enabled:hover:bg-white',
 }
 </script>
 

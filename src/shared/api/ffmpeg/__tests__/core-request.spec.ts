@@ -59,7 +59,7 @@ describe('answerCoreRequest', () => {
     for (const url of [
       APP_ORIGIN,
       `${APP_ORIGIN}assets/index-sTNSkl27.js`,
-      `${APP_ORIGIN}assets/manrope-variable-DHIcAJRg.woff2`,
+      `${APP_ORIGIN}assets/albert-sans-variable-DHIcAJRg.woff2`,
     ]) {
       expect(answerCoreRequest(new Request(url))).toBeNull()
     }

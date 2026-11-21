@@ -1,5 +1,5 @@
 // DESIGN.md: a pending split is a 2 px ink line with a diamond at each end; the selected one is
-// 4 px with larger diamonds. No split line, mark or playhead has diamonds, and none is vermilion.
+// 4 px with larger diamonds. No split line, mark or playhead has diamonds, and none is rust.
 const LINE_WIDTH = 2
 const SELECTED_LINE_WIDTH = 4
 const DIAMOND_SIZE = 8

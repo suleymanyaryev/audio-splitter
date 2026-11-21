@@ -30,7 +30,7 @@ function colorsIn(selector: string): Palette {
 }
 
 const light = colorsIn('@theme static')
-// The dark block overrides some of the light variables and leaves the rest (the header band).
+// The dark block overrides most of the light variables; the rest (the on-colours of a ground that is the same, the mark) carry over.
 const dark = { ...light, ...colorsIn("[data-theme='dark']") }
 
 // WCAG 2.x relative luminance of an sRGB colour.
@@ -56,8 +56,10 @@ const textPairs = [
   ['muted', 'surface'],
   ['on-track', 'track'],
   ['on-split', 'split'],
-  ['on-vinyl', 'vinyl'],
-  ['on-vinyl-muted', 'vinyl'],
+  ['on-fill', 'fill'],
+  ['on-fill', 'fill-hover'],
+  ['on-band', 'band'],
+  ['on-band-muted', 'band'],
 ] as const
 
 const nonTextPairs = [
@@ -68,6 +70,11 @@ const nonTextPairs = [
   ['ink', 'surface'], // the focus ring
   ['wave', 'surface'],
   ['wave', 'land'],
+  ['fill', 'surface'], // the edge of a slate button
+  ['fill', 'ground'],
+  ['mark', 'band'], // the header's mark
+  ['on-band', 'band'], // the focus ring on the band
+  ['on-track', 'track'], // the focus ring on a track block
 ] as const
 
 const themes = [
