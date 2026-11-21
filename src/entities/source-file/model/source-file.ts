@@ -1,6 +1,7 @@
 import { ref, shallowRef } from 'vue'
 import { defineStore } from 'pinia'
 
+import { askToKeepCore, CoreDownloadError } from '@/shared/api/ffmpeg/core-preloader.ts'
 import { openFfmpeg, type FfmpegSession } from '@/shared/api/ffmpeg/ffmpeg.ts'
 import { downmix } from '@/shared/lib/audio/downmix.ts'
 import {
@@ -15,7 +16,7 @@ import { probe, type SupportedFormat } from '../api/probe.ts'
 
 export type LoadFailure =
   | { kind: 'unsupported'; message: string }
-  // `step` is "probe" or "slice 41 of 62".
+  // `step` is "downloading ffmpeg", "probe" or "slice 41 of 62".
   | { kind: 'failed'; step: string; reason: string }
 
 // Exported so a caller can tell this rejection (nothing to report) from a clip that really failed.
@@ -45,6 +46,15 @@ async function settled(promise: Promise<unknown>) {
   }
 }
 
+// A thrown error as a load failure: a failed download names its own step, whatever step was on.
+function failureOf(error: unknown, step: string): LoadFailure {
+  return {
+    kind: 'failed',
+    step: error instanceof CoreDownloadError ? 'downloading ffmpeg' : step,
+    reason: error instanceof Error ? error.message : String(error),
+  }
+}
+
 /*
 The one source file being worked on, and what the analysis keeps of it. The file is decoded one
 slice at a time (60 s, or 300 s for an MP3), and each slice's samples are thrown away as soon as
@@ -70,6 +80,12 @@ export const useSourceFileStore = defineStore('source-file', () => {
   // Progress, in slices (the probe is not counted): "38 / 62 slices". Both are 0 when empty.
   const slicesDone = ref(0)
   const sliceTotal = ref(0)
+  /*
+  How much of the ffmpeg core has arrived (0 to 1) while it is being downloaded for this load, and
+  null before the download starts, once it is done, and when nothing needed downloading: the load
+  page tells the download step from the reading step by it.
+  */
+  const downloadFraction = ref<number | null>(null)
 
   // Counts loads, so a load that finishes after "New file" or a newer load changes nothing.
   let currentLoad = 0
@@ -79,6 +95,8 @@ export const useSourceFileStore = defineStore('source-file', () => {
   `reset` and `cancel` close it.
   */
   let session: FfmpegSession | undefined
+  // Aborted when the load it belongs to is cancelled or replaced, so its ffmpeg never starts.
+  let loadAbort: AbortController | undefined
   /*
   The end of the latest clip or cut call. One ffmpeg worker runs one command at a time, and the
   session's log buffer belongs to one call, so each call waits for the one before it.
@@ -89,9 +107,13 @@ export const useSourceFileStore = defineStore('source-file', () => {
   turn comes means it was stopped while it waited.
   */
   let stopCount = 0
+  // The request goes out once in the page's life, at the first ready file.
+  let hasAskedToKeepCore = false
 
   function reset() {
     currentLoad++
+    loadAbort?.abort()
+    loadAbort = undefined
     session?.close()
     session = undefined
     status.value = 'empty'
@@ -104,6 +126,7 @@ export const useSourceFileStore = defineStore('source-file', () => {
     failure.value = null
     slicesDone.value = 0
     sliceTotal.value = 0
+    downloadFraction.value = null
   }
 
   // Stops the load and keeps nothing. Terminating the worker rejects the call it is in the middle
@@ -116,6 +139,8 @@ export const useSourceFileStore = defineStore('source-file', () => {
     reset()
     const thisLoad = currentLoad
     const isStale = () => thisLoad !== currentLoad
+    const abort = new AbortController()
+    loadAbort = abort
     file.value = chosen
     status.value = 'loading'
 
@@ -123,7 +148,16 @@ export const useSourceFileStore = defineStore('source-file', () => {
     let isKept = false
     let step = 'probe'
     try {
-      ffmpeg = await openFfmpeg(chosen)
+      /*
+      A cancelled or replaced load aborts the signal, which stops its listening and its ffmpeg
+      worker; the download goes on, and the next load joins it (see core-preloader.ts).
+      */
+      ffmpeg = await openFfmpeg(chosen, {
+        onDownloadProgress: (fraction) => {
+          if (!isStale()) downloadFraction.value = fraction < 1 ? fraction : null
+        },
+        signal: abort.signal,
+      })
       // Cancelled while ffmpeg was loading: `finally` closes it, and a newer load keeps its session.
       if (isStale()) return
       session = ffmpeg
@@ -158,9 +192,17 @@ export const useSourceFileStore = defineStore('source-file', () => {
       loudnessWindowSeconds.value = windowSecondsAt(probed.sampleRate)
       status.value = 'ready'
       isKept = true
+      /*
+      Asked now and not when the page opens: a browser that prompts for it (Firefox) does so
+      once the visitor has seen the tool work, and a file that failed asks nothing.
+      */
+      if (!hasAskedToKeepCore) {
+        hasAskedToKeepCore = true
+        void askToKeepCore()
+      }
     } catch (error) {
       if (isStale()) return
-      fail({ kind: 'failed', step, reason: error instanceof Error ? error.message : String(error) })
+      fail(failureOf(error, step))
     } finally {
       if (!isKept) {
         /*
@@ -250,6 +292,7 @@ export const useSourceFileStore = defineStore('source-file', () => {
   function fail(what: LoadFailure) {
     status.value = 'failed'
     failure.value = what
+    downloadFraction.value = null
   }
 
   return {
@@ -263,6 +306,7 @@ export const useSourceFileStore = defineStore('source-file', () => {
     failure,
     slicesDone,
     sliceTotal,
+    downloadFraction,
     load,
     clip,
     cutTrack,

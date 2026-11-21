@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, useTemplateRef } from 'vue'
+import { computed, onBeforeUnmount, onMounted, useTemplateRef } from 'vue'
 
 import { useSourceFileStore } from '@/entities/source-file/model/source-file.ts'
 import UiButton from '@/shared/ui/UiButton.vue'
@@ -8,6 +8,11 @@ import UiProgressBar from '@/shared/ui/UiProgressBar.vue'
 
 const sourceFile = useSourceFileStore()
 const fileInput = useTemplateRef('fileInput')
+
+// Shown while the ffmpeg core downloads; null when it isn't (before, after, or never).
+const downloadPercent = computed(() =>
+  sourceFile.downloadFraction === null ? null : Math.round(sourceFile.downloadFraction * 100),
+)
 
 // The extensions are only a convenience for the file dialog: the probe decides by contents.
 const ACCEPT = '.m4a,.mp3,.opus'
@@ -54,9 +59,17 @@ onBeforeUnmount(() => {
       </p>
 
       <template v-if="sourceFile.status === 'loading'">
-        <!-- Loading ffmpeg and probing come before the slice count is known. -->
+        <!-- The download comes first; loading ffmpeg and probing come before the slice count is known. -->
+        <div v-if="downloadPercent !== null" class="mt-4" role="status">
+          <UiProgressBar
+            :value="downloadPercent"
+            :max="100"
+            :label="`Downloading ffmpeg… ${downloadPercent}%`"
+            running
+          />
+        </div>
         <UiProgressBar
-          v-if="sourceFile.sliceTotal > 0"
+          v-else-if="sourceFile.sliceTotal > 0"
           class="mt-4"
           :value="sourceFile.slicesDone"
           :max="sourceFile.sliceTotal"

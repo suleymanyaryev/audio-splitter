@@ -1,8 +1,7 @@
 import { FFFSType, FFmpeg } from '@ffmpeg/ffmpeg'
-// `?url` makes Vite copy the pinned core into the build and serve it from the app's own origin.
-// Both URLs must be passed: without them the wrapper downloads an older core from a CDN.
-import coreURL from '@ffmpeg/core?url'
-import wasmURL from '@ffmpeg/core/wasm?url'
+
+import { CORE_FILES } from './core-files.ts'
+import { preloadCore } from './core-preloader.ts'
 
 interface FfmpegRun {
   exitCode: number
@@ -29,6 +28,13 @@ export interface FfmpegSession {
   close(): void
 }
 
+export interface OpenFfmpegOptions {
+  // How much of the ffmpeg core has arrived, from 0 to 1, while it downloads.
+  onDownloadProgress?: (fraction: number) => void
+  // Aborted by a caller that no longer wants the session (a cancelled load).
+  signal?: AbortSignal
+}
+
 const INPUT_DIRECTORY = '/in'
 
 // A fixed name keeps odd characters in the user's file name out of ffmpeg's command line; the
@@ -38,7 +44,11 @@ function inputName(file: File): string {
   return extension ? `source.${extension.toLowerCase()}` : 'source'
 }
 
-// Loading fetches and compiles the 32 MB core; file calls (mount, read, delete) take milliseconds.
+/*
+Loading compiles and instantiates the 32 MB core from bytes the browser already has (the download
+is awaited before it, and has its own stall rule); file calls (mount, read, delete) take
+milliseconds.
+*/
 const LOAD_TIMEOUT_MS = 180_000
 const FILE_TIMEOUT_MS = 10_000
 
@@ -78,6 +88,31 @@ call). 20 leaves a wide margin, and a reload takes under 100 ms.
 const CALLS_PER_WORKER = 20
 
 /*
+Waits for the ffmpeg core to be in the browser (see core-preloader.ts), telling `onProgress` how
+much has arrived, or until `signal` aborts, which rejects at once with its reason. Either way it
+stops listening to both, so a long session leaves nothing attached to the signal.
+*/
+async function coreIsIn(onProgress?: (fraction: number) => void, signal?: AbortSignal) {
+  signal?.throwIfAborted()
+  const download = preloadCore(onProgress)
+  let onAbort: (() => void) | undefined
+  const aborted = new Promise<never>((_, reject) => {
+    onAbort = () => {
+      reject(signal?.reason as Error)
+    }
+    signal?.addEventListener('abort', onAbort, { once: true })
+  })
+  try {
+    await Promise.race([download.done, aborted])
+  } finally {
+    download.unsubscribe()
+    if (onAbort) signal?.removeEventListener('abort', onAbort)
+  }
+  // An abort in the same moment the download finished still wins.
+  signal?.throwIfAborted()
+}
+
+/*
 Loads the core and mounts the file with WORKERFS, which reads only the bytes ffmpeg asks for
 instead of copying the whole file into memory.
 
@@ -85,8 +120,21 @@ The session replaces its worker before the 21st call, the 41st and so on, and al
 first call after a watchdog terminated the worker (the session outlives a hung call, so later
 calls must not meet the dead worker). Callers never see it: the file is mounted again at the same
 path. After `close` no worker starts again and `run` fails.
+
+Before the first worker starts, the ffmpeg core must be in the browser: `openFfmpeg` waits for the
+download (see core-preloader.ts) and tells `options.onDownloadProgress` how much of it has arrived,
+from 0 to 1; with nothing to download it reports nothing. A failed download rejects with its
+`CoreDownloadError`. A fresh worker waits too, which costs nothing once the download is done.
+
+`options.signal` is for a caller that no longer wants the session (a cancelled load): `openFfmpeg`
+stops listening to the download and rejects with the signal's reason at once, and starts no
+worker, but the download goes on for the next caller.
 */
-export async function openFfmpeg(file: File): Promise<FfmpegSession> {
+export async function openFfmpeg(
+  file: File,
+  options: OpenFfmpegOptions = {},
+): Promise<FfmpegSession> {
+  const { onDownloadProgress, signal } = options
   const name = inputName(file)
   let log: string[] = []
   // The current worker and how many `run` calls it has served.
@@ -101,7 +149,14 @@ export async function openFfmpeg(file: File): Promise<FfmpegSession> {
   // Rejects the command in flight, if any, with the interrupt's own message.
   let stopRun: ((error: Error) => void) | undefined
 
-  async function startWorker() {
+  function throwIfClosed() {
+    if (isClosed) throw new Error('The ffmpeg session is closed')
+  }
+
+  async function startWorker(onProgress?: (fraction: number) => void) {
+    // Awaited before the worker and its watchdog start, so a slow network never counts as a hang.
+    await coreIsIn(onProgress, signal)
+    throwIfClosed()
     const worker = new FFmpeg()
     // `close` terminates whichever worker is current, even one that is still loading.
     ffmpeg = worker
@@ -114,7 +169,8 @@ export async function openFfmpeg(file: File): Promise<FfmpegSession> {
 
     await watched(
       worker,
-      worker.load({ coreURL, wasmURL }),
+      // Both URLs must be passed: without them the wrapper downloads an older core from a CDN.
+      worker.load(CORE_FILES),
       LOAD_TIMEOUT_MS,
       'loading',
       markTerminated,
@@ -135,13 +191,13 @@ export async function openFfmpeg(file: File): Promise<FfmpegSession> {
     )
   }
 
-  await startWorker()
+  await startWorker(onDownloadProgress)
 
   return {
     inputPath: `${INPUT_DIRECTORY}/${name}`,
 
     async run(command, timeoutMs) {
-      if (isClosed) throw new Error('The ffmpeg session is closed')
+      throwIfClosed()
       if (hasLostWorker || calls >= CALLS_PER_WORKER) {
         ffmpeg.terminate()
         // Stays set if the start fails, so the next run tries again.

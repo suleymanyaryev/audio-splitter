@@ -21,6 +21,14 @@ Versions follow [Semantic Versioning](https://semver.org/) applied to the produc
 
 - The keys of the Split, Track and Range views (Left and Right, Delete and Backspace, Space, Enter, Shift+Enter, Home and Escape, each in the views that have it) work wherever the focus is on the review screen, so you no longer click the view first. A key pressed with Ctrl, Cmd or Alt now does nothing in the Split view, as in the other two (Cmd+Backspace no longer deletes a split), and a held Delete or Backspace deletes one split, not the next ones too. They stay out while you type in a track name or a dialog is open, and a button you reached with Tab keeps Space and Enter. The "Saved … in …" line clears on a key the view acts on, and stays after Tab or a letter.
 - A mouse click on a button, a view option, a track row's number, a track block or a slider no longer leaves the keys with that control, so the next key goes to the view: after clicking Play, Space pauses instead of pressing Play again; after clicking `Split | Track | Range`, the arrows go to the new view; after dragging the silence threshold, Left and Right move the playhead instead of nudging the threshold, also after keeping your edits in the question the drag asked. A control you reach with Tab still takes the focus, shows its ring and keeps its keys.
+- Choosing a file before the ffmpeg core (32 MB) is in the browser now shows "Downloading ffmpeg… 38%" as a progress bar, growing as bytes arrive, then "Reading <file>…" as before. Cancel stops loading the file but lets the download run on, and choosing another file continues it instead of starting again.
+- The ffmpeg download now starts in the background as soon as the page has drawn and the browser is idle, before you choose a file, so the wait after choosing is shorter or gone. A browser that asks to save data waits until a file is chosen.
+- ffmpeg is now downloaded once and kept in the browser: a visit the next day, a week later or after a release that did not change ffmpeg loads it with no download, and a release with a new ffmpeg downloads it once and replaces the old copy. In a private window, or with storage blocked or full, it loads from the network as before.
+
+### Fixed
+
+- A slow connection no longer times out loading ffmpeg. The download has no time limit as long as bytes keep arriving, and fails only after 30 s with none.
+- A failed download says "Failed at: downloading ffmpeg" with the reason, instead of "Failed at: probe".
 
 ## [1.1.0] - 2026-11-21
 

@@ -45,6 +45,61 @@ describe('LoadPage', () => {
       expect(wrapper.find('[role="status"]').exists()).toBe(false)
     })
 
+    describe('while the ffmpeg core downloads', () => {
+      it('shows a progress bar labelled "Downloading ffmpeg… 38%", announced as a status', () => {
+        const sourceFile = useSourceFileStore()
+        sourceFile.file = file
+        sourceFile.status = 'loading'
+        sourceFile.downloadFraction = 0.38
+
+        const wrapper = mount(LoadPage)
+
+        const bar = wrapper.get('[role="status"] [role="progressbar"]')
+        expect(bar.attributes('aria-valuenow')).toBe('38')
+        expect(bar.attributes('aria-valuemax')).toBe('100')
+        const labelId = bar.attributes('aria-labelledby')
+        expect(wrapper.get(`[id="${labelId}"]`).text()).toBe('Downloading ffmpeg… 38%')
+        expect(wrapper.text()).not.toContain('Reading')
+      })
+
+      it('rounds the percentage, and starts from 0%', async () => {
+        const sourceFile = useSourceFileStore()
+        sourceFile.file = file
+        sourceFile.status = 'loading'
+        sourceFile.downloadFraction = 0
+
+        const wrapper = mount(LoadPage)
+        expect(wrapper.text()).toContain('Downloading ffmpeg… 0%')
+
+        sourceFile.downloadFraction = 0.4249
+        await wrapper.vm.$nextTick()
+        expect(wrapper.text()).toContain('Downloading ffmpeg… 42%')
+      })
+
+      it('goes on to "Reading <file>…" when the download is done', async () => {
+        const sourceFile = useSourceFileStore()
+        sourceFile.file = file
+        sourceFile.status = 'loading'
+        sourceFile.downloadFraction = 0.99
+
+        const wrapper = mount(LoadPage)
+        sourceFile.downloadFraction = null
+        await wrapper.vm.$nextTick()
+
+        expect(wrapper.get('[role="status"]').text()).toBe('Reading evening-set-vol3.m4a…')
+        expect(wrapper.find('[role="progressbar"]').exists()).toBe(false)
+      })
+
+      it('still offers Cancel', () => {
+        const sourceFile = useSourceFileStore()
+        sourceFile.file = file
+        sourceFile.status = 'loading'
+        sourceFile.downloadFraction = 0.38
+
+        expect(buttons(mount(LoadPage))).toEqual(['Cancel'])
+      })
+    })
+
     it('offers Cancel instead of "Choose file…", and Cancel returns to the empty page', async () => {
       const sourceFile = useSourceFileStore()
       sourceFile.file = file
@@ -83,6 +138,26 @@ describe('LoadPage', () => {
         'Reason: Error while decoding stream',
       ])
       expect(buttons(wrapper)).toEqual(['Choose another file'])
+    })
+
+    it('names "downloading ffmpeg" as the step of a failed download', () => {
+      const sourceFile = useSourceFileStore()
+      sourceFile.file = file
+      sourceFile.status = 'failed'
+      sourceFile.failure = {
+        kind: 'failed',
+        step: 'downloading ffmpeg',
+        reason: 'The download stalled: no data for 30 s',
+      }
+
+      const wrapper = mount(LoadPage)
+
+      const lines = wrapper.findAll('[role="alert"] p').map((line) => line.text())
+      expect(lines).toEqual([
+        'evening-set-vol3.m4a could not be loaded.',
+        'Failed at: downloading ffmpeg.',
+        'Reason: The download stalled: no data for 30 s',
+      ])
     })
 
     it('keeps the unsupported-format message as it was', () => {

@@ -2,6 +2,10 @@ import process from 'node:process'
 import { defineConfig, devices } from '@playwright/test'
 
 const isCi = Boolean(process.env.CI)
+const DEV_PORT = 5173
+const PREVIEW_PORT = 4173
+const DEV_URL = `http://localhost:${DEV_PORT}`
+const PREVIEW_URL = `http://localhost:${PREVIEW_PORT}`
 
 // See https://playwright.dev/docs/test-configuration
 const config = defineConfig({
@@ -19,23 +23,38 @@ const config = defineConfig({
   use: {
     // Maximum time each action such as `click()` can take. 0 means no limit.
     actionTimeout: 0,
-    // Base URL for actions like `await page.goto('/')`.
-    baseURL: isCi ? 'http://localhost:4173' : 'http://localhost:5173',
     // Collect a trace when retrying a failed test. See https://playwright.dev/docs/trace-viewer
     trace: 'on-first-retry',
     // Headless only on CI.
     headless: isCi,
   },
-  // The installed Google Chrome (`channel: 'chrome'`), the same browser the playwright-cli skill
-  // drives, so no Playwright browser build is ever downloaded.
-  projects: [{ name: 'chrome', use: { ...devices['Desktop Chrome'], channel: 'chrome' } }],
-  // The dev server gives a faster local loop; CI tests the production preview build.
-  // Playwright reuses an already running local dev server.
-  webServer: {
-    command: isCi ? 'pnpm preview' : 'pnpm dev',
-    port: isCi ? 4173 : 5173,
-    reuseExistingServer: !isCi,
-  },
+  /*
+  The installed Google Chrome (`channel: 'chrome'`), the same browser the playwright-cli skill
+  drives, so no Playwright browser build is ever downloaded. The export spec runs on the dev
+  server; the stored-core spec on a production build, the only place the service worker is
+  registered.
+  */
+  projects: [
+    {
+      name: 'chrome',
+      testIgnore: 'stored-core.spec.ts',
+      use: { ...devices['Desktop Chrome'], channel: 'chrome', baseURL: DEV_URL },
+    },
+    {
+      name: 'stored-core',
+      testMatch: 'stored-core.spec.ts',
+      use: { ...devices['Desktop Chrome'], channel: 'chrome', baseURL: PREVIEW_URL },
+    },
+  ],
+  // Playwright reuses a server that is already running locally.
+  webServer: [
+    { command: 'pnpm dev', port: DEV_PORT, reuseExistingServer: !isCi },
+    {
+      command: 'pnpm build-only && pnpm preview --strictPort',
+      port: PREVIEW_PORT,
+      reuseExistingServer: !isCi,
+    },
+  ],
 })
 
 export default config
