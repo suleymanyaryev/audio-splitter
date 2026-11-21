@@ -71,6 +71,7 @@ The list says where, not what: one line per slice on what it is for. It changes 
 - `src/entities/split/`: The splits and what derives from them
 - `src/shared/api/ffmpeg/`: The ffmpeg.wasm session
 - `src/shared/lib/audio/`: Hand-written signal maths
+- `src/shared/lib/theme/`: The theme choice and the theme in effect
 - `src/shared/lib/time/`: Time formatting and rounding
 - `src/shared/lib/keyboard/`: Page-level keys
 - `src/shared/lib/canvas/`: Drawing the canvases share

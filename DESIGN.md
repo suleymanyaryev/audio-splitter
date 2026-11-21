@@ -228,7 +228,7 @@ components:
 
 On a record you can see where one track ends: the textured groove bands stop and a smooth land runs between them. Audio Splitter draws a source file the same way. Tracks are dense grey waveform bands, every gap is a flat land, and a split reads as something you can see before you read a number. The world refuses the dark audio editor with a bright blue waveform, the studio-gear look, decoration that competes with the waveforms, and dense tiny technical type.
 
-By day the ground is sleeve white and the panels are white; by night the ground is vinyl black and the panels near-black. Ink is vinyl black, inverted at night. Waveforms and track blocks are groove grey, lands are sheen grey, and one centre-label vermilion marks splits and the silence threshold. Colour is flat: no gradients, no shadows. Panels separate by a hairline and the ground between them. The theme follows the system setting; there is no theme toggle.
+By day the ground is sleeve white and the panels are white; by night the ground is vinyl black and the panels near-black. Ink is vinyl black, inverted at night. Waveforms and track blocks are groove grey, lands are sheen grey, and one centre-label vermilion marks splits and the silence threshold. Colour is flat: no gradients, no shadows. Panels separate by a hairline and the ground between them. A `data-theme` attribute on `<html>` carries the theme in effect; how it is set is in [docs/architecture.md](docs/architecture.md#the-theme).
 
 The waveforms and the loudness curve are the content, so the chrome is quiet: one face (Manrope) with tabular figures, two radii, a 16 px rhythm, and controls that carry state through ink and border rather than colour. Motion is limited to a 100 ms colour transition on controls.
 
@@ -243,7 +243,7 @@ The waveforms and the loudness curve are the content, so the chrome is quiet: on
 
 ## Colors
 
-A near-monochrome palette of ink, paper and groove greys with one hot accent that means "cut here".
+A near-monochrome palette of ink, paper and groove greys with one hot accent that means "cut here". `src/app/styles/__tests__/contrast.spec.ts` reads both themes from the CSS entry and holds the text pairs to 4.5:1 and the rest (lines, borders, the focus ring) to 3:1.
 
 ### Primary
 
@@ -461,7 +461,7 @@ Reka `Dialog` (`UiPlainDialog`): a dialog that gives information or asks for a n
 
 ### Canvas drawing rules (signature)
 
-The whole-file waveform, the loudness curve and the zoom view are hand-drawn canvases inside their widgets, not kit components. They read colours from the same tokens with `getComputedStyle(document.documentElement).getPropertyValue('--color-…')`, scale by `devicePixelRatio`, draw once `document.fonts.ready` resolves, and redraw on resize and when `matchMedia('(prefers-color-scheme: dark)')` changes. Canvas text is `700 12px Manrope`.
+The whole-file waveform, the loudness curve and the zoom view are hand-drawn canvases inside their widgets, not kit components. They read colours from the same tokens with `getComputedStyle(document.documentElement).getPropertyValue('--color-…')`, scale by `devicePixelRatio`, draw once `document.fonts.ready` resolves, and redraw on resize and when the theme in effect changes (`useCanvasRedraw`). Canvas text is `700 12px Manrope`.
 
 - **Wave:** groove-grey (`wave`) vertical bars, 2px wide on a 3px pitch, symmetric about the centre line.
 - **Whole-file canvas:** 120px tall in all: a 22px split-number band above a 98px wave area. Lands and split lines cover the wave area only. The loudness curve's canvas is also 120px, with lands and split lines over its full height.
@@ -489,10 +489,10 @@ The whole-file waveform, the loudness curve and the zoom view are hand-drawn can
 ### Do:
 
 - **Do** take every colour, radius and text size from the token block; add a token before adding a one-off value.
-- **Do** follow the system theme through `prefers-color-scheme` alone.
+- **Do** key the dark values on `[data-theme='dark']`, set only by the theme module; nothing in CSS, the kit or a canvas reads `prefers-color-scheme`.
 - **Do** draw every gap as a land, at least 12 px wide in whole-file views, and keep audio in groove grey.
 - **Do** keep vermilion for splits, the silence threshold, danger, invalid states and the header's centre-label mark.
-- **Do** read canvas colours from the `--color-…` variables and redraw when the colour scheme changes.
+- **Do** read canvas colours from the `--color-…` variables and redraw when the theme in effect changes.
 - **Do** give every control a visible keyboard focus ring (2 px outline, 2 px offset) and every icon button an `aria-label`.
 - **Do** use `lucide-vue-next` icons at 16 px with a 2 px round stroke.
 - **Do** keep figures tabular and text at 12 px or larger.
@@ -503,7 +503,6 @@ The whole-file waveform, the loudness curve and the zoom view are hand-drawn can
 - **Don't** use gradients, shadows, blur or translucency over content.
 - **Don't** draw a bright blue (or any coloured) waveform, or dress the screen as studio gear.
 - **Don't** use vermilion for hover, selection, links, emphasis, progress or branding beyond the centre-label mark.
-- **Don't** add a theme toggle or a `data-theme` switch.
 - **Don't** fetch fonts or any other asset from the network at runtime.
 - **Don't** use Unicode glyphs as icons.
 - **Don't** dim text with opacity to make hierarchy; use `muted`, size or weight.
@@ -512,7 +511,7 @@ The whole-file waveform, the loudness curve and the zoom view are hand-drawn can
 
 ## Token block
 
-Paste into the app's single CSS entry (`src/app/styles/main.css`). Light values live in `@theme`; dark values override the same variables in `prefers-color-scheme: dark` only. `@theme static` makes Tailwind emit every variable even when no utility uses it, which the canvases need. The font file name below is the committed file's name; keep the two in step.
+Paste into the app's single CSS entry (`src/app/styles/main.css`). Light values live in `@theme`; dark values override the same variables in one `[data-theme='dark']` block only, and the theme module sets `color-scheme` on `<html>` beside the attribute. `@theme static` makes Tailwind emit every variable even when no utility uses it, which the canvases need. The font file name below is the committed file's name; keep the two in step.
 
 ```css
 @import 'tailwindcss';
@@ -558,27 +557,22 @@ Paste into the app's single CSS entry (`src/app/styles/main.css`). Light values 
   --text-lg--line-height: 28px;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --color-ground: #0e0e0e;
-    --color-surface: #171717;
-    --color-ink: #ededea;
-    --color-muted: #a3a5aa;
-    --color-hairline: #2a2b2d;
-    --color-edge: #6e7076;
-    --color-wave: #b9bcc1;
-    --color-track: #5c5e63;
-    --color-on-track: #ededea;
-    --color-land: #383a3e;
-    --color-split: #ff5a43;
-    --color-on-split: #0e0e0e;
-  }
+[data-theme='dark'] {
+  --color-ground: #0e0e0e;
+  --color-surface: #171717;
+  --color-ink: #ededea;
+  --color-muted: #a3a5aa;
+  --color-hairline: #2a2b2d;
+  --color-edge: #6e7076;
+  --color-wave: #b9bcc1;
+  --color-track: #5c5e63;
+  --color-on-track: #ededea;
+  --color-land: #383a3e;
+  --color-split: #ff5a43;
+  --color-on-split: #0e0e0e;
 }
 
 @layer base {
-  html {
-    color-scheme: light dark;
-  }
   body {
     @apply bg-ground font-sans text-sm text-ink antialiased;
     font-variant-numeric: tabular-nums;

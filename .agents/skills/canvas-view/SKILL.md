@@ -7,7 +7,7 @@ The canvases (`widgets/source-waveform`, `widgets/loudness-curve`, `widgets/spli
 
 ## Drawing
 
-- Start each draw with `prepareCanvas` and keep it painted with `useCanvasRedraw(canvas, draw)`, which covers mount, resize, colour scheme and font load. The widget adds its own `watch` on the state it draws.
+- Start each draw with `prepareCanvas` and keep it painted with `useCanvasRedraw(canvas, draw)`, which covers mount, resize, a change of the theme in effect and font load. The widget adds its own `watch` on the state it draws.
 - Map time to x with `time-axis.ts` (the whole file) or `zoom-axis.ts` (a window centred on a time). A range reuses the zoom helpers as a centre and a length (`widgets/split-zoom/lib/range-window.ts`).
 - Draw with the shared drawers; `draw-lands-and-splits.ts` owns the land and split-line widths.
 - Colours come from the `--color-*` tokens; sizes and layering follow DESIGN.md "Canvas drawing rules". Read it before drawing anything new.

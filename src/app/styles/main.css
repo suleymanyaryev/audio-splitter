@@ -41,27 +41,22 @@
   --text-lg--line-height: 28px;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --color-ground: #0e0e0e;
-    --color-surface: #171717;
-    --color-ink: #ededea;
-    --color-muted: #a3a5aa;
-    --color-hairline: #2a2b2d;
-    --color-edge: #6e7076;
-    --color-wave: #b9bcc1;
-    --color-track: #5c5e63;
-    --color-on-track: #ededea;
-    --color-land: #383a3e;
-    --color-split: #ff5a43;
-    --color-on-split: #0e0e0e;
-  }
+[data-theme='dark'] {
+  --color-ground: #0e0e0e;
+  --color-surface: #171717;
+  --color-ink: #ededea;
+  --color-muted: #a3a5aa;
+  --color-hairline: #2a2b2d;
+  --color-edge: #6e7076;
+  --color-wave: #b9bcc1;
+  --color-track: #5c5e63;
+  --color-on-track: #ededea;
+  --color-land: #383a3e;
+  --color-split: #ff5a43;
+  --color-on-split: #0e0e0e;
 }
 
 @layer base {
-  html {
-    color-scheme: light dark;
-  }
   body {
     @apply bg-ground text-ink font-sans text-sm antialiased;
     font-variant-numeric: tabular-nums;
