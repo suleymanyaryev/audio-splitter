@@ -74,7 +74,7 @@ const blocks = computed(() => {
           :aria-label="block.splitItem.label"
           :title="block.splitItem.label"
           :aria-current="block.splitItem.isSelected ? 'true' : undefined"
-          class="block size-full cursor-pointer rounded-control hover:bg-split focus-visible:bg-split focus-visible:outline-none"
+          class="relative block size-full cursor-pointer rounded-control tint-transition after:absolute after:inset-y-0 after:left-[3px] after:w-0.5 after:bg-split hover:bg-split focus-visible:bg-split focus-visible:outline-none"
           :class="block.splitItem.isSelected ? 'bg-split' : ''"
           @mousedown="releaseFocus"
           @click="split.selectSplit(block.splitItem.id)"
@@ -83,7 +83,7 @@ const blocks = computed(() => {
       <li
         :title="`${block.track.name}, ${block.length}`"
         :aria-current="split.isTrackSelected(block.track) ? 'true' : undefined"
-        class="min-w-0 flex-none rounded-control border-2 bg-track text-on-track"
+        class="min-w-0 flex-none rounded-control border-2 bg-track text-on-track tint-transition"
         :class="[
           block.showLength ? 'px-2.5' : block.showName ? 'px-1' : '',
           split.isTrackSelected(block.track) ? 'border-on-track' : 'border-transparent',

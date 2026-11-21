@@ -13,7 +13,7 @@ const { variant = 'default', error = '' } = defineProps<{
 }>()
 
 const BOXED =
-  'h-9 w-full border-edge bg-surface px-2.5 enabled:hover:border-ink disabled:opacity-40 aria-invalid:border-split aria-invalid:outline-split'
+  'h-9 w-full border-edge bg-surface px-2.5 enabled:hover:border-ink disabled:cursor-not-allowed disabled:opacity-40 aria-invalid:border-split aria-invalid:outline-split'
 const VARIANT_CLASSES = {
   inline:
     '-mx-1.5 h-6 w-[calc(100%+12px)] border-transparent bg-transparent px-1.5 enabled:hover:border-edge',
@@ -34,7 +34,7 @@ const errorId = useId()
       type="text"
       :aria-invalid="error ? 'true' : undefined"
       :aria-describedby="error ? errorId : undefined"
-      class="rounded-control border text-sm text-ink focus-visible:focus-ring"
+      class="rounded-control border text-sm text-ink tint-transition focus-visible:focus-ring"
       :class="VARIANT_CLASSES[variant]"
     />
     <p v-if="error" :id="errorId" class="mt-1 text-xs font-semibold text-split">{{ error }}</p>

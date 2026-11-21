@@ -75,7 +75,7 @@ function letGoOfThumb(event: FocusEvent) {
       <SliderThumb
         :aria-label="label"
         :aria-valuetext="readout"
-        class="block size-4 cursor-grab rounded-full border-2 border-surface bg-ink not-data-disabled:hover:size-5 focus-visible:focus-ring data-disabled:cursor-not-allowed"
+        class="block size-4 cursor-grab rounded-full border-2 border-surface bg-ink not-data-disabled:hover:size-5 focus-visible:focus-ring not-data-disabled:active:cursor-grabbing data-disabled:cursor-not-allowed"
         @focus="letGoOfThumb"
       />
     </SliderRoot>

@@ -186,6 +186,12 @@ const title = computed(() => {
     : rangeTitle(range)
 })
 
+/*
+The split's time is the screen's one large figure; the no-split messages and the Track and Range
+titles stay in the smaller headline.
+*/
+const showsSplitTime = computed(() => split.view === 'split' && split.selectedSplit !== null)
+
 // "Stop" while the stretch is being decoded, so a press can take it back; "Pause" while it plays.
 const STRETCH_BUTTON_LABELS = { idle: 'Play', loading: 'Stop', playing: 'Pause', paused: 'Play' }
 const stretchButtonLabel = computed(() => STRETCH_BUTTON_LABELS[audition.stretchStatus])
@@ -239,7 +245,7 @@ watch(
 </script>
 
 <template>
-  <main class="grid grid-cols-12 gap-4 p-4">
+  <main class="grid grid-cols-12 gap-6 px-8 py-6">
     <UiPanel title="Whole file" class="col-span-12">
       <SourceWaveform />
     </UiPanel>
@@ -251,7 +257,7 @@ watch(
       <LoudnessCurve />
     </UiPanel>
 
-    <UiPanel :title="title" headline class="col-span-8">
+    <UiPanel :title="title" headline :display="showsSplitTime" class="col-span-8">
       <template #actions>
         <UiSegmentedControl v-model="view" label="Panel view" :options="viewOptions" />
         <UiIconButton

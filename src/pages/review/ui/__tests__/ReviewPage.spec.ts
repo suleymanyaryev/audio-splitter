@@ -139,7 +139,8 @@ function viewOption(wrapper: ReturnType<typeof mount>, name: 'Split' | 'Track' |
 }
 
 // The panel's title: the zoom view's time, the track's name and ends, or the range's.
-const panelTitle = (wrapper: ReturnType<typeof mount>) => wrapper.get('h2.text-lg').text()
+const panelTitle = (wrapper: ReturnType<typeof mount>) =>
+  wrapper.get('h2.text-lg, h2.text-display').text()
 
 // The single export's name dialog renders into document.body, outside the wrapper.
 const dialog = () => document.querySelector('[role="dialog"]')
@@ -163,7 +164,7 @@ async function pressEnterInField() {
 
 // The buttons of the zoom panel's title row, in order.
 function titleRowButtons(wrapper: ReturnType<typeof mount>) {
-  const row = new DOMWrapper(wrapper.get('h2.text-lg').element.parentElement!)
+  const row = new DOMWrapper(wrapper.get('h2.text-lg, h2.text-display').element.parentElement!)
   return row.findAll('button[aria-label]').map((button) => button.attributes('aria-label'))
 }
 
@@ -618,6 +619,24 @@ describe('ReviewPage', () => {
       expect(wrapper.find('[aria-label="Waveform of the range"]').exists()).toBe(false)
       expect(addSplitButton(wrapper).exists()).toBe(true)
       expect(auditionButton(wrapper).exists()).toBe(true)
+    })
+
+    it('sets the split time in the 32 px figure on Split', async () => {
+      const wrapper = await mountPageOnSplit()
+
+      expect(wrapper.get('h2.text-display').text()).toMatch(/^\d:\d\d:\d\d\.\d\d$/)
+      expect(wrapper.find('h2.text-lg').exists()).toBe(false)
+    })
+
+    it('keeps the Track and Range titles in Headline, not the 32 px figure', async () => {
+      const onTrack = mountPage()
+      expect(onTrack.find('h2.text-lg').exists()).toBe(true)
+      expect(onTrack.find('h2.text-display').exists()).toBe(false)
+      onTrack.unmount()
+
+      const onRange = await mountPageWithRange()
+      expect(onRange.find('h2.text-lg').exists()).toBe(true)
+      expect(onRange.find('h2.text-display').exists()).toBe(false)
     })
 
     it('swaps in the Range view, titled by the range, when a range is made', async () => {

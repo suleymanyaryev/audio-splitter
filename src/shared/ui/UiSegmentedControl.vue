@@ -32,9 +32,9 @@ outline colour has no stable winner.
 */
 const OPTION_CLASSES = {
   default:
-    'text-ink focus-visible:focus-ring enabled:hover:bg-land/40 aria-checked:border-ink aria-checked:bg-land/50',
+    'text-ink focus-visible:focus-ring enabled:hover:bg-land/40 enabled:active:bg-land aria-checked:border-ink aria-checked:bg-land/50',
   inverse:
-    'text-on-band focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-on-band enabled:hover:bg-on-band/15 aria-checked:border-on-band aria-checked:bg-on-band/20',
+    'text-on-band focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-on-band enabled:hover:bg-on-band/15 enabled:active:bg-on-band/30 aria-checked:border-on-band aria-checked:bg-on-band/20',
 }
 </script>
 
@@ -55,7 +55,7 @@ const OPTION_CLASSES = {
         :value="option.value"
         :disabled="option.disabled"
         :aria-label="option.icon ? option.label : undefined"
-        class="inline-flex h-full cursor-pointer items-center justify-center rounded-control border border-transparent text-sm font-semibold whitespace-nowrap transition-colors duration-100 disabled:cursor-not-allowed disabled:opacity-40"
+        class="inline-flex h-full cursor-pointer items-center justify-center rounded-control border border-transparent text-sm font-semibold whitespace-nowrap tint-transition disabled:cursor-not-allowed disabled:opacity-40"
         :class="[OPTION_CLASSES[variant], option.icon ? 'px-2' : 'px-3']"
         @mousedown="releaseFocus"
       >

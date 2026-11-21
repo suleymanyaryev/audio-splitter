@@ -275,6 +275,16 @@ describe('TrackStrip', () => {
       expect(other?.classes()).toContain('focus-visible:bg-split')
     })
 
+    it('carries a rust rule at every split, selected or not', async () => {
+      const { wrapper } = await mountWithTwoGaps()
+
+      for (const item of splitItems(wrapper)) {
+        expect(item.classes()).toEqual(
+          expect.arrayContaining(['after:bg-split', 'after:w-0.5', 'tint-transition']),
+        )
+      }
+    })
+
     it('follows a split that is added', async () => {
       const { split, wrapper } = await mountWithTwoGaps()
 

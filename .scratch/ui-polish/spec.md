@@ -19,7 +19,7 @@ GitHub issue #1. A minor release outside the milestone sets (CHANGELOG.md's vers
   - A slate header band, slate track blocks and slate filled buttons. Only pressable things are slate.
   - Every gap is one sea-mist field in every view, so the file reads as music laid on quiet.
   - Rust marks splits, the silence threshold, danger and invalid states, and nothing else.
-  - Albert Sans replaces Manrope, with tabular figures.
+  - Albert Sans replaces Manrope. Its figures are proportional: the face has no tabular figures.
   - More room: 32 px page margins, 24 px gutters, a 56 px header.
   - The split's time in the zoom panel is one large 32 px figure.
   - Selecting a split lights the same rust in the whole-file view, the track list and the strip at once.
@@ -64,7 +64,7 @@ GitHub issue #1. A minor release outside the milestone sets (CHANGELOG.md's vers
 ### The look: type, spacing and shape
 
 29. As a user, I want Albert Sans everywhere, canvas labels included, so that the app reads as one piece.
-30. As a user, I want tabular figures everywhere, so that times and durations line up in columns.
+30. As a user, I accept proportional figures (Albert Sans has no `tnum`), so that the one face stays everywhere; times and durations do not line up in columns.
 31. As a user, I want the split's time in the zoom panel shown as one large 32 px figure, so that the number I check most is the easiest to read.
 32. As a user, I want 32 px page margins and 24 px between panels, so that the screen has room to breathe.
 33. As a user, I want a 56 px header, so that the band has the weight of a sleeve's title bar.

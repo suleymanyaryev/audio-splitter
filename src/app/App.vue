@@ -51,7 +51,7 @@ function discardAndReset() {
 </script>
 
 <template>
-  <header class="flex h-12 items-center gap-4 border-b border-band-edge bg-band px-4 text-on-band">
+  <header class="flex h-14 items-center gap-4 border-b border-band-edge bg-band px-8 text-on-band">
     <!-- The mark: a sea-mist disc with a hole. -->
     <span aria-hidden="true" class="grid size-5 shrink-0 place-items-center rounded-full bg-mark">
       <span class="size-1.5 rounded-full bg-band" />
