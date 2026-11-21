@@ -17,6 +17,15 @@ Versions follow [Semantic Versioning](https://semver.org/) applied to the produc
 
 ## [Unreleased]
 
+### Changed
+
+- Choosing a file before the ffmpeg core (32 MB) is in the browser now shows "Downloading ffmpeg… 38%" as a progress bar, growing as bytes arrive, then "Reading <file>…" as before. Cancel stops loading the file but lets the download run on, and choosing another file continues it instead of starting again.
+
+### Fixed
+
+- A slow connection no longer times out loading ffmpeg. The download has no time limit as long as bytes keep arriving, and fails only after 30 s with none.
+- A failed download says "Failed at: downloading ffmpeg" with the reason, instead of "Failed at: probe".
+
 ## [1.1.0] - 2026-11-21
 
 ### Added

@@ -10,7 +10,7 @@ Seven Pinia setup stores hold all state in memory; only the player's volume and 
 
 | Store              | Slice                      | Holds                                                                                                                                                                                                                                                                                                    |
 | ------------------ | -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `source-file`      | `entities/source-file`     | The file, its format and duration, peaks, loudness curve, slice progress, load failure, the ffmpeg session                                                                                                                                                                                               |
+| `source-file`      | `entities/source-file`     | The file, its format and duration, peaks, loudness curve, slice progress, the ffmpeg core's download fraction, load failure, the ffmpeg session                                                                                                                                                                                               |
 | `split`            | `entities/split`           | The silence threshold and minimum gap length, the gaps, the splits with their track names, the derived tracks, the one selection (a split, a track or nothing; the selected split and the selected track are derived from it), the zoom window, the range, the Range view's mark and the Track view's mark, the selected track's pending splits and the selected one, the panel's view, the edit count |
 | `audition`         | `widgets/split-zoom`       | Whether the audition's clip and the stretch's (range or track) are loading, playing or paused, the failure, the stretch's resting place, the volume (dB) and the mute flag                                                                                                                               |
 | `export-tracks`    | `widgets/track-strip`      | The export's status, the track in hand, the counts, the subfolder's name, the failure                                                                                                                                                                                                                    |
@@ -51,11 +51,20 @@ flowchart LR
 
 ## The ffmpeg session
 
-[`shared/api/ffmpeg/ffmpeg.ts`](../src/shared/api/ffmpeg/ffmpeg.ts) wraps one ffmpeg.wasm worker with the source file mounted read-only (WORKERFS), so ffmpeg reads only the bytes it asks for. Three rules keep it alive through long files:
+[`shared/api/ffmpeg/ffmpeg.ts`](../src/shared/api/ffmpeg/ffmpeg.ts) wraps one ffmpeg.wasm worker with the source file mounted read-only (WORKERFS), so ffmpeg reads only the bytes it asks for. The ffmpeg core (the script and the 32 MB wasm) has to be in the browser before the first worker starts, and [`core-preloader.ts`](../src/shared/api/ffmpeg/core-preloader.ts) gets it there. Three rules keep the session alive through long files:
 
 - **A watchdog on every call.** A call into the worker can hang without answering, so each one races a timeout. On timeout the worker is terminated, the only thing that stops it.
 - **A fresh worker every 20 calls.** ffmpeg ends each call by throwing, and its small call stack wears down; measured failures started at the 75th call. Before the 21st call (and after any terminated worker) the session starts a fresh worker and mounts the file again, which takes under 100 ms. Callers never see it.
 - **`interrupt()` stops the running command.** It rejects the call with "ffmpeg was stopped" and terminates the worker; the next call starts a fresh one.
+
+### The core download
+
+`openFfmpeg` awaits `preloadCore()` before it makes a worker, so the 180 s load watchdog covers only compiling and instantiating the core from bytes the browser already has, never the network. The preloader keeps one download for the whole page:
+
+- **One shared promise.** Every caller (a load, a fresh worker) joins the download that is running, and one that has finished is not repeated. A caller that subscribes to progress hears the fraction so far at once, so a load started after a cancelled one continues from where the download is. `unsubscribe` stops the reports, never the download. A cancelled or replaced load aborts the `signal` it gave `openFfmpeg`, which unsubscribes it, rejects it at once and starts no worker, while the download goes on for the next load.
+- **Progress is a fraction of the wasm's unpacked size**, a constant Vite reads from the installed package at build time (`__FFMPEG_WASM_BYTES__`). The stream hands over unpacked bytes whatever the server compresses, so 100% means done; the small script isn't counted. It reads 1 only once both files are in.
+- **The stall rule.** A download fails when no bytes arrive for 30 s, from either file, and has no total time limit, so a slow but steady connection always finishes. A failure rejects every caller with a `CoreDownloadError` and clears the shared promise, so the next caller starts afresh (the server's weak ETag rules out resuming). The store names that failure's step "downloading ffmpeg"; a failure of the worker's own load stays "probe".
+- **Nothing is kept beyond the browser's HTTP cache.** The preloader reads both files to their end and drops the bytes; the worker's own request for the same URLs then finds them in that cache.
 
 The `source-file` store opens the session when a load starts and keeps it open once the file is ready. After that, audition and range clips and export cuts go through `inSession`, a promise queue that runs one call at a time, because one worker runs one command and the session's log belongs to one call. A call whose file was reset or replaced while it waited rejects with `FileReplacedError`, so a result from the old file never reaches the new one.
 
@@ -67,11 +76,17 @@ sequenceDiagram
   participant page as LoadPage
   participant store as source-file store
   participant session as ffmpeg session
+  participant preloader as core preloader
   participant worker as ffmpeg.wasm worker
 
   User->>page: choose or drop a file
   page->>store: load(file)
-  store->>session: openFfmpeg(file)
+  store->>session: openFfmpeg(file, onProgress)
+  session->>preloader: preloadCore(onProgress): one shared download
+  loop while bytes arrive (fails after 30 s with none)
+    preloader-->>store: downloadFraction, shown as "Downloading ffmpeg… N%"
+  end
+  preloader-->>session: both core files are in the browser
   session->>worker: load the core, mount the file
   store->>session: probe: -i source
   session->>worker: run
@@ -82,6 +97,7 @@ sequenceDiagram
     loop each slice: 60 s, or 300 s for MP3
       store->>session: decodeSlice(i): -ss S-1 -i source -ss 1 -t 60 (or 300) -f f32le
       opt 20 calls served by this worker
+        session->>preloader: preloadCore() resolves at once
         session->>worker: terminate, start a fresh worker, mount again
       end
       session->>worker: run, read the output, delete it
@@ -106,7 +122,7 @@ stateDiagram-v2
   ready --> empty: New file, asking first when there are edits
 ```
 
-`App.vue` shows the load page in `empty`, `loading` and `failed`, and the review page in `ready`. A failure names the step ("slice 41 of 62") and ffmpeg's last log line.
+`App.vue` shows the load page in `empty`, `loading` and `failed`, and the review page in `ready`. A failure names the step ("downloading ffmpeg", "probe" or "slice 41 of 62") and the reason: ffmpeg's last log line, or why the download failed.
 
 ## Player
 

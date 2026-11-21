@@ -416,7 +416,7 @@ A titled frame (`section` with an `h2`).
 Determinate only; Reka `ProgressRoot` / `ProgressIndicator`, with the count as a visible label.
 
 - **Track:** `h-1.5 rounded-full bg-land`. **Indicator:** `h-full rounded-full bg-ink`, width = done / total.
-- **Count label:** right-aligned beside the bar, counting calls in words: "38 / 62 slices", "Track 3 of 8". While running: `font-semibold` ink. Idle or done: `text-muted`.
+- **Count label:** right-aligned beside the bar, saying the progress in words: "38 / 62 slices", "Track 3 of 8", "Downloading ffmpeg… 38%". While running: `font-semibold` ink. Idle or done: `text-muted`.
 
 ### Dialog
 

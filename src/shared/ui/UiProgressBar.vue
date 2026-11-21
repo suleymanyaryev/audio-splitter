@@ -5,7 +5,7 @@ import { ProgressIndicator, ProgressRoot } from 'reka-ui'
 const { running = false } = defineProps<{
   value: number
   max: number
-  // Counts ffmpeg calls in words ("38 / 62 slices", "Track 3 of 8"); there is no percentage.
+  // Says the progress in words ("38 / 62 slices", "Track 3 of 8", "Downloading ffmpeg… 38%").
   label: string
   // A running count is set in ink; an idle or finished one in muted.
   running?: boolean

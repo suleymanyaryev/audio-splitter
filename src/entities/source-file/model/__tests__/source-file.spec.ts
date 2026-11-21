@@ -1,6 +1,7 @@
 import { beforeEach, describe, it, expect, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 
+import { CoreDownloadError } from '@/shared/api/ffmpeg/core-preloader.ts'
 import { openFfmpeg } from '@/shared/api/ffmpeg/ffmpeg.ts'
 import {
   fakeFfmpegSession,
@@ -24,6 +25,10 @@ const slicePcm = (index: number) =>
   index < 2
     ? toneThenSilencePcm(44_100, 30, 0.2 * (index + 1))
     : toneThenSilencePcm(44_100, 15, 0.6)
+
+// A one-second file that loads to ready.
+const readySession = () =>
+  fakeFfmpegSession({ probeLog: m4aProbeLog(2), pcm: toneThenSilencePcm(44_100, 1, 0.5) })
 
 describe('the source-file store', () => {
   beforeEach(() => {
@@ -319,6 +324,156 @@ describe('the source-file store', () => {
     expect(store.status).toBe('loading')
     expect(store.loudness).toBeNull()
     expect(store.loudnessWindowSeconds).toBeNull()
+  })
+
+  describe('the ffmpeg core download', () => {
+    type OnProgress = ((fraction: number) => void) | undefined
+
+    /*
+    Makes the next `openFfmpeg` wait on a download the test drives: `progress` reaches the
+    callback the store passed, `finish` lets `openFfmpeg` resolve and `fail` makes it reject.
+    */
+    function pendingDownload() {
+      let onProgress: OnProgress
+      let finish!: (session: ReturnType<typeof readySession>) => void
+      let fail!: (error: Error) => void
+      vi.mocked(openFfmpeg).mockImplementationOnce(
+        (_file, callback) =>
+          new Promise((resolve, reject) => {
+            onProgress = callback
+            finish = resolve as typeof finish
+            fail = reject
+          }),
+      )
+      return {
+        progress: (fraction: number) => onProgress?.(fraction),
+        finish: () => {
+          finish(readySession())
+        },
+        fail: (error: Error) => {
+          fail(error)
+        },
+      }
+    }
+
+    it('holds the fraction while progress comes in, and nothing once the download is done', async () => {
+      const download = pendingDownload()
+      const store = useSourceFileStore()
+      expect(store.downloadFraction).toBeNull()
+
+      const loading = store.load(file)
+      download.progress(0)
+      expect(store.downloadFraction).toBe(0)
+      download.progress(0.38)
+      expect(store.downloadFraction).toBeCloseTo(0.38)
+      download.progress(1)
+      expect(store.downloadFraction).toBeNull()
+      expect(store.status).toBe('loading')
+
+      download.finish()
+      await loading
+      expect(store.status).toBe('ready')
+      expect(store.downloadFraction).toBeNull()
+    })
+
+    it('holds no fraction when nothing is downloaded', async () => {
+      vi.mocked(openFfmpeg).mockResolvedValue(readySession())
+      const store = useSourceFileStore()
+
+      await store.load(file)
+
+      expect(vi.mocked(openFfmpeg)).toHaveBeenCalledWith(
+        file,
+        expect.any(Function),
+        expect.any(AbortSignal),
+      )
+      expect(store.downloadFraction).toBeNull()
+    })
+
+    it('names the step "downloading ffmpeg" when the download fails, with its reason', async () => {
+      const download = pendingDownload()
+      const store = useSourceFileStore()
+      const loading = store.load(file)
+      download.progress(0.2)
+
+      download.fail(new CoreDownloadError('The download stalled: no data for 30 s'))
+      await loading
+
+      expect(store.status).toBe('failed')
+      expect(store.failure).toEqual({
+        kind: 'failed',
+        step: 'downloading ffmpeg',
+        reason: 'The download stalled: no data for 30 s',
+      })
+      expect(store.downloadFraction).toBeNull()
+    })
+
+    it('keeps the step "probe" when ffmpeg itself fails to load after the download', async () => {
+      const download = pendingDownload()
+      const store = useSourceFileStore()
+      const loading = store.load(file)
+      download.progress(1)
+
+      download.fail(new Error('ffmpeg did not finish loading within 180 s'))
+      await loading
+
+      expect(store.failure).toEqual({
+        kind: 'failed',
+        step: 'probe',
+        reason: 'ffmpeg did not finish loading within 180 s',
+      })
+    })
+
+    it('cancels mid-download: the store is empty, and later progress changes nothing', async () => {
+      const download = pendingDownload()
+      const store = useSourceFileStore()
+      const loading = store.load(file)
+      download.progress(0.5)
+
+      store.cancel()
+      download.progress(0.6)
+
+      expect(store.status).toBe('empty')
+      expect(store.downloadFraction).toBeNull()
+      download.finish()
+      await loading
+      expect(store.status).toBe('empty')
+    })
+
+    it("aborts the load's signal on Cancel and on a newer load, so no ffmpeg worker starts for it", async () => {
+      pendingDownload()
+      const store = useSourceFileStore()
+      void store.load(file)
+      const first = vi.mocked(openFfmpeg).mock.calls.at(-1)?.[2]
+      expect(first?.aborted).toBe(false)
+
+      store.cancel()
+      expect(first?.aborted).toBe(true)
+
+      pendingDownload()
+      void store.load(file)
+      const second = vi.mocked(openFfmpeg).mock.calls.at(-1)?.[2]
+      expect(second?.aborted).toBe(false)
+      pendingDownload()
+      void store.load(file)
+      expect(second?.aborted).toBe(true)
+    })
+
+    it('ignores the progress of a load that a newer load has replaced', async () => {
+      const first = pendingDownload()
+      const store = useSourceFileStore()
+      void store.load(file)
+      first.progress(0.5)
+      store.cancel()
+      const second = pendingDownload()
+      void store.load(new File(['y'], 'second.m4a'))
+      expect(store.downloadFraction).toBeNull()
+
+      first.progress(0.9)
+      expect(store.downloadFraction).toBeNull()
+      second.progress(0.55)
+      expect(store.downloadFraction).toBeCloseTo(0.55)
+    })
   })
 
   describe('the open session and clips', () => {

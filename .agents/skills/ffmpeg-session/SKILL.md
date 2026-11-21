@@ -11,6 +11,7 @@ One ffmpeg session per loaded file, owned by the `source-file` store. Read `docs
   - the watchdog timeout (a hung call terminates the worker)
   - a fresh worker every 20 calls
   - `interrupt()`, which rejects the running call with "ffmpeg was stopped" and leaves the session usable
+- `@/shared/api/ffmpeg/core-preloader.ts` downloads the ffmpeg core before any worker starts: one shared promise for the page, progress as a fraction of the wasm's size, a 30 s stall rule and no total limit. `openFfmpeg` awaits it (so the load watchdog never counts the network), passes its progress on, and stops waiting when its `signal` aborts (the store aborts it on Cancel or a newer load); a failure is a `CoreDownloadError`, which the store reports as the step "downloading ffmpeg". A new worker entry or call never fetches the core itself.
 - `@/entities/source-file/api/` has one file per job: `probe.ts`, `decode-slice.ts`, `decode-clip.ts`, `cut-track.ts`. Each one:
   - builds its command line
   - passes its own timeout
@@ -39,4 +40,4 @@ A `*.worker.ts` or `*.worklet.ts` entry triggers the full test suite, because th
 
 ## Specs
 
-Specs never run ffmpeg. They use `@/shared/api/ffmpeg/__tests__/fake-ffmpeg.ts`, which answers probe, decode, clip (`-f wav`) and cut (`-c copy`) by the shape of the command. Extend the fake when a new job has a new command shape. A real-browser check of the actual ffmpeg goes in `e2e/export.spec.ts`.
+Specs never run ffmpeg or download it: the session spec mocks `core-preloader.ts`, and the preloader's own spec uses a fake streaming `fetch`. They use `@/shared/api/ffmpeg/__tests__/fake-ffmpeg.ts`, which answers probe, decode, clip (`-f wav`) and cut (`-c copy`) by the shape of the command. Extend the fake when a new job has a new command shape. A real-browser check of the actual ffmpeg goes in `e2e/export.spec.ts`.
