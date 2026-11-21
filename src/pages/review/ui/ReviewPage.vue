@@ -15,8 +15,10 @@ import {
 } from 'lucide-vue-next'
 
 import { useSourceFileStore } from '@/entities/source-file/model/source-file.ts'
+import { formatPendingSplits } from '@/entities/split/lib/format-edits.ts'
 import { useSplitStore, type PanelView } from '@/entities/split/model/split.ts'
 import UiButton from '@/shared/ui/UiButton.vue'
+import UiDialog from '@/shared/ui/UiDialog.vue'
 import UiIconButton from '@/shared/ui/UiIconButton.vue'
 import UiPanel from '@/shared/ui/UiPanel.vue'
 import UiSegmentedControl from '@/shared/ui/UiSegmentedControl.vue'
@@ -62,6 +64,10 @@ Range view and the Track view have "Play", which plays the range or the selected
 "Stop" while it is decoded and "Pause" while it plays), and "Back to range start" or "Back to track
 start" beside it, which moves the playhead to the stretch's start. The volume control (a mute button
 and a slider) ends the row in all three views.
+
+The split store holds back an action that would discard pending splits as its one open question,
+and this page shows it: "Discard N pending splits?" with Apply first, Discard and Cancel, the
+store's answers. Apply first comes first, so it takes the focus, and Escape cancels.
 
 The page mounts only once the source file is ready (src/app/App.vue), which is when the split store
 looks for the gaps in its loudness curve, once; the split store cannot import the source-file store.
@@ -217,6 +223,14 @@ function backToStretchStart() {
 function toggleStretch() {
   if (stretch.value !== null) audition.toggleStretch(stretch.value)
 }
+
+// The dialog is open while the store holds a question; closing it any other way is a cancel.
+const asking = computed({
+  get: () => split.discardQuestion !== null,
+  set: (open) => {
+    if (!open) split.cancelDiscard()
+  },
+})
 
 const view = computed<PanelView>({
   get: () => split.view,
@@ -400,5 +414,16 @@ watch(
     <ExportDialog />
     <SingleExportDialog @confirm="confirmSingleExport" />
     <ShortcutsDialog />
+    <UiDialog
+      v-model:open="asking"
+      :title="`Discard ${formatPendingSplits(split.discardQuestion?.pendingCount ?? 0)}?`"
+      description="They are not splits yet. Apply them first, or discard them."
+    >
+      <template #actions>
+        <UiButton @click="split.applyFirst()">Apply first</UiButton>
+        <UiButton variant="danger" @click="split.discardPending()">Discard</UiButton>
+        <UiButton @click="split.cancelDiscard()">Cancel</UiButton>
+      </template>
+    </UiDialog>
   </main>
 </template>

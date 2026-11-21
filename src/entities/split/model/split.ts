@@ -107,6 +107,13 @@ export const useSplitStore = defineStore('split', () => {
   */
   const pendingSeconds = ref<number[]>([])
   const selectedPendingSeconds = ref<number | null>(null)
+  /*
+  The open question, or none: an action that would empty a non-empty pending list is held here with
+  the number of pending splits it would lose, until `applyFirst`, `discardPending` or
+  `cancelDiscard` answers it. The held action is a closure, so it is no state a widget reads.
+  */
+  const discardQuestion = ref<{ pendingCount: number } | null>(null)
+  let heldAction: (() => void) | null = null
   const view = ref<PanelView>('split')
   let nextSplitId = 0
   /*
@@ -197,6 +204,55 @@ export const useSplitStore = defineStore('split', () => {
     },
     { flush: 'sync' },
   )
+
+  /*
+  Runs `action`, unless it `isDiscarding` the pending splits (it empties them, or ends the track
+  they belong to) while there are some: then it does not run but is held as the one open question.
+  An action that arrives while a question is open is ignored: the first one is the one asked about.
+  */
+  function unlessItDiscards(action: () => void, isDiscarding = true) {
+    if (discardQuestion.value !== null) return
+    if (!isDiscarding || pendingSeconds.value.length === 0) {
+      action()
+      return
+    }
+    heldAction = action
+    discardQuestion.value = { pendingCount: pendingSeconds.value.length }
+  }
+
+  // Closes the question and hands back the action it held.
+  function closeQuestion() {
+    const action = heldAction
+    heldAction = null
+    discardQuestion.value = null
+    return action
+  }
+
+  // Apply first: the pending splits become splits, then what the user asked for runs.
+  function applyFirst() {
+    const action = closeQuestion()
+    if (action === null) return
+    applyPendingSplits()
+    action()
+  }
+
+  // Discard: the pending splits are dropped, then what the user asked for runs.
+  function discardPending() {
+    const action = closeQuestion()
+    if (action === null) return
+    clearPending()
+    action()
+  }
+
+  // Cancel: nothing happens, and the pending splits stay.
+  function cancelDiscard() {
+    closeQuestion()
+  }
+
+  // Whether a split is one of the two that bound the selected track, where the pending splits sit.
+  function isSelectedTrackEnd(id: number) {
+    return selectedTrackEndSplits.value.some((split) => split.id === id)
+  }
 
   function clearEdits() {
     movedIds.value.clear()
@@ -318,12 +374,18 @@ export const useSplitStore = defineStore('split', () => {
     findAgain()
   }
 
-  function selectSplit(id: number) {
+  // Selects the split, centres the window on it and shows the Split view, with no question.
+  function showSplit(id: number) {
     const split = splits.value.find((candidate) => candidate.id === id)
     if (split === undefined) return
     selection.value = { kind: 'split', id: split.id }
     zoomCentreSeconds.value = split.seconds
     view.value = 'split'
+  }
+
+  // A split no longer selected for a track ends the pending splits, so it asks first.
+  function selectSplit(id: number) {
+    if (splits.value.some((candidate) => candidate.id === id)) unlessItDiscards(() => showSplit(id))
   }
 
   /*
@@ -337,8 +399,11 @@ export const useSplitStore = defineStore('split', () => {
     const isLive =
       startSplitId === null || splits.value.some((candidate) => candidate.id === startSplitId)
     if (!isLive) return
-    selection.value = { kind: 'track', startSplitId }
-    view.value = 'track'
+    // The track already selected asks nothing: its pending splits stay.
+    unlessItDiscards(() => {
+      selection.value = { kind: 'track', startSplitId }
+      view.value = 'track'
+    }, !isTrackSelected(track))
   }
 
   function isTrackSelected(track: Track) {
@@ -348,9 +413,11 @@ export const useSplitStore = defineStore('split', () => {
 
   // A click on empty ground in the whole-file view: the window goes there, with nothing selected.
   function moveZoomTo(seconds: number) {
-    zoomCentreSeconds.value = seconds
-    selection.value = null
-    view.value = 'split'
+    unlessItDiscards(() => {
+      zoomCentreSeconds.value = seconds
+      selection.value = null
+      view.value = 'split'
+    })
   }
 
   /*
@@ -433,7 +500,7 @@ export const useSplitStore = defineStore('split', () => {
     if (times.length === 0) return
     clearPending()
     const inserted = times.map((seconds) => insertSplit(seconds))
-    selectSplit(inserted[0]!.id)
+    showSplit(inserted[0]!.id)
   }
 
   // A view needs something to show: asked for with no range or no selected track, the panel stays.
@@ -478,9 +545,17 @@ export const useSplitStore = defineStore('split', () => {
     return split
   }
 
+  /*
+  It selects the new split, which leaves the track: with pending splits it asks first. The time is
+  taken now and the room is checked again when it runs, since "Apply first" moves the window and
+  adds splits in between.
+  */
   function addSplit() {
     if (!canAddSplit.value) return
-    selectSplit(insertSplit(zoomCentreSeconds.value).id)
+    const seconds = zoomCentreSeconds.value
+    unlessItDiscards(() => {
+      if (hasRoomFor(seconds)) showSplit(insertSplit(seconds).id)
+    })
   }
 
   /*
@@ -490,7 +565,17 @@ export const useSplitStore = defineStore('split', () => {
   */
   function addSplitAt(seconds: number) {
     const onGrid = snapToGrid(seconds)
-    if (hasRoomFor(onGrid)) insertSplit(onGrid)
+    if (!hasRoomFor(onGrid)) return
+    // A split inside the selected track shortens it, ending its pending splits: it asks first.
+    const track = selectedTrack.value
+    const isInside =
+      track !== null &&
+      onGrid > track.startSeconds &&
+      onGrid < track.startSeconds + track.lengthSeconds
+    // The room is checked again when it runs: "Apply first" adds splits in between.
+    unlessItDiscards(() => {
+      if (hasRoomFor(onGrid)) insertSplit(onGrid)
+    }, isInside)
   }
 
   // A split where the mark is.
@@ -498,7 +583,16 @@ export const useSplitStore = defineStore('split', () => {
     if (markSeconds.value !== null) addSplitAt(markSeconds.value)
   }
 
+  // Deleting an end split of the selected track changes the track, which ends its pending splits.
   function deleteSplit(id: number) {
+    if (splits.value.some((candidate) => candidate.id === id)) {
+      unlessItDiscards(() => {
+        removeSplit(id)
+      }, isSelectedTrackEnd(id))
+    }
+  }
+
+  function removeSplit(id: number) {
     const index = splits.value.findIndex((candidate) => candidate.id === id)
     if (index === -1) return
     const current = selection.value
@@ -540,10 +634,16 @@ export const useSplitStore = defineStore('split', () => {
     if (splits.value.length === 0 || (startIndex === -1 && track.startSplit !== null)) return
     const start = splits.value[startIndex]
     const end = splits.value[startIndex + 1]
-    const inheritedName = end?.name ?? null
-    if (end !== undefined) deleteSplit(end.id)
-    if (start !== undefined) deleteSplit(start.id)
-    if (start === undefined) renameTrack(null, inheritedName ?? '')
+    // The splits are taken now, so a held removal removes this track's, whatever is applied since.
+    const isDiscarding = [start, end].some(
+      (split) => split !== undefined && isSelectedTrackEnd(split.id),
+    )
+    unlessItDiscards(() => {
+      const inheritedName = end?.name ?? null
+      if (end !== undefined) removeSplit(end.id)
+      if (start !== undefined) removeSplit(start.id)
+      if (start === undefined) renameTrack(null, inheritedName ?? '')
+    }, isDiscarding)
   }
 
   /*
@@ -579,6 +679,7 @@ export const useSplitStore = defineStore('split', () => {
     markSeconds.value = null
     trackMarkSeconds.value = null
     clearPending()
+    closeQuestion()
     view.value = 'split'
     nextSplitId = 0
   }
@@ -601,6 +702,7 @@ export const useSplitStore = defineStore('split', () => {
     pendingSplits: pendingSeconds,
     selectedPendingSplit: selectedPendingSeconds,
     canAddPendingSplit,
+    discardQuestion,
     view,
     canAddSplit,
     canAddSplitAtMark,
@@ -623,6 +725,9 @@ export const useSplitStore = defineStore('split', () => {
     deselectPendingSplit,
     deleteSelectedPendingSplit,
     applyPendingSplits,
+    applyFirst,
+    discardPending,
+    cancelDiscard,
     showView,
     moveSplit,
     addSplit,

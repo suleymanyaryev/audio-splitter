@@ -109,6 +109,25 @@ function pendingTwo() {
   return store
 }
 
+/*
+What an open discard question leaves of `pendingTwo`: the question is open, and the held action has
+not run, so the track, the list and the view are as they were. The third track is 42 s to 60 s.
+*/
+function heldState(store: ReturnType<typeof useSplitStore>) {
+  return {
+    question: store.discardQuestion,
+    pending: store.pendingSplits,
+    trackNumber: store.selectedTrack?.number,
+    view: store.view,
+  }
+}
+const HELD = {
+  question: { pendingCount: 2 },
+  pending: [27, 36],
+  trackNumber: 2,
+  view: 'track',
+}
+
 const selectedTracks = (store: ReturnType<typeof useSplitStore>) =>
   store.tracks.map((track) => store.isTrackSelected(track))
 
@@ -1914,16 +1933,22 @@ describe('the split store', () => {
         expect(store.pendingSplits).toEqual([23, 41])
       })
 
-      it('is 1 s from the file’s start in the first track, and from its end in the last', () => {
+      it('is 1 s from the file’s start in the first track', () => {
         const store = loadedStore()
 
         store.addPendingSplit(0.5, false)
         store.addPendingSplit(1, false)
-        expect(store.pendingSplits).toEqual([1])
 
+        expect(store.pendingSplits).toEqual([1])
+      })
+
+      it('is 1 s from the file’s end in the last track', () => {
+        const store = loadedStore()
         store.selectTrack(store.tracks[2]!)
+
         store.addPendingSplit(59.5, false)
         store.addPendingSplit(59, false)
+
         expect(store.pendingSplits).toEqual([59])
       })
 
@@ -2144,6 +2169,7 @@ describe('the split store', () => {
         const store = pendingTwo()
 
         store.selectTrack(store.tracks[0]!)
+        store.discardPending()
         store.selectTrack(store.tracks[1]!)
 
         expect(store.pendingSplits).toEqual([])
@@ -2153,11 +2179,13 @@ describe('the split store', () => {
       it('empties them when a split is selected, and when the zoom window is moved', () => {
         const store = pendingTwo()
         store.selectSplit(store.splits[0]!.id)
+        store.discardPending()
         expect(store.pendingSplits).toEqual([])
 
         store.selectTrack(store.tracks[1]!)
         store.addPendingSplit(27, false)
         store.moveZoomTo(5)
+        store.discardPending()
         expect(store.pendingSplits).toEqual([])
       })
 
@@ -2176,6 +2204,7 @@ describe('the split store', () => {
         const store = pendingTwo()
 
         store.deleteSplit(store.splits[0]!.id)
+        store.discardPending()
 
         expect(store.pendingSplits).toEqual([])
       })
@@ -2186,6 +2215,7 @@ describe('the split store', () => {
         expect(store.pendingSplits).toEqual([27, 36])
 
         store.addSplitAt(40)
+        store.discardPending()
         expect(store.pendingSplits).toEqual([])
       })
 
@@ -2205,6 +2235,293 @@ describe('the split store', () => {
 
         expect(store.pendingSplits).toEqual([])
         expect(store.selectedPendingSplit).toBeNull()
+      })
+    })
+  })
+
+  describe('the discard question', () => {
+    describe('holds back an action that would discard them', () => {
+      it('selecting a split', () => {
+        const store = pendingTwo()
+
+        store.selectSplit(store.splits[0]!.id)
+
+        expect(heldState(store)).toEqual(HELD)
+        expect(store.selectedSplit).toBeNull()
+      })
+
+      it('selecting another track', () => {
+        const store = pendingTwo()
+
+        store.selectTrack(store.tracks[2]!)
+
+        expect(heldState(store)).toEqual(HELD)
+      })
+
+      it('moving the zoom window onto empty ground', () => {
+        const store = pendingTwo()
+        const centre = store.zoomCentreSeconds
+
+        store.moveZoomTo(5)
+
+        expect(heldState(store)).toEqual(HELD)
+        expect(store.zoomCentreSeconds).toBe(centre)
+      })
+
+      it.each([0, 1])('deleting the split at either end of the track (split %i)', (index) => {
+        const store = pendingTwo()
+
+        store.deleteSplit(store.splits[index]!.id)
+
+        expect(heldState(store)).toEqual(HELD)
+        expect(store.splits).toHaveLength(2)
+      })
+
+      it.each([0, 1, 2])(
+        'removing the track, or a neighbour, which deletes one of its end splits (track %i)',
+        (index) => {
+          const store = pendingTwo()
+
+          store.removeTrack(store.tracks[index]!)
+
+          expect(heldState(store)).toEqual(HELD)
+          expect(store.splits).toHaveLength(2)
+        },
+      )
+
+      it('adding a split at the window’s centre, which selects it', () => {
+        const store = pendingTwo()
+
+        store.addSplit()
+
+        expect(heldState(store)).toEqual(HELD)
+        expect(store.splits).toHaveLength(2)
+      })
+
+      it('adding a split inside the track from the Range view, which shortens it', () => {
+        const store = pendingTwo()
+
+        store.addSplitAt(30)
+
+        expect(heldState(store)).toEqual(HELD)
+        expect(store.splits).toHaveLength(2)
+      })
+    })
+
+    describe('asks nothing', () => {
+      it('with no pending split: the action runs at once', () => {
+        const store = loadedStore()
+        store.selectTrack(store.tracks[1]!)
+
+        store.selectSplit(store.splits[0]!.id)
+
+        expect(store.discardQuestion).toBeNull()
+        expect(store.selectedSplit?.seconds).toBe(22)
+      })
+
+      it('for the track that is already selected', () => {
+        const store = pendingTwo()
+
+        store.selectTrack(store.selectedTrack!)
+
+        expect(store.discardQuestion).toBeNull()
+        expect(store.pendingSplits).toEqual([27, 36])
+      })
+
+      it('for a view switch', () => {
+        const store = pendingTwo()
+        store.setRange(10, 20)
+
+        store.showView('split')
+        store.showView('range')
+        store.showView('track')
+
+        expect(store.discardQuestion).toBeNull()
+        expect(store.pendingSplits).toEqual([27, 36])
+      })
+
+      it('for a split added in another track, or deleted away from the track’s ends', () => {
+        const store = namedFourTracks()
+        store.selectTrack(store.tracks[1]!)
+        store.addPendingSplit(30, false)
+
+        store.addSplitAt(10)
+        store.deleteSplit(store.splits.at(-1)!.id)
+
+        expect(store.discardQuestion).toBeNull()
+        expect(store.splits.map((point) => point.seconds)).toEqual([10, 22, 42])
+        expect(store.pendingSplits).toEqual([30])
+      })
+
+      it('for the pending splits’ own actions', () => {
+        const store = pendingTwo()
+
+        store.deselectPendingSplit()
+        store.addPendingSplit(31, false)
+        store.deleteSelectedPendingSplit()
+        store.selectPendingSplit(31)
+        store.placeTrackMark(30)
+
+        expect(store.discardQuestion).toBeNull()
+      })
+    })
+
+    describe('apply first', () => {
+      it('applies them, then runs the held action, and closes the question', () => {
+        const store = pendingTwo()
+        const target = store.splits[1]!
+        store.selectSplit(target.id)
+
+        store.applyFirst()
+
+        expect(store.discardQuestion).toBeNull()
+        expect(store.splits.map((point) => point.seconds)).toEqual([22, 27, 36, 42])
+        expect(store.editCount).toBe(2)
+        // The held selection came after the apply's own, so it is the one that stands.
+        expect(store.selectedSplit?.id).toBe(target.id)
+        expect(store.pendingSplits).toEqual([])
+      })
+
+      it('runs a held track selection on the track it named', () => {
+        const store = pendingTwo()
+        const third = store.tracks[2]!
+        store.selectTrack(third)
+
+        store.applyFirst()
+
+        expect(store.selectedTrack?.startSeconds).toBe(42)
+        expect(store.view).toBe('track')
+        expect(store.splits).toHaveLength(4)
+      })
+
+      it('runs a held split at the window’s centre where the centre was, and only with room', () => {
+        const store = pendingTwo()
+        store.addSplit()
+
+        store.applyFirst()
+
+        const seconds = store.splits.map((point) => point.seconds)
+        const gaps = seconds.slice(1).map((value, index) => value - seconds[index]!)
+        expect(Math.min(...gaps)).toBeGreaterThanOrEqual(1)
+      })
+
+      it('drops a held split from the Range view that no longer has room after the apply', () => {
+        const store = pendingTwo()
+        store.addSplitAt(27.4)
+
+        store.applyFirst()
+
+        expect(store.splits.map((point) => point.seconds)).toEqual([22, 27, 36, 42])
+      })
+
+      it('runs a held track removal on the track as it was, not on the part left of it', () => {
+        const store = pendingTwo()
+        store.removeTrack(store.tracks[1]!)
+
+        store.applyFirst()
+
+        // The track's two end splits, 22 s and 42 s, go; the applied 27 s and 36 s stay.
+        expect(store.splits.map((point) => point.seconds)).toEqual([27, 36])
+      })
+    })
+
+    describe('discard', () => {
+      it('drops them, then runs the held action, and closes the question', () => {
+        const store = pendingTwo()
+        const target = store.splits[0]!
+        store.selectSplit(target.id)
+
+        store.discardPending()
+
+        expect(store.discardQuestion).toBeNull()
+        expect(store.pendingSplits).toEqual([])
+        expect(store.selectedPendingSplit).toBeNull()
+        expect(store.splits).toHaveLength(2)
+        expect(store.editCount).toBe(0)
+        expect(store.selectedSplit?.id).toBe(target.id)
+      })
+
+      it('runs a held delete', () => {
+        const store = pendingTwo()
+        store.deleteSplit(store.splits[1]!.id)
+
+        store.discardPending()
+
+        expect(store.splits.map((point) => point.seconds)).toEqual([22])
+      })
+    })
+
+    describe('cancel', () => {
+      it('does nothing: the action is forgotten and the pending splits stay', () => {
+        const store = pendingTwo()
+        store.selectSplit(store.splits[0]!.id)
+
+        store.cancelDiscard()
+
+        expect(store.discardQuestion).toBeNull()
+        expect(store.pendingSplits).toEqual([27, 36])
+        expect(store.selectedSplit).toBeNull()
+        expect(store.selectedTrack?.number).toBe(2)
+      })
+
+      it('asks again the next time', () => {
+        const store = pendingTwo()
+        store.selectSplit(store.splits[0]!.id)
+        store.cancelDiscard()
+
+        store.selectSplit(store.splits[0]!.id)
+
+        expect(heldState(store)).toEqual(HELD)
+      })
+    })
+
+    describe('while it is open', () => {
+      it('ignores a second discarding action, so the answer runs the first', () => {
+        const store = pendingTwo()
+        const first = store.splits[0]!
+        store.selectSplit(first.id)
+
+        store.selectTrack(store.tracks[2]!)
+        store.moveZoomTo(5)
+        store.discardPending()
+
+        expect(store.selectedSplit?.id).toBe(first.id)
+      })
+
+      it('keeps the count it was asked with', () => {
+        const store = pendingTwo()
+        store.selectSplit(store.splits[0]!.id)
+
+        store.selectPendingSplit(27)
+        store.addPendingSplit(39, false)
+
+        expect(store.discardQuestion).toEqual({ pendingCount: 2 })
+      })
+    })
+
+    describe('answering with no question open', () => {
+      it('does nothing', () => {
+        const store = pendingTwo()
+
+        store.applyFirst()
+        store.discardPending()
+        store.cancelDiscard()
+
+        expect(store.pendingSplits).toEqual([27, 36])
+        expect(store.splits).toHaveLength(2)
+      })
+    })
+
+    describe('a reset', () => {
+      it('closes it and forgets the held action', () => {
+        const store = pendingTwo()
+        store.selectSplit(store.splits[0]!.id)
+
+        store.reset()
+
+        expect(store.discardQuestion).toBeNull()
+        store.discardPending()
+        expect(store.selectedSplit).toBeNull()
       })
     })
   })

@@ -234,6 +234,42 @@ describe('App', () => {
       wrapper.unmount()
     })
 
+    it('asks with pending splits and no edits, counting them', async () => {
+      const wrapper = mount(App, { attachTo: document.body })
+      await chooseFile(wrapper, file)
+      const split = useSplitStore()
+      split.addPendingSplit(10, false)
+      split.addPendingSplit(20, false)
+      expect(split.hasEdits).toBe(false)
+
+      await newFileButton(wrapper).trigger('click')
+      await flushPromises()
+
+      expect(dialog()?.textContent).toContain('Loading a new file discards your 2 pending splits.')
+      expect(headings(wrapper)).toContain('Whole file')
+      wrapper.unmount()
+    })
+
+    it('counts the edits and the pending splits together', async () => {
+      const wrapper = mount(App, { attachTo: document.body })
+      await chooseFile(wrapper, file)
+      const split = useSplitStore()
+      split.renameTrack(null, 'Opener')
+      split.addPendingSplit(10, false)
+
+      await newFileButton(wrapper).trigger('click')
+      await flushPromises()
+
+      expect(dialog()?.textContent).toContain(
+        'Loading a new file discards your 1 edit and 1 pending split.',
+      )
+      dialogButton('New file').dispatchEvent(new MouseEvent('click', { bubbles: true }))
+      await flushPromises()
+      expect(wrapper.text()).toContain('Choose file…')
+      expect(split.pendingSplits).toEqual([])
+      wrapper.unmount()
+    })
+
     it('does not ask when nothing was edited', async () => {
       const wrapper = mount(App, { attachTo: document.body })
       await chooseFile(wrapper, file)

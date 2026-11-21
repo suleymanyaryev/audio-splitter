@@ -43,6 +43,30 @@ describe('useReplaceGuard', () => {
     expect(guard.asking.value).toBe(true)
   })
 
+  it('asks with pending splits and no edits, which a change would drop too', () => {
+    const { split, guard } = setup({ edited: false })
+    split.addPendingSplit(5, false)
+    const apply = vi.fn()
+
+    guard.change(apply)
+
+    expect(apply).not.toHaveBeenCalled()
+    expect(guard.asking.value).toBe(true)
+    expect(guard.editCount.value).toBe(0)
+    expect(guard.pendingCount.value).toBe(1)
+  })
+
+  it('runs the held change over pending splits, which finding the gaps again drops', () => {
+    const { split, guard } = setup({ edited: false })
+    split.addPendingSplit(5, false)
+    guard.change(() => split.setMinimumGapLength(3))
+
+    guard.replace()
+
+    expect(split.pendingSplits).toEqual([])
+    expect(guard.asking.value).toBe(false)
+  })
+
   it('counts the edits the question is about', () => {
     const { split, guard } = setup({ edited: true })
     split.renameTrack(split.splits[0]?.id ?? null, 'Closer')

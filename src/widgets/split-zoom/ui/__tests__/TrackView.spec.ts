@@ -622,6 +622,23 @@ describe('TrackView', () => {
       expect(split.view).toBe('split')
     })
 
+    it('on an end split’s line with pending splits asks before it leaves the track', async () => {
+      const { split, wrapper } = setup()
+      split.addPendingSplit(40, false)
+      const view = measured(wrapper)
+
+      await doubleClick(view, 995)
+
+      expect(split.discardQuestion).toEqual({ pendingCount: 1 })
+      expect(split.selectedSplit).toBeNull()
+      expect(split.view).toBe('track')
+
+      split.discardPending()
+
+      expect(split.selectedSplit?.seconds).toBe(71.5)
+      expect(split.view).toBe('split')
+    })
+
     it('7 px from an end split’s line moves the playhead instead', async () => {
       const { audition, split, stretch, wrapper } = setup()
       const view = measured(wrapper)

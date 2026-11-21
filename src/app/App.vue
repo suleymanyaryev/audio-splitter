@@ -3,7 +3,7 @@ import { computed, ref } from 'vue'
 import { CircleQuestionMark } from 'lucide-vue-next'
 
 import { useSourceFileStore } from '@/entities/source-file/model/source-file.ts'
-import { formatEdits } from '@/entities/split/lib/format-edits.ts'
+import { formatLoss } from '@/entities/split/lib/format-edits.ts'
 import { useSplitStore } from '@/entities/split/model/split.ts'
 import LoadPage from '@/pages/load/ui/LoadPage.vue'
 import ReviewPage from '@/pages/review/ui/ReviewPage.vue'
@@ -26,11 +26,11 @@ const chip = computed(() => {
   return duration === null ? name : `${name} · ${formatDuration(duration)}`
 })
 
-// "New file" throws the edits away, so it asks first when there are any.
+// "New file" throws the edits and the pending splits away, so it asks first when there are any.
 const asking = ref(false)
 
 function newFile() {
-  if (split.hasEdits) asking.value = true
+  if (split.hasEdits || split.pendingSplits.length > 0) asking.value = true
   else sourceFile.reset()
 }
 
@@ -76,7 +76,7 @@ function discardAndReset() {
   <UiDialog
     v-model:open="asking"
     title="Discard your edits?"
-    :description="`Loading a new file discards your ${formatEdits(split.editCount)}.`"
+    :description="`Loading a new file discards your ${formatLoss(split.editCount, split.pendingSplits.length)}.`"
   >
     <template #actions>
       <UiButton @click="asking = false">Keep edits</UiButton>

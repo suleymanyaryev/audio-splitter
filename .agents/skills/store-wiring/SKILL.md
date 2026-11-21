@@ -23,7 +23,7 @@ The import rules are in AGENTS.md "Code layout" and enforced by `pnpm lint`; thi
 
 ## The user's edits
 
-- `split.editCount` counts changes since the last detection. Anything that would replace the user's edits goes through the replace guard: `widgets/loudness-curve/lib/use-replace-guard.ts` with `ReplaceEditsDialog.vue`, and "New file" in `App.vue`. The guard holds the change back and asks; "Replace" applies it. `entities/split/lib/format-edits.ts` words the count.
+- `split.editCount` counts changes since the last detection. Anything that would replace the user's edits goes through the replace guard: `widgets/loudness-curve/lib/use-replace-guard.ts` with `ReplaceEditsDialog.vue`, and "New file" in `App.vue`. The guard holds the change back and asks; "Replace" applies it. `entities/split/lib/format-edits.ts` words the count. Pending splits count as work to lose too: the guard and "New file" ask with them, and an action in `split` that would drop them is held as `discardQuestion` (`unlessItDiscards` in `entities/split/model/split.ts`), so a new action that selects another thing or changes the selected track's ends goes through it.
 - A change counts as an edit only when the value really changed: `TrackNameField.vue` saves nothing for an unchanged name.
 
 ## Sound

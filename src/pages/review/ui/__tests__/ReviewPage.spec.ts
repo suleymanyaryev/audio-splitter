@@ -200,6 +200,29 @@ async function volumeSlider(wrapper: ReturnType<typeof mount>) {
   return wrapper.get('[role="slider"][aria-label="Volume"]')
 }
 
+// Track 2 (21 s to 71.5 s) has pending splits at 30 s and 50 s; track 3 is 71.5 s to 100 s.
+async function mountWithPending() {
+  const wrapper = await mountWithMark()
+  const split = useSplitStore()
+  split.addPendingSplit(30, false)
+  split.addPendingSplit(50, false)
+  await wrapper.vm.$nextTick()
+  return { split, wrapper }
+}
+
+const question = () => document.querySelector('[role="alertdialog"]')
+function questionButton(text: string) {
+  const button = [...(question()?.querySelectorAll('button') ?? [])].find(
+    (candidate) => candidate.textContent === text,
+  )
+  if (!button) throw new Error(`no "${text}" button`)
+  return button
+}
+async function clickElement(element: Element) {
+  element.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+  await flushPromises()
+}
+
 describe('ReviewPage', () => {
   beforeEach(() => {
     // The volume is kept in localStorage, which a spec must not inherit from another.
@@ -1344,6 +1367,142 @@ describe('ReviewPage', () => {
         await wrapper.vm.$nextTick()
         expect(exportButtonOf(wrapper, 'Export range…').attributes('disabled')).toBeUndefined()
       })
+    })
+  })
+
+  describe('the discard question', () => {
+    it('asks "Discard 2 pending splits?" with Apply first, Discard and Cancel, Apply first focused', async () => {
+      const { split, wrapper } = await mountWithPending()
+
+      await wrapper.get('[aria-label^="Select track 3"]').trigger('click')
+      await flushPromises()
+
+      expect(question()?.textContent).toContain('Discard 2 pending splits?')
+      expect(
+        [...(question()?.querySelectorAll('button') ?? [])].map((button) => button.textContent),
+      ).toEqual(['Apply first', 'Discard', 'Cancel'])
+      expect(document.activeElement).toBe(questionButton('Apply first'))
+      // Nothing has happened yet.
+      expect(split.selectedTrack?.number).toBe(2)
+      expect(split.pendingSplits).toEqual([30, 50])
+    })
+
+    it('says "Discard 1 pending split?" for a single one', async () => {
+      const wrapper = await mountWithMark()
+      useSplitStore().addPendingSplit(30, false)
+      await wrapper.vm.$nextTick()
+
+      await wrapper.get('[aria-label^="Select track 3"]').trigger('click')
+      await flushPromises()
+
+      expect(question()?.textContent).toContain('Discard 1 pending split?')
+    })
+
+    it('"Apply first" applies them, then selects the track asked for', async () => {
+      const { split, wrapper } = await mountWithPending()
+      await wrapper.get('[aria-label^="Select track 3"]').trigger('click')
+      await flushPromises()
+
+      await clickElement(questionButton('Apply first'))
+
+      expect(question()).toBeNull()
+      expect(split.splits.map((point) => point.seconds)).toEqual([21, 30, 50, 71.5])
+      expect(split.editCount).toBe(2)
+      expect(split.pendingSplits).toEqual([])
+      expect(split.selectedTrack?.startSeconds).toBe(71.5)
+      expect(split.view).toBe('track')
+    })
+
+    it('"Discard" drops them, then selects the track asked for', async () => {
+      const { split, wrapper } = await mountWithPending()
+      await wrapper.get('[aria-label^="Select track 3"]').trigger('click')
+      await flushPromises()
+
+      await clickElement(questionButton('Discard'))
+
+      expect(question()).toBeNull()
+      expect(split.splits).toHaveLength(2)
+      expect(split.editCount).toBe(0)
+      expect(split.pendingSplits).toEqual([])
+      expect(split.selectedTrack?.number).toBe(3)
+    })
+
+    it('"Cancel" and Escape do nothing and keep the pending splits', async () => {
+      const { split, wrapper } = await mountWithPending()
+      await wrapper.get('[aria-label^="Select track 3"]').trigger('click')
+      await flushPromises()
+
+      await clickElement(questionButton('Cancel'))
+
+      expect(question()).toBeNull()
+      expect(split.pendingSplits).toEqual([30, 50])
+      expect(split.selectedTrack?.number).toBe(2)
+
+      await wrapper.get('[aria-label^="Select track 3"]').trigger('click')
+      await flushPromises()
+      question()?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+      await flushPromises()
+
+      expect(question()).toBeNull()
+      expect(split.pendingSplits).toEqual([30, 50])
+      expect(split.selectedTrack?.number).toBe(2)
+    })
+
+    it('is asked before a Track list merge or trash button deletes one of the track’s end splits', async () => {
+      const { split, wrapper } = await mountWithPending()
+
+      await wrapper.get('button[aria-label="Remove track 3"]').trigger('click')
+      await flushPromises()
+      expect(question()?.textContent).toContain('Discard 2 pending splits?')
+      await clickElement(questionButton('Cancel'))
+
+      await wrapper.get('button[aria-label^="Delete split at 0:00:21.00"]').trigger('click')
+      await flushPromises()
+      expect(question()?.textContent).toContain('Discard 2 pending splits?')
+      expect(split.splits).toHaveLength(2)
+      await clickElement(questionButton('Discard'))
+      expect(split.splits.map((point) => point.seconds)).toEqual([71.5])
+    })
+
+    it('is asked before a split is selected from the Track list or the track strip', async () => {
+      const { split, wrapper } = await mountWithPending()
+
+      await wrapper.get('tr:has(button[aria-label^="Delete split at 0:00:21.00"])').trigger('click')
+      await flushPromises()
+
+      expect(question()?.textContent).toContain('Discard 2 pending splits?')
+      expect(split.selectedSplit).toBeNull()
+    })
+
+    it('asks nothing without pending splits, for the selected track again, or for a view switch', async () => {
+      const wrapper = await mountWithMark()
+      await wrapper.get('[aria-label^="Select track 3"]').trigger('click')
+      await flushPromises()
+      expect(question()).toBeNull()
+      expect(useSplitStore().selectedTrack?.number).toBe(3)
+
+      const split = useSplitStore()
+      split.addPendingSplit(80, false)
+      await wrapper.get('[aria-label^="Select track 3"]').trigger('click')
+      await viewOption(wrapper, 'Split').trigger('click')
+      await viewOption(wrapper, 'Track').trigger('click')
+      await flushPromises()
+
+      expect(question()).toBeNull()
+      expect(split.pendingSplits).toEqual([80])
+    })
+
+    it('is asked when a split is added from the zoom view with pending splits, which selects it', async () => {
+      const { split, wrapper } = await mountWithPending()
+      await viewOption(wrapper, 'Split').trigger('click')
+      split.zoomCentreSeconds = 46
+      await wrapper.vm.$nextTick()
+
+      await addSplitButton(wrapper).trigger('click')
+      await flushPromises()
+
+      expect(question()?.textContent).toContain('Discard 2 pending splits?')
+      expect(split.splits).toHaveLength(2)
     })
   })
 

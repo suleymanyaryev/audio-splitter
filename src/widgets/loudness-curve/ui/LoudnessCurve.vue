@@ -40,7 +40,7 @@ const split = useSplitStore()
 const canvas = useTemplateRef('canvas')
 
 // With edits to lose, the drag's first move asks instead of moving the line, and the drag ends.
-const { asking, editCount, change, replace } = useReplaceGuard()
+const { asking, editCount, pendingCount, change, replace } = useReplaceGuard()
 const { overLine, onPointerDown, onPointerMove, onPointerEnd } = useThresholdDrag({
   threshold: () => split.silenceThreshold,
   set: (decibels) => {
@@ -184,6 +184,11 @@ watch(
     <div class="mt-1 flex justify-between text-xs text-muted">
       <span v-for="(time, index) in axisTimes" :key="index">{{ time }}</span>
     </div>
-    <ReplaceEditsDialog v-model:open="asking" :edit-count="editCount" @replace="replace" />
+    <ReplaceEditsDialog
+      v-model:open="asking"
+      :edit-count="editCount"
+      :pending-count="pendingCount"
+      @replace="replace"
+    />
   </div>
 </template>

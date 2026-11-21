@@ -420,11 +420,11 @@ Determinate only; Reka `ProgressRoot` / `ProgressIndicator`, with the count as a
 
 ### Dialog
 
-Reka `AlertDialog`: the confirm before a setting change or "New file" replaces edits, and export's locking overlay. Focus starts on the first button; Escape closes it, except while the export runs: its overlay ignores Escape until the run ends and then closes like "Close". The actions are plain kit buttons, so the caller closes the dialog itself through `v-model:open`.
+Reka `AlertDialog`: the confirm before a setting change or "New file" replaces edits or pending splits, the discard question, and export's locking overlay. Focus starts on the first button; Escape closes it, except while the export runs: its overlay ignores Escape until the run ends and then closes like "Close". The actions are plain kit buttons, so the caller closes the dialog itself through `v-model:open`.
 
 - **Overlay:** `fixed inset-0 z-40 bg-ground`, opaque. The Flat Sleeve Rule forbids a dimmed or blurred page, so the dialog does not float over the screen: the screen gives way to the ground, and the dialog is the one panel lying on it.
 - **Frame:** the panel frame, centred: `fixed top-1/2 left-1/2 z-50 w-[calc(100vw-32px)] max-w-md -translate-1/2 rounded-panel border border-hairline bg-surface p-4 focus:outline-none` (focus moves to the first button, which shows the ring). No shadow.
-- **Content:** title in Title (`text-base font-semibold`), the description below it in Body (`mt-1`), optional content (`mt-4`, e.g. a `ProgressBar`), then the actions right-aligned (`mt-4 flex justify-end gap-2`): a secondary button first that keeps things as they are ("Keep edits", or "Cancel"), the action last (danger when it discards edits: "Replace", "New file").
+- **Content:** title in Title (`text-base font-semibold`), the description below it in Body (`mt-1`), optional content (`mt-4`, e.g. a `ProgressBar`), then the actions right-aligned (`mt-4 flex justify-end gap-2`): a secondary button first that keeps things as they are ("Keep edits", or "Cancel"), the action last (danger when it discards edits: "Replace", "New file"). The discard question before an action that would lose pending splits has three buttons, "Apply first" (first, so it takes the focus), "Discard" (danger) and "Cancel", and Escape cancels.
 
 ### Plain dialog
 

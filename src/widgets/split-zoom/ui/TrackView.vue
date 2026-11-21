@@ -229,6 +229,21 @@ function moveBy(direction: -1 | 1, isShifted: boolean) {
   )
 }
 
+/*
+A held key adds one only (the caller sees to it). Shift: where the playhead is, so a tap along a
+playing track is taken whatever is selected; otherwise at the mark.
+*/
+function addPendingSplitFromKey(isShifted: boolean) {
+  if (isShifted) split.addPendingSplit(playheadSeconds(), false)
+  else split.addPendingSplitAtMark()
+}
+
+// Escape lets go of the selected pending split; Delete and Backspace delete it.
+function actOnSelectedPendingSplit(key: string) {
+  if (key === 'Escape') split.deselectPendingSplit()
+  else split.deleteSelectedPendingSplit()
+}
+
 function onKeydown(event: KeyboardEvent) {
   // Ctrl, Cmd and Alt with a key belong to the browser (word and page navigation).
   if (event.ctrlKey || event.metaKey || event.altKey) return
@@ -239,12 +254,7 @@ function onKeydown(event: KeyboardEvent) {
       break
     }
     case 'Enter': {
-      // A held key adds one only. Shift: where the playhead is, so a tap along a playing track is
-      // taken whatever is selected; otherwise at the mark.
-      if (!event.repeat) {
-        if (event.shiftKey) split.addPendingSplit(playheadSeconds(), false)
-        else split.addPendingSplitAtMark()
-      }
+      if (!event.repeat) addPendingSplitFromKey(event.shiftKey)
       break
     }
     case 'Delete':
@@ -252,8 +262,7 @@ function onKeydown(event: KeyboardEvent) {
     case 'Escape': {
       // Only the selected pending split is theirs; with none, the key is left alone.
       if (split.selectedPendingSplit === null) return
-      if (event.key === 'Escape') split.deselectPendingSplit()
-      else split.deleteSelectedPendingSplit()
+      actOnSelectedPendingSplit(event.key)
       break
     }
     case 'Home': {
