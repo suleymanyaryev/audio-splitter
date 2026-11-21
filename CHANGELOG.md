@@ -25,6 +25,7 @@ Versions follow [Semantic Versioning](https://semver.org/) applied to the produc
 ### Changed
 
 - The app has a new look, in both themes: a fog ground, graphite waveforms, one sea-mist colour for every gap, rust only for splits and the silence threshold, a slate header and slate buttons, and the Albert Sans typeface in place of Manrope. Digits are no longer fixed-width, so times and counts do not line up in columns. The screens have more room (32 px margins, 24 px gaps, a taller header), smaller corners and the split's time as one large figure; every control, in both themes, hovers, presses, focuses and disables the same way, colours ease over a tenth of a second (not at all if your system prefers reduced motion), and the selected split lights up in rust in the whole-file view, the track list and the track strip together. Each split in the track strip now carries a rust rule.
+- The link preview image, the tab icon, the touch and installed-app icons, the app's window colour and the browser's address-bar colour now match the new look: a slate square with a sea-mist ring, and a preview that shows graphite audio on sea-mist gaps cut by rust lines.
 
 ## [1.2.0] - 2026-11-21
 
