@@ -16,7 +16,7 @@ From [Code layout](05-code-layout.md): the day-one setup (Tailwind 4, Reka UI, t
 
 ## Answer
 
-Resolved 2026-11-13 by grilling; the user accepted every recommendation. The result is the rewritten [docs/audio-splitter-milestones.md](../../../docs/audio-splitter-milestones.md), which this answer only gists.
+Resolved 2026-11-13 by grilling; the user accepted every recommendation. The result is the rewritten [milestones.md](../milestones.md), which this answer only gists.
 
 - **Milestone 0, "Setup and UI kit"**, is its own milestone with no concept note: router removal, FSD folders, Tailwind 4 and tokens, the whole `shared/ui` kit including the `Dialog`'s look, the two lint plugins, a refreshed `.impeccable/design.json`, and the "Code layout" section in `AGENTS.md`.
 - **The spine**:

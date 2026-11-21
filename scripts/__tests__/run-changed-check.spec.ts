@@ -310,7 +310,7 @@ describe('classifyCandidates', () => {
   it('excludes assets, docs and ignored directories from every bucket', () => {
     const classified = classifyCandidates([
       'README.md',
-      'docs/audio-splitter-milestones.md',
+      'docs/architecture.md',
       'public/favicon.ico',
       'src/style.css',
       'dist/index.js',

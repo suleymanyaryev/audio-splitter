@@ -6,7 +6,7 @@ What changed for the person using Audio Splitter, release by release. The format
 
 Versions follow [Semantic Versioning](https://semver.org/) applied to the product, since the app has no API for other code to depend on:
 
-- **Major**: a planned milestone set (v1, v2, …, as in [the milestones doc](docs/audio-splitter-milestones.md)), or a change that breaks what users already rely on: the exported files' names, tags or format, or, once the app keeps state across a reload, saved data that needs migrating.
+- **Major**: a planned milestone set (v1, v2, …), or a change that breaks what users already rely on: the exported files' names, tags or format, or, once the app keeps state across a reload, saved data that needs migrating.
 - **Minor**: a new capability outside a milestone set, such as another supported format.
 - **Patch**: a fix that adds no capability.
 
