@@ -17,6 +17,8 @@ Versions follow [Semantic Versioning](https://semver.org/) applied to the produc
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-11-21
+
 ### Added
 
 - A volume control ends the zoom panel's title row in all three views: a mute button ("Mute" / "Unmute") and a slider named "Volume" from −40 dB to 0 dB in 1 dB steps, announced to a screen reader in decibels. It sets how loud the audition, the range and the track are heard, applies to sound that is already playing, and unmuting returns to the same level. It never changes an exported file. The level and the mute are remembered across a reload (0 dB and unmuted the first time, and whenever the browser blocks storage).
