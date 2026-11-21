@@ -21,6 +21,7 @@ Versions follow [Semantic Versioning](https://semver.org/) applied to the produc
 
 - Choosing a file before the ffmpeg core (32 MB) is in the browser now shows "Downloading ffmpeg… 38%" as a progress bar, growing as bytes arrive, then "Reading <file>…" as before. Cancel stops loading the file but lets the download run on, and choosing another file continues it instead of starting again.
 - The ffmpeg download now starts in the background as soon as the page has drawn and the browser is idle, before you choose a file, so the wait after choosing is shorter or gone. A browser that asks to save data waits until a file is chosen.
+- ffmpeg is now downloaded once and kept in the browser: a visit the next day, a week later or after a release that did not change ffmpeg loads it with no download, and a release with a new ffmpeg downloads it once and replaces the old copy. In a private window, or with storage blocked or full, it loads from the network as before.
 
 ### Fixed
 

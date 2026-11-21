@@ -65,7 +65,9 @@ flowchart LR
 - **Progress is a fraction of the wasm's unpacked size**, a constant Vite reads from the installed package at build time (`__FFMPEG_WASM_BYTES__`). The stream hands over unpacked bytes whatever the server compresses, so 100% means done; the small script isn't counted. It reads 1 only once both files are in.
 - **The stall rule.** A download fails when no bytes arrive for 30 s, from either file, and has no total time limit, so a slow but steady connection always finishes. A failure rejects every caller with a `CoreDownloadError` and clears the shared promise, so the next caller starts afresh (the server's weak ETag rules out resuming). The store names that failure's step "downloading ffmpeg"; a failure of the worker's own load stays "probe".
 - **It starts while the page waits for a file.** The app's entry calls `preloadCoreWhenIdle()` after mounting, in dev as in production: it starts the download when the browser is idle (`requestIdleCallback`, or after 1 s where that is missing), so the page has drawn first. It does nothing when the browser signals Save-Data (`navigator.connection.saveData`), because a visitor who asked to save data should spend it only on a file they chose; the download then starts with the load. It makes no noise: a failed idle download is dropped, and the load that follows starts afresh. A file chosen mid-download joins it and shows the percentage from where it is.
-- **Nothing is kept beyond the browser's HTTP cache.** The preloader reads both files to their end and drops the bytes; the worker's own request for the same URLs then finds them in that cache.
+- **The core is kept in Cache Storage** (the cache named in [`core-cache.ts`](../src/shared/api/ffmpeg/core-cache.ts), the one module the page and the service worker both read for its name and for which URLs are the core: the built `ffmpeg-core-<hash>.js` and `.wasm`). Every call looks there first, and a complete copy (both files) resolves with no request and no progress (and clears any older core still beside it), so a returning visitor goes straight to "Reading <file>…". On a miss the download stores each file once all its bytes have arrived (`cache.put` keeps nothing from a body that breaks off), and after both are stored it deletes every other entry, an older core's hashed names, so a failed download never costs the working copy. Without Cache Storage (missing, blocked in a private window, or a write refused for quota) it downloads as before and resolves; a failed write is not reported. [ADR 0002](adr/0002-ffmpeg-core-in-cache-storage.md) has the reasons.
+- **A service worker answers the worker's requests for the core.** `sw.js` (built from `src/app/sw.worker.ts` by a second Vite build in `vite.config.ts`, as one self-contained file with an unhashed name at the build's root, so its scope is the app's folder) answers the two core URLs from Cache Storage, else from the network, through [`core-request.ts`](../src/shared/api/ffmpeg/core-request.ts); it never writes the cache, because the page does, so a first visit, when the page is not controlled yet, loses nothing. It matches ignoring `Vary`, since the server varies on `Origin` and the ffmpeg worker's module import sends one that the page's own download did not. Every other request is left to the browser, so the app's pages and code update as always. It takes control on activation and replaces an older version at once, so a bad worker is fixed by shipping a new `sw.js`. It is registered from `main.ts` in production builds only: the dev server's core URLs carry no hash, so a copy kept there could go stale. The URLs given to `load()` stay the built hashed ones, which is what the worker answers.
+- **Safari clears a site's storage after 7 days without a visit**, so a Safari visitor away that long downloads the core again, with the visible, stall-tolerant download above.
 
 The `source-file` store opens the session when a load starts and keeps it open once the file is ready. After that, audition and range clips and export cuts go through `inSession`, a promise queue that runs one call at a time, because one worker runs one command and the session's log belongs to one call. A call whose file was reset or replaced while it waited rejects with `FileReplacedError`, so a result from the old file never reaches the new one.
 
@@ -78,17 +80,25 @@ sequenceDiagram
   participant store as source-file store
   participant session as ffmpeg session
   participant preloader as core preloader
+  participant cache as Cache Storage
+  participant sw as service worker
   participant worker as ffmpeg.wasm worker
 
   User->>page: choose or drop a file
   page->>store: load(file)
   store->>session: openFfmpeg(file, onProgress)
   session->>preloader: preloadCore(onProgress): one shared download
-  loop while bytes arrive (fails after 30 s with none)
-    preloader-->>store: downloadFraction, shown as "Downloading ffmpeg… N%"
+  preloader->>cache: both core files stored?
+  alt not stored
+    loop while bytes arrive (fails after 30 s with none)
+      preloader-->>store: downloadFraction, shown as "Downloading ffmpeg… N%"
+    end
+    preloader->>cache: store each file once complete, then drop older cores
   end
   preloader-->>session: both core files are in the browser
   session->>worker: load the core, mount the file
+  worker->>sw: asks for the core's two files
+  sw-->>worker: from Cache Storage, else the network
   store->>session: probe: -i source
   session->>worker: run
   worker-->>store: log: container, codec, duration, rate, channels

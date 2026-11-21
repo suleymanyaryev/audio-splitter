@@ -4,7 +4,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import coreURL from '@ffmpeg/core?url'
 import wasmURL from '@ffmpeg/core/wasm?url'
 
+import { APP_ORIGIN, fakeCacheStorage } from './fake-cache-storage.ts'
+
 const WASM_BYTES = __FFMPEG_WASM_BYTES__
+// Where the fake Cache Storage holds each file.
+const SCRIPT_KEY = new URL(coreURL, APP_ORIGIN).href
+const WASM_KEY = new URL(wasmURL, APP_ORIGIN).href
+// An entry of an older ffmpeg core, which the clean-up removes.
+const OLD_KEY = `${APP_ORIGIN}assets/ffmpeg-core-OLDHASH1.wasm`
 
 /*
 A `fetch` whose responses stream what the test pushes: `push(url, bytes)` delivers a chunk,
@@ -73,6 +80,15 @@ function idleBrowser(isSavingData = false) {
       for (const callback of callbacks.splice(0)) callback()
     },
   }
+}
+
+// Runs a whole download to its end with both files complete.
+async function finishBoth(network: ReturnType<typeof fakeNetwork>) {
+  network.push(coreURL, 10)
+  network.finish(coreURL)
+  network.push(wasmURL, WASM_BYTES)
+  network.finish(wasmURL)
+  await vi.advanceTimersByTimeAsync(0)
 }
 
 describe('preloadCore', () => {
@@ -437,6 +453,224 @@ describe('preloadCore', () => {
       expect(progress[0]).toBeCloseTo(0.5, 2)
       expect(progress.at(-1)).toBe(1)
       expect(network.requests).toHaveLength(2)
+    })
+  })
+
+  describe('the stored copy', () => {
+    it('finds a complete copy in Cache Storage and makes no request', async () => {
+      const network = fakeNetwork()
+      const storage = fakeCacheStorage()
+      await storage.seed(SCRIPT_KEY)
+      await storage.seed(WASM_KEY)
+      const { preloadCore } = await freshPreloader()
+      const progress: number[] = []
+
+      await preloadCore((fraction) => {
+        progress.push(fraction)
+      }).done
+
+      expect(network.requests).toEqual([])
+      expect(progress).toEqual([])
+    })
+
+    it('removes an older core still stored beside a complete copy, without a request', async () => {
+      const network = fakeNetwork()
+      const storage = fakeCacheStorage()
+      await storage.seed(OLD_KEY)
+      await storage.seed(SCRIPT_KEY)
+      await storage.seed(WASM_KEY)
+      const { preloadCore } = await freshPreloader()
+
+      await preloadCore().done
+
+      expect(network.requests).toEqual([])
+      expect(storage.urls()).toHaveLength(2)
+      expect(storage.urls()).not.toContain(OLD_KEY)
+    })
+
+    it('reports nothing at first, then 0 once it has found nothing stored', async () => {
+      const network = fakeNetwork()
+      fakeCacheStorage()
+      const { preloadCore } = await freshPreloader()
+      const progress: number[] = []
+
+      preloadCore((fraction) => {
+        progress.push(fraction)
+      })
+      expect(progress).toEqual([])
+      await vi.advanceTimersByTimeAsync(0)
+      expect(progress).toEqual([0])
+      expect(network.requests).toHaveLength(2)
+    })
+
+    it('downloads again when only one of the two files is stored', async () => {
+      const network = fakeNetwork()
+      const storage = fakeCacheStorage()
+      await storage.seed(WASM_KEY)
+      const { preloadCore } = await freshPreloader()
+
+      preloadCore()
+      await vi.advanceTimersByTimeAsync(0)
+
+      expect(network.requests).toHaveLength(2)
+    })
+
+    it('stores both files after downloading them', async () => {
+      const network = fakeNetwork()
+      const storage = fakeCacheStorage()
+      const { preloadCore } = await freshPreloader()
+
+      const { done } = preloadCore()
+      await vi.advanceTimersByTimeAsync(0)
+      await finishBoth(network)
+      await done
+
+      expect(storage.urls()).toHaveLength(2)
+      expect(storage.urls()).toContain(SCRIPT_KEY)
+      expect(storage.urls()).toContain(WASM_KEY)
+      expect(await storage.textOf(SCRIPT_KEY)).toHaveLength(10)
+    })
+
+    it('stores a file only once all its bytes have arrived', async () => {
+      const network = fakeNetwork()
+      const storage = fakeCacheStorage()
+      const { preloadCore } = await freshPreloader()
+
+      const { done } = preloadCore()
+      await vi.advanceTimersByTimeAsync(0)
+      network.push(wasmURL, WASM_BYTES / 2)
+      await vi.advanceTimersByTimeAsync(0)
+      network.push(coreURL, 10)
+      await vi.advanceTimersByTimeAsync(0)
+      expect(storage.urls()).toEqual([])
+
+      network.finish(coreURL)
+      await vi.advanceTimersByTimeAsync(0)
+      expect(storage.urls()).toEqual([SCRIPT_KEY])
+
+      network.push(wasmURL, WASM_BYTES / 2)
+      network.finish(wasmURL)
+      await done
+      expect(storage.urls()).toContain(WASM_KEY)
+    })
+
+    it('deletes older entries only after both new files are stored', async () => {
+      const network = fakeNetwork()
+      const storage = fakeCacheStorage()
+      await storage.seed(OLD_KEY)
+      const { preloadCore } = await freshPreloader()
+
+      const { done } = preloadCore()
+      await vi.advanceTimersByTimeAsync(0)
+      network.push(coreURL, 10)
+      network.finish(coreURL)
+      await vi.advanceTimersByTimeAsync(0)
+      expect(storage.urls()).toContain(OLD_KEY)
+
+      network.push(wasmURL, WASM_BYTES)
+      network.finish(wasmURL)
+      await done
+
+      expect(storage.urls()).toHaveLength(2)
+      expect(storage.urls()).toContain(SCRIPT_KEY)
+      expect(storage.urls()).toContain(WASM_KEY)
+    })
+
+    it('keeps the older entries when the download fails', async () => {
+      const network = fakeNetwork()
+      const storage = fakeCacheStorage()
+      await storage.seed(OLD_KEY)
+      const { preloadCore } = await freshPreloader()
+
+      const outcome = outcomeOf(preloadCore().done)
+      await vi.advanceTimersByTimeAsync(0)
+      network.push(coreURL, 10)
+      network.finish(coreURL)
+      network.push(wasmURL, 100)
+      network.fail(wasmURL)
+
+      expect(await outcome).toContain('network error')
+      expect(storage.urls()).toContain(OLD_KEY)
+    })
+
+    it('stores no half copy of a file whose download broke off', async () => {
+      const network = fakeNetwork()
+      const storage = fakeCacheStorage()
+      const { preloadCore } = await freshPreloader()
+
+      const outcome = outcomeOf(preloadCore().done)
+      await vi.advanceTimersByTimeAsync(0)
+      network.push(wasmURL, WASM_BYTES / 2)
+      network.fail(wasmURL)
+      await outcome
+      await vi.advanceTimersByTimeAsync(0)
+
+      expect(storage.urls()).not.toContain(WASM_KEY)
+    })
+
+    it('stores no half copy of a download that stalled', async () => {
+      fakeNetwork()
+      const storage = fakeCacheStorage()
+      const { preloadCore } = await freshPreloader()
+
+      const outcome = outcomeOf(preloadCore().done)
+      await vi.advanceTimersByTimeAsync(30_000)
+
+      expect(await outcome).toContain('stalled')
+      expect(storage.urls()).toEqual([])
+    })
+
+    it('finds nothing stored by a download that failed, and starts afresh', async () => {
+      const network = fakeNetwork()
+      fakeCacheStorage()
+      const { preloadCore } = await freshPreloader()
+      const failed = outcomeOf(preloadCore().done)
+      await vi.advanceTimersByTimeAsync(0)
+      network.fail(wasmURL)
+      await failed
+
+      preloadCore()
+      await vi.advanceTimersByTimeAsync(0)
+
+      expect(network.requests).toHaveLength(4)
+    })
+
+    describe.each([
+      ['has no Cache Storage', () => vi.stubGlobal('caches', undefined)],
+      ['cannot open Cache Storage', () => fakeCacheStorage({ isBlocked: true })],
+      ['refuses a write', () => fakeCacheStorage({ isFull: true })],
+    ])('when the browser %s', (_name, install) => {
+      it('downloads with the same progress and resolves, reporting nothing wrong', async () => {
+        const network = fakeNetwork()
+        install()
+        const { preloadCore } = await freshPreloader()
+        const progress: number[] = []
+
+        const { done } = preloadCore((fraction) => {
+          progress.push(fraction)
+        })
+        await vi.advanceTimersByTimeAsync(0)
+        network.push(wasmURL, WASM_BYTES / 2)
+        await vi.advanceTimersByTimeAsync(0)
+        await finishBoth(network)
+
+        expect(await outcomeOf(done)).toBe('resolved')
+        expect(network.requests).toHaveLength(2)
+        expect(progress[0]).toBe(0)
+        expect(progress).toContainEqual(expect.closeTo(0.5, 2))
+        expect(progress.at(-1)).toBe(1)
+      })
+
+      it('still fails a stalled download after 30 s', async () => {
+        fakeNetwork()
+        install()
+        const { preloadCore } = await freshPreloader()
+
+        const outcome = outcomeOf(preloadCore().done)
+        await vi.advanceTimersByTimeAsync(30_000)
+
+        expect(await outcome).toContain('stalled')
+      })
     })
   })
 })
