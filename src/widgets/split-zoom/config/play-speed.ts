@@ -5,5 +5,5 @@ export const MAX_PLAY_SPEED = 2
 export const PLAY_SPEED_STEP = 0.1
 export const DEFAULT_PLAY_SPEED = 1
 
-// Where the play speed is kept between visits, apart from the volume's.
+// Where the play speed is kept between visits: its own key, not the volume's.
 export const PLAY_SPEED_STORAGE_KEY = 'audio-splitter:play-speed'

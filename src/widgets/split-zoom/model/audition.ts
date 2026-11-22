@@ -78,10 +78,8 @@ applied to the element as a linear gain when it is made and on every change, and
 The play speed (docs/concepts/10-speed-without-pitch.md, docs/adr/0004-time-stretching-by-the-browser.md)
 is the player's too: `playSpeed`, 0.5 to 2.0 in steps of 0.1, applied to the element when it is made
 and on every change, with the pitch kept: the browser does the time-stretching. Like the volume, it
-is kept in `localStorage` between visits. Loading a source resets an element's rate to its default
-rate, which the player does at every new clip, release and window hand-over, so both rates are set.
-The playhead and the window logic stay in media time (the time in the file), which is the same at
-any speed. It is playback only too.
+is kept in `localStorage` between visits. The playhead and the window logic stay in media time (the
+time in the file), which is the same at any speed. It is playback only too.
 */
 export const useAuditionStore = defineStore('audition', () => {
   const sourceFile = useSourceFileStore()
