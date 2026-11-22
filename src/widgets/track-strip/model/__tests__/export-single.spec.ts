@@ -280,8 +280,8 @@ describe('the single export store', () => {
 
     it('is left alone when the default is too long for a name and is confirmed as it is', async () => {
       const { split, exporter } = setUp()
-      // The prefix and `02` are 102 characters: the dialog's field takes them whole, the name is held
-      // to 100.
+      // The prefix and `02` are 102 characters: the field takes them whole and the name is held to
+      // 100.
       split.setTrackNamePrefix('x'.repeat(100))
       exporter.openTrack(trackOf(split, 2))
 
