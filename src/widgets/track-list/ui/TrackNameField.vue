@@ -5,9 +5,9 @@ import { MAX_TRACK_NAME_LENGTH } from '@/entities/split/config/track-name.ts'
 import UiTextField from '@/shared/ui/UiTextField.vue'
 
 /*
-One track's name, edited in place. The field shows `name` (the prefixed number while the track has no
-name of its own, in muted text until the edit begins, `isOwn` says which) and keeps what is typed as a draft until the edit ends: Enter or leaving the field
-saves it, Escape puts `name` back. Saving something that, trimmed, is what the field showed when
+One track's name, edited in place. The field shows `name` (the prefixed number while the track has
+no name of its own, in muted text until the edit begins, `isOwn` says which) and keeps what is typed
+as a draft until the edit ends: Enter or leaving the field saves it, Escape puts `name` back. Saving something that, trimmed, is what the field showed when
 the edit began is not a save at all, so passing through a field never counts as a rename. After an
 edit the field shows `name` again, which is the saved name as the store keeps it (trimmed, or the
 prefixed number for an empty one).

@@ -1,5 +1,5 @@
 import type { TrackTags } from '@/entities/source-file/api/cut-track.ts'
-import { padTrackNumber } from '@/entities/split/lib/pad-track-number.ts'
+import { defaultTrackName } from '@/entities/split/lib/default-track-name.ts'
 
 /*
 The tags one track is written with. `name` is the name the user gave the track, null while it has
@@ -15,7 +15,7 @@ export function trackTags(track: {
   sourceStem: string
 }): TrackTags {
   return {
-    title: track.name ?? `${track.prefix}${padTrackNumber(track.number, track.count)}`,
+    title: track.name ?? defaultTrackName(track.prefix, track.number, track.count),
     track: `${track.number}/${track.count}`,
     album: track.sourceStem,
   }

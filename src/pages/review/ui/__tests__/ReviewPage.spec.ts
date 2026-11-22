@@ -1177,8 +1177,8 @@ describe('ReviewPage', () => {
       await pressEnterInField()
 
       expect(dialog()).toBeNull()
-      expect(folder.files.has('02 Chorus.m4a')).toBe(true)
-      expect(savedLine(wrapper).text()).toBe('Saved 02 Chorus.m4a in Music')
+      expect(folder.files.has('Chorus.m4a')).toBe(true)
+      expect(savedLine(wrapper).text()).toBe('Saved Chorus.m4a in Music')
     })
 
     it('has OK off and Enter doing nothing while the name is empty', async () => {

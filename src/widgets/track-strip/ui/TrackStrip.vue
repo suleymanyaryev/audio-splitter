@@ -11,9 +11,9 @@ import { layoutTrackBlocks, SPLIT_ITEM_PX } from '../lib/layout-track-blocks.ts'
 The tracks as proportional blocks on a land ground, one per track, with their label and length, and
 a split item between every two blocks. A block's label is the track's number while it has no name of
 its own and the name as typed once it has one, so narrow blocks do not all open with the prefix; the
-tooltip and the accessible label give the full name as the track list shows it. Widths come from `layoutTrackBlocks`, which needs the
-strip's pixel width, and which also decides whether a block is wide enough for its name and length,
-and keeps room for the 8 px split items.
+tooltip and the accessible label give the full name as the track list shows it. Widths come from
+`layoutTrackBlocks`, which needs the strip's pixel width, and which also decides whether a block is
+wide enough for its name and length, and keeps room for the 8 px split items.
 
 Every block is a button that selects its track, the first included, and the block of the selected
 track is marked with a 2 px `on-track` border (DESIGN.md's "Selected" bullet). A split item is a

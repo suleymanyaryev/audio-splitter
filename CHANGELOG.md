@@ -20,11 +20,12 @@ Versions follow [Semantic Versioning](https://semver.org/) applied to the produc
 
 ### Added
 
-- A "Prefix" field in the Track list's header. It starts as the source file's name followed by a dash (`dreamscape-`), and every track you have not renamed shows it before its number (`dreamscape-01`) in the list, the strip's tooltips and the Track view's title. Typing a prefix renames those tracks at once and leaves the ones you named alone; Enter keeps the text, and Escape puts back what the field held when you clicked into it. Unnamed track names show in muted text in the list. The prefix is not an edit, and a change of a detection setting keeps it.
+- A "Prefix" field in the Track list's header. It starts as the source file's name followed by a dash (`dreamscape-`), and every track you have not renamed shows it before its number (`dreamscape-01`) in the list, the strip's tooltips and the Track view's title. Typing a prefix changes those tracks' names at once and leaves the ones you named alone; Enter keeps the text, and Escape puts back what the field held when you clicked into it. Unnamed track names show in muted text in the list. The prefix is not an edit, and a change of a detection setting keeps it.
 
 ### Changed
 
-- An export names every track you have not renamed after the list's name for it: the prefix and the number (`dreamscape-01.m4a`, or `01.m4a` when the prefix is empty), and its title tag is the same name. The single export dialog now offers that name too, where it offered the file's name and the number, so confirming it writes the file you were offered. A prefix too long for the file name is cut, never the number. Renamed tracks are exported as before.
+- An export names every track you have not renamed after the list's name for it: the prefix and the number (`dreamscape-01.m4a`, or `01.m4a` when the prefix is empty), and its title tag is the same name. The single export dialog now offers that name too, where it offered the file's name and the number, so confirming it writes the file you were offered. A prefix too long for the file name is cut, never the number.
+- A renamed track's file no longer starts with its number: it is called what you called it (`Intro.m4a`, not `02 Intro.m4a`). When two files in an export would share a name, ignoring capital letters, the later track's becomes `name (2).m4a`, so nothing is overwritten. A name with no usable characters (`...`) is written under the track's prefixed name, and its title tag keeps what you typed.
 
 ## [1.3.0] - 2026-11-22
 

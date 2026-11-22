@@ -6,7 +6,7 @@ import { DEFAULT_MINIMUM_GAP_SECONDS, DEFAULT_OFFSET_DB } from '../config/defaul
 import { MAX_TRACK_NAME_LENGTH } from '../config/track-name.ts'
 import { ZOOM_WINDOW_SECONDS } from '../config/zoom-window.ts'
 import { findGaps, splitsOf, type Gap } from '../lib/find-gaps.ts'
-import { padTrackNumber } from '../lib/pad-track-number.ts'
+import { defaultTrackName } from '../lib/default-track-name.ts'
 import { rangeBetween, type TimeRange } from '../lib/range-between.ts'
 
 /*
@@ -66,8 +66,9 @@ one of the two settings moves.
 
 A track name belongs to the split where the track starts, and the first track's to the file's
 start, so moving or deleting a split keeps the right name with it, and an unnamed track shows the
-track name prefix followed by its padded number, from its position. Removing a track deletes the splits at both its ends, which is two
-deletes with the names and edits of a delete. Every change of a setting replaces all splits and all names.
+track name prefix followed by its padded number, from its position. Removing a track deletes the
+splits at both its ends, which is two deletes with the names and edits of a delete. Every change of
+a setting replaces all splits and all names.
 
 One selection (`Selection`) holds what is under review: a split, a track or nothing. The selected
 split, its index and the selected track are derived from it, so they follow the splits as they move
@@ -159,7 +160,7 @@ export const useSplitStore = defineStore('split', () => {
       return {
         number: index + 1,
         ownName,
-        name: ownName ?? `${trackNamePrefix.value}${padTrackNumber(index + 1, starts.length)}`,
+        name: ownName ?? defaultTrackName(trackNamePrefix.value, index + 1, starts.length),
         startSeconds,
         lengthSeconds: endSeconds - startSeconds,
         startSplit,

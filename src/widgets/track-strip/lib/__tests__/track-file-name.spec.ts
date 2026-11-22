@@ -75,22 +75,31 @@ describe('trackFileName', () => {
     expect(name).toBe(`${'x'.repeat(97)}007.m4a`)
   })
 
-  it('adds the name after the number for a renamed track, until the next ticket drops the number', () => {
+  it('is the name as typed, and nothing else, for a renamed track', () => {
     expect(
       trackFileName({ number: 3, count: 8, name: 'Sunrise Drive', prefix: 'a-', extension: 'm4a' }),
-    ).toBe('03 Sunrise Drive.m4a')
+    ).toBe('Sunrise Drive.m4a')
   })
 
   it('sanitises the name', () => {
     expect(
       trackFileName({ number: 2, count: 8, name: 'AC/DC: Live?', prefix: '', extension: 'm4a' }),
-    ).toBe('02 AC-DC- Live-.m4a')
+    ).toBe('AC-DC- Live-.m4a')
   })
 
-  it('falls back to the plain number when the name is empty after sanitising', () => {
+  it('falls back to the prefixed name when the name is empty after sanitising', () => {
     expect(
       trackFileName({ number: 2, count: 8, name: ' .. ', prefix: 'a-', extension: 'm4a' }),
-    ).toBe('02.m4a')
+    ).toBe('a-02.m4a')
+    expect(trackFileName({ number: 2, count: 8, name: '', prefix: '', extension: 'm4a' })).toBe(
+      '02.m4a',
+    )
+  })
+
+  it('keeps a name that is only unsafe characters, as hyphens', () => {
+    expect(
+      trackFileName({ number: 2, count: 8, name: '***', prefix: 'a-', extension: 'm4a' }),
+    ).toBe('---.m4a')
   })
 
   it('caps a long name at 100 characters', () => {
@@ -102,7 +111,7 @@ describe('trackFileName', () => {
       extension: 'm4a',
     })
 
-    expect(name).toBe(`02 ${'x'.repeat(100)}.m4a`)
+    expect(name).toBe(`${'x'.repeat(100)}.m4a`)
   })
 
   it('lower-cases the extension', () => {
