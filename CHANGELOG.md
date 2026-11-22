@@ -20,7 +20,7 @@ Versions follow [Semantic Versioning](https://semver.org/) applied to the produc
 
 ### Added
 
-- A "Prefix" field in the Track list's header. It starts as the source file's name followed by a dash (`dreamscape-`), and every track you have not renamed shows it before its number (`dreamscape-01`) in the list, the strip's tooltips and the Track view's title. Typing a prefix changes those tracks' names at once and leaves the ones you named alone; Enter keeps the text, and Escape puts back what the field held when you clicked into it. Unnamed track names show in muted text in the list. The prefix is not an edit, and a change of a detection setting keeps it.
+- A "Prefix" field in the Track list's header, starting as the source file's name and a dash (`dreamscape-`). Every track you have not renamed shows it before its number (`dreamscape-01`), in muted text in the list, and changes with it as you type.
 
 ### Changed
 
