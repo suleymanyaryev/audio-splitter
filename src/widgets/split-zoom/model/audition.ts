@@ -41,7 +41,8 @@ plays it on from the same place without decoding, and otherwise decodes the exte
 the resting place. `status` is where it is (idle, loading, playing or paused), and the Split view
 draws its playhead from `playheadSeconds`: the sound while it plays, else the resting place, else
 the extent's start, so it is never empty while a split is selected. `seekAudition` moves it (held
-to the extent) and `backToAuditionStart` takes it to the extent's start.
+to the extent) and `backToAuditionStart` takes it to the extent's start. A pointer drag of it
+pauses a playing audition on `grabAuditionPlayhead` and plays it on from `dropAuditionPlayhead`.
 
 The resting place is a time in the file, tied to the split it was made for, so another split never
 draws it. A pause keeps it with the WAV. A stop (the view change, the export) and a stretch that
@@ -125,6 +126,8 @@ export const useAuditionStore = defineStore('audition', () => {
   let auditionSplitId: number | undefined
   // Whether the stretch was playing when the playhead was grabbed, so the drop plays it on.
   let shouldResume = false
+  // The same for the audition's playhead.
+  let shouldResumeAudition = false
 
   // How loud it is heard, set on the page and kept between visits. Playback only: an export never
   // passes through the element.
@@ -447,6 +450,24 @@ export const useAuditionStore = defineStore('audition', () => {
   }
 
   /*
+  A drag of the audition's playhead pauses a playing audition, so the sound does not jump under the
+  pointer, and `dropAuditionPlayhead` plays it on from where the playhead was dropped. A paused,
+  idle or loading audition stays so.
+  */
+  function grabAuditionPlayhead() {
+    shouldResumeAudition = status.value === 'playing'
+    if (shouldResumeAudition) pauseAudition()
+  }
+
+  function dropAuditionPlayhead() {
+    const selected = splitStore.selectedSplit
+    // Only an audition still paused is played on: another sound or another split may have taken over.
+    const canResume = shouldResumeAudition && status.value === 'paused' && selected !== null
+    shouldResumeAudition = false
+    if (canResume) void playAuditionFromPlace(selected, auditionExtent(selected), beginPress())
+  }
+
+  /*
   What a failure to play the stretch calls it: the view says which stretch is on show, and a view
   change stops the sound, so no failure is worded for the wrong one.
   */
@@ -722,6 +743,8 @@ export const useAuditionStore = defineStore('audition', () => {
     toggle,
     seekAudition,
     backToAuditionStart,
+    grabAuditionPlayhead,
+    dropAuditionPlayhead,
     auditionExtent,
     toggleStretch,
     seekStretch,

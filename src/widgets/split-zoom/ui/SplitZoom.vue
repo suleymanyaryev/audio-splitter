@@ -36,6 +36,11 @@ while held) and Home (back to the audition's start). `,` and `.` are matched by 
 (`event.code`), so Shift and a Russian or Turkmen layout do not change them. The canvas is a slider
 on the playhead, focusable but no Tab stop, as in the Track view; it sits beside the split's handle,
 not around it, since a slider's children are skipped by a screen reader.
+
+A press within reach of the split's line takes the split and never the playhead. Any other press
+with the main button moves the playhead to the pointer (rounded to 10 ms, held to the 8 s) and
+drags it along until the release; a playing audition pauses while it is held and plays on from the
+drop (`lib/use-split-drag.ts`). A double-click does nothing here.
 */
 
 // DESIGN.md: the whole canvas is framed in 1.5 px ink; the run-out line is 1 px.
@@ -102,6 +107,12 @@ const { overLine, dragging, onPointerDown, onPointerMove, onPointerEnd } = useSp
   move: (seconds) => {
     if (split.selectedSplit !== null) split.moveSplit(split.selectedSplit.id, seconds)
   },
+  // Rounded to 10 ms, as a dragged split is; the store holds it to the 8 s.
+  playheadSeconds: (x) =>
+    draggedTime(x, 0, split.zoomCentreSeconds, ZOOM_WINDOW_SECONDS, frameWidth()),
+  grabPlayhead: audition.grabAuditionPlayhead,
+  movePlayhead: audition.seekAudition,
+  dropPlayhead: audition.dropAuditionPlayhead,
 })
 
 // A held key steps again, so the playhead can be swept by keyboard.
@@ -248,6 +259,7 @@ watch(
     @pointermove="onPointerMove"
     @pointerup="onPointerEnd"
     @pointercancel="onPointerEnd"
+    @lostpointercapture="onPointerEnd"
   >
     <!-- A slider must take the focus for a screen reader, but it is no tab stop: the keys reach the view
     wherever the focus is. -->

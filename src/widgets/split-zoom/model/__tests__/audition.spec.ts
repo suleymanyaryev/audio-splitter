@@ -683,6 +683,110 @@ describe('the audition store', () => {
         expect(audition.playheadSeconds()).toBe(18)
       })
     })
+
+    describe('pausing for a drag', () => {
+      it('pauses a playing audition on the grab and plays it on from the drop', async () => {
+        const { audition } = await playing()
+        play.mockClear()
+
+        audition.grabAuditionPlayhead()
+        expect(audition.status).toBe('paused')
+
+        audition.seekAudition(20)
+        audition.seekAudition(24)
+        expect(audition.status).toBe('paused')
+        expect(audition.playheadSeconds()).toBe(24)
+        expect(play).not.toHaveBeenCalled()
+
+        audition.dropAuditionPlayhead()
+        await flush()
+
+        expect(audition.status).toBe('playing')
+        expect(audio().currentTime).toBe(6)
+        expect(play).toHaveBeenCalledOnce()
+        expect(clip).toHaveBeenCalledOnce()
+      })
+
+      it('leaves a paused audition paused after the drop', async () => {
+        const { audition } = await playing()
+        audition.toggle()
+        play.mockClear()
+
+        audition.grabAuditionPlayhead()
+        audition.seekAudition(20)
+        audition.dropAuditionPlayhead()
+        await flush()
+
+        expect(audition.status).toBe('paused')
+        expect(audition.playheadSeconds()).toBe(20)
+        expect(play).not.toHaveBeenCalled()
+      })
+
+      it('leaves an idle audition idle, and one still decoding decoding', async () => {
+        const { audition } = setUp()
+        audition.grabAuditionPlayhead()
+        audition.seekAudition(20)
+        audition.dropAuditionPlayhead()
+        expect(audition.status).toBe('idle')
+        expect(clip).not.toHaveBeenCalled()
+
+        const pending = deferred<Clip>()
+        clip.mockReturnValueOnce(pending.promise)
+        audition.toggle()
+        audition.grabAuditionPlayhead()
+        audition.seekAudition(21)
+        audition.dropAuditionPlayhead()
+
+        expect(audition.status).toBe('loading')
+        pending.resolve(clipAroundFirstSplit())
+        await flush()
+        expect(audio().currentTime).toBe(3)
+      })
+
+      it('does not play on when a stretch took over during the drag', async () => {
+        const { audition, split } = await playing()
+        audition.grabAuditionPlayhead()
+        split.setRange(10, 30)
+        audition.toggleStretch(rangeStretch())
+        await flush()
+        audition.toggleStretch(rangeStretch())
+        play.mockClear()
+
+        audition.dropAuditionPlayhead()
+        await flush()
+
+        expect(audition.status).toBe('idle')
+        expect(audition.stretchStatus).toBe('paused')
+        expect(play).not.toHaveBeenCalled()
+      })
+
+      it('does not play on when another split was selected during the drag', async () => {
+        const { audition, split } = await playing()
+        audition.grabAuditionPlayhead()
+        play.mockClear()
+
+        split.selectSplit(split.splits[1]!.id)
+        audition.dropAuditionPlayhead()
+        await flush()
+
+        expect(audition.status).toBe('idle')
+        expect(play).not.toHaveBeenCalled()
+      })
+
+      it('does not play on a second time from a drop with no grab', async () => {
+        const { audition } = await playing()
+        audition.grabAuditionPlayhead()
+        audition.dropAuditionPlayhead()
+        audition.toggle()
+        play.mockClear()
+
+        audition.dropAuditionPlayhead()
+        await flush()
+
+        expect(audition.status).toBe('paused')
+        expect(play).not.toHaveBeenCalled()
+      })
+    })
   })
 
   it('drops the pending clip when pressed again while loading', async () => {

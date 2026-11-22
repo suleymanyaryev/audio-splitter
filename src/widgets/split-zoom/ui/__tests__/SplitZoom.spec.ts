@@ -54,6 +54,23 @@ async function press(init: KeyboardEventInit) {
   await nextTick()
 }
 
+/*
+jsdom has no PointerEvent: a mouse event of that name, with the pointer's id. The main button is
+held from the press to the release, as a move during a drag reports it.
+*/
+async function pointer(
+  wrapper: Pick<VueWrapper, 'element'>,
+  type: 'pointerdown' | 'pointermove' | 'pointerup',
+  clientX: number,
+  init: MouseEventInit = {},
+) {
+  const buttons = type === 'pointerup' ? 0 : 1
+  const event = new MouseEvent(type, { clientX, buttons, bubbles: true, ...init })
+  Object.defineProperty(event, 'pointerId', { value: 1 })
+  wrapper.element.dispatchEvent(event)
+  await nextTick()
+}
+
 function mountWithoutSplits() {
   setActivePinia(createPinia())
   useSplitStore().detect(new Float32Array(400).fill(-10), {
@@ -351,6 +368,241 @@ describe('SplitZoom', () => {
       expect(
         wrapper.find('[aria-label="Playhead in the audition"]').attributes('role'),
       ).toBeUndefined()
+    })
+  })
+
+  describe('the pointer', () => {
+    // The view is 200 px wide for the window of 11 s to 31 s: 10 px a second. The split is at x = 100.
+    const clipOfTheAudition = { wav: Uint8Array.of(1), startSeconds: 17, lengthSeconds: 8 }
+    let clip: MockInstance<ReturnType<typeof useSourceFileStore>['clip']>
+
+    beforeEach(() => {
+      vi.spyOn(Element.prototype, 'getBoundingClientRect').mockReturnValue(
+        new DOMRect(0, 0, 200, 160),
+      )
+      vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue()
+      vi.spyOn(HTMLMediaElement.prototype, 'load').mockImplementation(() => {})
+      vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => {})
+      // jsdom has none of these, so the specs give them to URL and the element themselves.
+      URL.createObjectURL = () => 'blob:clip'
+      URL.revokeObjectURL = () => {}
+      HTMLElement.prototype.setPointerCapture = () => {}
+    })
+
+    afterEach(() => {
+      vi.restoreAllMocks()
+      Reflect.deleteProperty(URL, 'createObjectURL')
+      Reflect.deleteProperty(URL, 'revokeObjectURL')
+      Reflect.deleteProperty(HTMLElement.prototype, 'setPointerCapture')
+    })
+
+    // The audition is playing, as after a press of Space.
+    async function mountPlaying() {
+      const parts = mountOnSplit()
+      clip = vi.spyOn(useSourceFileStore(), 'clip').mockResolvedValue(clipOfTheAudition)
+      useAuditionStore().toggle()
+      await new Promise((done) => setTimeout(done, 0))
+      expect(useAuditionStore().status).toBe('playing')
+      return parts
+    }
+
+    it('moves the playhead to a click off the split line, to the 10 ms, and does not start the sound', async () => {
+      const { split, wrapper } = mountOnSplit()
+      clip = vi.spyOn(useSourceFileStore(), 'clip').mockResolvedValue(clipOfTheAudition)
+
+      await pointer(wrapper, 'pointerdown', 123.46)
+      await pointer(wrapper, 'pointerup', 123.46)
+
+      // 12.346 s into the window is 23.346 s, snapped to 23.35 s.
+      expect(playhead()).toBeCloseTo(23.35, 6)
+      expect(useAuditionStore().status).toBe('idle')
+      expect(clip).not.toHaveBeenCalled()
+      expect(split.selectedSplit?.seconds).toBe(21)
+    })
+
+    it('puts a click outside the 8 s on the nearest edge', async () => {
+      const { wrapper } = mountOnSplit()
+
+      await pointer(wrapper, 'pointerdown', 20)
+      await pointer(wrapper, 'pointerup', 20)
+      expect(playhead()).toBe(17)
+
+      await pointer(wrapper, 'pointerdown', 190)
+      await pointer(wrapper, 'pointerup', 190)
+      expect(playhead()).toBe(25)
+    })
+
+    it('moves the playhead along with a drag and parks it on the edges of the 8 s', async () => {
+      const { wrapper } = mountOnSplit()
+
+      await pointer(wrapper, 'pointerdown', 120)
+      await pointer(wrapper, 'pointermove', 130)
+      expect(playhead()).toBe(24)
+
+      await pointer(wrapper, 'pointermove', 400)
+      expect(playhead()).toBe(25)
+
+      await pointer(wrapper, 'pointermove', -50)
+      expect(playhead()).toBe(17)
+    })
+
+    it('follows the pointer until the release, and not after it', async () => {
+      const { wrapper } = mountOnSplit()
+
+      await pointer(wrapper, 'pointerdown', 120)
+      await pointer(wrapper, 'pointerup', 130)
+      await pointer(wrapper, 'pointermove', 80)
+
+      expect(playhead()).toBe(23)
+    })
+
+    it('keeps a press near the split line for the split, and never moves the playhead', async () => {
+      const { split, wrapper } = mountOnSplit()
+
+      // 5 px right of the line, on the handle: the split follows the pointer minus those 5 px.
+      await pointer(wrapper, 'pointerdown', 105)
+      await pointer(wrapper, 'pointermove', 130)
+      await pointer(wrapper, 'pointerup', 130)
+
+      expect(split.selectedSplit?.seconds).toBe(23.5)
+      // Still at the start of the 8 s, which moved with the split: 19.5 s to 27.5 s.
+      expect(playhead()).toBe(19.5)
+    })
+
+    it('takes a press 8 px from the line for the split and one 9 px away for the playhead', async () => {
+      const { split, wrapper } = mountOnSplit()
+
+      await pointer(wrapper, 'pointerdown', 108)
+      await pointer(wrapper, 'pointerup', 108)
+      expect(playhead()).toBe(17)
+
+      await pointer(wrapper, 'pointerdown', 109)
+      await pointer(wrapper, 'pointerup', 109)
+      expect(playhead()).toBeCloseTo(21.9, 6)
+      expect(split.selectedSplit?.seconds).toBe(21)
+    })
+
+    it('pauses a playing audition while the pointer is held, and plays on from the release', async () => {
+      const { wrapper } = await mountPlaying()
+      const audition = useAuditionStore()
+
+      await pointer(wrapper, 'pointerdown', 120)
+      expect(audition.status).toBe('paused')
+
+      await pointer(wrapper, 'pointermove', 130)
+      expect(audition.status).toBe('paused')
+      expect(playhead()).toBe(24)
+
+      await pointer(wrapper, 'pointerup', 130)
+      expect(audition.status).toBe('playing')
+      expect(playhead()).toBeCloseTo(24, 6)
+      expect(clip).toHaveBeenCalledOnce()
+    })
+
+    it('leaves a paused audition paused after a click and after a drag', async () => {
+      const { wrapper } = await mountPlaying()
+      const audition = useAuditionStore()
+      audition.toggle()
+
+      await pointer(wrapper, 'pointerdown', 120)
+      await pointer(wrapper, 'pointermove', 80)
+      await pointer(wrapper, 'pointerup', 80)
+
+      expect(audition.status).toBe('paused')
+      expect(playhead()).toBe(19)
+    })
+
+    it('does not start a press on the split line, though it plays', async () => {
+      const { wrapper } = await mountPlaying()
+
+      await pointer(wrapper, 'pointerdown', 100)
+      await pointer(wrapper, 'pointerup', 100)
+
+      expect(useAuditionStore().status).toBe('playing')
+    })
+
+    it('lets go of the playhead when a move reports no button held, and plays on from there', async () => {
+      const { wrapper } = await mountPlaying()
+      const audition = useAuditionStore()
+
+      await pointer(wrapper, 'pointerdown', 120)
+      await pointer(wrapper, 'pointermove', 130)
+      await pointer(wrapper, 'pointermove', 150, { buttons: 0 })
+
+      expect(audition.status).toBe('playing')
+      expect(playhead()).toBeCloseTo(24, 6)
+    })
+
+    it('lets go of the playhead when the pointer capture is lost, and only once', async () => {
+      const { wrapper } = await mountPlaying()
+      const audition = useAuditionStore()
+
+      await pointer(wrapper, 'pointerdown', 120)
+      await pointer(wrapper, 'pointermove', 130)
+      wrapper.element.dispatchEvent(new Event('lostpointercapture'))
+      audition.toggle()
+      await pointer(wrapper, 'pointerup', 130)
+      await pointer(wrapper, 'pointermove', 80)
+
+      expect(audition.status).toBe('paused')
+      expect(playhead()).toBeCloseTo(24, 6)
+    })
+
+    it('lets go of the split when the pointer capture is lost', async () => {
+      const { split, wrapper } = mountOnSplit()
+
+      await pointer(wrapper, 'pointerdown', 100)
+      wrapper.element.dispatchEvent(new Event('lostpointercapture'))
+      await pointer(wrapper, 'pointermove', 130)
+
+      expect(split.selectedSplit?.seconds).toBe(21)
+    })
+
+    it('does nothing for a button other than the main one', async () => {
+      const { split, wrapper } = mountOnSplit()
+
+      await pointer(wrapper, 'pointerdown', 120, { button: 2 })
+      await pointer(wrapper, 'pointermove', 150, { button: 2 })
+      expect(playhead()).toBe(17)
+
+      await pointer(wrapper, 'pointerdown', 100, { button: 1 })
+      await pointer(wrapper, 'pointermove', 150)
+      expect(split.selectedSplit?.seconds).toBe(21)
+    })
+
+    it('does nothing with no split selected', async () => {
+      const { split, wrapper } = mountOnSplit()
+      split.moveZoomTo(40)
+      await wrapper.vm.$nextTick()
+
+      await pointer(wrapper, 'pointerdown', 120)
+      await pointer(wrapper, 'pointerup', 120)
+
+      expect(playhead()).toBeNull()
+    })
+
+    it('has no double-click action and leaves no mark', async () => {
+      const { split, wrapper } = mountOnSplit()
+
+      wrapper.element.dispatchEvent(new MouseEvent('dblclick', { clientX: 120, bubbles: true }))
+      await nextTick()
+
+      expect(playhead()).toBe(17)
+      expect(split.selectedSplit?.seconds).toBe(21)
+      expect(split.splits).toHaveLength(2)
+    })
+
+    it('shows the resize cursor over the split line and while the split is dragged, not over the rest', async () => {
+      const { wrapper } = mountOnSplit()
+
+      await pointer(wrapper, 'pointermove', 100)
+      expect(wrapper.classes()).toContain('cursor-ew-resize')
+
+      await pointer(wrapper, 'pointermove', 150)
+      expect(wrapper.classes()).not.toContain('cursor-ew-resize')
+
+      await pointer(wrapper, 'pointerdown', 150)
+      expect(wrapper.classes()).not.toContain('cursor-ew-resize')
     })
   })
 
