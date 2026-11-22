@@ -116,7 +116,6 @@ const { overLine, dragging, onPointerDown, onPointerMove, onPointerEnd } = useSp
   dropPlayhead: audition.dropAuditionPlayhead,
 })
 
-// A held key steps again, so the playhead can be swept by keyboard.
 function stepPlayhead(direction: -1 | 1, isShifted: boolean) {
   const playhead = audition.playheadSeconds()
   if (playhead === null) return
@@ -137,6 +136,7 @@ function isKeyActedOn(event: KeyboardEvent) {
     audition.backToAuditionStart()
     return true
   }
+  // A held key steps again, so the playhead can be swept by keyboard.
   const playheadDirection = PLAYHEAD_KEY_DIRECTIONS[event.code]
   if (playheadDirection !== undefined) {
     stepPlayhead(playheadDirection, event.shiftKey)
@@ -260,7 +260,11 @@ function draw() {
 usePlayheadFrames(
   () => audition.status === 'playing',
   () => {
-    heardSeconds.value = Math.floor(audition.playheadSeconds() ?? 0)
+    // Floored, but never below the slider's minimum, the extent's start, which can be fractional.
+    heardSeconds.value = Math.max(
+      extent.value?.startSeconds ?? 0,
+      Math.floor(audition.playheadSeconds() ?? 0),
+    )
     draw()
   },
 )

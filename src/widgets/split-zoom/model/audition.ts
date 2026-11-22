@@ -40,9 +40,10 @@ call `toggle`: a press while it decodes takes it back, while it plays pauses it,
 and still holds its WAV plays it on from the same place without decoding, and otherwise decodes the
 extent and plays it from the resting place. `status` is where it is (idle, loading, playing or
 paused), and the Split view draws its playhead from `playheadSeconds`: the sound while it plays,
-else the resting place, else the extent's start, so it is never empty while a split is selected. `seekAudition` moves it (held
-to the extent) and `backToAuditionStart` takes it to the extent's start. A pointer drag of it
-pauses a playing audition on `grabAuditionPlayhead` and plays it on from `dropAuditionPlayhead`.
+else the resting place, else the extent's start, so it is never empty while a split is selected.
+`seekAudition` moves it (held to the extent) and `backToAuditionStart` takes it to the extent's
+start. A pointer drag of it pauses a playing audition on `grabAuditionPlayhead` and plays it on
+from `dropAuditionPlayhead`.
 
 The resting place is a time in the file, tied to the split it was made for, so another split never
 draws it. A pause keeps it with the WAV. A stop (the view change, the export) and a stretch that
@@ -707,7 +708,7 @@ export const useAuditionStore = defineStore('audition', () => {
         pauseAudition()
         release()
       } else if (status.value === 'paused') {
-        release()
+        if (url !== undefined) release()
       } else if (status.value === 'loading' || failure.value !== null) {
         stop()
       }

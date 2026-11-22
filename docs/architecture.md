@@ -165,20 +165,15 @@ stateDiagram-v2
   [*] --> idle
   idle --> loading: play
   loading --> playing: clip decoded
-  playing --> paused: pressed again
+  playing --> paused: pressed again, or split moved
   paused --> playing: pressed again
-  playing --> idle: played to the end, or a view change or the export
-  paused --> idle: a view change, the export, or a stretch plays
-  loading --> idle: pressed again, a view change or the export, split moved or changed, or failed
-  playing --> paused: split moved
   paused --> loading: pressed again after a move
-  playing --> idle: another split selected, none, or deleted
-  paused --> idle: another split selected, none, or deleted
+  playing --> idle: played to the end, a view change, the export, or split changed
+  paused --> idle: a view change, the export, a stretch plays, or split changed
+  loading --> idle: pressed again, a view change or the export, split moved or changed, or failed
 ```
 
-- **The resting place is a time in the file, tied to its split.** A pause keeps it with the WAV. A view change, the export and a stretch that takes over keep it and let go of the WAV.
-- **Moving the split pauses the audition** and keeps the place, held into the moved extent. The 8 s moved, so the next play decodes again.
-- **Another split, none or a deleted split ends the audition** and clears the place, as does playing to the end.
+"Split changed" is another split selected, none, or the selected one deleted. When the resting place is kept or cleared is in the header comment of `src/widgets/split-zoom/model/audition.ts`.
 
 **The stretch** plays a range or the selected track. It can pause, resume and seek without decoding again.
 
