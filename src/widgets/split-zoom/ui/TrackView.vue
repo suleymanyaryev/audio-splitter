@@ -15,6 +15,7 @@ import { formatHundredths } from '@/shared/lib/time/format-hundredths.ts'
 import { roundToMillisecond } from '@/shared/lib/time/round-to-millisecond.ts'
 import { draggedTime } from '../lib/dragged-time.ts'
 import { rangeWindow } from '../lib/range-window.ts'
+import { stepOfKey } from '../lib/step-of-key.ts'
 import { trackExtent } from '../lib/track-extent.ts'
 import { usePlayheadFrames } from '../lib/use-playhead-frames.ts'
 import { useRangePress } from '../lib/use-range-press.ts'
@@ -245,22 +246,13 @@ function actOnSelectedPendingSplit(key: string) {
 }
 
 /*
-`[` and `]` step to the previous and next track. They are matched by the physical key, to the right
-of P, not by the character it types: on a German or similar layout `[` and `]` need AltGr or Option,
-and the page keys leave a key with Alt to the browser, so a match on `event.key` would never arrive.
-Shift is left free, and a held key steps once.
-*/
-const STEP_BY_CODE: Record<string, -1 | 1> = { BracketLeft: -1, BracketRight: 1 }
-
-/*
 Whether the key stepped: at the first or last track, or over the discard question, it did not. Sound
 that was on, playing or still decoded, goes on with the new track from its start. It is read before
 the step, which makes the player let go of the old track (`model/audition.ts`); the track that is
 then selected rests at its start, and plays only if the sound was on. After the discard question
 the sound is not carried: the step happens later, from the dialog.
 */
-function isStepKeyActedOn(event: KeyboardEvent, step: -1 | 1) {
-  if (event.shiftKey || event.repeat) return false
+function isStepKeyActedOn(step: -1 | 1) {
   const wasOn = audition.stretchStatus === 'playing' || audition.stretchStatus === 'loading'
   const hasStepped = split.selectAdjacentTrack(step)
   if (hasStepped && wasOn && extent.value !== null) audition.toggleStretch(extent.value)
@@ -269,8 +261,12 @@ function isStepKeyActedOn(event: KeyboardEvent, step: -1 | 1) {
 
 // Whether the key was the view's: a key it leaves alone is the browser's, and is not reported.
 function isKeyActedOn(event: KeyboardEvent) {
-  const step = STEP_BY_CODE[event.code]
-  if (step !== undefined) return isStepKeyActedOn(event, step)
+  const step = stepOfKey(event)
+  return step === null ? isOtherKeyActedOn(event) : isStepKeyActedOn(step)
+}
+
+// The keys other than the step keys.
+function isOtherKeyActedOn(event: KeyboardEvent) {
   switch (event.key) {
     case ' ': {
       // A held key must not start and stop the sound over and over.

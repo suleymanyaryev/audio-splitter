@@ -411,6 +411,20 @@ export const useSplitStore = defineStore('split', () => {
   }
 
   /*
+  Selects the split after (`step` 1) or before (-1) the selected one, as a click on it does: the
+  window centres on it. Whether the selection changed at once: not at the first or last split, or
+  with no split selected.
+  */
+  function selectAdjacentSplit(step: -1 | 1) {
+    const current = selectedSplitIndex.value
+    if (current === null) return false
+    const next = splits.value[current + step]
+    if (next === undefined) return false
+    selectSplit(next.id)
+    return selectedSplit.value?.id === next.id
+  }
+
+  /*
   Selects the track after (`step` 1) or before (-1) the selected one, as a click on its row does, so
   the discard question comes the same way. Whether the selection changed at once: not at the first
   or last track, with no track selected, or when the question opened instead.
@@ -739,6 +753,7 @@ export const useSplitStore = defineStore('split', () => {
     selectSplit,
     selectTrack,
     selectAdjacentTrack,
+    selectAdjacentSplit,
     isTrackSelected,
     moveZoomTo,
     setRange,

@@ -12,6 +12,7 @@ import { zoomTimeToX } from '@/shared/lib/canvas/zoom-axis.ts'
 import { usePageKeys } from '@/shared/lib/keyboard/use-page-keys.ts'
 import { formatHundredths } from '@/shared/lib/time/format-hundredths.ts'
 import { draggedTime } from '../lib/dragged-time.ts'
+import { stepOfKey } from '../lib/step-of-key.ts'
 import { usePlayheadFrames } from '../lib/use-playhead-frames.ts'
 import { useSplitDrag } from '../lib/use-split-drag.ts'
 import { zoomBars } from '../lib/zoom-bars.ts'
@@ -24,10 +25,12 @@ the only place a split moves (ticket 13). The wave is the same peaks as the whol
 same bars; each gap is a land at its true width with a flat run-out line through it; the selected
 split is a wider line with a drag handle at its top. The handle is a real element over the canvas so
 it can be reached with Tab and read by a screen reader. The view takes the page's keys, wherever the
-focus is: Left and Right move the split 10 ms, with Shift 100 ms, and Delete (Backspace too, the
-delete key of a Mac keyboard) deletes it. Space plays the clip across the split or stops it, as the
-"Play across split" button does (ticket 14); while it plays a 1 px ink line shows where the sound
-is, and a failure to play is said in a line at the bottom of the view.
+focus is: Left and Right move the split 10 ms, with Shift 100 ms, Delete (Backspace too, the delete
+key of a Mac keyboard) deletes it, and `[` and `]` select the previous and next split, as a click
+on it does. Space plays the clip across the split or stops it, as the "Play across split"
+button does (ticket 14); while it plays a 1 px ink line shows where the sound is, and a failure to
+play is said in a line at the bottom of the view. A held Space, `[` or `]` is ignored, so it does
+not start and stop the sound or step over and over.
 */
 
 // DESIGN.md: the whole canvas is framed in 1.5 px ink; the run-out line is 1 px.
@@ -75,8 +78,23 @@ const { overLine, dragging, onPointerDown, onPointerMove, onPointerEnd } = useSp
   },
 })
 
+/*
+Whether the key stepped: at the first or last split it did not, and an audition that is on goes on
+untouched. An audition that was on, playing or still decoded, starts again across the new split. It
+is read before the step, which ends the old audition (`model/audition.ts`); with none on, none
+starts.
+*/
+function isStepKeyActedOn(step: -1 | 1) {
+  const wasOn = audition.isActive
+  const hasStepped = split.selectAdjacentSplit(step)
+  if (hasStepped && wasOn) audition.toggle()
+  return hasStepped
+}
+
 // Whether the key was the view's: a key it leaves alone is the browser's, and is not reported.
 function isKeyActedOn(event: KeyboardEvent) {
+  const step = stepOfKey(event)
+  if (step !== null) return isStepKeyActedOn(step)
   // A held Space must not start and stop the sound over and over.
   if (event.key === ' ') {
     if (!event.repeat) audition.toggle()
@@ -91,8 +109,8 @@ function isKeyActedOn(event: KeyboardEvent) {
   }
   const direction = { ArrowLeft: -1, ArrowRight: 1 }[event.key]
   if (direction === undefined) return false
-  const step = event.shiftKey ? SHIFT_KEY_STEP_SECONDS : KEY_STEP_SECONDS
-  split.moveSplit(selected.id, selected.seconds + direction * step)
+  const moveSeconds = event.shiftKey ? SHIFT_KEY_STEP_SECONDS : KEY_STEP_SECONDS
+  split.moveSplit(selected.id, selected.seconds + direction * moveSeconds)
   return true
 }
 
