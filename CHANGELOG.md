@@ -18,6 +18,8 @@ Versions follow [Semantic Versioning](https://semver.org/) applied to the produc
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-11-22
+
 ### Added
 
 - A play speed control in the zoom panel's title row, just before the volume, from 0.5× to 2.0× in steps of 0.1. It applies to the audition, the range and the selected track, the pitch stays the same, and a change takes effect while the sound plays. The button on its left shows the speed and resets it to 1.0×. It is remembered across a reload. An export is unaffected.
@@ -125,7 +127,8 @@ The first release: milestones 0 to 7.
 - A question before a setting change ("Replace your edits?") or "New file" ("Discard your edits?") throws edits away.
 - "Export to folder…": every track written by stream copy, without re-encoding, into a new subfolder named after the source file (`name (2)/` the second time). Files are named `01.m4a` or `01 Name.m4a` and tagged with title, track number and album. Cancel keeps the tracks already written.
 
-[unreleased]: https://github.com/suleymanyaryev/audio-splitter/compare/v1.3.0...HEAD
+[unreleased]: https://github.com/suleymanyaryev/audio-splitter/compare/v1.4.0...HEAD
+[1.4.0]: https://github.com/suleymanyaryev/audio-splitter/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/suleymanyaryev/audio-splitter/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/suleymanyaryev/audio-splitter/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/suleymanyaryev/audio-splitter/compare/v1.0.2...v1.1.0
