@@ -428,6 +428,7 @@ export const useSplitStore = defineStore('split', () => {
   function splitFromCentre(step: -1 | 1) {
     const centre = zoomCentreSeconds.value
     // The splits are in time order: the first from the centre on, or none when all lie before it.
+    // `[` walks back from it because `findLast` is not in the project's TS lib.
     const fromCentre = splits.value.findIndex((point) => point.seconds >= centre)
     if (step === -1) return splits.value[(fromCentre === -1 ? splits.value.length : fromCentre) - 1]
     return splits.value.find((point) => point.seconds > centre)
@@ -441,6 +442,7 @@ export const useSplitStore = defineStore('split', () => {
   function selectAdjacentTrack(step: -1 | 1) {
     const current = selectedTrack.value
     if (current === null) return false
+    // `Track.number` is 1-based and contiguous, so `number - 1` is the track's index.
     const next = tracks.value[current.number - 1 + step]
     if (next === undefined) return false
     selectTrack(next)

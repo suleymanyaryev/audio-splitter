@@ -46,8 +46,10 @@ async function mountPageOnSplit() {
   return wrapper
 }
 
-// The page on the Split view with the zoom window at that time and no split selected, as a click
-// on empty ground in the whole-file view leaves it.
+/*
+The page on the Split view with the zoom window at that time and no split selected, as a click on
+empty ground in the whole-file view leaves it.
+*/
 async function mountAtCentre(seconds: number) {
   const wrapper = await mountPageOnSplit()
   useSplitStore().moveZoomTo(seconds)
@@ -274,13 +276,28 @@ async function dragSlider(thumb: Element) {
   await flushPromises()
 }
 
-// The previous and next track keys are the physical ones, to the right of P: the code is what the page matches.
+/*
+The previous and next keys, track or split, are the physical ones to the right of P: the page
+matches the code.
+*/
 const NEXT = { key: ']', code: 'BracketRight' }
 const PREVIOUS = { key: '[', code: 'BracketLeft' }
 
 // The player's play action, spied on and replaced, as the playback cases do.
 function spyOnToggleStretch() {
   return vi.spyOn(useAuditionStore(), 'toggleStretch').mockImplementation(() => {})
+}
+
+// The same for the audition across a split.
+function spyOnToggle() {
+  return vi.spyOn(useAuditionStore(), 'toggle').mockImplementation(() => {})
+}
+
+// The second split selected, as a click on its row does, on a page that is on the Split view.
+async function selectSecondSplit(wrapper: ReturnType<typeof mount>) {
+  const split = useSplitStore()
+  split.selectSplit(split.splits[1]!.id)
+  await wrapper.vm.$nextTick()
 }
 
 // The track list's row that is marked, by the label of its select button.
@@ -580,7 +597,7 @@ describe('ReviewPage', () => {
 
     it('calls the audition store when clicked', async () => {
       const wrapper = await mountPageOnSplit()
-      const toggle = vi.spyOn(useAuditionStore(), 'toggle').mockImplementation(() => {})
+      const toggle = spyOnToggle()
 
       await auditionButton(wrapper).trigger('click')
 
@@ -2022,7 +2039,9 @@ describe('ReviewPage', () => {
     it('works on a layout where the keys type other characters, by their physical code', async () => {
       const wrapper = await mountPageWithTrack(1)
 
-      // German: the key right of P types ü and, next to it, + (the bracket keys are AltGr 8 and 9).
+      /*
+      German: the key right of P types ü and, next to it, +; the brackets are AltGr 8 and 9.
+      */
       pressKey('+', { code: NEXT.code })
       await wrapper.vm.$nextTick()
 
@@ -2134,12 +2153,30 @@ describe('ReviewPage', () => {
         expect(split.view).toBe('range')
         expect(split.selectedTrack?.number).toBe(2)
 
-        const event = pressKey(NEXT.key, { code: NEXT.code })
+        const next = pressKey(NEXT.key, { code: NEXT.code })
+        const previous = pressKey(PREVIOUS.key, { code: PREVIOUS.code })
         await wrapper.vm.$nextTick()
 
         expect(split.selectedTrack?.number).toBe(2)
-        expect(event.defaultPrevented).toBe(false)
+        expect(next.defaultPrevented).toBe(false)
+        expect(previous.defaultPrevented).toBe(false)
       })
+
+      it.each([{ altKey: true }, { ctrlKey: true }, { metaKey: true }])(
+        'with %o held, which stays with the browser',
+        async (modifier) => {
+          const wrapper = await mountPageWithTrack(2)
+
+          const next = pressKey(NEXT.key, { code: NEXT.code, ...modifier })
+          const previous = pressKey(PREVIOUS.key, { code: PREVIOUS.code, ...modifier })
+          await wrapper.vm.$nextTick()
+
+          expect(useSplitStore().selectedTrack?.number).toBe(2)
+          expect(markedTrack(wrapper)).toContain('Select track 2')
+          expect(next.defaultPrevented).toBe(false)
+          expect(previous.defaultPrevented).toBe(false)
+        },
+      )
     })
 
     describe('on a track with pending splits', () => {
@@ -2233,16 +2270,21 @@ describe('ReviewPage', () => {
         async (status) => {
           const wrapper = await mountPageWithTrack(2)
           const toggleStretch = spyOnToggleStretch()
-          useAuditionStore().stretchStatus = status
+          const audition = useAuditionStore()
+          // The player rests part-way along track 2, as after a seek: a step must not carry that on.
+          audition.seekStretch(trackExtent(useSplitStore().selectedTrack!), 40)
+          audition.stretchStatus = status
+          await wrapper.vm.$nextTick()
+          const playhead = () =>
+            wrapper.get('[aria-label="Playhead in the track"]').attributes('aria-valuenow')
+          expect(playhead()).toBe('40')
 
           pressKey(NEXT.key, { code: NEXT.code })
           await wrapper.vm.$nextTick()
 
           expect(toggleStretch).not.toHaveBeenCalled()
-          expect(useAuditionStore().stretchStatus).toBe('idle')
-          expect(
-            wrapper.get('[aria-label="Playhead in the track"]').attributes('aria-valuenow'),
-          ).toBe('71.5')
+          expect(audition.stretchStatus).toBe('idle')
+          expect(playhead()).toBe('71.5')
         },
       )
 
@@ -2365,8 +2407,7 @@ describe('ReviewPage', () => {
     it('selects the previous split on [', async () => {
       const wrapper = await mountPageOnSplit()
       const split = useSplitStore()
-      split.selectSplit(split.splits[1]!.id)
-      await wrapper.vm.$nextTick()
+      await selectSecondSplit(wrapper)
       expect(panelTitle(wrapper)).toBe('0:01:11.50')
 
       const event = pressKey(PREVIOUS.key, { code: PREVIOUS.code })
@@ -2397,8 +2438,7 @@ describe('ReviewPage', () => {
         expect(split.selectedSplit?.seconds).toBe(21)
         expect(before.defaultPrevented).toBe(false)
 
-        split.selectSplit(split.splits[1]!.id)
-        await wrapper.vm.$nextTick()
+        await selectSecondSplit(wrapper)
         const after = pressKey(NEXT.key, { code: NEXT.code })
         await wrapper.vm.$nextTick()
         expect(split.selectedSplit?.seconds).toBe(71.5)
@@ -2574,7 +2614,7 @@ describe('ReviewPage', () => {
         'start it again across the new split when it was %s',
         async (status) => {
           const wrapper = await mountPageOnSplit()
-          const toggle = vi.spyOn(useAuditionStore(), 'toggle').mockImplementation(() => {})
+          const toggle = spyOnToggle()
           useAuditionStore().status = status
 
           pressKey(NEXT.key, { code: NEXT.code })
@@ -2590,9 +2630,8 @@ describe('ReviewPage', () => {
       it('start the previous split on [', async () => {
         const wrapper = await mountPageOnSplit()
         const split = useSplitStore()
-        split.selectSplit(split.splits[1]!.id)
-        await wrapper.vm.$nextTick()
-        const toggle = vi.spyOn(useAuditionStore(), 'toggle').mockImplementation(() => {})
+        await selectSecondSplit(wrapper)
+        const toggle = spyOnToggle()
         useAuditionStore().status = 'playing'
 
         pressKey(PREVIOUS.key, { code: PREVIOUS.code })
@@ -2604,7 +2643,7 @@ describe('ReviewPage', () => {
 
       it('play nothing when none was on', async () => {
         const wrapper = await mountPageOnSplit()
-        const toggle = vi.spyOn(useAuditionStore(), 'toggle').mockImplementation(() => {})
+        const toggle = spyOnToggle()
 
         pressKey(NEXT.key, { code: NEXT.code })
         await wrapper.vm.$nextTick()
@@ -2622,7 +2661,7 @@ describe('ReviewPage', () => {
         const split = useSplitStore()
         split.selectSplit(split.splits[index]!.id)
         await wrapper.vm.$nextTick()
-        const toggle = vi.spyOn(useAuditionStore(), 'toggle').mockImplementation(() => {})
+        const toggle = spyOnToggle()
         const audition = useAuditionStore()
         audition.status = 'playing'
 
@@ -2635,7 +2674,7 @@ describe('ReviewPage', () => {
 
       it('neither step nor play on a held ], a repeat', async () => {
         const wrapper = await mountPageOnSplit()
-        const toggle = vi.spyOn(useAuditionStore(), 'toggle').mockImplementation(() => {})
+        const toggle = spyOnToggle()
         const audition = useAuditionStore()
         audition.status = 'playing'
 

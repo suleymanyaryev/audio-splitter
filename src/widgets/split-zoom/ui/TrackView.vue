@@ -262,11 +262,11 @@ function isStepKeyActedOn(step: -1 | 1) {
 // Whether the key was the view's: a key it leaves alone is the browser's, and is not reported.
 function isKeyActedOn(event: KeyboardEvent) {
   const step = stepOfKey(event)
-  return step === null ? isOtherKeyActedOn(event) : isStepKeyActedOn(step)
+  return step === null ? isNonStepKeyActedOn(event) : isStepKeyActedOn(step)
 }
 
-// The keys other than the step keys.
-function isOtherKeyActedOn(event: KeyboardEvent) {
+// The view's other keys: Space, Enter, Delete, Escape, Home and the arrows.
+function isNonStepKeyActedOn(event: KeyboardEvent) {
   switch (event.key) {
     case ' ': {
       // A held key must not start and stop the sound over and over.
