@@ -34,7 +34,7 @@ export interface Track {
   number: number
   // The name the user typed, null while the track is unnamed.
   ownName: string | null
-  // The name shown: the own name, or the number while the track has none.
+  // The name shown: the own name, or the prefixed number while the track has none.
   name: string
   startSeconds: number
   lengthSeconds: number
@@ -678,7 +678,7 @@ export const useSplitStore = defineStore('split', () => {
     if (stored === current) return
     if (split === null) firstTrackName.value = stored
     else split.name = stored
-    // Detection leaves every track unnamed, so a track named back to its number is no edit.
+    // Detection leaves every track unnamed, so a track named back to its default is no edit.
     if (stored === null) renamedKeys.value.delete(startSplitId)
     else renamedKeys.value.add(startSplitId)
   }
