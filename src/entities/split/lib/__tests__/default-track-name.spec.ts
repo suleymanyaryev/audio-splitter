@@ -15,4 +15,10 @@ describe('defaultTrackName', () => {
   it('pads to the width of the track count', () => {
     expect(defaultTrackName('t', 7, 120)).toBe('t007')
   })
+
+  // A longer default would not fit the rename field, which would refuse a typed digit.
+  it('cuts the prefix, never the number, to keep within a track name length', () => {
+    expect(defaultTrackName('x'.repeat(100), 2, 8)).toBe(`${'x'.repeat(98)}02`)
+    expect(defaultTrackName('x'.repeat(100), 7, 120)).toBe(`${'x'.repeat(97)}007`)
+  })
 })

@@ -184,7 +184,7 @@ export const useExportSingleStore = defineStore('export-single', () => {
 
   // Whether the name is the one the dialog offered, held to a name's length as the typed one is.
   function isOffered(name: string): boolean {
-    return name === defaultName.value.trim().slice(0, MAX_TRACK_NAME_LENGTH)
+    return name === defaultName.value.trim()
   }
 
   // The name the track has once confirmed: its own, or none for an unnamed track left as offered.
