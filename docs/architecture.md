@@ -62,7 +62,7 @@ flowchart LR
   reviewPage["ReviewPage"]
 
   sourceFile -- "loudness curve, on mount" --> reviewPage
-  reviewPage -- "detect(curve)" --> split
+  reviewPage -- "detect(curve), prefix" --> split
   split -- "selection, range, view" --> audition
   audition -- "clip" --> sourceFile
   split -- "tracks and names" --> exporter
@@ -73,7 +73,7 @@ flowchart LR
   exporterSingle -- "take, release" --> exportLock
 ```
 
-- **`split` can't import `source-file`.** `ReviewPage` hands it the loudness curve once, on mount.
+- **`split` can't import `source-file`.** `ReviewPage` hands it the loudness curve and the track name prefix once, on mount.
 - **Widgets read the entity stores directly.** They never go through another widget.
 - **Tracks are derived from the splits**, never stored. Deleting a split merges the tracks either side of it.
 - **One selection at a time:** a split, a track or nothing.

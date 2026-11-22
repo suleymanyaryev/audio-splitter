@@ -667,7 +667,7 @@ export const useSplitStore = defineStore('split', () => {
 
   /*
   Names the track that starts at the split `startSplitId`, or the first track with null. Whatever is
-  typed is valid: an empty name means "use the number".
+  typed is valid: an empty name means "use the prefixed number".
   */
   function renameTrack(startSplitId: number | null, name: string) {
     const stored = name.trim().slice(0, MAX_TRACK_NAME_LENGTH) || null
