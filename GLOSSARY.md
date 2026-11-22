@@ -21,8 +21,12 @@ A stretch of the source file between two neighbouring splits (or between a split
 _Avoid_: Segment, part, chunk, song
 
 **Track name**:
-The name a track is exported under: its number until the user renames it. It belongs to the split where the track starts (or to the start of the source file for the first track), so it follows that split when it moves and disappears when that split is deleted.
+The name a track is exported under: the track name prefix followed by the track's number until the user renames it, then the name as typed. It belongs to the split where the track starts (or to the start of the source file for the first track), so it follows that split when it moves and disappears when that split is deleted.
 _Avoid_: Title, label
+
+**Track name prefix**:
+The text put before the number of every unnamed track, any separator included. Each source file has its own, starting as the source file's name without its extension followed by `-`.
+_Avoid_: Base name, stem
 
 **Export**:
 Writing every track as its own audio file, in the source file's format, into a new folder named after the source file, made inside a folder the user picks (a second export of the same file makes `name (2)`).
@@ -69,7 +73,7 @@ The 20 second stretch of the source file around a centre time that the Split vie
 _Avoid_: Viewport, zoom range, visible range
 
 **Audition**:
-Hearing the 8 seconds across the selected split (4 before it, 4 after) to judge where the cut falls. The user starts and stops it with "Play across split"; moving or changing the selection ends it.
+Hearing the 8 seconds across the selected split (4 before it, 4 after) to judge where the cut falls. It can be paused, resumed and heard from any point in it. Moving the split pauses it and keeps the point being heard; selecting another split, or none, ends it.
 _Avoid_: Preview, playback
 
 **Range**:
@@ -85,8 +89,12 @@ The dashed spot the user clicks in the stretch on show: in the Range view where 
 _Avoid_: Cursor, marker, ghost playhead
 
 **Playhead**:
-The 1 px line that marks the point being heard, or where playback will resume: in the Split view during an audition, and in the Range view and the Track view always.
+The 1 px line that marks the point being heard, or where playback will resume, in each of the three views at all times.
 _Avoid_: Cursor, scrubber, position marker
+
+**Play speed**:
+How fast the source file is heard against real time, 0.5× to 2.0×, with its pitch kept. It changes only what is heard, never an export.
+_Avoid_: Playback rate, tempo, rate
 
 **Loudness curve**:
 The loudness of the source file over time, one value in decibels per short window.

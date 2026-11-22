@@ -18,6 +18,24 @@ Versions follow [Semantic Versioning](https://semver.org/) applied to the produc
 
 ## [Unreleased]
 
+### Added
+
+- A play speed control in the zoom panel's title row, just before the volume, from 0.5× to 2.0× in steps of 0.1. It applies to the audition, the range and the selected track, the pitch stays the same, and a change takes effect while the sound plays. The button on its left shows the speed and resets it to 1.0×. It is remembered across a reload. An export is unaffected.
+- A "Prefix" field in the Track list's header, starting as the source file's name and a dash (`dreamscape-`). Every track you have not renamed shows it before its number (`dreamscape-01`), in muted text in the list, and changes with it as you type.
+- The Split view marks where the 8 s of the audition start and end with a small bracket at the top and bottom of the view, so you can see which part of the 20 s you can hear. Near the start or end of the file the brackets sit on the file's edge.
+- In the Split view, `,` and `.` step the playhead back and forward 100 ms (1 s with Shift, and again while held), and Home or the new "Back to audition start" button takes it back to the start of the 8 s.
+- The Split view is a slider for the playhead, so a screen reader says where it is.
+- In the Split view, a click moves the playhead there and a drag moves it along, and a playing audition pauses while you hold it and plays on from where you let go. A press next to the split's line still moves the split.
+- `]` selects the next track and `[` the previous one in the Track view, and the next and previous split in the Split view. The keys are the two to the right of P, so they work without a modifier on every keyboard layout, and they do nothing at the first and last item or while you type a track name. A track that is playing or being decoded carries on with the new track from its start; a paused or stopped one rests at its start. An audition that is playing or being decoded starts again across the new split, a paused one rests at the new split's start, and with none on, none starts. With no split selected, they pick the nearest split on that side of the zoom window's centre.
+
+### Changed
+
+- An export names every track you have not renamed after the list's name for it: the prefix and the number (`dreamscape-01.m4a`, or `01.m4a` when the prefix is empty), and its title tag is the same name. The single export dialog now offers that name too, where it offered the file's name and the number, so confirming it writes the file you were offered. A prefix too long for the file name is cut, never the number.
+- A renamed track's file no longer starts with its number: it is called what you called it (`Intro.m4a`, not `02 Intro.m4a`). When two files in an export would share a name, ignoring capital letters, the later track's becomes `name (2).m4a`, so nothing is overwritten. A name with no usable characters (`...`) is written under the track's prefixed name, and its title tag keeps what you typed.
+- In the Split view, Space and the play button now pause the audition and play it on from the same point. It starts again from the top only after it has played to the end.
+- The Split view always draws the playhead: at the start of the 8 s before the first play, and where you paused.
+- In the Split view, moving the split pauses the audition instead of ending it, and the playhead keeps its place in the file. Space plays on from there after a short wait. Selecting another split, none, or deleting the split still ends it.
+
 ## [1.3.0] - 2026-11-22
 
 ### Added

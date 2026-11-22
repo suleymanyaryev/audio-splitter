@@ -16,6 +16,7 @@ import {
 
 import { useSourceFileStore } from '@/entities/source-file/model/source-file.ts'
 import { formatPendingSplits } from '@/entities/split/lib/format-edits.ts'
+import { sourceStem } from '@/entities/split/lib/source-stem.ts'
 import { useSplitStore, type PanelView } from '@/entities/split/model/split.ts'
 import UiButton from '@/shared/ui/UiButton.vue'
 import UiDialog from '@/shared/ui/UiDialog.vue'
@@ -33,11 +34,13 @@ import { useQuestionMarkKey } from '@/widgets/shortcuts-dialog/lib/use-question-
 import { useShortcutsDialogStore } from '@/widgets/shortcuts-dialog/model/shortcuts-dialog.ts'
 import ShortcutsDialog from '@/widgets/shortcuts-dialog/ui/ShortcutsDialog.vue'
 import { useAuditionStore } from '@/widgets/split-zoom/model/audition.ts'
+import PlaySpeedControl from '@/widgets/split-zoom/ui/PlaySpeedControl.vue'
 import RangeView from '@/widgets/split-zoom/ui/RangeView.vue'
 import SplitZoom from '@/widgets/split-zoom/ui/SplitZoom.vue'
 import TrackView from '@/widgets/split-zoom/ui/TrackView.vue'
 import VolumeControl from '@/widgets/split-zoom/ui/VolumeControl.vue'
 import TrackList from '@/widgets/track-list/ui/TrackList.vue'
+import TrackNamePrefixField from '@/widgets/track-list/ui/TrackNamePrefixField.vue'
 import { useExportSingleStore } from '@/widgets/track-strip/model/export-single.ts'
 import { useExportTracksStore } from '@/widgets/track-strip/model/export-tracks.ts'
 import ExportDialog from '@/widgets/track-strip/ui/ExportDialog.vue'
@@ -59,18 +62,23 @@ pending split" (only while one is selected). "Export track…" is off while the 
 splits, and its tooltip says why. The zoom view also has
 "Delete split", which deletes the selected split as Delete does on its handle (disabled with none
 selected), and "Play across split", which plays the selected split's clip (and reads "Stop" while
-it loads or plays). The
+it is decoded and "Pause" while it plays). The
 Range view and the Track view have "Play", which plays the range or the selected track (and reads
 "Stop" while it is decoded and "Pause" while it plays), and "Back to range start" or "Back to track
-start" beside it, which moves the playhead to the stretch's start. The volume control (a mute button
-and a slider) ends the row in all three views.
+start" beside it, which moves the playhead to the stretch's start; the zoom view has "Back to
+audition start" before its play button, off while no split is selected. The play speed control (a
+button that shows the speed and resets it, and a slider) and then the volume control (a mute button
+and a slider) end the row in all three views.
 
 The split store holds back an action that would discard pending splits as its one open question,
 and this page shows it: "Discard N pending splits?" with Apply first, Discard and Cancel, the
 store's answers. Apply first comes first, so it takes the focus, and Escape cancels.
 
 The page mounts only once the source file is ready (src/app/App.vue), which is when the split store
-looks for the gaps in its loudness curve, once; the split store cannot import the source-file store.
+looks for the gaps in its loudness curve, once, and gets the track name prefix the file starts with:
+its name without the extension and a "-", or none when nothing is left of the name. The split store
+cannot import the source-file store. "New file" unmounts the page, so a new file mounts it again and
+gets its own prefix.
 */
 const sourceFile = useSourceFileStore()
 const split = useSplitStore()
@@ -85,6 +93,8 @@ useQuestionMarkKey(() => {
 })
 
 const { loudness, loudnessWindowSeconds, durationSeconds } = sourceFile
+const stem = sourceStem(sourceFile.file?.name ?? '')
+split.setTrackNamePrefix(stem === '' ? '' : `${stem}-`)
 if (loudness && loudnessWindowSeconds !== null && durationSeconds !== null) {
   split.detect(loudness, { windowSeconds: loudnessWindowSeconds, durationSeconds })
 }
@@ -196,6 +206,15 @@ const showsSplitTime = computed(() => split.view === 'split' && split.selectedSp
 const STRETCH_BUTTON_LABELS = { idle: 'Play', loading: 'Stop', playing: 'Pause', paused: 'Play' }
 const stretchButtonLabel = computed(() => STRETCH_BUTTON_LABELS[audition.stretchStatus])
 
+// The same for the audition, which keeps the name of what it plays while it is idle or paused.
+const AUDITION_BUTTON_LABELS = {
+  idle: 'Play across split',
+  loading: 'Stop',
+  playing: 'Pause',
+  paused: 'Play across split',
+}
+const auditionButtonLabel = computed(() => AUDITION_BUTTON_LABELS[audition.status])
+
 /*
 The two buttons of the Range view and of the Track view play the stretch on show: the range, or the
 selected track (all of it, however long). With none there is nothing to play.
@@ -207,8 +226,10 @@ const stretch = computed(() => {
     : null
 })
 
-function backToStretchStart() {
-  if (stretch.value !== null) audition.backToStretchStart(stretch.value)
+// The same move as Home: the stretch on show, or the audition in the Split view.
+function backToStart() {
+  if (split.view === 'split') audition.backToAuditionStart()
+  else if (stretch.value !== null) audition.backToStretchStart(stretch.value)
 }
 
 function toggleStretch() {
@@ -309,11 +330,11 @@ watch(
           <Trash2 class="size-4 shrink-0" />
         </UiIconButton>
         <UiIconButton
-          v-if="split.view !== 'split'"
           size="sm"
-          :label="`Back to ${split.view} start`"
+          :label="`Back to ${split.view === 'split' ? 'audition' : split.view} start`"
           hint="Home"
-          @click="backToStretchStart"
+          :disabled="split.view === 'split' && split.selectedSplit === null"
+          @click="backToStart"
         >
           <SkipBack class="size-4 shrink-0" />
         </UiIconButton>
@@ -343,13 +364,19 @@ watch(
           v-else
           variant="primary"
           size="sm"
-          :label="audition.isActive ? 'Stop' : 'Play across split'"
+          :label="auditionButtonLabel"
           hint="Space"
           :disabled="split.selectedSplit === null && !audition.isActive"
           @click="audition.toggle()"
         >
           <Square
-            v-if="audition.isActive"
+            v-if="audition.status === 'loading'"
+            class="size-4 shrink-0"
+            fill="currentColor"
+            :stroke-width="0"
+          />
+          <Pause
+            v-else-if="audition.status === 'playing'"
             class="size-4 shrink-0"
             fill="currentColor"
             :stroke-width="0"
@@ -366,6 +393,7 @@ watch(
         >
           <FileDown class="size-4 shrink-0" />
         </UiIconButton>
+        <PlaySpeedControl />
         <VolumeControl />
       </template>
       <!-- Capturing, so a press the view handles itself still clears the saved line. -->
@@ -381,6 +409,9 @@ watch(
     </UiPanel>
 
     <UiPanel title="Track list" class="col-span-4">
+      <template #actions>
+        <TrackNamePrefixField />
+      </template>
       <TrackList />
     </UiPanel>
 

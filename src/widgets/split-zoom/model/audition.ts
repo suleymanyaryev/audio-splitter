@@ -3,11 +3,14 @@ import { defineStore } from 'pinia'
 
 import { FileReplacedError, useSourceFileStore } from '@/entities/source-file/model/source-file.ts'
 import type { TimeRange } from '@/entities/split/lib/range-between.ts'
-import { useSplitStore } from '@/entities/split/model/split.ts'
+import { useSplitStore, type Split } from '@/entities/split/model/split.ts'
 import { decibelsToGain } from '@/shared/lib/audio/decibels-to-gain.ts'
+import { readSavedPlaySpeed, savePlaySpeed } from '../api/saved-play-speed.ts'
 import { readSavedVolume, saveVolume } from '../api/saved-volume.ts'
+import { MAX_PLAY_SPEED, MIN_PLAY_SPEED } from '../config/play-speed.ts'
 import { MAX_VOLUME_DB, MIN_VOLUME_DB } from '../config/volume.ts'
 import { decodeWindow, nextWindow, windowHolds } from '../lib/decode-window.ts'
+import { snapPlaySpeed } from '../lib/snap-play-speed.ts'
 
 // How far the audition reaches either side of the split.
 const REACH_SECONDS = 4
@@ -34,8 +37,23 @@ store decodes (tickets 14 and 19: every format goes through ffmpeg, because Chro
 seconds off; docs/concepts/06-seeking-compressed-audio.md), and the WAV held is one decoded window
 of one stretch, or the audition's clip.
 
-The audition is the 8 s across the selected split: the button and the Space key on the split handle
-call `toggle`, `status` is where it is and the zoom view draws its playhead from `playheadSeconds`.
+The audition is the 8 s across the selected split, its extent: the split plus and minus 4 s, held
+to the file, worked out from the split each time. The button and the Space key of the Split view
+call `toggle`: a press while it decodes takes it back, while it plays pauses it, while it is paused
+and still holds its WAV plays it on from the same place without decoding, and otherwise decodes the
+extent and plays it from the resting place. `status` is where it is (idle, loading, playing or
+paused), and the Split view draws its playhead from `playheadSeconds`: the sound while it plays,
+else the resting place, else the extent's start, so it is never empty while a split is selected.
+`seekAudition` moves it (held to the extent) and `backToAuditionStart` takes it to the extent's
+start. A pointer drag of it pauses a playing audition on `grabAuditionPlayhead` and plays it on
+from `dropAuditionPlayhead`.
+
+The resting place is a time in the file, tied to the split it was made for, so another split never
+draws it. A pause keeps it with the WAV. A stop (the view change, the export) and a stretch that
+takes over keep it and let go of the WAV. Playing to the end clears it, and so does selecting
+another split, none, or deleting the selected one; these also end the audition. Moving the split
+pauses a playing audition where the sound was and lets go of the WAV, whose 8 s moved: the place is
+held into the moved extent when it is read, and the next play decodes the moved 8 s and starts there.
 
 Playing a stretch (docs/concepts/08-listening-to-a-range.md) is a second state, `stretchStatus`,
 which adds `paused`. A stretch is a start and an end the caller hands in with every call: the range
@@ -71,13 +89,21 @@ forgets it and stops its decode, so a seek's window or an export's cut does not 
 The volume (docs/concepts/09-volume-is-gain.md) is the player's too: `volumeDecibels` and `isMuted`,
 applied to the element as a linear gain when it is made and on every change, and kept in
 `localStorage`. It is playback only: an export never passes through the element.
+
+The play speed (docs/concepts/10-speed-without-pitch.md, docs/adr/0004-time-stretching-by-the-browser.md)
+is the player's too: `playSpeed`, 0.5 to 2.0 in steps of 0.1, applied to the element when it is made
+and on every change, with the pitch kept: the browser does the time-stretching. Like the volume, it
+is kept in `localStorage` between visits. The playhead and the window logic stay in media time (the
+time in the file), which is the same at any speed. It is playback only too.
 */
 export const useAuditionStore = defineStore('audition', () => {
   const sourceFile = useSourceFileStore()
   const splitStore = useSplitStore()
 
-  // The audition's state.
-  const status = ref<'idle' | 'loading' | 'playing'>('idle')
+  // The audition's state: paused keeps its WAV and its place, as the stretch's does.
+  const status = ref<'idle' | 'loading' | 'playing' | 'paused'>('idle')
+  // Where the audition resumes, in the file, and the split it was made for. A ref, so the view follows it.
+  const auditionResting = ref<{ splitId: number; seconds: number } | null>(null)
   // The stretch's: it can also be paused, with its WAV and its place kept.
   const stretchStatus = ref<'idle' | 'loading' | 'playing' | 'paused'>('idle')
   /*
@@ -90,8 +116,8 @@ export const useAuditionStore = defineStore('audition', () => {
   clear it.
   */
   const failure = ref<string | null>(null)
-  // The button reads "Stop" while a clip is being made as well as while it plays (ticket 14).
-  const isActive = computed(() => status.value !== 'idle')
+  // The button reads "Stop" while a clip is being made and "Pause" while it plays (ticket 14).
+  const isActive = computed(() => status.value === 'loading' || status.value === 'playing')
 
   let press = 0
   /*
@@ -107,8 +133,12 @@ export const useAuditionStore = defineStore('audition', () => {
   // The window after the held one, decoded while the held one plays, and the fetch that made it.
   let upcoming: { url: string; clip: Clip; window: TimeRange } | undefined
   let ahead: { done: Promise<void>; stopper: AbortController } | undefined
+  // The split the audition's clip is of, kept apart from the selection, which may have moved on.
+  let auditionSplitId: number | undefined
   // Whether the stretch was playing when the playhead was grabbed, so the drop plays it on.
   let shouldResume = false
+  // The same for the audition's playhead.
+  let shouldResumeAudition = false
 
   // How loud it is heard, set on the page and kept between visits. Playback only: an export never
   // passes through the element.
@@ -139,6 +169,36 @@ export const useAuditionStore = defineStore('audition', () => {
     () => {
       if (element !== undefined) applyVolume(element)
       saveVolume({ volumeDecibels: volumeDecibels.value, isMuted: isMuted.value })
+    },
+    { flush: 'sync' },
+  )
+
+  // How fast it is heard, from half speed to double, a tenth a step, with the pitch kept. Set on
+  // the page and kept between visits, like the volume.
+  const playSpeed = ref(readSavedPlaySpeed())
+
+  function setPlaySpeed(speed: number) {
+    // Not a number: nothing changes.
+    if (!Number.isFinite(speed)) return
+    playSpeed.value = Math.min(Math.max(snapPlaySpeed(speed), MIN_PLAY_SPEED), MAX_PLAY_SPEED)
+  }
+
+  /*
+  Loading a source resets the element's rate to its default rate, so both are set: otherwise a new
+  clip, the release of the held one, a seek to a new window and the hand-over would drop to 1.0.
+  */
+  function applyPlaySpeed(target: HTMLAudioElement) {
+    target.preservesPitch = true
+    target.defaultPlaybackRate = playSpeed.value
+    target.playbackRate = playSpeed.value
+  }
+
+  // Sync, like the volume's: sound that is playing changes at once.
+  watch(
+    playSpeed,
+    () => {
+      if (element !== undefined) applyPlaySpeed(element)
+      savePlaySpeed(playSpeed.value)
     },
     { flush: 'sync' },
   )
@@ -178,18 +238,27 @@ export const useAuditionStore = defineStore('audition', () => {
     return Math.min(Math.max(seconds - clipStartSeconds, 0), clipLengthSeconds)
   }
 
-  // Where the stretch's sound is in the file, clamped: the element can report a hair past the end.
-  function stretchPosition() {
+  // Where the sound is in the file, clamped: the element can report a hair past the end.
+  function soundPosition() {
     return element === undefined
       ? clipStartSeconds
       : clipStartSeconds + Math.min(element.currentTime, clipLengthSeconds)
+  }
+
+  /*
+  Takes a new press number and returns its guard: true once a later press (or a stop) took over, so
+  a clip that arrives for this one must be dropped.
+  */
+  function beginPress() {
+    const thisPress = ++press
+    return () => thisPress !== press
   }
 
   // Stops the sound and keeps the stretch's place and its WAV, so a press resumes at once.
   function pauseStretch() {
     // A pause that interrupts a pending `play()` makes it stale, so its rejection is not reported.
     press++
-    if (held !== null) resting.value = { stretch: held.stretch, seconds: stretchPosition() }
+    if (held !== null) resting.value = { stretch: held.stretch, seconds: soundPosition() }
     element?.pause()
     stretchStatus.value = 'paused'
   }
@@ -209,11 +278,47 @@ export const useAuditionStore = defineStore('audition', () => {
     failure.value = null
   }
 
-  // The audition's clip goes, as the stretch's does when it gives way: only one WAV is held.
+  /*
+  The audition's clip goes, as the stretch's does when it gives way: only one WAV is held. Its
+  place stays, and a sound that plays leaves it where it stopped.
+  */
   function letGoOfAudition() {
     if (status.value === 'idle') return
+    if (status.value === 'playing') restAuditionHere()
     release()
     status.value = 'idle'
+  }
+
+  function restAuditionHere() {
+    if (auditionSplitId !== undefined) {
+      auditionResting.value = { splitId: auditionSplitId, seconds: soundPosition() }
+    }
+  }
+
+  // The audition played to its end: back at its start, with nothing held.
+  function endAudition() {
+    press++
+    auditionResting.value = null
+    release()
+    status.value = 'idle'
+  }
+
+  // The selected split's 8 s: 4 s either side, held to the file's start and end.
+  function auditionExtent(selected: Split): TimeRange {
+    const lastTrack = splitStore.tracks.at(-1)
+    const fileEnd = lastTrack ? lastTrack.startSeconds + lastTrack.lengthSeconds : Infinity
+    return {
+      startSeconds: Math.max(0, selected.seconds - REACH_SECONDS),
+      endSeconds: Math.min(fileEnd, selected.seconds + REACH_SECONDS),
+    }
+  }
+
+  // The place the audition resumes from, held to the extent, or null when the split has none.
+  function auditionPlace(selected: Split, extent: TimeRange) {
+    const place = auditionResting.value
+    return place?.splitId === selected.id
+      ? Math.min(Math.max(place.seconds, extent.startSeconds), extent.endSeconds)
+      : null
   }
 
   // The stretch played to its end: back at its start, with its WAV kept for the next press.
@@ -225,7 +330,7 @@ export const useAuditionStore = defineStore('audition', () => {
   // The stretch gives way to the audition or to a new range: its sound and its WAV go, its place stays.
   function letGoOfStretch() {
     if (held !== null && stretchStatus.value === 'playing') {
-      resting.value = { stretch: held.stretch, seconds: stretchPosition() }
+      resting.value = { stretch: held.stretch, seconds: soundPosition() }
     }
     if (held !== null) release()
     stretchStatus.value = 'idle'
@@ -245,8 +350,9 @@ export const useAuditionStore = defineStore('audition', () => {
     if (element === undefined) {
       element = new Audio()
       applyVolume(element)
+      applyPlaySpeed(element)
       element.addEventListener('ended', () => {
-        if (status.value === 'playing') stop()
+        if (status.value === 'playing') endAudition()
         else if (stretchStatus.value === 'playing') void carryOn()
       })
       element.addEventListener('timeupdate', () => {
@@ -256,24 +362,49 @@ export const useAuditionStore = defineStore('audition', () => {
     return element
   }
 
-  async function start(splitSeconds: number) {
-    const startSeconds = Math.max(0, splitSeconds - REACH_SECONDS)
-    const thisPress = ++press
-    const isStale = () => thisPress !== press
+  async function start(selected: Split) {
+    const extent = auditionExtent(selected)
+    const isStale = beginPress()
     failure.value = null
     letGoOfStretch()
+    auditionSplitId = selected.id
     status.value = 'loading'
 
+    /*
+    The request reaches 4 s past the split even where the file ends sooner: ffmpeg cuts the clip
+    short, and the clip says what it really has.
+    */
+    const startSeconds = Math.max(0, selected.seconds - REACH_SECONDS)
     const clip = await decode(
       startSeconds,
-      splitSeconds + REACH_SECONDS - startSeconds,
+      selected.seconds + REACH_SECONDS - startSeconds,
       isStale,
       'split',
     )
     if (clip === null) return
     hold(clip)
+    await playAuditionFromPlace(selected, extent, isStale)
+  }
+
+  /*
+  Sets the sound at the resting place and plays. A place at the very end has nothing to play from,
+  so it plays from the start, as a media element does when it is played after its end.
+  */
+  async function playAuditionFromPlace(selected: Split, extent: TimeRange, isStale: () => boolean) {
+    const place = auditionPlace(selected, extent)
+    const from = place !== null && place < extent.endSeconds ? place : extent.startSeconds
+    audioElement().currentTime = offsetOf(from)
     status.value = 'playing'
     await playElement(isStale, 'split')
+  }
+
+  // A pause keeps the WAV, and the place is where the sound stopped.
+  function pauseAudition() {
+    // A pause that interrupts a pending `play()` makes it stale, so its rejection is not reported.
+    press++
+    restAuditionHere()
+    element?.pause()
+    status.value = 'paused'
   }
 
   /*
@@ -323,14 +454,68 @@ export const useAuditionStore = defineStore('audition', () => {
     }
   }
 
-  function toggle() {
-    if (status.value !== 'idle') {
-      stop()
-      return
+  /*
+  Plays the audition on from its resting place. A paused audition that still holds its WAV plays at
+  once; one whose split moved has none, so it decodes the moved 8 s first, as an idle one does.
+  */
+  function playAudition(selected: Split) {
+    if (url !== undefined && status.value === 'paused') {
+      failure.value = null
+      void playAuditionFromPlace(selected, auditionExtent(selected), beginPress())
+    } else {
+      void start(selected)
     }
+  }
+
+  /*
+  The button and Space key of the Split view: a press while the clip decodes takes it back, while
+  it plays pauses it, and otherwise plays the 8 s from the place.
+  */
+  function toggle() {
+    const selected = splitStore.selectedSplit
+    if (status.value === 'loading') stop()
+    else if (status.value === 'playing') pauseAudition()
+    else if (selected !== null) playAudition(selected)
+  }
+
+  /*
+  Moves the audition's playhead to a time, held to the extent. While the audition plays, the sound
+  jumps there at once (an exact `currentTime` inside the WAV) and goes on; otherwise only the
+  resting place moves, which a later play, or the clip still being decoded, starts from.
+  */
+  function seekAudition(seconds: number) {
     const selected = splitStore.selectedSplit
     if (selected === null) return
-    void start(selected.seconds)
+    const extent = auditionExtent(selected)
+    const target = Math.min(Math.max(seconds, extent.startSeconds), extent.endSeconds)
+    if (status.value === 'playing') {
+      audioElement().currentTime = offsetOf(target)
+    } else {
+      auditionResting.value = { splitId: selected.id, seconds: target }
+    }
+  }
+
+  function backToAuditionStart() {
+    const selected = splitStore.selectedSplit
+    if (selected !== null) seekAudition(auditionExtent(selected).startSeconds)
+  }
+
+  /*
+  A drag of the audition's playhead pauses a playing audition, so the sound does not jump under the
+  pointer, and `dropAuditionPlayhead` plays it on from where the playhead was dropped. A paused,
+  idle or loading audition stays so.
+  */
+  function grabAuditionPlayhead() {
+    shouldResumeAudition = status.value === 'playing'
+    if (shouldResumeAudition) pauseAudition()
+  }
+
+  function dropAuditionPlayhead() {
+    const selected = splitStore.selectedSplit
+    // Only an audition still paused is played on: another sound or another split may have taken over.
+    const canResume = shouldResumeAudition && status.value === 'paused' && selected !== null
+    shouldResumeAudition = false
+    if (canResume) playAudition(selected)
   }
 
   /*
@@ -346,8 +531,7 @@ export const useAuditionStore = defineStore('audition', () => {
   later ones set the place in it, and a playhead outside the held window decodes another.
   */
   async function playStretch(stretch: Stretch) {
-    const thisPress = ++press
-    const isStale = () => thisPress !== press
+    const isStale = beginPress()
     failure.value = null
     letGoOfAudition()
     const subject = stretchSubject()
@@ -429,7 +613,7 @@ export const useAuditionStore = defineStore('audition', () => {
   function fetchAhead() {
     if (ahead !== undefined) return ahead.done
     if (held === null) return Promise.resolve()
-    const window = nextWindow(held.stretch, held.window, stretchPosition())
+    const window = nextWindow(held.stretch, held.window, soundPosition())
     if (window === null) return Promise.resolve()
     const asked = { done: Promise.resolve(), stopper: new AbortController() }
     ahead = asked
@@ -460,8 +644,7 @@ export const useAuditionStore = defineStore('audition', () => {
       return
     }
     const { stretch, window } = held
-    const thisPress = ++press
-    const isStale = () => thisPress !== press
+    const isStale = beginPress()
     const subject = stretchSubject()
     let place = window.endSeconds
     if (upcoming === undefined) {
@@ -531,30 +714,44 @@ export const useAuditionStore = defineStore('audition', () => {
   */
   function stretchPlayheadSeconds(stretch: Stretch) {
     return stretchStatus.value === 'playing'
-      ? stretchPosition()
+      ? soundPosition()
       : (restingSecondsOf(stretch) ?? stretch.startSeconds)
   }
 
   /*
-  Where the audio is in the file, for the zoom view to draw each animation frame. A plain function,
-  not state: `currentTime` moves without Vue knowing. Clamped, because the element can report a
-  hair past the end before `ended` arrives.
+  Where the audition's playhead is in the file, for the Split view to draw each animation frame: the
+  sound while it plays (`currentTime` moves without Vue knowing), else the resting place, else the
+  extent's start. Null only while no split is selected.
   */
   function playheadSeconds() {
-    return element !== undefined && status.value === 'playing'
-      ? clipStartSeconds + Math.min(element.currentTime, clipLengthSeconds)
-      : null
+    const selected = splitStore.selectedSplit
+    if (selected === null) return null
+    if (status.value === 'playing') return soundPosition()
+    const extent = auditionExtent(selected)
+    return auditionPlace(selected, extent) ?? extent.startSeconds
   }
 
   /*
-  Moving the split, selecting another and deselecting all end the audition (ticket 14); so do
-  deleting and a setting change, which change the selection. Sync: a clip that arrives right
-  after must already find its press gone.
+  Selecting another split, deselecting, deleting and a setting change (which re-selects) end the
+  audition, and the place goes with the split it was made for. Moving the selected split keeps both
+  the split and the place: a playing audition is paused where it is, a paused one stays paused, and
+  either lets go of its WAV, since the 8 s it was decoded for moved. A press still decoding is taken
+  back. Sync: a clip that arrives right after must already find its press gone.
   */
   watch(
-    () => [splitStore.selectedSplit?.id, splitStore.selectedSplit?.seconds],
-    () => {
-      if (status.value !== 'idle' || failure.value !== null) stop()
+    () => [splitStore.selectedSplit?.id, splitStore.selectedSplit?.seconds] as const,
+    ([id], [previousId]) => {
+      if (id !== previousId) {
+        if (status.value !== 'idle' || failure.value !== null) stop()
+        auditionResting.value = null
+      } else if (status.value === 'playing') {
+        pauseAudition()
+        release()
+      } else if (status.value === 'paused') {
+        if (url !== undefined) release()
+      } else if (status.value === 'loading' || failure.value !== null) {
+        stop()
+      }
     },
     { flush: 'sync' },
   )
@@ -602,9 +799,16 @@ export const useAuditionStore = defineStore('audition', () => {
     isActive,
     volumeDecibels,
     isMuted,
+    playSpeed,
+    setPlaySpeed,
     setVolume,
     toggleMute,
     toggle,
+    seekAudition,
+    backToAuditionStart,
+    grabAuditionPlayhead,
+    dropAuditionPlayhead,
+    auditionExtent,
     toggleStretch,
     seekStretch,
     backToStretchStart,

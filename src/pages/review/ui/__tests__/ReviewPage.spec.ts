@@ -34,6 +34,12 @@ function mountPage() {
   return mount(ReviewPage, { attachTo: document.body })
 }
 
+// The page for a source file of that name, which sets the track name prefix the page starts with.
+function mountPageForFile(name: string) {
+  useSourceFileStore().file = new File([], name)
+  return mountPage()
+}
+
 /*
 The page on the Split view with split 1 selected, as a click on its row does: analysis opens on
 track 1 in the Track view, and these specs are about the zoom view.
@@ -43,6 +49,18 @@ async function mountPageOnSplit() {
   const split = useSplitStore()
   split.selectSplit(split.splits[0]!.id)
   await wrapper.vm.$nextTick()
+  return wrapper
+}
+
+/*
+The page on the Split view with the zoom window at that time and no split selected, as a click on
+empty ground in the whole-file view leaves it.
+*/
+async function mountAtCentre(seconds: number) {
+  const wrapper = await mountPageOnSplit()
+  useSplitStore().moveZoomTo(seconds)
+  await wrapper.vm.$nextTick()
+  expect(useSplitStore().selectedSplit).toBeNull()
   return wrapper
 }
 
@@ -98,11 +116,11 @@ function deleteSplitButton(wrapper: ReturnType<typeof mount>) {
   return button
 }
 
-// The primary button of the zoom panel's title row; its name is "Play across split" or "Stop".
+// The primary button of the Split view's title row: "Play across split", "Pause" or "Stop".
 function auditionButton(wrapper: ReturnType<typeof mount>) {
   const button = wrapper
     .findAll('button')
-    .find((candidate) => ['Play across split', 'Stop'].includes(nameOf(candidate)))
+    .find((candidate) => ['Play across split', 'Pause', 'Stop'].includes(nameOf(candidate)))
   if (!button) throw new Error('no audition button')
   return button
 }
@@ -114,6 +132,11 @@ function rangeButton(wrapper: ReturnType<typeof mount>) {
     .find((candidate) => ['Play', 'Pause', 'Stop'].includes(nameOf(candidate)))
   if (!button) throw new Error('no range button')
   return button
+}
+
+// The icon button left of the audition button.
+function backToAuditionStartButton(wrapper: ReturnType<typeof mount>) {
+  return wrapper.get('button[aria-label="Back to audition start"]')
 }
 
 // The icon button left of the range button.
@@ -202,6 +225,14 @@ async function volumeSlider(wrapper: ReturnType<typeof mount>) {
   return wrapper.get('[role="slider"][aria-label="Volume"]')
 }
 
+// The play speed's reset button, which shows the speed, and its slider once Reka has placed the thumb.
+const playSpeedButton = (wrapper: ReturnType<typeof mount>) =>
+  wrapper.get('button[aria-label^="Reset play speed"]')
+async function playSpeedSlider(wrapper: ReturnType<typeof mount>) {
+  await flushPromises()
+  return wrapper.get('[role="slider"][aria-label="Play speed"]')
+}
+
 // Track 2 (21 s to 71.5 s) has pending splits at 30 s and 50 s; track 3 is 71.5 s to 100 s.
 async function mountWithPending() {
   const wrapper = await mountWithMark()
@@ -264,6 +295,38 @@ async function dragSlider(thumb: Element) {
   await flushPromises()
 }
 
+/*
+The previous and next keys, track or split, are the physical ones to the right of P: the page
+matches the code.
+*/
+const NEXT = { key: ']', code: 'BracketRight' }
+const PREVIOUS = { key: '[', code: 'BracketLeft' }
+
+// The player's play action, spied on and replaced, as the playback cases do.
+function spyOnToggleStretch() {
+  return vi.spyOn(useAuditionStore(), 'toggleStretch').mockImplementation(() => {})
+}
+
+// The same for the audition across a split.
+function spyOnToggle() {
+  return vi.spyOn(useAuditionStore(), 'toggle').mockImplementation(() => {})
+}
+
+// The second split selected, as a click on its row does, on a page that is on the Split view.
+async function selectSecondSplit(wrapper: ReturnType<typeof mount>) {
+  const split = useSplitStore()
+  split.selectSplit(split.splits[1]!.id)
+  await wrapper.vm.$nextTick()
+}
+
+// The track list's row that is marked, by the label of its select button.
+const markedTrack = (wrapper: ReturnType<typeof mount>) =>
+  wrapper.get('tr[aria-current="true"] [aria-label^="Select track"]').attributes('aria-label')
+
+// The track list's row that is marked, which reads "Split n" while a split is selected.
+const markedSplit = (wrapper: ReturnType<typeof mount>) =>
+  wrapper.get('tr[aria-current="true"]').text()
+
 const question = () => document.querySelector('[role="alertdialog"]')
 function questionButton(text: string) {
   const button = [...(question()?.querySelectorAll('button') ?? [])].find(
@@ -282,6 +345,47 @@ describe('ReviewPage', () => {
     // The volume is kept in localStorage, which a spec must not inherit from another.
     localStorage.clear()
     setActivePinia(createPinia())
+  })
+
+  describe('the track name prefix', () => {
+    it('starts as the source file’s name without its extension, followed by "-"', () => {
+      const wrapper = mountPageForFile('dreamscape.m4a')
+
+      expect(useSplitStore().trackNamePrefix).toBe('dreamscape-')
+      expect(
+        wrapper.get<HTMLInputElement>('input[aria-label="Track name prefix"]').element.value,
+      ).toBe('dreamscape-')
+      expect(useSplitStore().tracks.map((track) => track.name)).toEqual([
+        'dreamscape-01',
+        'dreamscape-02',
+        'dreamscape-03',
+      ])
+    })
+
+    it('is empty for a file whose name has nothing before its extension', () => {
+      mountPageForFile('.m4a')
+
+      expect(useSplitStore().trackNamePrefix).toBe('')
+    })
+
+    it('starts again from the next file, since the page mounts again', () => {
+      mountPageForFile('first.m4a').unmount()
+      const wrapper = mountPageForFile('second.mp3')
+
+      expect(useSplitStore().trackNamePrefix).toBe('second-')
+      wrapper.unmount()
+    })
+
+    it('has its field in the header of the Track list panel', () => {
+      const wrapper = mountPageForFile('dreamscape.m4a')
+
+      const panel = wrapper.get(
+        'section[aria-labelledby]:has(input[aria-label="Track name prefix"])',
+      )
+
+      expect(panel.get('h2').text()).toBe('Track list')
+      expect(panel.get('label').text()).toBe('Prefix')
+    })
   })
 
   describe('the title row’s icon buttons', () => {
@@ -316,12 +420,16 @@ describe('ReviewPage', () => {
       expect(auditionButton(wrapper).attributes('disabled')).toBeDefined()
     })
 
-    it('say Stop (Space) in the Split view while a clip plays', async () => {
+    it('say Stop (Space) in the Split view while a clip is decoded, and Pause (Space) while it plays', async () => {
       const wrapper = await mountPageOnSplit()
-      useAuditionStore().status = 'playing'
+      const audition = useAuditionStore()
+      audition.status = 'loading'
       await wrapper.vm.$nextTick()
-
       expect(await tooltipOf(auditionButton(wrapper))).toBe('Stop (Space)')
+
+      audition.status = 'playing'
+      await wrapper.vm.$nextTick()
+      expect(await tooltipOf(auditionButton(wrapper))).toBe('Pause (Space)')
     })
 
     it('are Back to track start and Play in the Track view, with no Add split', async () => {
@@ -553,28 +661,39 @@ describe('ReviewPage', () => {
 
     it('calls the audition store when clicked', async () => {
       const wrapper = await mountPageOnSplit()
-      const toggle = vi.spyOn(useAuditionStore(), 'toggle').mockImplementation(() => {})
+      const toggle = spyOnToggle()
 
       await auditionButton(wrapper).trigger('click')
 
       expect(toggle).toHaveBeenCalledTimes(1)
     })
 
-    it('reads "Stop" with its own icon while a clip loads or plays, and stays enabled', async () => {
+    it('reads "Stop" while a clip loads, "Pause" while it plays and "Play across split" when paused, with its own icons, enabled throughout', async () => {
       const wrapper = await mountPageOnSplit()
       const audition = useAuditionStore()
       const playIcon = auditionButton(wrapper).get('svg').classes()
 
       audition.status = 'loading'
       await wrapper.vm.$nextTick()
-      const loading = auditionButton(wrapper)
-      expect(nameOf(loading)).toBe('Stop')
-      expect(loading.get('svg').classes()).not.toEqual(playIcon)
-      expect(loading.attributes('disabled')).toBeUndefined()
+      // The button is patched in place, so what each state looks like is read at once.
+      const stopIcon = auditionButton(wrapper).get('svg').classes()
+      expect(nameOf(auditionButton(wrapper))).toBe('Stop')
+      expect(stopIcon).not.toEqual(playIcon)
+      expect(auditionButton(wrapper).attributes('disabled')).toBeUndefined()
 
       audition.status = 'playing'
       await wrapper.vm.$nextTick()
-      expect(nameOf(auditionButton(wrapper))).toBe('Stop')
+      const pauseIcon = auditionButton(wrapper).get('svg').classes()
+      expect(nameOf(auditionButton(wrapper))).toBe('Pause')
+      expect(pauseIcon).not.toEqual(playIcon)
+      expect(pauseIcon).not.toEqual(stopIcon)
+      expect(auditionButton(wrapper).attributes('disabled')).toBeUndefined()
+
+      audition.status = 'paused'
+      await wrapper.vm.$nextTick()
+      expect(nameOf(auditionButton(wrapper))).toBe('Play across split')
+      expect(auditionButton(wrapper).get('svg').classes()).toEqual(playIcon)
+      expect(auditionButton(wrapper).attributes('disabled')).toBeUndefined()
 
       audition.status = 'idle'
       await wrapper.vm.$nextTick()
@@ -591,6 +710,51 @@ describe('ReviewPage', () => {
     })
   })
 
+  describe('the "Back to audition start" button', () => {
+    it('sits between "Delete split" and "Play across split", told by its key', async () => {
+      const wrapper = await mountPageOnSplit()
+      const labels = iconButtons(wrapper).map((button) => nameOf(button))
+
+      expect(labels.indexOf('Back to audition start')).toBe(labels.indexOf('Delete split') + 1)
+      expect(labels.indexOf('Back to audition start')).toBe(labels.indexOf('Play across split') - 1)
+      expect(await tooltipOf(backToAuditionStartButton(wrapper))).toBe(
+        'Back to audition start (Home)',
+      )
+      expect(labels).not.toContain('Back to split start')
+    })
+
+    it('takes the playhead back to the audition’s start when clicked', async () => {
+      const wrapper = await mountPageOnSplit()
+      const audition = useAuditionStore()
+      const selected = useSplitStore().selectedSplit!
+      audition.seekAudition(selected.seconds + 3)
+      expect(audition.playheadSeconds()).toBe(selected.seconds + 3)
+
+      await backToAuditionStartButton(wrapper).trigger('click')
+
+      expect(audition.playheadSeconds()).toBe(selected.seconds - 4)
+    })
+
+    it('is disabled while no split is selected', async () => {
+      const wrapper = mountPage()
+      useSplitStore().moveZoomTo(46)
+      await wrapper.vm.$nextTick()
+
+      expect(backToAuditionStartButton(wrapper).attributes('disabled')).toBeDefined()
+    })
+
+    it('is enabled whatever the audition is doing', async () => {
+      const wrapper = await mountPageOnSplit()
+      const audition = useAuditionStore()
+
+      for (const status of ['loading', 'playing', 'paused'] as const) {
+        audition.status = status
+        await wrapper.vm.$nextTick()
+        expect(backToAuditionStartButton(wrapper).attributes('disabled')).toBeUndefined()
+      }
+    })
+  })
+
   describe('the Split | Track | Range control', () => {
     it('starts on Track, with track 1 shown and Range disabled while there is no range', () => {
       const wrapper = mountPage()
@@ -599,7 +763,7 @@ describe('ReviewPage', () => {
       expect(viewOption(wrapper, 'Track').attributes('disabled')).toBeUndefined()
       expect(viewOption(wrapper, 'Range').attributes('disabled')).toBeDefined()
       expect(wrapper.find('[aria-label="Waveform of the track"]').exists()).toBe(true)
-      expect(panelTitle(wrapper)).toBe('1 · 0:00:00.00 – 0:00:21.00')
+      expect(panelTitle(wrapper)).toBe('01 · 0:00:00.00 – 0:00:21.00')
     })
 
     it('shows the file’s opening seconds, with no split selected, when Split is chosen', async () => {
@@ -701,14 +865,14 @@ describe('ReviewPage', () => {
         expect(viewOption(wrapper, 'Track').attributes('disabled')).toBeUndefined()
         expect(wrapper.find('[aria-label="Waveform of the track"]').exists()).toBe(true)
         expect(wrapper.find('[aria-label="Zoomed waveform of the split"]').exists()).toBe(false)
-        expect(panelTitle(wrapper)).toBe('3 · 0:01:11.50 – 0:01:40.00')
+        expect(panelTitle(wrapper)).toBe('03 · 0:01:11.50 – 0:01:40.00')
       })
 
       it('shows the first track too', async () => {
         const wrapper = await mountPageWithTrack(1)
 
         expect(wrapper.find('[aria-label="Waveform of the track"]').exists()).toBe(true)
-        expect(panelTitle(wrapper)).toBe('1 · 0:00:00.00 – 0:00:21.00')
+        expect(panelTitle(wrapper)).toBe('01 · 0:00:00.00 – 0:00:21.00')
       })
 
       it('has no "Add split" and no "Play across split" in its title row', async () => {
@@ -750,7 +914,7 @@ describe('ReviewPage', () => {
         await viewOption(wrapper, 'Track').trigger('click')
 
         expect(wrapper.find('[aria-label="Waveform of the track"]').exists()).toBe(true)
-        expect(panelTitle(wrapper)).toBe('2 · 0:00:21.00 – 0:01:11.50')
+        expect(panelTitle(wrapper)).toBe('02 · 0:00:21.00 – 0:01:11.50')
       })
 
       it('shows track 1 again when a setting change finds the splits again', async () => {
@@ -760,7 +924,7 @@ describe('ReviewPage', () => {
         await wrapper.vm.$nextTick()
 
         expect(viewOption(wrapper, 'Track').attributes('aria-checked')).toBe('true')
-        expect(panelTitle(wrapper)).toMatch(/^1 · /)
+        expect(panelTitle(wrapper)).toMatch(/^01 · /)
       })
 
       it('plays the track as a stretch when Play is clicked', async () => {
@@ -1065,21 +1229,21 @@ describe('ReviewPage', () => {
     })
 
     it('has "Export track…" after Play in the Track view and "Export range…" in the Range view, and neither in the Split view', async () => {
-      // The volume's mute button ends every title row, after these.
+      // The play speed's reset button and the volume's mute button end every title row, after these.
       const track = await mountPageWithTrack(2)
       const trackNames = titleRowButtons(track)
-      expect(trackNames.at(-2)).toBe('Export track…')
-      expect(trackNames.at(-3)).toBe('Play')
+      expect(trackNames.at(-3)).toBe('Export track…')
+      expect(trackNames.at(-4)).toBe('Play')
       expect(await tooltipOf(exportButtonOf(track, 'Export track…'))).toBe('Export track…')
 
       const range = await mountPageWithRange()
-      expect(titleRowButtons(range).at(-2)).toBe('Export range…')
+      expect(titleRowButtons(range).at(-3)).toBe('Export range…')
 
       const onSplit = await mountPageOnSplit()
       expect(onSplit.find('button[aria-label^="Export "]').exists()).toBe(false)
     })
 
-    it('opens the name dialog on the track, with "<source stem> NN", and does not stop the sound', async () => {
+    it('opens the name dialog on the track, with the track’s shown name, and does not stop the sound', async () => {
       const wrapper = await mountPageWithTrack(2)
       const stop = vi.spyOn(useAuditionStore(), 'stop')
 
@@ -1087,7 +1251,7 @@ describe('ReviewPage', () => {
       await flushPromises()
 
       expect(dialog()?.textContent).toContain('Export track')
-      expect(nameField().value).toBe('Evening Set 02')
+      expect(nameField().value).toBe('Evening Set-02')
       expect(stop).not.toHaveBeenCalled()
     })
 
@@ -1130,8 +1294,8 @@ describe('ReviewPage', () => {
       await pressEnterInField()
 
       expect(dialog()).toBeNull()
-      expect(folder.files.has('02 Chorus.m4a')).toBe(true)
-      expect(savedLine(wrapper).text()).toBe('Saved 02 Chorus.m4a in Music')
+      expect(folder.files.has('Chorus.m4a')).toBe(true)
+      expect(savedLine(wrapper).text()).toBe('Saved Chorus.m4a in Music')
     })
 
     it('has OK off and Enter doing nothing while the name is empty', async () => {
@@ -1169,6 +1333,54 @@ describe('ReviewPage', () => {
         await wrapper.vm.$nextTick()
 
         expect(savedLine(wrapper).exists()).toBe(false)
+      })
+
+      it('stays at ] on the last track', async () => {
+        const wrapper = await mountPageWithTrack(3)
+        await exportButtonOf(wrapper, 'Export track…').trigger('click')
+        await flushPromises()
+        await pressEnterInField()
+        expect(savedLine(wrapper).exists()).toBe(true)
+
+        pressKey(NEXT.key, { code: NEXT.code })
+        await wrapper.vm.$nextTick()
+
+        expect(savedLine(wrapper).exists()).toBe(true)
+      })
+
+      it('stays at [ on the first track', async () => {
+        const wrapper = await mountPageWithTrack(1)
+        await exportButtonOf(wrapper, 'Export track…').trigger('click')
+        await flushPromises()
+        await pressEnterInField()
+        expect(savedLine(wrapper).exists()).toBe(true)
+
+        pressKey(PREVIOUS.key, { code: PREVIOUS.code })
+        await wrapper.vm.$nextTick()
+
+        expect(savedLine(wrapper).exists()).toBe(true)
+      })
+
+      it('stays at a held ], a repeat that steps nowhere', async () => {
+        const wrapper = await exportTrack2()
+
+        pressKey(NEXT.key, { code: NEXT.code, repeat: true })
+        await wrapper.vm.$nextTick()
+
+        expect(useSplitStore().selectedTrack?.number).toBe(2)
+        expect(savedLine(wrapper).exists()).toBe(true)
+      })
+
+      it('stays at ] that opens the discard question, which leaves the track as it was', async () => {
+        const wrapper = await exportTrack2()
+        useSplitStore().addPendingSplit(30, false)
+        await wrapper.vm.$nextTick()
+
+        pressKey(NEXT.key, { code: NEXT.code })
+        await flushPromises()
+
+        expect(question()).not.toBeNull()
+        expect(savedLine(wrapper).exists()).toBe(true)
       })
 
       it('stays at a key no view acts on, Tab or a letter', async () => {
@@ -1277,6 +1489,7 @@ describe('ReviewPage', () => {
         'Back to track start',
         'Play',
         'Export track…',
+        'Reset play speed, now 1.0×',
         'Mute',
       ])
     })
@@ -1682,6 +1895,139 @@ describe('ReviewPage', () => {
     })
   })
 
+  describe('the play speed', () => {
+    const views = [
+      ['Split', mountPageOnSplit, () => useSplitStore().selectedSplit!.seconds],
+      [
+        'Track',
+        () => mountPageWithTrack(2),
+        () =>
+          useAuditionStore().stretchPlayheadSeconds(trackExtent(useSplitStore().selectedTrack!)),
+      ],
+      [
+        'Range',
+        mountPageWithRange,
+        () => useAuditionStore().stretchPlayheadSeconds(useSplitStore().range!),
+      ],
+    ] as const
+
+    describe.each(views)('in the %s view', (_, mountView, where) => {
+      it('sits just before the volume control in the title row, with the speed on its button and a slider named Play speed that reads it', async () => {
+        const wrapper = await mountView()
+        const slider = await playSpeedSlider(wrapper)
+
+        expect(titleRowButtons(wrapper).slice(-2)).toEqual(['Reset play speed, now 1.0×', 'Mute'])
+        expect(playSpeedButton(wrapper).text()).toBe('1.0×')
+        expect(slider.attributes('aria-valuemin')).toBe('0.5')
+        expect(slider.attributes('aria-valuemax')).toBe('2')
+        expect(slider.attributes('aria-valuenow')).toBe('1')
+        expect(slider.attributes('aria-valuetext')).toBe('1.0×')
+        const before = Node.DOCUMENT_POSITION_FOLLOWING
+        const volume = await volumeSlider(wrapper)
+        const reset = playSpeedButton(wrapper).element
+        expect(reset.compareDocumentPosition(slider.element)).toBe(before)
+        expect(slider.element.compareDocumentPosition(muteButton(wrapper).element)).toBe(before)
+        expect(muteButton(wrapper).element.compareDocumentPosition(volume.element)).toBe(before)
+      })
+
+      it('steps the speed by 0.1 from the keyboard, in the player', async () => {
+        const wrapper = await mountView()
+        const slider = await playSpeedSlider(wrapper)
+
+        for (let press = 0; press < 5; press++) {
+          await slider.trigger('keydown', { key: 'ArrowRight' })
+        }
+
+        expect(useAuditionStore().playSpeed).toBe(1.5)
+        expect(slider.attributes('aria-valuetext')).toBe('1.5×')
+        expect(playSpeedButton(wrapper).text()).toBe('1.5×')
+      })
+
+      it('goes from 0.5× to 2.0× with Home and End', async () => {
+        const wrapper = await mountView()
+        const slider = await playSpeedSlider(wrapper)
+
+        await slider.trigger('keydown', { key: 'Home' })
+        expect(slider.attributes('aria-valuetext')).toBe('0.5×')
+        expect(useAuditionStore().playSpeed).toBe(0.5)
+
+        await slider.trigger('keydown', { key: 'End' })
+        expect(slider.attributes('aria-valuetext')).toBe('2.0×')
+        expect(useAuditionStore().playSpeed).toBe(2)
+      })
+
+      it('is reset to 1.0× by its button, which is on even at 1.0×', async () => {
+        const wrapper = await mountView()
+        const audition = useAuditionStore()
+        expect(playSpeedButton(wrapper).attributes('disabled')).toBeUndefined()
+        audition.setPlaySpeed(1.5)
+        await wrapper.vm.$nextTick()
+        expect(playSpeedButton(wrapper).text()).toBe('1.5×')
+
+        await playSpeedButton(wrapper).trigger('click')
+
+        expect(audition.playSpeed).toBe(1)
+        expect(playSpeedButton(wrapper).text()).toBe('1.0×')
+        const slider = await playSpeedSlider(wrapper)
+        expect(slider.attributes('aria-valuetext')).toBe('1.0×')
+        expect(playSpeedButton(wrapper).attributes('disabled')).toBeUndefined()
+        expect(await tooltipOf(playSpeedButton(wrapper))).toBe('Reset play speed to 1.0×')
+      })
+
+      it('leaves the speed and the volume independent', async () => {
+        const wrapper = await mountView()
+        const audition = useAuditionStore()
+        const speed = await playSpeedSlider(wrapper)
+        const volume = await volumeSlider(wrapper)
+
+        await speed.trigger('keydown', { key: 'End' })
+        await volume.trigger('keydown', { key: 'Home' })
+
+        expect(audition.playSpeed).toBe(2)
+        expect(audition.volumeDecibels).toBe(-40)
+      })
+
+      it('leaves the view its keys after a drag of the slider and after a click on the button', async () => {
+        const wrapper = await mountView()
+        const slider = await playSpeedSlider(wrapper)
+
+        await dragSlider(slider.element)
+        expect(document.activeElement).not.toBe(slider.element)
+        const afterDrag = where()
+        pressWhereFocused('ArrowRight')
+        expect(where()).toBeGreaterThan(afterDrag)
+
+        await mouseClick(playSpeedButton(wrapper).element)
+        expect(document.activeElement).not.toBe(playSpeedButton(wrapper).element)
+        const afterClick = where()
+        pressWhereFocused('ArrowRight')
+        expect(where()).toBeGreaterThan(afterClick)
+      })
+    })
+
+    it('shows the speed the player already has', async () => {
+      useAuditionStore().setPlaySpeed(1.7)
+
+      const wrapper = await mountPageOnSplit()
+      const slider = await playSpeedSlider(wrapper)
+
+      expect(slider.attributes('aria-valuetext')).toBe('1.7×')
+      expect(playSpeedButton(wrapper).text()).toBe('1.7×')
+    })
+
+    it('is one setting for every view: a speed set in one is the speed in the next', async () => {
+      const wrapper = await mountPageOnSplit()
+      const slider = await playSpeedSlider(wrapper)
+      await slider.trigger('keydown', { key: 'Home' })
+
+      await viewOption(wrapper, 'Track').trigger('click')
+
+      const inTrackView = await playSpeedSlider(wrapper)
+      expect(inTrackView.attributes('aria-valuetext')).toBe('0.5×')
+      expect(playSpeedButton(wrapper).text()).toBe('0.5×')
+    })
+  })
+
   describe('the keys on the page', () => {
     it('move the selected split in the Split view after a click on its track-list row, with the focus on the page', async () => {
       const wrapper = await mountPageOnSplit()
@@ -1881,7 +2227,7 @@ describe('ReviewPage', () => {
           .mockImplementation(() => {})
         const block = wrapper
           .findAll('button')
-          .find((candidate) => nameOf(candidate).startsWith('2, '))
+          .find((candidate) => nameOf(candidate).startsWith('02, '))
 
         await mouseClick(block!.element)
         pressWhereFocused(' ')
@@ -1918,6 +2264,713 @@ describe('ReviewPage', () => {
       pressKey(' ')
 
       expect(toggleStretch).toHaveBeenCalledExactlyOnceWith(split.range)
+    })
+  })
+
+  describe('the previous and next track keys', () => {
+    it('selects the next track on ], marks its row and names it in the title', async () => {
+      const wrapper = await mountPageWithTrack(1)
+
+      const event = pressKey(NEXT.key, { code: NEXT.code })
+      await wrapper.vm.$nextTick()
+
+      expect(useSplitStore().selectedTrack?.number).toBe(2)
+      expect(markedTrack(wrapper)).toContain('Select track 2')
+      expect(panelTitle(wrapper)).toBe('02 · 0:00:21.00 – 0:01:11.50')
+      expect(event.defaultPrevented).toBe(true)
+    })
+
+    it('selects the previous track on [', async () => {
+      const wrapper = await mountPageWithTrack(3)
+
+      pressKey(PREVIOUS.key, { code: PREVIOUS.code })
+      await wrapper.vm.$nextTick()
+
+      expect(markedTrack(wrapper)).toContain('Select track 2')
+      expect(panelTitle(wrapper)).toBe('02 · 0:00:21.00 – 0:01:11.50')
+    })
+
+    it('works on a layout where the keys type other characters, by their physical code', async () => {
+      const wrapper = await mountPageWithTrack(1)
+
+      // German: the key right of P types ü and, next to it, +; the brackets are AltGr 8 and 9.
+      pressKey('+', { code: NEXT.code })
+      await wrapper.vm.$nextTick()
+
+      expect(markedTrack(wrapper)).toContain('Select track 2')
+    })
+
+    it('leave Shift with the physical key that types ? to the shortcuts dialog, as on Dvorak', async () => {
+      const wrapper = await mountPageWithTrack(2)
+
+      pressKey('?', { code: PREVIOUS.code, shiftKey: true })
+      await flushPromises()
+
+      expect(shortcutsDialog()).not.toBeNull()
+      expect(useSplitStore().selectedTrack?.number).toBe(2)
+      wrapper.unmount()
+    })
+
+    it('marks the new track’s block in the track strip', async () => {
+      const wrapper = await mountPageWithTrack(1)
+      const strip = wrapper.get('ol[aria-label="Tracks"]')
+
+      pressKey(NEXT.key, { code: NEXT.code })
+      await wrapper.vm.$nextTick()
+
+      const marked = strip.findAll('li[aria-current="true"]')
+      expect(marked).toHaveLength(1)
+      expect(marked[0]!.get('button').attributes('aria-label')).toMatch(/^02, /)
+    })
+
+    it('lets go of the old track’s mark, as a click does', async () => {
+      const wrapper = await mountWithMark()
+      const split = useSplitStore()
+      expect(split.trackMarkSeconds).toBe(40)
+
+      pressKey(NEXT.key, { code: NEXT.code })
+      await wrapper.vm.$nextTick()
+
+      expect(split.trackMarkSeconds).toBeNull()
+    })
+
+    describe('at the first and last track', () => {
+      it('do nothing, and the key is left to the browser', async () => {
+        const wrapper = await mountPageWithTrack(1)
+        const split = useSplitStore()
+
+        const before = pressKey(PREVIOUS.key, { code: PREVIOUS.code })
+        await wrapper.vm.$nextTick()
+        expect(split.selectedTrack?.number).toBe(1)
+        expect(before.defaultPrevented).toBe(false)
+
+        await wrapper.get('[aria-label^="Select track 3"]').trigger('click')
+        const after = pressKey(NEXT.key, { code: NEXT.code })
+        await wrapper.vm.$nextTick()
+        expect(split.selectedTrack?.number).toBe(3)
+        expect(after.defaultPrevented).toBe(false)
+      })
+    })
+
+    describe('are left alone', () => {
+      it('with Shift held', async () => {
+        const wrapper = await mountPageWithTrack(1)
+
+        const event = pressKey(NEXT.key, { code: NEXT.code, shiftKey: true })
+        await wrapper.vm.$nextTick()
+
+        expect(useSplitStore().selectedTrack?.number).toBe(1)
+        expect(event.defaultPrevented).toBe(false)
+      })
+
+      it('when the key is held down, which steps once', async () => {
+        const wrapper = await mountPageWithTrack(1)
+
+        pressKey(NEXT.key, { code: NEXT.code })
+        pressKey(NEXT.key, { code: NEXT.code, repeat: true })
+        pressKey(NEXT.key, { code: NEXT.code, repeat: true })
+        await wrapper.vm.$nextTick()
+
+        expect(useSplitStore().selectedTrack?.number).toBe(2)
+      })
+
+      it('in a track name', async () => {
+        const wrapper = await mountPageWithTrack(1)
+        const field = wrapper.get('input[aria-label="Name of track 1"]')
+
+        const event = pressKey(NEXT.key, { code: NEXT.code }, field.element)
+        await wrapper.vm.$nextTick()
+
+        expect(useSplitStore().selectedTrack?.number).toBe(1)
+        expect(event.defaultPrevented).toBe(false)
+      })
+
+      it('while a dialog is open', async () => {
+        const wrapper = await mountPageWithTrack(1)
+        pressQuestionMark()
+        await flushPromises()
+        expect(shortcutsDialog()).not.toBeNull()
+
+        pressKey(NEXT.key, { code: NEXT.code })
+        await wrapper.vm.$nextTick()
+
+        expect(useSplitStore().selectedTrack?.number).toBe(1)
+      })
+
+      it('in the Range view', async () => {
+        const wrapper = await mountWithMark()
+        const split = useSplitStore()
+        split.setRange(10, 20)
+        await wrapper.vm.$nextTick()
+        expect(split.view).toBe('range')
+        expect(split.selectedTrack?.number).toBe(2)
+
+        const next = pressKey(NEXT.key, { code: NEXT.code })
+        const previous = pressKey(PREVIOUS.key, { code: PREVIOUS.code })
+        await wrapper.vm.$nextTick()
+
+        expect(split.selectedTrack?.number).toBe(2)
+        expect(next.defaultPrevented).toBe(false)
+        expect(previous.defaultPrevented).toBe(false)
+      })
+
+      it.each([{ altKey: true }, { ctrlKey: true }, { metaKey: true }])(
+        'with %o held, which stays with the browser',
+        async (modifier) => {
+          const wrapper = await mountPageWithTrack(2)
+
+          const next = pressKey(NEXT.key, { code: NEXT.code, ...modifier })
+          const previous = pressKey(PREVIOUS.key, { code: PREVIOUS.code, ...modifier })
+          await wrapper.vm.$nextTick()
+
+          expect(useSplitStore().selectedTrack?.number).toBe(2)
+          expect(markedTrack(wrapper)).toContain('Select track 2')
+          expect(next.defaultPrevented).toBe(false)
+          expect(previous.defaultPrevented).toBe(false)
+        },
+      )
+    })
+
+    describe('on a track with pending splits', () => {
+      it('open the discard question and change nothing yet, and the key is left to the browser', async () => {
+        const { split, wrapper } = await mountWithPending()
+
+        const event = pressKey(NEXT.key, { code: NEXT.code })
+        await flushPromises()
+
+        expect(question()?.textContent).toContain('Discard 2 pending splits?')
+        expect(split.selectedTrack?.number).toBe(2)
+        expect(split.pendingSplits).toEqual([30, 50])
+        expect(event.defaultPrevented).toBe(false)
+        wrapper.unmount()
+      })
+
+      it('select the next track after "Apply first", with no pending split left selected', async () => {
+        const { split } = await mountWithPending()
+        split.selectPendingSplit(30)
+        pressKey(NEXT.key, { code: NEXT.code })
+        await flushPromises()
+
+        await clickElement(questionButton('Apply first'))
+
+        expect(split.splits.map((point) => point.seconds)).toEqual([21, 30, 50, 71.5])
+        expect(split.selectedTrack?.startSeconds).toBe(71.5)
+        expect(split.selectedPendingSplit).toBeNull()
+      })
+
+      it('select the previous track after "Discard", with no pending split left selected', async () => {
+        const { split } = await mountWithPending()
+        split.selectPendingSplit(30)
+        pressKey(PREVIOUS.key, { code: PREVIOUS.code })
+        await flushPromises()
+
+        await clickElement(questionButton('Discard'))
+
+        expect(split.splits).toHaveLength(2)
+        expect(split.selectedTrack?.number).toBe(1)
+        expect(split.pendingSplits).toEqual([])
+        expect(split.selectedPendingSplit).toBeNull()
+      })
+
+      it('stay on the track, with its pending splits, when cancelled', async () => {
+        const { split } = await mountWithPending()
+        split.selectPendingSplit(30)
+        pressKey(NEXT.key, { code: NEXT.code })
+        await flushPromises()
+
+        await clickElement(questionButton('Cancel'))
+
+        expect(split.selectedTrack?.number).toBe(2)
+        expect(split.pendingSplits).toEqual([30, 50])
+        expect(split.selectedPendingSplit).toBe(30)
+      })
+    })
+
+    describe('carrying the sound over', () => {
+      // Track 2 runs 21 s to 71.5 s and track 3 71.5 s to 100 s.
+
+      it.each(['playing', 'loading'] as const)(
+        'play the new track from its start when the track was %s',
+        async (status) => {
+          const wrapper = await mountPageWithTrack(2)
+          const toggleStretch = spyOnToggleStretch()
+          useAuditionStore().stretchStatus = status
+
+          pressKey(NEXT.key, { code: NEXT.code })
+          await wrapper.vm.$nextTick()
+
+          expect(toggleStretch).toHaveBeenCalledExactlyOnceWith({
+            startSeconds: 71.5,
+            endSeconds: 100,
+          })
+        },
+      )
+
+      it('play the previous track from its start on [', async () => {
+        const wrapper = await mountPageWithTrack(2)
+        const toggleStretch = spyOnToggleStretch()
+        useAuditionStore().stretchStatus = 'playing'
+
+        pressKey(PREVIOUS.key, { code: PREVIOUS.code })
+        await wrapper.vm.$nextTick()
+
+        expect(toggleStretch).toHaveBeenCalledExactlyOnceWith({ startSeconds: 0, endSeconds: 21 })
+      })
+
+      it.each(['paused', 'idle'] as const)(
+        'leave the new track resting at its start, with nothing playing, when the track was %s',
+        async (status) => {
+          const wrapper = await mountPageWithTrack(2)
+          const toggleStretch = spyOnToggleStretch()
+          const audition = useAuditionStore()
+          // The player rests part-way along track 2, as after a seek: a step must not carry that on.
+          audition.seekStretch(trackExtent(useSplitStore().selectedTrack!), 40)
+          audition.stretchStatus = status
+          await wrapper.vm.$nextTick()
+          const playhead = () =>
+            wrapper.get('[aria-label="Playhead in the track"]').attributes('aria-valuenow')
+          expect(playhead()).toBe('40')
+
+          pressKey(NEXT.key, { code: NEXT.code })
+          await wrapper.vm.$nextTick()
+
+          expect(toggleStretch).not.toHaveBeenCalled()
+          expect(audition.stretchStatus).toBe('idle')
+          expect(playhead()).toBe('71.5')
+        },
+      )
+
+      it('carry on untouched at ] on the last track', async () => {
+        const wrapper = await mountPageWithTrack(3)
+        const toggleStretch = spyOnToggleStretch()
+        const audition = useAuditionStore()
+        audition.stretchStatus = 'playing'
+
+        pressKey(NEXT.key, { code: NEXT.code })
+        await wrapper.vm.$nextTick()
+
+        expect(toggleStretch).not.toHaveBeenCalled()
+        expect(audition.stretchStatus).toBe('playing')
+      })
+
+      it('carry on untouched at [ on the first track', async () => {
+        const wrapper = await mountPageWithTrack(1)
+        const toggleStretch = spyOnToggleStretch()
+        const audition = useAuditionStore()
+        audition.stretchStatus = 'playing'
+
+        pressKey(PREVIOUS.key, { code: PREVIOUS.code })
+        await wrapper.vm.$nextTick()
+
+        expect(toggleStretch).not.toHaveBeenCalled()
+        expect(audition.stretchStatus).toBe('playing')
+      })
+
+      it('neither step nor play on a held ], a repeat', async () => {
+        const wrapper = await mountPageWithTrack(2)
+        const toggleStretch = spyOnToggleStretch()
+        const audition = useAuditionStore()
+        audition.stretchStatus = 'playing'
+
+        pressKey(NEXT.key, { code: NEXT.code, repeat: true })
+        await wrapper.vm.$nextTick()
+
+        expect(useSplitStore().selectedTrack?.number).toBe(2)
+        expect(toggleStretch).not.toHaveBeenCalled()
+        expect(audition.stretchStatus).toBe('playing')
+      })
+
+      it.each(['Apply first', 'Discard'])(
+        'play nothing while the discard question is open, and the new track rests after "%s"',
+        async (answer) => {
+          const { split } = await mountWithPending()
+          const toggleStretch = spyOnToggleStretch()
+          const audition = useAuditionStore()
+          audition.stretchStatus = 'playing'
+
+          pressKey(NEXT.key, { code: NEXT.code })
+          await flushPromises()
+          expect(question()).not.toBeNull()
+          expect(toggleStretch).not.toHaveBeenCalled()
+          expect(audition.stretchStatus).toBe('playing')
+
+          await clickElement(questionButton(answer))
+
+          expect(split.selectedTrack?.startSeconds).toBe(71.5)
+          expect(toggleStretch).not.toHaveBeenCalled()
+          expect(audition.stretchStatus).toBe('idle')
+        },
+      )
+
+      it('leave the sound alone when the question is cancelled', async () => {
+        const { split } = await mountWithPending()
+        const toggleStretch = spyOnToggleStretch()
+        const audition = useAuditionStore()
+        audition.stretchStatus = 'playing'
+        pressKey(NEXT.key, { code: NEXT.code })
+        await flushPromises()
+
+        await clickElement(questionButton('Cancel'))
+
+        expect(split.selectedTrack?.number).toBe(2)
+        expect(toggleStretch).not.toHaveBeenCalled()
+        expect(audition.stretchStatus).toBe('playing')
+      })
+    })
+
+    it('are listed in the shortcuts dialog’s Track view section', async () => {
+      await mountPageWithTrack(2)
+
+      pressQuestionMark()
+      await flushPromises()
+
+      const section = [...(shortcutsDialog()?.querySelectorAll('section') ?? [])].find(
+        (candidate) => candidate.querySelector('h3')?.textContent === 'Track view',
+      )
+      const rows = [...(section?.querySelectorAll('dt') ?? [])].map((term) => [
+        term.textContent,
+        term.nextElementSibling?.textContent,
+      ])
+      expect(rows).toContainEqual([
+        '[ / ]',
+        'Select the previous or next track; a playing track plays the new one from its start',
+      ])
+    })
+  })
+
+  describe('the previous and next split keys', () => {
+    // The splits are at 21 s and 71.5 s; the page opens on split 1 in the Split view.
+
+    it('selects the next split on ], marks its row, centres the window and titles it', async () => {
+      const wrapper = await mountPageOnSplit()
+      const split = useSplitStore()
+      expect(markedSplit(wrapper)).toContain('Split 1')
+
+      const event = pressKey(NEXT.key, { code: NEXT.code })
+      await wrapper.vm.$nextTick()
+
+      expect(split.selectedSplit?.seconds).toBe(71.5)
+      expect(split.zoomCentreSeconds).toBe(71.5)
+      expect(markedSplit(wrapper)).toContain('Split 2')
+      expect(panelTitle(wrapper)).toBe('0:01:11.50')
+      expect(event.defaultPrevented).toBe(true)
+    })
+
+    it('selects the previous split on [', async () => {
+      const wrapper = await mountPageOnSplit()
+      const split = useSplitStore()
+      await selectSecondSplit(wrapper)
+      expect(panelTitle(wrapper)).toBe('0:01:11.50')
+
+      const event = pressKey(PREVIOUS.key, { code: PREVIOUS.code })
+      await wrapper.vm.$nextTick()
+
+      expect(split.zoomCentreSeconds).toBe(21)
+      expect(markedSplit(wrapper)).toContain('Split 1')
+      expect(panelTitle(wrapper)).toBe('0:00:21.00')
+      expect(event.defaultPrevented).toBe(true)
+    })
+
+    it('works on a layout where the keys type other characters, by their physical code', async () => {
+      const wrapper = await mountPageOnSplit()
+
+      pressKey('+', { code: NEXT.code })
+      await wrapper.vm.$nextTick()
+
+      expect(markedSplit(wrapper)).toContain('Split 2')
+    })
+
+    describe('at the first and last split', () => {
+      it('do nothing, and the key is left to the browser', async () => {
+        const wrapper = await mountPageOnSplit()
+        const split = useSplitStore()
+
+        const before = pressKey(PREVIOUS.key, { code: PREVIOUS.code })
+        await wrapper.vm.$nextTick()
+        expect(split.selectedSplit?.seconds).toBe(21)
+        expect(before.defaultPrevented).toBe(false)
+
+        await selectSecondSplit(wrapper)
+        const after = pressKey(NEXT.key, { code: NEXT.code })
+        await wrapper.vm.$nextTick()
+        expect(split.selectedSplit?.seconds).toBe(71.5)
+        expect(split.zoomCentreSeconds).toBe(71.5)
+        expect(after.defaultPrevented).toBe(false)
+      })
+    })
+
+    describe('are left alone', () => {
+      it('with Shift held, which leaves ? on Dvorak to the shortcuts dialog', async () => {
+        const wrapper = await mountPageOnSplit()
+
+        const event = pressKey('?', { code: NEXT.code, shiftKey: true })
+        await flushPromises()
+
+        expect(useSplitStore().selectedSplit?.seconds).toBe(21)
+        expect(shortcutsDialog()).not.toBeNull()
+        expect(event.defaultPrevented).toBe(true)
+        wrapper.unmount()
+      })
+
+      it('when the key is held down, which steps once', async () => {
+        const wrapper = await mountPageOnSplit()
+        const split = useSplitStore()
+
+        pressKey(NEXT.key, { code: NEXT.code })
+        await wrapper.vm.$nextTick()
+        split.selectSplit(split.splits[0]!.id)
+        await wrapper.vm.$nextTick()
+        pressKey(NEXT.key, { code: NEXT.code, repeat: true })
+        pressKey(NEXT.key, { code: NEXT.code, repeat: true })
+        await wrapper.vm.$nextTick()
+
+        expect(split.selectedSplit?.seconds).toBe(21)
+      })
+
+      it('in a track name', async () => {
+        const wrapper = await mountPageOnSplit()
+        const field = wrapper.get('input[aria-label="Name of track 1"]')
+
+        const event = pressKey(NEXT.key, { code: NEXT.code }, field.element)
+        await wrapper.vm.$nextTick()
+
+        expect(useSplitStore().selectedSplit?.seconds).toBe(21)
+        expect(event.defaultPrevented).toBe(false)
+      })
+
+      it('while a dialog is open', async () => {
+        const wrapper = await mountPageOnSplit()
+        pressQuestionMark()
+        await flushPromises()
+        expect(shortcutsDialog()).not.toBeNull()
+
+        pressKey(NEXT.key, { code: NEXT.code })
+        await wrapper.vm.$nextTick()
+
+        expect(useSplitStore().selectedSplit?.seconds).toBe(21)
+      })
+    })
+
+    describe('with no split selected', () => {
+      it('selects the first split after the zoom window’s centre on ], and centres on it', async () => {
+        const wrapper = await mountAtCentre(10)
+        const split = useSplitStore()
+
+        const event = pressKey(NEXT.key, { code: NEXT.code })
+        await wrapper.vm.$nextTick()
+
+        expect(split.selectedSplit?.seconds).toBe(21)
+        expect(split.zoomCentreSeconds).toBe(21)
+        expect(markedSplit(wrapper)).toContain('Split 1')
+        expect(panelTitle(wrapper)).toBe('0:00:21.00')
+        expect(event.defaultPrevented).toBe(true)
+      })
+
+      it('selects the last split before the centre on [', async () => {
+        const wrapper = await mountAtCentre(80)
+        const split = useSplitStore()
+
+        const event = pressKey(PREVIOUS.key, { code: PREVIOUS.code })
+        await wrapper.vm.$nextTick()
+
+        expect(split.selectedSplit?.seconds).toBe(71.5)
+        expect(split.zoomCentreSeconds).toBe(71.5)
+        expect(markedSplit(wrapper)).toContain('Split 2')
+        expect(event.defaultPrevented).toBe(true)
+      })
+
+      it.each([
+        ['] to the one after', NEXT, 71.5],
+        ['[ to the one before', PREVIOUS, 21],
+      ])('steps from a centre between two splits with %s', async (_name, key, seconds) => {
+        const wrapper = await mountAtCentre(46)
+
+        pressKey(key.key, { code: key.code })
+        await wrapper.vm.$nextTick()
+
+        expect(useSplitStore().selectedSplit?.seconds).toBe(seconds)
+      })
+
+      it('looks strictly past a centre that lies on a split, so ] skips it', async () => {
+        const wrapper = await mountAtCentre(21)
+
+        pressKey(NEXT.key, { code: NEXT.code })
+        await wrapper.vm.$nextTick()
+
+        expect(useSplitStore().selectedSplit?.seconds).toBe(71.5)
+      })
+
+      it('looks strictly before a centre that lies on a split, so [ finds none', async () => {
+        const wrapper = await mountAtCentre(21)
+
+        const event = pressKey(PREVIOUS.key, { code: PREVIOUS.code })
+        await wrapper.vm.$nextTick()
+
+        expect(useSplitStore().selectedSplit).toBeNull()
+        expect(event.defaultPrevented).toBe(false)
+      })
+
+      it.each([
+        ['] after the last split', NEXT, 90],
+        ['[ before the first split', PREVIOUS, 10],
+      ])('do nothing, and the key is left to the browser, at %s', async (_name, key, seconds) => {
+        const wrapper = await mountAtCentre(seconds)
+        const split = useSplitStore()
+
+        const event = pressKey(key.key, { code: key.code })
+        await wrapper.vm.$nextTick()
+
+        expect(split.selectedSplit).toBeNull()
+        expect(split.zoomCentreSeconds).toBe(seconds)
+        expect(event.defaultPrevented).toBe(false)
+      })
+
+      it('do nothing in a source file with no splits', async () => {
+        const wrapper = await mountAtCentre(46)
+        const split = useSplitStore()
+        const ids = split.splits.map((point) => point.id)
+        for (const id of ids) split.deleteSplit(id)
+        split.moveZoomTo(46)
+        await wrapper.vm.$nextTick()
+        expect(split.splits).toHaveLength(0)
+
+        const next = pressKey(NEXT.key, { code: NEXT.code })
+        const previous = pressKey(PREVIOUS.key, { code: PREVIOUS.code })
+        await wrapper.vm.$nextTick()
+
+        expect(split.selectedSplit).toBeNull()
+        expect(split.zoomCentreSeconds).toBe(46)
+        expect(next.defaultPrevented).toBe(false)
+        expect(previous.defaultPrevented).toBe(false)
+      })
+    })
+
+    it.each([{ altKey: true }, { ctrlKey: true }, { metaKey: true }])(
+      'stay with the browser, and change nothing, with %o held',
+      async (modifier) => {
+        const wrapper = await mountPageOnSplit()
+
+        const next = pressKey(NEXT.key, { code: NEXT.code, ...modifier })
+        const previous = pressKey(PREVIOUS.key, { code: PREVIOUS.code, ...modifier })
+        await wrapper.vm.$nextTick()
+
+        expect(useSplitStore().selectedSplit?.seconds).toBe(21)
+        expect(markedSplit(wrapper)).toContain('Split 1')
+        expect(next.defaultPrevented).toBe(false)
+        expect(previous.defaultPrevented).toBe(false)
+      },
+    )
+
+    describe('carrying the audition over', () => {
+      it.each(['playing', 'loading'] as const)(
+        'start it again across the new split when it was %s',
+        async (status) => {
+          const wrapper = await mountPageOnSplit()
+          const toggle = spyOnToggle()
+          useAuditionStore().status = status
+
+          pressKey(NEXT.key, { code: NEXT.code })
+          await wrapper.vm.$nextTick()
+
+          expect(useSplitStore().selectedSplit?.seconds).toBe(71.5)
+          expect(toggle).toHaveBeenCalledTimes(1)
+          // The old clip is let go of by the step, so the new press starts rather than stops.
+          expect(useAuditionStore().status).toBe('idle')
+        },
+      )
+
+      it('start the previous split on [', async () => {
+        const wrapper = await mountPageOnSplit()
+        const split = useSplitStore()
+        await selectSecondSplit(wrapper)
+        const toggle = spyOnToggle()
+        useAuditionStore().status = 'playing'
+
+        pressKey(PREVIOUS.key, { code: PREVIOUS.code })
+        await wrapper.vm.$nextTick()
+
+        expect(split.selectedSplit?.seconds).toBe(21)
+        expect(toggle).toHaveBeenCalledTimes(1)
+      })
+
+      it('play nothing when none was on', async () => {
+        const wrapper = await mountPageOnSplit()
+        const toggle = spyOnToggle()
+
+        pressKey(NEXT.key, { code: NEXT.code })
+        await wrapper.vm.$nextTick()
+
+        expect(useSplitStore().selectedSplit?.seconds).toBe(71.5)
+        expect(toggle).not.toHaveBeenCalled()
+        expect(useAuditionStore().status).toBe('idle')
+      })
+
+      it('let go of a paused one, which rests at the start of the new split’s 8 s', async () => {
+        const wrapper = await mountPageOnSplit()
+        const toggle = spyOnToggle()
+        const audition = useAuditionStore()
+        audition.status = 'paused'
+
+        pressKey(NEXT.key, { code: NEXT.code })
+        await wrapper.vm.$nextTick()
+
+        expect(useSplitStore().selectedSplit?.seconds).toBe(71.5)
+        expect(toggle).not.toHaveBeenCalled()
+        expect(audition.status).toBe('idle')
+        expect(audition.playheadSeconds()).toBe(67.5)
+      })
+
+      it.each([
+        ['[ on the first split', PREVIOUS, 0],
+        ['] on the last split', NEXT, 1],
+      ])('carry on untouched at %s', async (_name, key, index) => {
+        const wrapper = await mountPageOnSplit()
+        const split = useSplitStore()
+        split.selectSplit(split.splits[index]!.id)
+        await wrapper.vm.$nextTick()
+        const toggle = spyOnToggle()
+        const audition = useAuditionStore()
+        audition.status = 'playing'
+
+        pressKey(key.key, { code: key.code })
+        await wrapper.vm.$nextTick()
+
+        expect(toggle).not.toHaveBeenCalled()
+        expect(audition.status).toBe('playing')
+      })
+
+      it('neither step nor play on a held ], a repeat', async () => {
+        const wrapper = await mountPageOnSplit()
+        const toggle = spyOnToggle()
+        const audition = useAuditionStore()
+        audition.status = 'playing'
+
+        pressKey(NEXT.key, { code: NEXT.code, repeat: true })
+        await wrapper.vm.$nextTick()
+
+        expect(useSplitStore().selectedSplit?.seconds).toBe(21)
+        expect(toggle).not.toHaveBeenCalled()
+        expect(audition.status).toBe('playing')
+      })
+    })
+
+    it('are listed in the shortcuts dialog’s Split view section', async () => {
+      await mountPageOnSplit()
+
+      pressQuestionMark()
+      await flushPromises()
+
+      const section = [...(shortcutsDialog()?.querySelectorAll('section') ?? [])].find(
+        (candidate) => candidate.querySelector('h3')?.textContent === 'Split view',
+      )
+      const rows = [...(section?.querySelectorAll('dt') ?? [])].map((term) => [
+        term.textContent,
+        term.nextElementSibling?.textContent,
+      ])
+      expect(rows).toContainEqual([
+        '[ / ]',
+        'Select the previous or next split; a playing audition plays on from the new split',
+      ])
     })
   })
 })

@@ -6,6 +6,7 @@ import { DEFAULT_MINIMUM_GAP_SECONDS, DEFAULT_OFFSET_DB } from '../config/defaul
 import { MAX_TRACK_NAME_LENGTH } from '../config/track-name.ts'
 import { ZOOM_WINDOW_SECONDS } from '../config/zoom-window.ts'
 import { findGaps, splitsOf, type Gap } from '../lib/find-gaps.ts'
+import { defaultTrackName } from '../lib/default-track-name.ts'
 import { rangeBetween, type TimeRange } from '../lib/range-between.ts'
 
 /*
@@ -31,7 +32,9 @@ export interface Split {
 
 export interface Track {
   number: number
-  // The track's own name, or its number while it has none.
+  // The name the user typed, null while the track is unnamed.
+  ownName: string | null
+  // The name shown: the own name, or the prefixed number while the track has none.
   name: string
   startSeconds: number
   lengthSeconds: number
@@ -62,9 +65,10 @@ The splits proposed for the source file and the tracks between them. This slice 
 one of the two settings moves.
 
 A track name belongs to the split where the track starts, and the first track's to the file's
-start, so moving or deleting a split keeps the right name with it, and unnamed tracks take their
-number from their position. Removing a track deletes the splits at both its ends, which is two
-deletes with the names and edits of a delete. Every change of a setting replaces all splits and all names.
+start, so moving or deleting a split keeps the right name with it, and an unnamed track shows the
+track name prefix followed by its padded number, from its position. Removing a track deletes the
+splits at both its ends, which is two deletes with the names and edits of a delete. Every change of
+a setting replaces all splits and all names.
 
 One selection (`Selection`) holds what is under review: a split, a track or nothing. The selected
 split, its index and the selected track are derived from it, so they follow the splits as they move
@@ -93,6 +97,11 @@ export const useSplitStore = defineStore('split', () => {
   const gaps = ref<Gap[]>([])
   const splits = ref<Split[]>([])
   const firstTrackName = ref<string | null>(null)
+  /*
+  The track name prefix (GLOSSARY.md): file-level state, so no edit, no setting change and no
+  detection touches it. The page sets it once per file; `reset` clears it.
+  */
+  const trackNamePrefix = ref('')
   const selection = ref<Selection>(null)
   // With nothing to centre on, the window starts at 0:00.
   const zoomCentreSeconds = ref(ZOOM_WINDOW_SECONDS / 2)
@@ -147,11 +156,11 @@ export const useSplitStore = defineStore('split', () => {
     return starts.map((startSeconds, index) => {
       const startSplit = splits.value[index - 1] ?? null
       const endSeconds = starts[index + 1] ?? durationSeconds
-      const name =
-        (startSplit === null ? firstTrackName.value : startSplit.name) ?? String(index + 1)
+      const ownName = startSplit === null ? firstTrackName.value : startSplit.name
       return {
         number: index + 1,
-        name,
+        ownName,
+        name: ownName ?? defaultTrackName(trackNamePrefix.value, index + 1, starts.length),
         startSeconds,
         lengthSeconds: endSeconds - startSeconds,
         startSplit,
@@ -410,6 +419,46 @@ export const useSplitStore = defineStore('split', () => {
     }, !isTrackSelected(track))
   }
 
+  /*
+  Selects the split after (`step` 1) or before (-1) the selected one, as a click on it does: the
+  window centres on it, and the discard question comes the same way. With none selected, it steps
+  from the zoom window's centre: the first split after it, or the last before it, a split at the
+  centre itself being neither. Whether the selection changed at once: not at the first or last
+  split, with no split in that direction, or when the question opened instead.
+  */
+  function selectAdjacentSplit(step: -1 | 1) {
+    const current = selectedSplitIndex.value
+    const next = current === null ? splitFromCentre(step) : splits.value[current + step]
+    if (next === undefined) return false
+    selectSplit(next.id)
+    return selectedSplit.value?.id === next.id
+  }
+
+  // The split nearest the zoom window's centre on the `step` side of it, strictly past the centre.
+  function splitFromCentre(step: -1 | 1) {
+    const centre = zoomCentreSeconds.value
+    // The splits are in time order: the first from the centre on, or none when all lie before it.
+    // `[` walks back from it because `findLast` is not in the project's TS lib.
+    const fromCentre = splits.value.findIndex((point) => point.seconds >= centre)
+    if (step === -1) return splits.value[(fromCentre === -1 ? splits.value.length : fromCentre) - 1]
+    return splits.value.find((point) => point.seconds > centre)
+  }
+
+  /*
+  Selects the track after (`step` 1) or before (-1) the selected one, as a click on its row does, so
+  the discard question comes the same way. Whether the selection changed at once: not at the first
+  or last track, with no track selected, or when the question opened instead.
+  */
+  function selectAdjacentTrack(step: -1 | 1) {
+    const current = selectedTrack.value
+    if (current === null) return false
+    // `Track.number` is 1-based and contiguous, so `number - 1` is the track's index.
+    const next = tracks.value[current.number - 1 + step]
+    if (next === undefined) return false
+    selectTrack(next)
+    return selectedTrack.value?.number === next.number
+  }
+
   function isTrackSelected(track: Track) {
     const current = selection.value
     return current?.kind === 'track' && current.startSplitId === (track.startSplit?.id ?? null)
@@ -546,7 +595,7 @@ export const useSplitStore = defineStore('split', () => {
     if (!addedIds.value.has(id)) movedIds.value.add(id)
   }
 
-  // The new split is unnamed, so its track takes its number from its place.
+  // The new split is unnamed, so its track takes its prefixed number from its place.
   function insertSplit(seconds: number) {
     const index = splits.value.findIndex((candidate) => candidate.seconds > seconds)
     const split: Split = { id: nextSplitId++, seconds, name: null }
@@ -658,7 +707,7 @@ export const useSplitStore = defineStore('split', () => {
 
   /*
   Names the track that starts at the split `startSplitId`, or the first track with null. Whatever is
-  typed is valid: an empty name means "use the number".
+  typed is valid: an empty name means "use the prefixed number".
   */
   function renameTrack(startSplitId: number | null, name: string) {
     const stored = name.trim().slice(0, MAX_TRACK_NAME_LENGTH) || null
@@ -669,9 +718,14 @@ export const useSplitStore = defineStore('split', () => {
     if (stored === current) return
     if (split === null) firstTrackName.value = stored
     else split.name = stored
-    // Detection leaves every track unnamed, so a track named back to its number is no edit.
+    // Detection leaves every track unnamed, so a track named back to its default is no edit.
     if (stored === null) renamedKeys.value.delete(startSplitId)
     else renamedKeys.value.add(startSplitId)
+  }
+
+  // Kept as typed, a separator or a space at its end included, up to a track name's length.
+  function setTrackNamePrefix(prefix: string) {
+    trackNamePrefix.value = prefix.slice(0, MAX_TRACK_NAME_LENGTH)
   }
 
   function reset() {
@@ -682,6 +736,7 @@ export const useSplitStore = defineStore('split', () => {
     gaps.value = []
     splits.value = []
     firstTrackName.value = null
+    trackNamePrefix.value = ''
     clearEdits()
     selection.value = null
     zoomCentreSeconds.value = ZOOM_WINDOW_SECONDS / 2
@@ -700,6 +755,7 @@ export const useSplitStore = defineStore('split', () => {
     gaps,
     splits,
     firstTrackName,
+    trackNamePrefix,
     selection,
     selectedSplit,
     selectedSplitIndex,
@@ -724,6 +780,8 @@ export const useSplitStore = defineStore('split', () => {
     setMinimumGapLength,
     selectSplit,
     selectTrack,
+    selectAdjacentTrack,
+    selectAdjacentSplit,
     isTrackSelected,
     moveZoomTo,
     setRange,
@@ -746,6 +804,7 @@ export const useSplitStore = defineStore('split', () => {
     deleteSplit,
     removeTrack,
     renameTrack,
+    setTrackNamePrefix,
     reset,
   }
 })

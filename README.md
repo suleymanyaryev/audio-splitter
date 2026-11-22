@@ -20,7 +20,7 @@ The project has a second, equal reason: I wanted to learn how digital audio work
 4. **Review.** Listen across a split, to a whole track, or to a range you drag out. Move, add and delete splits, and name the tracks.
 5. **Export** every track into a new folder, or one track or range as a single file. Tracks keep the source's format and are tagged; nothing is re-encoded.
 
-**Requirements:** desktop Chrome, because the export writes through the File System Access API. Everything is kept in memory, so a reload starts over; only the volume, the mute and the theme are remembered.
+**Requirements:** desktop Chrome, because the export writes through the File System Access API. Everything is kept in memory, so a reload starts over; only the volume, the mute, the play speed and the theme are remembered.
 
 **Not in v1:** CUE sheets, smarter detection, snapping to the quietest point, re-encoded or sample-accurate cuts, help with playlists that repeat, other formats and browsers, and keeping splits across a reload. The reasons are in the [wayfinding map](.scratch/audio-splitter/map.md#out-of-scope).
 
@@ -79,6 +79,7 @@ One screen each, with worked numbers from a real 1 h file.
 7. [Cutting without re-encoding](docs/concepts/07-cutting-without-re-encoding.md): stream copy and its limits.
 8. [Listening to a range](docs/concepts/08-listening-to-a-range.md): WAV size, and long tracks through a moving window.
 9. [Volume is gain](docs/concepts/09-volume-is-gain.md): gain and decibels.
+10. [Speed without pitch](docs/concepts/10-speed-without-pitch.md): resampling against time-stretching.
 
 ### Other docs
 

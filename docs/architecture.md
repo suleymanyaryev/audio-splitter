@@ -39,17 +39,17 @@ An arrow means "may import from". Two slices of one layer never import each othe
 
 ## The stores
 
-All state lives in Pinia setup stores, in memory, except the theme ([below](#the-theme)). Only the volume, the mute flag and the theme choice are also saved, in `localStorage`.
+All state lives in Pinia setup stores, in memory, except the theme ([below](#the-theme)). Only the volume, the mute flag, the play speed and the theme choice are also saved, in `localStorage`.
 
-| Store              | Slice                      | Holds                                                        |
-| ------------------ | -------------------------- | ------------------------------------------------------------ |
-| `source-file`      | `entities/source-file`     | The file, its analysis, load progress and the ffmpeg session |
-| `split`            | `entities/split`           | The settings, splits and track names, selection and edits    |
-| `audition`         | `widgets/split-zoom`       | The one player: what plays, its status, and the volume       |
-| `export-tracks`    | `widgets/track-strip`      | The export of every track into a folder                      |
-| `export-single`    | `widgets/track-strip`      | The export of one track or range as a single file            |
-| `export-lock`      | `widgets/track-strip`      | Which export is running, so the two never overlap            |
-| `shortcuts-dialog` | `widgets/shortcuts-dialog` | Whether the shortcuts dialog is open                         |
+| Store              | Slice                      | Holds                                                         |
+| ------------------ | -------------------------- | ------------------------------------------------------------- |
+| `source-file`      | `entities/source-file`     | The file, its analysis, load progress and the ffmpeg session  |
+| `split`            | `entities/split`           | Settings, splits, track names and prefix, selection, edits    |
+| `audition`         | `widgets/split-zoom`       | The one player: what plays, its status, volume and play speed |
+| `export-tracks`    | `widgets/track-strip`      | The export of every track into a folder                       |
+| `export-single`    | `widgets/track-strip`      | The export of one track or range as a single file             |
+| `export-lock`      | `widgets/track-strip`      | Which export is running, so the two never overlap             |
+| `shortcuts-dialog` | `widgets/shortcuts-dialog` | Whether the shortcuts dialog is open                          |
 
 ```mermaid
 flowchart LR
@@ -62,7 +62,7 @@ flowchart LR
   reviewPage["ReviewPage"]
 
   sourceFile -- "loudness curve, on mount" --> reviewPage
-  reviewPage -- "detect(curve)" --> split
+  reviewPage -- "detect(curve), prefix" --> split
   split -- "selection, range, view" --> audition
   audition -- "clip" --> sourceFile
   split -- "tracks and names" --> exporter
@@ -73,7 +73,7 @@ flowchart LR
   exporterSingle -- "take, release" --> exportLock
 ```
 
-- **`split` can't import `source-file`.** `ReviewPage` hands it the loudness curve once, on mount.
+- **`split` can't import `source-file`.** `ReviewPage` hands it the loudness curve and the track name prefix once, on mount.
 - **Widgets read the entity stores directly.** They never go through another widget.
 - **Tracks are derived from the splits**, never stored. Deleting a split merges the tracks either side of it.
 - **One selection at a time:** a split, a track or nothing.
@@ -158,17 +158,22 @@ The `audition` store is the one player. The `source-file` store decodes a stretc
 
 There are two kinds of listening. Starting one stops the other.
 
-**The audition** plays the 8 s across the selected split.
+**The audition** plays the 8 s across the selected split, its extent: the split ±4 s, held to the file. It can pause and resume without decoding again. Its playhead is always known while a split is selected: the sound while it plays, else the resting place, else the extent's start.
 
 ```mermaid
 stateDiagram-v2
   [*] --> idle
   idle --> loading: play
   loading --> playing: clip decoded
-  playing --> idle: clip ended
-  loading --> idle: pressed again, split changed, or failed
-  playing --> idle: pressed again, or split changed
+  playing --> paused: pressed again, or split moved
+  paused --> playing: pressed again
+  paused --> loading: pressed again after a move
+  playing --> idle: played to the end, a view change, the export, or split changed
+  paused --> idle: a view change, the export, a stretch plays, or split changed
+  loading --> idle: pressed again, a view change or the export, split moved or changed, or failed
 ```
+
+"Split changed" is another split selected, none, or the selected one deleted. When the resting place is kept or cleared is in the header comment of `src/widgets/split-zoom/model/audition.ts`.
 
 **The stretch** plays a range or the selected track. It can pause, resume and seek without decoding again.
 
@@ -190,7 +195,7 @@ stateDiagram-v2
 - **A long track plays through a moving window.** At most 10 min is decoded at a time. The next window is decoded while the current one plays, and at most two are held ([`decode-window.ts`](../src/widgets/split-zoom/lib/decode-window.ts), [note 08](concepts/08-listening-to-a-range.md)).
 - **Watchers on the `split` store stop the sound at once** when the split, range or track it belongs to changes. A view change or the export only pauses a stretch, so its playhead stays.
 - **Every press takes a number.** A clip that arrives for an older press is dropped, so stale sound never starts.
-- **The volume applies to the element only**, so it never reaches an exported file ([note 09](concepts/09-volume-is-gain.md)).
+- **The volume and the play speed apply to the element only**, so they never reach an exported file ([note 09](concepts/09-volume-is-gain.md), [note 10](concepts/10-speed-without-pitch.md), [ADR 0004](adr/0004-time-stretching-by-the-browser.md)).
 
 ## Export
 

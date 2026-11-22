@@ -2,13 +2,14 @@ import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 
 import { useSourceFileStore } from '@/entities/source-file/model/source-file.ts'
+import { sourceStem } from '@/entities/split/lib/source-stem.ts'
 import { useSplitStore } from '@/entities/split/model/split.ts'
 import { exportFolderName } from '../lib/export-folder-name.ts'
 import type { ExportFailure } from '../lib/export-summary.ts'
 import { pickExportFolder, type ExportFolder } from '../api/export-folder.ts'
 import { writeFile } from '../api/write-file.ts'
+import { freeFileName } from '../lib/free-file-name.ts'
 import { messageOf } from '../lib/message-of.ts'
-import { sourceStem } from '../lib/source-stem.ts'
 import { trackFileName } from '../lib/track-file-name.ts'
 import { trackTags } from '../lib/track-tags.ts'
 import { useExportLockStore } from './export-lock.ts'
@@ -17,6 +18,8 @@ import { useExportLockStore } from './export-lock.ts'
 interface PlannedTrack {
   number: number
   name: string | null
+  // The track name prefix as it was when the export started.
+  prefix: string
   startSeconds: number
   endSeconds: number | undefined
 }
@@ -66,8 +69,9 @@ export const useExportTracksStore = defineStore('export-tracks', () => {
     const tracks = splitStore.tracks
     return tracks.map((track, index) => ({
       number: track.number,
-      // The user's own name: `track.name` falls back to the number, which is no name.
-      name: track.startSplit === null ? splitStore.firstTrackName : track.startSplit.name,
+      // The user's own name: `track.name` falls back to the prefixed number, which is none.
+      name: track.ownName,
+      prefix: splitStore.trackNamePrefix,
       startSeconds: track.startSeconds,
       endSeconds: tracks[index + 1]?.startSeconds,
     }))
@@ -88,6 +92,8 @@ export const useExportTracksStore = defineStore('export-tracks', () => {
     stem: string,
     extension: string,
   ) {
+    // The subfolder is new, so the names written in this run are the only ones that can clash.
+    const written: string[] = []
     for (const track of tracks) {
       if (wasCancelled) break
       trackNumber.value = track.number
@@ -99,7 +105,12 @@ export const useExportTracksStore = defineStore('export-tracks', () => {
         })
         // A cancel that came as the cut ended: the track is not written.
         if (wasCancelled) break
-        await writeFile(folder, trackFileName({ ...track, count: tracks.length, extension }), bytes)
+        const fileName = freeFileName(
+          trackFileName({ ...track, count: tracks.length, extension }),
+          written,
+        )
+        await writeFile(folder, fileName, bytes)
+        written.push(fileName)
         // Dropped before the next cut starts.
         bytes = null
         savedCount.value++

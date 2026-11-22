@@ -9,14 +9,15 @@ The import rules are in AGENTS.md "Code layout" and enforced by `pnpm lint`; thi
 
 - **Entity store** (`entities/source-file`, `entities/split`): state that more than one widget reads, about the file or the splits.
 - **Widget-owned store** (`widgets/split-zoom/model/audition.ts`, `widgets/track-strip/model/export-tracks.ts`): state that belongs to one behaviour, which the page and other widgets only start or stop.
-- Pinia setup stores, in memory only. The exceptions are `widgets/split-zoom/api/saved-volume.ts` and the theme (`shared/lib/theme/theme.ts`): plain module state, because the kit and the canvases in `shared` read it and a store would belong to a slice above them.
-- The store changes its state only through actions; widgets call them, never assign. An action given out-of-range input refuses quietly and keeps the state it had.
+- Pinia setup stores, in memory. A setting kept between visits stays in its store, which reads and writes `localStorage` through an `api/` module beside it (`widgets/split-zoom/api/saved-volume.ts`, `saved-play-speed.ts`).
+- The theme (`shared/lib/theme/theme.ts`) is the one plain module state, because the kit and the canvases in `shared` read it and a store would belong to a slice above them.
+- The store changes its state only through actions; widgets call them, never assign. An action given out-of-range input refuses quietly and keeps the state it had; a slider's setting (the volume, the play speed) is held to the slider's range instead.
 - A tuned constant goes in its own `config/` file, imported by the store and the widgets (`entities/split/config/range-limits.ts`).
 - Pure maths goes in `lib/` with its own spec. When a live preview and the store compute the same thing, they share one function, so the two agree (`entities/split/lib/range-between.ts`).
 
 ## Wiring stores together
 
-- Two slices of one layer never import each other, so the page wires them: `ReviewPage.vue` hands the loudness curve to `split.detect` on mount and resets `split` on unmount. Wire a new cross-store need the same way, in the page.
+- Two slices of one layer never import each other, so the page wires them: `ReviewPage.vue` hands the loudness curve to `split.detect` and the track name prefix to `split.setTrackNamePrefix` on mount, and resets `split` on unmount. Wire a new cross-store need the same way, in the page.
 - Buttons enable on store getters (`canAddSplit`) and take their labels from store status.
 - A click on a list or strip item selects through the store, and the selected item carries `aria-current="true"`. A button inside an item stops the click (`@click.stop`) so it does only what it says. Reference: `TrackList.vue`.
 

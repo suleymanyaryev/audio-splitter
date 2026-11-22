@@ -17,7 +17,7 @@ interface SavedTrack {
   name: string
   bytes: number
   seconds: number
-  // Whether the written bytes hold the title ("bursts 01") and, besides it, the album ("bursts").
+  // Whether the written bytes hold the title ("bursts-01") and, besides it, the album ("bursts").
   hasTitle: boolean
   hasAlbum: boolean
 }
@@ -47,13 +47,14 @@ async function readFolder(page: Page, folderName: string): Promise<SavedTrack[]>
       const buffer = await new globalThis.OfflineAudioContext(1, 1, 44_100).decodeAudioData(
         await file.arrayBuffer(),
       )
-      // The first two characters of the file's name are its number, which is the title's.
       const text = new TextDecoder('latin1').decode(await file.arrayBuffer())
+      // An unnamed track's title is its file's name without the extension: `bursts-01`.
+      const title = fileName.slice(0, fileName.lastIndexOf('.'))
       tracks.push({
         name: fileName,
         bytes: file.size,
         seconds: buffer.duration,
-        hasTitle: text.includes(`bursts ${fileName.slice(0, 2)}`),
+        hasTitle: text.includes(title),
         // The title holds the album's text once, so the album is the occurrence after it.
         hasAlbum: text.split('bursts').length - 1 >= 2,
       })
@@ -131,9 +132,9 @@ for (const format of FORMATS) {
 
     const tracks = await readFolder(page, 'bursts')
     expect(tracks.map((track) => track.name)).toEqual([
-      `01.${format}`,
-      `02.${format}`,
-      `03.${format}`,
+      `bursts-01.${format}`,
+      `bursts-02.${format}`,
+      `bursts-03.${format}`,
     ])
     for (const track of tracks) {
       expect(track.bytes).toBeGreaterThan(0)
@@ -165,18 +166,18 @@ for (const format of FORMATS) {
     await openReviewPage(page, format)
 
     await page.getByRole('button', { name: /^Select track 2/ }).click()
-    for (const savedName of [`02.${format}`, `02 (2).${format}`]) {
+    for (const savedName of [`bursts-02.${format}`, `bursts-02 (2).${format}`]) {
       await page.getByRole('button', { name: 'Export track…' }).click()
-      await expect(page.getByRole('textbox', { name: 'Name' })).toHaveValue('bursts 02')
+      await expect(page.getByRole('textbox', { name: 'Name' })).toHaveValue('bursts-02')
       await page.getByRole('textbox', { name: 'Name' }).press('Enter')
       await expect(page.getByRole('status')).toContainText(`Saved ${savedName} in`, {
         timeout: 20_000,
       })
     }
 
-    expect(await rootFileNames(page)).toEqual([`02 (2).${format}`, `02.${format}`])
-    for (const name of [`02.${format}`, `02 (2).${format}`]) {
-      const saved = await readSavedFile(page, name, 'bursts 02')
+    expect(await rootFileNames(page)).toEqual([`bursts-02 (2).${format}`, `bursts-02.${format}`])
+    for (const name of [`bursts-02.${format}`, `bursts-02 (2).${format}`]) {
+      const saved = await readSavedFile(page, name, 'bursts-02')
       expect(saved.bytes).toBeGreaterThan(0)
       expect(saved.hasTitle).toBe(true)
       expect(saved.hasAlbum).toBe(true)

@@ -31,6 +31,10 @@ const testConfig = defineConfig({
       'e2e/**',
       ...IGNORED_DIRECTORIES.map((directory) => `**/${directory}/**`),
     ],
+    // The default 5 s is too tight on a shared CI runner, where the heavy specs (decoding a
+    // multi-slice file, for one) ran past it and failed a release.
+    testTimeout: 30_000,
+    hookTimeout: 30_000,
     root: ROOT_DIRECTORY,
     setupFiles: ['vitest.setup.ts'],
     forceRerunTriggers: FORCE_RERUN_TRIGGERS,

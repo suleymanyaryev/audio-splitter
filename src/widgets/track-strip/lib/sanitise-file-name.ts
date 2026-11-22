@@ -1,5 +1,5 @@
 // Ticket 08's "about 100 characters" for a file or folder name: not the cap on the typed name.
-const MAX_LENGTH = 100
+export const MAX_FILE_NAME_LENGTH = 100
 
 // The characters Windows and macOS refuse in a file name, and control characters (\p{Cc}).
 const UNSAFE = /[/\\:*?"<>|\p{Cc}]/gu
@@ -23,5 +23,5 @@ was typed.
 export function sanitiseFileName(name: string): string {
   const safe = trimEdges(name.replaceAll(UNSAFE, '-'))
   // By code point, so a character outside the basic plane is not cut in half.
-  return trimEdges([...safe].slice(0, MAX_LENGTH).join(''))
+  return trimEdges([...safe].slice(0, MAX_FILE_NAME_LENGTH).join(''))
 }

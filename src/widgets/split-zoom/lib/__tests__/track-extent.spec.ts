@@ -5,6 +5,7 @@ import { trackExtent } from '../track-extent.ts'
 
 const track = (startSeconds: number, lengthSeconds: number): Track => ({
   number: 2,
+  ownName: null,
   name: '2',
   startSeconds,
   lengthSeconds,

@@ -75,15 +75,24 @@ describe('the single export store', () => {
   })
 
   describe('opening', () => {
-    it('opens a track unnamed with "<source stem> NN" as the default name', () => {
+    it('opens an unnamed track with its shown name as the default name', () => {
       const { split, exporter } = setUp()
+      split.setTrackNamePrefix('Evening Set-')
 
       exporter.openTrack(trackOf(split, 2))
 
       expect(exporter.status).toBe('naming')
       expect(exporter.subject).toBe('track')
-      expect(exporter.defaultName).toBe('Evening Set 02')
+      expect(exporter.defaultName).toBe('Evening Set-02')
       expect(picker).not.toHaveBeenCalled()
+    })
+
+    it('opens an unnamed track with its bare number when the prefix is empty', () => {
+      const { split, exporter } = setUp()
+
+      exporter.openTrack(trackOf(split, 2))
+
+      expect(exporter.defaultName).toBe('02')
     })
 
     it("opens a named track with the track's name, the first track too", () => {
@@ -130,7 +139,7 @@ describe('the single export store', () => {
   })
 
   describe('a track, end to end', () => {
-    it('asks for the folder, cuts the track with the full export’s tags and writes "NN name.ext"', async () => {
+    it('asks for the folder, cuts the track with the full export’s tags and writes "name.ext"', async () => {
       const { split, exporter } = setUp()
       exporter.openTrack(trackOf(split, 2))
 
@@ -142,10 +151,10 @@ describe('the single export store', () => {
         endSeconds: 71.5,
         tags: { title: 'Chorus', track: '2/3', album: 'Evening Set' },
       })
-      expect(filesOf(folder)).toEqual(['02 Chorus.m4a'])
-      expect(folder.files.get('02 Chorus.m4a')).toEqual(bytesOf(1))
+      expect(filesOf(folder)).toEqual(['Chorus.m4a'])
+      expect(folder.files.get('Chorus.m4a')).toEqual(bytesOf(1))
       expect(exporter.status).toBe('saved')
-      expect(exporter.savedFile).toBe('02 Chorus.m4a')
+      expect(exporter.savedFile).toBe('Chorus.m4a')
       expect(exporter.savedFolderName).toBe('Music')
     })
 
@@ -168,7 +177,7 @@ describe('the single export store', () => {
       expect(cutTrack).toHaveBeenCalledWith(
         expect.objectContaining({ startSeconds: 71.5, endSeconds: undefined }),
       )
-      expect(folder.files.has('03 Outro.m4a')).toBe(true)
+      expect(folder.files.has('Outro.m4a')).toBe(true)
     })
 
     it('sanitises the file name, and keeps the name as typed in the title tag', async () => {
@@ -182,7 +191,7 @@ describe('the single export store', () => {
           tags: { title: 'Live: part 1/2', track: '1/3', album: 'Evening Set' },
         }),
       )
-      expect(filesOf(folder)).toEqual(['01 Live- part 1-2.m4a'])
+      expect(filesOf(folder)).toEqual(['Live- part 1-2.m4a'])
     })
 
     it('holds the name to a track name’s length', async () => {
@@ -227,47 +236,67 @@ describe('the single export store', () => {
       expect(trackOf(split, 2).name).toBe('Chorus')
     })
 
-    it('is left alone when an unnamed track’s default is confirmed as it is', async () => {
+    it('is left alone when an unnamed track’s default is confirmed as it is, so a later prefix change renames it', async () => {
       const { split, exporter } = setUp()
+      split.setTrackNamePrefix('Evening Set-')
       exporter.openTrack(trackOf(split, 2))
 
-      await exporter.confirm('Evening Set 02')
+      await exporter.confirm('Evening Set-02')
+      split.setTrackNamePrefix('Late-')
 
-      expect(trackOf(split, 2).name).toBe('2')
+      expect(trackOf(split, 2).ownName).toBeNull()
+      expect(trackOf(split, 2).name).toBe('Late-02')
       expect(split.editCount).toBe(0)
     })
 
-    it('writes the full export’s file for an unnamed track whose default is confirmed as it is', async () => {
+    it('writes the file the dialog offered, titled the same, for an unnamed track confirmed as it is', async () => {
       const { split, exporter } = setUp()
-      exporter.openTrack(trackOf(split, 2))
-
-      await exporter.confirm('Evening Set 02')
-
-      expect(filesOf(folder)).toEqual(['02.m4a'])
-      expect(cutTrack).toHaveBeenCalledWith(
-        expect.objectContaining({
-          tags: { title: 'Evening Set 02', track: '2/3', album: 'Evening Set' },
-        }),
-      )
-    })
-
-    it('is left alone when the default is too long for a name and is confirmed as it is', async () => {
-      const { sourceFile, split, exporter } = setUp()
-      // `<stem> 02` is 101 characters: the dialog's field takes it whole and the name is held to 100.
-      sourceFile.file = new File([], `${'x'.repeat(98)}.m4a`)
+      split.setTrackNamePrefix('Evening Set-')
       exporter.openTrack(trackOf(split, 2))
 
       await exporter.confirm(exporter.defaultName)
 
-      expect(trackOf(split, 2).name).toBe('2')
+      expect(filesOf(folder)).toEqual(['Evening Set-02.m4a'])
+      expect(cutTrack).toHaveBeenCalledWith(
+        expect.objectContaining({
+          tags: { title: 'Evening Set-02', track: '2/3', album: 'Evening Set' },
+        }),
+      )
+    })
+
+    it('offers and writes the bare number when the prefix is empty', async () => {
+      const { split, exporter } = setUp()
+      exporter.openTrack(trackOf(split, 2))
+
+      expect(exporter.defaultName).toBe('02')
+      await exporter.confirm('02')
+
+      expect(filesOf(folder)).toEqual(['02.m4a'])
+      expect(cutTrack).toHaveBeenCalledWith(
+        expect.objectContaining({ tags: { title: '02', track: '2/3', album: 'Evening Set' } }),
+      )
+      expect(trackOf(split, 2).ownName).toBeNull()
+    })
+
+    it('is left alone when the default is too long for a name and is confirmed as it is', async () => {
+      const { split, exporter } = setUp()
+      // The prefix and `02` would be 102 characters: the default cuts the prefix to keep within 100.
+      split.setTrackNamePrefix('x'.repeat(100))
+      exporter.openTrack(trackOf(split, 2))
+
+      await exporter.confirm(exporter.defaultName)
+
+      expect(trackOf(split, 2).ownName).toBeNull()
       expect(split.editCount).toBe(0)
+      expect(filesOf(folder)).toEqual([`${'x'.repeat(98)}02.m4a`])
     })
 
     it('is left alone when the default is confirmed with spaces around it', async () => {
       const { split, exporter } = setUp()
+      split.setTrackNamePrefix('Evening Set-')
       exporter.openTrack(trackOf(split, 2))
 
-      await exporter.confirm('  Evening Set 02 ')
+      await exporter.confirm('  Evening Set-02 ')
 
       expect(split.editCount).toBe(0)
     })
@@ -281,7 +310,7 @@ describe('the single export store', () => {
       await exporter.confirm('Opening')
 
       expect(split.editCount).toBe(edits)
-      expect(filesOf(folder)).toEqual(['01 Opening.m4a'])
+      expect(filesOf(folder)).toEqual(['Opening.m4a'])
     })
 
     it('is changed for the first track too', async () => {
@@ -305,7 +334,7 @@ describe('the single export store', () => {
       await exporter.confirm('Two')
 
       expect(picker).toHaveBeenCalledOnce()
-      expect(filesOf(folder)).toEqual(['01 One.m4a', '02 Two.m4a'])
+      expect(filesOf(folder)).toEqual(['One.m4a', 'Two.m4a'])
     })
 
     it('is not known before the first export', () => {
@@ -343,8 +372,8 @@ describe('the single export store', () => {
       expect(exporter.status).toBe('naming')
       await exporter.confirm('Two')
 
-      expect(filesOf(other)).toEqual(['02 Two.m4a'])
-      expect(filesOf(folder)).toEqual(['01 One.m4a'])
+      expect(filesOf(other)).toEqual(['Two.m4a'])
+      expect(filesOf(folder)).toEqual(['One.m4a'])
       expect(exporter.savedFolderName).toBe('Podcasts')
     })
 
@@ -372,7 +401,7 @@ describe('the single export store', () => {
       expect(exporter.failure).toBeNull()
       expect(cutTrack).not.toHaveBeenCalled()
       // The name is not taken yet: a closed picker is no confirmation.
-      expect(trackOf(split, 2).name).toBe('2')
+      expect(trackOf(split, 2).ownName).toBeNull()
 
       await exporter.confirm('Chorus')
       expect(exporter.status).toBe('saved')
@@ -392,7 +421,7 @@ describe('the single export store', () => {
 
       expect(exporter.status).toBe('idle')
       expect(cutTrack).not.toHaveBeenCalled()
-      expect(trackOf(split, 2).name).toBe('2')
+      expect(trackOf(split, 2).ownName).toBeNull()
       expect(folder.files.size).toBe(0)
     })
 
@@ -409,6 +438,22 @@ describe('the single export store', () => {
     })
   })
 
+  describe('a typed name that is empty once made safe', () => {
+    it('is written under the track’s prefixed name, and titled as typed', async () => {
+      const { split, exporter } = setUp()
+      split.setTrackNamePrefix('set-')
+      exporter.openTrack(trackOf(split, 2))
+
+      await exporter.confirm('...')
+
+      expect(filesOf(folder)).toEqual(['set-02.m4a'])
+      expect(cutTrack).toHaveBeenCalledWith(
+        expect.objectContaining({ tags: { title: '...', track: '2/3', album: 'Evening Set' } }),
+      )
+      expect(trackOf(split, 2).ownName).toBe('...')
+    })
+  })
+
   describe('a name that is taken', () => {
     it('takes (2), then (3), when the same track is exported again', async () => {
       const { split, exporter } = setUp()
@@ -418,19 +463,19 @@ describe('the single export store', () => {
         await exporter.confirm('Chorus')
       }
 
-      expect(filesOf(folder)).toEqual(['02 Chorus.m4a', '02 Chorus (2).m4a', '02 Chorus (3).m4a'])
-      expect(exporter.savedFile).toBe('02 Chorus (3).m4a')
+      expect(filesOf(folder)).toEqual(['Chorus.m4a', 'Chorus (2).m4a', 'Chorus (3).m4a'])
+      expect(exporter.savedFile).toBe('Chorus (3).m4a')
     })
 
     it('never overwrites a file that was in the folder already', async () => {
       const { split, exporter } = setUp()
-      folder.files.set('02 Chorus.m4a', Uint8Array.of(9))
+      folder.files.set('Chorus.m4a', Uint8Array.of(9))
       exporter.openTrack(trackOf(split, 2))
 
       await exporter.confirm('Chorus')
 
-      expect(folder.files.get('02 Chorus.m4a')).toEqual(Uint8Array.of(9))
-      expect(exporter.savedFile).toBe('02 Chorus (2).m4a')
+      expect(folder.files.get('Chorus.m4a')).toEqual(Uint8Array.of(9))
+      expect(exporter.savedFile).toBe('Chorus (2).m4a')
     })
   })
 
@@ -458,7 +503,7 @@ describe('the single export store', () => {
       await exporter.confirm('Anything at all')
 
       expect(split.editCount).toBe(0)
-      expect(split.tracks.map((track) => track.name)).toEqual(['1', '2', '3'])
+      expect(split.tracks.map((track) => track.ownName)).toEqual([null, null, null])
     })
 
     it('goes to the folder the tracks go to, and takes (2) like a track', async () => {
@@ -472,7 +517,7 @@ describe('the single export store', () => {
       await exporter.confirm('Clip')
 
       expect(picker).toHaveBeenCalledOnce()
-      expect(filesOf(folder)).toEqual(['01 One.m4a', 'Clip.m4a', 'Clip (2).m4a'])
+      expect(filesOf(folder)).toEqual(['One.m4a', 'Clip.m4a', 'Clip (2).m4a'])
     })
   })
 
@@ -649,7 +694,7 @@ describe('the single export store', () => {
 
       expect(exporter.status).toBe('failed')
       expect(exporter.failure).toBe('Disk full')
-      expect(folder.log.slice(-2)).toEqual(['abort 01 One.m4a', 'remove 01 One.m4a'])
+      expect(folder.log.slice(-2)).toEqual(['abort One.m4a', 'remove One.m4a'])
       expect(folder.files.size).toBe(0)
       create.mockRestore()
     })
