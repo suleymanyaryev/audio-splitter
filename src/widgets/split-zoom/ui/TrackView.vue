@@ -47,9 +47,10 @@ adds a pending split at the mark and selects it; Shift+Enter adds one where the 
 selecting it, so a tap along a playing track is always taken. Delete and Backspace delete the
 selected pending split and Escape deselects it; with none selected those keys are left alone, since
 removing a track deletes splits and has its own button. `[` and `]` select the previous and next
-track, as a click on its row does. A held Space, Enter, Shift+Enter, `[` or `]` is ignored, so it
-does not start and stop the sound, add pending splits or step over and over. A failure to
-play is said in a line at the bottom of the view.
+track, as a click on its row does; a track that is playing or being decoded plays the new one from
+its start, and a paused or stopped one leaves it resting there. A held Space, Enter, Shift+Enter,
+`[` or `]` is ignored, so it does not start and stop the sound, add pending splits or step over and
+over. A failure to play is said in a line at the bottom of the view.
 
 The player plays the whole track, however long: a track over 10 min is heard through a window that
 moves along it (`model/audition.ts`), which this view does not see.
@@ -251,9 +252,19 @@ Shift is left free, and a held key steps once.
 */
 const STEP_BY_CODE: Record<string, -1 | 1> = { BracketLeft: -1, BracketRight: 1 }
 
-// Whether the key stepped: at the first or last track, or over the discard question, it did not.
+/*
+Whether the key stepped: at the first or last track, or over the discard question, it did not. Sound
+that was on, playing or still decoded, goes on with the new track from its start. It is read before
+the step, which makes the player let go of the old track (`model/audition.ts`); the track that is
+then selected rests at its start, and plays only if the sound was on. After the discard question
+the sound is not carried: the step happens later, from the dialog.
+*/
 function isStepKeyActedOn(event: KeyboardEvent, step: -1 | 1) {
-  return !event.shiftKey && !event.repeat && split.selectAdjacentTrack(step)
+  if (event.shiftKey || event.repeat) return false
+  const wasOn = audition.stretchStatus === 'playing' || audition.stretchStatus === 'loading'
+  const hasStepped = split.selectAdjacentTrack(step)
+  if (hasStepped && wasOn && extent.value !== null) audition.toggleStretch(extent.value)
+  return hasStepped
 }
 
 // Whether the key was the view's: a key it leaves alone is the browser's, and is not reported.

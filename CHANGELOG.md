@@ -20,7 +20,7 @@ Versions follow [Semantic Versioning](https://semver.org/) applied to the produc
 
 ### Added
 
-- In the Track view, `]` selects the next track and `[` the previous one. The keys are the two to the right of P, so they work without a modifier on every keyboard layout, and they do nothing at the first and last track or while you type a track name.
+- In the Track view, `]` selects the next track and `[` the previous one. The keys are the two to the right of P, so they work without a modifier on every keyboard layout, and they do nothing at the first and last track or while you type a track name. A track that is playing or being decoded carries on with the new track from its start; a paused or stopped one rests at its start.
 
 ## [1.3.0] - 2026-11-22
 

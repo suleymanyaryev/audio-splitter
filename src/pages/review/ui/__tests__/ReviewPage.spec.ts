@@ -268,6 +268,11 @@ async function dragSlider(thumb: Element) {
 const NEXT = { key: ']', code: 'BracketRight' }
 const PREVIOUS = { key: '[', code: 'BracketLeft' }
 
+// The player's play action, spied on and replaced, as the playback cases do.
+function spyOnToggleStretch() {
+  return vi.spyOn(useAuditionStore(), 'toggleStretch').mockImplementation(() => {})
+}
+
 // The track list's row that is marked, by the label of its select button.
 const markedTrack = (wrapper: ReturnType<typeof mount>) =>
   wrapper.get('tr[aria-current="true"] [aria-label^="Select track"]').attributes('aria-label')
@@ -2175,6 +2180,133 @@ describe('ReviewPage', () => {
         expect(split.selectedTrack?.number).toBe(2)
         expect(split.pendingSplits).toEqual([30, 50])
         expect(split.selectedPendingSplit).toBe(30)
+      })
+    })
+
+    describe('carrying the sound over', () => {
+      // Track 2 runs 21 s to 71.5 s and track 3 71.5 s to 100 s.
+
+      it.each(['playing', 'loading'] as const)(
+        'play the new track from its start when the track was %s',
+        async (status) => {
+          const wrapper = await mountPageWithTrack(2)
+          const toggleStretch = spyOnToggleStretch()
+          useAuditionStore().stretchStatus = status
+
+          pressKey(NEXT.key, { code: NEXT.code })
+          await wrapper.vm.$nextTick()
+
+          expect(toggleStretch).toHaveBeenCalledExactlyOnceWith({
+            startSeconds: 71.5,
+            endSeconds: 100,
+          })
+        },
+      )
+
+      it('play the previous track from its start on [', async () => {
+        const wrapper = await mountPageWithTrack(2)
+        const toggleStretch = spyOnToggleStretch()
+        useAuditionStore().stretchStatus = 'playing'
+
+        pressKey(PREVIOUS.key, { code: PREVIOUS.code })
+        await wrapper.vm.$nextTick()
+
+        expect(toggleStretch).toHaveBeenCalledExactlyOnceWith({ startSeconds: 0, endSeconds: 21 })
+      })
+
+      it.each(['paused', 'idle'] as const)(
+        'leave the new track resting at its start, with nothing playing, when the track was %s',
+        async (status) => {
+          const wrapper = await mountPageWithTrack(2)
+          const toggleStretch = spyOnToggleStretch()
+          useAuditionStore().stretchStatus = status
+
+          pressKey(NEXT.key, { code: NEXT.code })
+          await wrapper.vm.$nextTick()
+
+          expect(toggleStretch).not.toHaveBeenCalled()
+          expect(useAuditionStore().stretchStatus).toBe('idle')
+          expect(
+            wrapper.get('[aria-label="Playhead in the track"]').attributes('aria-valuenow'),
+          ).toBe('71.5')
+        },
+      )
+
+      it('carry on untouched at ] on the last track', async () => {
+        const wrapper = await mountPageWithTrack(3)
+        const toggleStretch = spyOnToggleStretch()
+        const audition = useAuditionStore()
+        audition.stretchStatus = 'playing'
+
+        pressKey(NEXT.key, { code: NEXT.code })
+        await wrapper.vm.$nextTick()
+
+        expect(toggleStretch).not.toHaveBeenCalled()
+        expect(audition.stretchStatus).toBe('playing')
+      })
+
+      it('carry on untouched at [ on the first track', async () => {
+        const wrapper = await mountPageWithTrack(1)
+        const toggleStretch = spyOnToggleStretch()
+        const audition = useAuditionStore()
+        audition.stretchStatus = 'playing'
+
+        pressKey(PREVIOUS.key, { code: PREVIOUS.code })
+        await wrapper.vm.$nextTick()
+
+        expect(toggleStretch).not.toHaveBeenCalled()
+        expect(audition.stretchStatus).toBe('playing')
+      })
+
+      it('neither step nor play on a held ], a repeat', async () => {
+        const wrapper = await mountPageWithTrack(2)
+        const toggleStretch = spyOnToggleStretch()
+        const audition = useAuditionStore()
+        audition.stretchStatus = 'playing'
+
+        pressKey(NEXT.key, { code: NEXT.code, repeat: true })
+        await wrapper.vm.$nextTick()
+
+        expect(useSplitStore().selectedTrack?.number).toBe(2)
+        expect(toggleStretch).not.toHaveBeenCalled()
+        expect(audition.stretchStatus).toBe('playing')
+      })
+
+      it.each(['Apply first', 'Discard'])(
+        'play nothing while the discard question is open, and the new track rests after "%s"',
+        async (answer) => {
+          const { split } = await mountWithPending()
+          const toggleStretch = spyOnToggleStretch()
+          const audition = useAuditionStore()
+          audition.stretchStatus = 'playing'
+
+          pressKey(NEXT.key, { code: NEXT.code })
+          await flushPromises()
+          expect(question()).not.toBeNull()
+          expect(toggleStretch).not.toHaveBeenCalled()
+          expect(audition.stretchStatus).toBe('playing')
+
+          await clickElement(questionButton(answer))
+
+          expect(split.selectedTrack?.startSeconds).toBe(71.5)
+          expect(toggleStretch).not.toHaveBeenCalled()
+          expect(audition.stretchStatus).toBe('idle')
+        },
+      )
+
+      it('leave the sound alone when the question is cancelled', async () => {
+        const { split } = await mountWithPending()
+        const toggleStretch = spyOnToggleStretch()
+        const audition = useAuditionStore()
+        audition.stretchStatus = 'playing'
+        pressKey(NEXT.key, { code: NEXT.code })
+        await flushPromises()
+
+        await clickElement(questionButton('Cancel'))
+
+        expect(split.selectedTrack?.number).toBe(2)
+        expect(toggleStretch).not.toHaveBeenCalled()
+        expect(audition.stretchStatus).toBe('playing')
       })
     })
 
