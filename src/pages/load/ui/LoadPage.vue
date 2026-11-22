@@ -51,7 +51,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <main class="mx-auto max-w-xl p-4 pt-16">
+  <main class="mx-auto max-w-xl p-8 pt-16">
     <UiPanel title="Load a source file">
       <p>
         One long audio file of tracks played one after another, as .m4a, .mp3 or .opus. Choose it or

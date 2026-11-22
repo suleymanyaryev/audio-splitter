@@ -486,6 +486,20 @@ describe('TrackList', () => {
       )
     })
 
+    it('lights the selected split row with its number in a rust chip, and no other row', async () => {
+      const { split, wrapper } = mountWithTwoGaps()
+      const rows = () => wrapper.findAll('tbody tr')
+      expect(wrapper.findAll('tbody .bg-split')).toHaveLength(0)
+
+      split.selectSplit(split.splits[1]!.id)
+      await wrapper.vm.$nextTick()
+
+      const chips = wrapper.findAll('tbody .bg-split')
+      expect(chips).toHaveLength(1)
+      expect(chips[0]?.text()).toBe('2')
+      expect(rows()[3]?.find('.bg-split').exists()).toBe(true)
+    })
+
     it('is no row when nothing is selected', async () => {
       const { split, wrapper } = mountWithTwoGaps()
 

@@ -86,7 +86,7 @@ watch(
           <tr
             v-if="row.kind === 'track'"
             :aria-current="split.isTrackSelected(row.track) ? 'true' : undefined"
-            class="cursor-pointer scroll-mt-7 hover:bg-land/40"
+            class="cursor-pointer scroll-mt-7 tint-transition hover:bg-land/40"
             :class="split.isTrackSelected(row.track) ? 'bg-land/50 font-semibold' : ''"
             @click="split.selectTrack(row.track)"
           >
@@ -128,11 +128,21 @@ watch(
           <tr
             v-else
             :aria-current="isSplitSelected(row.point) ? 'true' : undefined"
-            class="cursor-pointer scroll-mt-7 hover:bg-land/40"
+            class="cursor-pointer scroll-mt-7 tint-transition hover:bg-land/40"
             :class="isSplitSelected(row.point) ? 'bg-land/50 font-semibold' : ''"
             @click="split.selectSplit(row.point.id)"
           >
-            <td class="border-b border-hairline py-1.5 pr-2"></td>
+            <td class="border-b border-hairline py-1.5 pr-2">
+              <!-- The selected split lights its number in rust, as the whole-file view does; the
+              name beside it already says which split this is. -->
+              <span
+                v-if="isSplitSelected(row.point)"
+                aria-hidden="true"
+                class="inline-flex size-5 items-center justify-center rounded-full bg-split text-xs font-bold text-on-split"
+              >
+                {{ row.number }}
+              </span>
+            </td>
             <td
               class="border-b border-hairline py-1.5 pr-3"
               :class="isSplitSelected(row.point) ? '' : 'text-muted'"

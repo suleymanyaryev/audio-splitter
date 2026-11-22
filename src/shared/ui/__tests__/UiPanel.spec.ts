@@ -34,4 +34,16 @@ describe('UiPanel', () => {
     expect(big.get('h2').classes()).toEqual(expect.arrayContaining(['text-lg', 'font-bold']))
     expect(big.get('h2').classes()).not.toContain('text-base')
   })
+
+  it('sets the split time in the one 32 px figure, and keeps a headline row as tall', () => {
+    const figure = mount(UiPanel, { props: { title: '0:12:36.60', headline: true, display: true } })
+    const big = mount(UiPanel, { props: { title: '0:42:03.25', headline: true } })
+
+    expect(figure.get('h2').classes()).toEqual(
+      expect.arrayContaining(['text-display', 'font-semibold']),
+    )
+    expect(figure.get('h2').classes()).not.toContain('text-lg')
+    expect(figure.get('h2').element.parentElement?.classList).toContain('min-h-9')
+    expect(big.get('h2').element.parentElement?.classList).toContain('min-h-9')
+  })
 })

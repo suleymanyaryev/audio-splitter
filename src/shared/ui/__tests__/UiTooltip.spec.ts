@@ -11,9 +11,9 @@ function tooltipText() {
   return document.querySelector('[role="tooltip"]')?.textContent
 }
 
-function mountTooltip(hint?: string) {
+function mountTooltip(hint?: string, isDisabled?: boolean) {
   return mount(UiTooltip, {
-    props: { label: 'Add split', hint },
+    props: { label: 'Add split', hint, disabled: isDisabled },
     slots: { default: '<button type="button">+</button>' },
     attachTo: document.body,
   })
@@ -73,5 +73,13 @@ describe('UiTooltip', () => {
     await wrapper.get('button').trigger('focus')
 
     expect(tooltipText()).toBe('Add split (Enter)')
+  })
+
+  it('shows nothing while disabled, even on focus', async () => {
+    const wrapper = mountTooltip(undefined, true)
+
+    await wrapper.get('button').trigger('focus')
+
+    expect(tooltipText()).toBeUndefined()
   })
 })

@@ -1,6 +1,8 @@
 import { mount } from '@vue/test-utils'
-import { afterEach, describe, expect, it, vi } from 'vitest'
-import { defineComponent, h, shallowRef } from 'vue'
+import { afterEach, describe, expect, it, type Mock, vi } from 'vitest'
+import { defineComponent, h, nextTick, shallowRef } from 'vue'
+
+import { useTheme } from '@/shared/lib/theme/theme.ts'
 
 import { useCanvasRedraw } from '../use-canvas-redraw.ts'
 
@@ -8,18 +10,14 @@ type Watching = {
   observed: Element[]
   onResize: (() => void) | undefined
   disconnect: () => void
-  onSchemeChange: (() => void) | undefined
-  removeSchemeListener: () => void
 }
 
-// Stands in for the browser's observers and records what the composable registers with them.
+// Stands in for the browser's resize observer and records what the composable registers with it.
 function stubBrowserWatchers(): Watching {
   const watching: Watching = {
     observed: [],
     onResize: undefined,
     disconnect: vi.fn(),
-    onSchemeChange: undefined,
-    removeSchemeListener: vi.fn(),
   }
   vi.stubGlobal(
     'ResizeObserver',
@@ -35,16 +33,19 @@ function stubBrowserWatchers(): Watching {
       }
     },
   )
-  vi.stubGlobal('matchMedia', () => ({
-    addEventListener: (_type: string, listener: () => void) => {
-      watching.onSchemeChange = listener
-    },
-    removeEventListener: watching.removeSchemeListener,
-  }))
   return watching
 }
 
 const renderEmpty = () => h('div')
+
+// The first draw is followed by one more when the fonts are ready; wait it out before counting.
+async function mountSettledCanvas(draw: Mock<() => void>) {
+  const mounted = mountCanvas(draw)
+  await document.fonts.ready
+  await nextTick()
+  draw.mockClear()
+  return mounted
+}
 
 function mountCanvas(draw: () => void) {
   const element = document.createElement('canvas')
@@ -61,6 +62,7 @@ function mountCanvas(draw: () => void) {
 
 afterEach(() => {
   vi.unstubAllGlobals()
+  useTheme().setThemeChoice('system')
 })
 
 describe('useCanvasRedraw', () => {
@@ -74,29 +76,59 @@ describe('useCanvasRedraw', () => {
     expect(watching.observed).toEqual([element])
   })
 
-  it('draws again on a resize, a colour scheme change and once the fonts are ready', async () => {
-    const watching = stubBrowserWatchers()
+  it('draws again once the fonts are ready', async () => {
+    stubBrowserWatchers()
     const draw = vi.fn()
     mountCanvas(draw)
     draw.mockClear()
 
-    watching.onResize?.()
-    expect(draw).toHaveBeenCalledTimes(1)
-
-    watching.onSchemeChange?.()
-    expect(draw).toHaveBeenCalledTimes(2)
-
     await document.fonts.ready
-    expect(draw).toHaveBeenCalledTimes(3)
+
+    expect(draw).toHaveBeenCalledOnce()
   })
 
-  it('stops watching when the component unmounts', () => {
+  it('draws again on a resize', async () => {
     const watching = stubBrowserWatchers()
-    const { wrapper } = mountCanvas(vi.fn())
+    const draw = vi.fn()
+    await mountSettledCanvas(draw)
+
+    watching.onResize?.()
+
+    expect(draw).toHaveBeenCalledOnce()
+  })
+
+  it('draws again when the theme in effect changes', async () => {
+    stubBrowserWatchers()
+    const draw = vi.fn()
+    await mountSettledCanvas(draw)
+
+    useTheme().setThemeChoice('dark')
+    await nextTick()
+
+    expect(draw).toHaveBeenCalledOnce()
+  })
+
+  it('does not draw again for a choice that leaves the theme in effect as it was', async () => {
+    stubBrowserWatchers()
+    const draw = vi.fn()
+    await mountSettledCanvas(draw)
+
+    useTheme().setThemeChoice('light')
+    await nextTick()
+
+    expect(draw).not.toHaveBeenCalled()
+  })
+
+  it('stops watching when the component unmounts', async () => {
+    const watching = stubBrowserWatchers()
+    const draw = vi.fn()
+    const { wrapper } = await mountSettledCanvas(draw)
 
     wrapper.unmount()
+    useTheme().setThemeChoice('dark')
+    await nextTick()
 
     expect(watching.disconnect).toHaveBeenCalledOnce()
-    expect(watching.removeSchemeListener).toHaveBeenCalledWith('change', watching.onSchemeChange)
+    expect(draw).not.toHaveBeenCalled()
   })
 })

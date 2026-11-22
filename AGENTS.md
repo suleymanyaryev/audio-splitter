@@ -71,6 +71,7 @@ The list says where, not what: one line per slice on what it is for. It changes 
 - `src/entities/split/`: The splits and what derives from them
 - `src/shared/api/ffmpeg/`: The ffmpeg.wasm session
 - `src/shared/lib/audio/`: Hand-written signal maths
+- `src/shared/lib/theme/`: The theme choice and the theme in effect
 - `src/shared/lib/time/`: Time formatting and rounding
 - `src/shared/lib/keyboard/`: Page-level keys
 - `src/shared/lib/canvas/`: Drawing the canvases share
@@ -97,7 +98,7 @@ Fix a finding by removing the unused file, export or dependency after checking e
 
 - Vitest + jsdom + `@vue/test-utils`; `vitest.setup.ts` fills the browser APIs jsdom lacks. Specs are `__tests__/*.spec.ts` next to the code they cover (nowhere else is collected) and import `describe`/`it`/`expect` from `vitest`.
 - Specs for Node-side code start with `// @vitest-environment node`.
-- Playwright specs live in `e2e/`, typed by `e2e/tsconfig.json`: `export.spec.ts` runs on the dev server, `stored-core.spec.ts` on a production build (`playwright.config.ts`). Each spec's header says what it checks and how.
+- Playwright specs live in `e2e/`, typed by `e2e/tsconfig.json`: `export.spec.ts` and `theme.spec.ts` run on the dev server, `stored-core.spec.ts` on a production build (`playwright.config.ts`). Each spec's header says what it checks and how.
 - `scripts/*.ts` run under Node type stripping: erasable syntax only and `.ts` extensions on relative imports (`tsconfig.node.json` enforces both).
 
 ## Agent skills

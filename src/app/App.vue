@@ -1,22 +1,32 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
-import { CircleQuestionMark } from 'lucide-vue-next'
+import { computed, ref, type Component } from 'vue'
+import { CircleQuestionMark, Monitor, Moon, Sun } from 'lucide-vue-next'
 
 import { useSourceFileStore } from '@/entities/source-file/model/source-file.ts'
 import { formatLoss } from '@/entities/split/lib/format-edits.ts'
 import { useSplitStore } from '@/entities/split/model/split.ts'
 import LoadPage from '@/pages/load/ui/LoadPage.vue'
 import ReviewPage from '@/pages/review/ui/ReviewPage.vue'
+import { useTheme, type ThemeChoice } from '@/shared/lib/theme/theme.ts'
 import { formatDuration } from '@/shared/lib/time/format-duration.ts'
 import UiButton from '@/shared/ui/UiButton.vue'
 import UiDialog from '@/shared/ui/UiDialog.vue'
 import UiIconButton from '@/shared/ui/UiIconButton.vue'
+import UiSegmentedControl from '@/shared/ui/UiSegmentedControl.vue'
 import { useShortcutsDialogStore } from '@/widgets/shortcuts-dialog/model/shortcuts-dialog.ts'
 
 // No router: the page follows whether a file is loaded (docs/adr/0001-fsd-subset.md).
 const sourceFile = useSourceFileStore()
 const split = useSplitStore()
 const shortcuts = useShortcutsDialogStore()
+
+// The header's theme switch: the module owns the choice, the control only shows and sets it.
+const { themeChoice, setThemeChoice } = useTheme()
+const THEME_OPTIONS: { value: ThemeChoice; label: string; icon: Component }[] = [
+  { value: 'system', label: 'System', icon: Monitor },
+  { value: 'light', label: 'Light', icon: Sun },
+  { value: 'dark', label: 'Dark', icon: Moon },
+]
 
 // The file chip: the name while loading, then its duration once the probe has read it.
 const chip = computed(() => {
@@ -41,24 +51,27 @@ function discardAndReset() {
 </script>
 
 <template>
-  <!-- The band's tokens have no dark values, so it stays vinyl black in both themes. -->
-  <header
-    class="flex h-12 items-center gap-4 border-b border-vinyl-edge bg-vinyl px-4 text-on-vinyl"
-  >
-    <!-- The centre-label mark: a vermilion disc with a spindle hole. -->
-    <span aria-hidden="true" class="grid size-5 shrink-0 place-items-center rounded-full bg-split">
-      <span class="size-1.5 rounded-full bg-vinyl" />
+  <header class="flex h-14 items-center gap-4 border-b border-band-edge bg-band px-8 text-on-band">
+    <!-- The mark: a sea-mist disc with a hole. -->
+    <span aria-hidden="true" class="grid size-5 shrink-0 place-items-center rounded-full bg-mark">
+      <span class="size-1.5 rounded-full bg-band" />
     </span>
     <span class="text-lg font-bold">Audio Splitter</span>
     <span
       v-if="chip"
-      class="min-w-0 truncate rounded-control border border-vinyl-edge px-2.5 py-1 text-xs font-semibold"
+      class="min-w-0 truncate rounded-control border border-band-edge px-2.5 py-1 text-xs font-semibold"
     >
       {{ chip }}
     </span>
-    <span class="ml-auto shrink-0 text-xs text-on-vinyl-muted"
-      >Local only · nothing is uploaded</span
-    >
+    <UiSegmentedControl
+      class="ml-auto"
+      variant="inverse"
+      label="Theme"
+      :options="THEME_OPTIONS"
+      :model-value="themeChoice"
+      @update:model-value="setThemeChoice"
+    />
+    <span class="shrink-0 text-xs text-on-band-muted">Local only · nothing is uploaded</span>
     <UiIconButton
       v-if="sourceFile.status === 'ready'"
       variant="inverse"

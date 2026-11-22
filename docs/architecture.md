@@ -29,7 +29,7 @@ flowchart TB
   end
   subgraph sharedLayer["shared"]
     ffmpeg["api/ffmpeg"]
-    lib["lib: audio, canvas,<br/>keyboard, time"]
+    lib["lib: audio, canvas,<br/>keyboard, theme, time"]
     ui["ui kit"]
   end
   appLayer --> pagesLayer --> widgetsLayer --> entitiesLayer --> sharedLayer
@@ -39,7 +39,7 @@ An arrow means "may import from". Two slices of one layer never import each othe
 
 ## The stores
 
-All state lives in Pinia setup stores, in memory. Only the volume and mute flag are also saved, in `localStorage`.
+All state lives in Pinia setup stores, in memory, except the theme ([below](#the-theme)). Only the volume, the mute flag and the theme choice are also saved, in `localStorage`.
 
 | Store              | Slice                      | Holds                                                        |
 | ------------------ | -------------------------- | ------------------------------------------------------------ |
@@ -79,6 +79,17 @@ flowchart LR
 - **One selection at a time:** a split, a track or nothing.
 - **Changes that drop the user's work ask first.** A setting change or "New file" goes through a replace guard. Any other action that would drop pending splits is held as a question in `split` (see `unlessItDiscards` in `split.ts`).
 - **The two export stores can't import each other**, so `export-lock` sits between them.
+
+## The theme
+
+[`theme.ts`](../src/shared/lib/theme/theme.ts) in `shared/lib/theme` holds the theme choice (`system`, `light` or `dark`) and the theme in effect (`light` or `dark`) as plain Vue state, not a store, so the kit and the canvases can read it from any layer.
+
+- The choice is saved in `localStorage` and read back on start.
+- The theme in effect is the choice, or the OS's scheme while the choice is `system`. The OS is listened to only then.
+- It sets `data-theme` and `color-scheme` on `<html>`. The CSS keys its one dark block on the attribute.
+- A script in the head of `index.html` sets the same two from the same saved choice before the first paint. `startTheme` in `main.ts` takes over from there.
+- The switch in the header (`App.vue`) shows the choice and sets it.
+- `useCanvasRedraw` redraws every canvas when the theme in effect changes.
 
 ## The ffmpeg session
 

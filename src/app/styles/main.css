@@ -1,35 +1,39 @@
 @import 'tailwindcss';
 
 @font-face {
-  font-family: 'Manrope';
-  src: url('./fonts/manrope-variable.woff2') format('woff2');
-  font-weight: 200 800;
+  font-family: 'Albert Sans';
+  src: url('./fonts/albert-sans-variable.woff2') format('woff2');
+  font-weight: 100 900;
   font-style: normal;
   font-display: swap;
 }
 
 @theme static {
-  --font-sans: 'Manrope', ui-sans-serif, system-ui, sans-serif;
+  --font-sans: 'Albert Sans', ui-sans-serif, system-ui, sans-serif;
 
-  --color-ground: #f7f7f5; /* sleeve white: page behind the panels */
-  --color-surface: #ffffff; /* panels, inputs, secondary buttons */
-  --color-ink: #121212; /* text, primary button, focus ring */
-  --color-muted: #5e6066; /* secondary text, axis labels */
-  --color-hairline: #e2e3e0; /* panel borders, row rules, slider track */
-  --color-edge: #8a8d93; /* control borders: 3:1 against surface */
-  --color-wave: #3a3a3a; /* waveform and loudness curve */
-  --color-track: #3a3a3a; /* track blocks in the strip */
-  --color-on-track: #ffffff;
-  --color-land: #c9ccd1; /* gaps: the smooth band between tracks */
-  --color-split: #c8341f; /* centre-label vermilion: splits, threshold, danger, invalid */
+  --color-ground: #e3e8e6; /* fog: page behind the panels */
+  --color-surface: #fafbfa; /* sleeve white: panels, inputs, secondary buttons */
+  --color-ink: #1b2326; /* graphite: text, focus ring */
+  --color-muted: #55615e; /* secondary text, axis labels */
+  --color-hairline: #d2d9d6; /* panel borders, row rules, slider track */
+  --color-edge: #7f8b88; /* control borders: 3:1 against surface */
+  --color-wave: #2c3639; /* waveform and loudness curve: graphite */
+  --color-track: #3b4f57; /* track blocks in the strip: slate */
+  --color-on-track: #f2f5f4;
+  --color-land: #bcd2cd; /* gaps: one sea-mist field in every view */
+  --color-split: #b83e0b; /* rust: splits, threshold, danger, invalid */
   --color-on-split: #ffffff;
-  --color-vinyl: #121212; /* header band: the same in both themes */
-  --color-on-vinyl: #ededea;
-  --color-on-vinyl-muted: #a3a5aa;
-  --color-vinyl-edge: #3a3a3a;
+  --color-fill: #26343a; /* slate fill of the pressable things: primary button, Play, Export */
+  --color-fill-hover: #3b4f57;
+  --color-on-fill: #f2f5f4;
+  --color-band: #26343a; /* header band */
+  --color-on-band: #e6eeec;
+  --color-on-band-muted: #a3b5b2;
+  --color-band-edge: #3a4a51;
+  --color-mark: #bcd2cd; /* the header's mark: sea-mist, the same in both themes */
 
-  --radius-control: 6px;
-  --radius-panel: 8px;
+  --radius-control: 3px;
+  --radius-panel: 4px;
 
   --text-xs: 12px;
   --text-xs--line-height: 16px;
@@ -39,32 +43,35 @@
   --text-base--line-height: 24px;
   --text-lg: 20px;
   --text-lg--line-height: 28px;
+  --text-display: 32px; /* the split's time: the one large figure */
+  --text-display--line-height: 36px;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --color-ground: #0e0e0e;
-    --color-surface: #171717;
-    --color-ink: #ededea;
-    --color-muted: #a3a5aa;
-    --color-hairline: #2a2b2d;
-    --color-edge: #6e7076;
-    --color-wave: #b9bcc1;
-    --color-track: #5c5e63;
-    --color-on-track: #ededea;
-    --color-land: #383a3e;
-    --color-split: #ff5a43;
-    --color-on-split: #0e0e0e;
-  }
+[data-theme='dark'] {
+  --color-ground: #101618;
+  --color-surface: #182023;
+  --color-ink: #e2e9e7;
+  --color-muted: #98a6a3;
+  --color-hairline: #263033;
+  --color-edge: #6b7977;
+  --color-wave: #b4c0bd;
+  --color-track: #4c6670;
+  --color-on-track: #f0f4f3;
+  --color-land: #24403d;
+  --color-split: #f28a4e;
+  --color-on-split: #101618;
+  --color-fill: #8fb0ba;
+  --color-fill-hover: #a8c5ce;
+  --color-on-fill: #101618;
+  --color-band: #0b1012;
+  --color-on-band: #e2e9e7;
+  --color-on-band-muted: #8fa19e;
+  --color-band-edge: #263033;
 }
 
 @layer base {
-  html {
-    color-scheme: light dark;
-  }
   body {
-    @apply bg-ground text-ink font-sans text-sm antialiased;
-    font-variant-numeric: tabular-nums;
+    @apply bg-ground font-sans text-sm text-ink antialiased;
   }
   ::selection {
     background: var(--color-land);
@@ -74,4 +81,17 @@
 
 @utility focus-ring {
   @apply outline-2 outline-offset-2 outline-ink;
+}
+
+/*
+Colour-only easing for controls and for selection, off under reduced motion. One utility so every
+kit component and every selected row eases the same way.
+*/
+@utility tint-transition {
+  transition-property: color, background-color, border-color;
+  transition-duration: 120ms;
+  transition-timing-function: ease-out;
+  @media (prefers-reduced-motion: reduce) {
+    transition: none;
+  }
 }

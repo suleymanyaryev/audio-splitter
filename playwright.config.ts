@@ -30,8 +30,8 @@ const config = defineConfig({
   },
   /*
   The installed Google Chrome (`channel: 'chrome'`), the same browser the playwright-cli skill
-  drives, so no Playwright browser build is ever downloaded. The export spec runs on the dev
-  server; the stored-core spec on a production build, the only place the service worker is
+  drives, so no Playwright browser build is ever downloaded. The export and theme specs run on
+  the dev server; the stored-core spec on a production build, the only place the service worker is
   registered.
   */
   projects: [

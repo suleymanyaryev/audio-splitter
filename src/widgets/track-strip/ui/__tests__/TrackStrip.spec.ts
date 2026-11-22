@@ -263,7 +263,7 @@ describe('TrackStrip', () => {
       expect(wrapper.findAll('button[aria-current]')).toHaveLength(0)
     })
 
-    it('is land at rest and vermilion when hovered, focused or selected', async () => {
+    it('is land at rest and rust when hovered, focused or selected', async () => {
       const { split, wrapper } = await mountWithTwoGaps()
       split.selectSplit(split.splits[0]!.id)
       await wrapper.vm.$nextTick()
@@ -273,6 +273,27 @@ describe('TrackStrip', () => {
       expect(other?.classes()).not.toContain('bg-split')
       expect(other?.classes()).toContain('hover:bg-split')
       expect(other?.classes()).toContain('focus-visible:bg-split')
+    })
+
+    it('draws a focus ring on top of the rust fill, so a focused item differs from a selected one', async () => {
+      const { wrapper } = await mountWithTwoGaps()
+
+      for (const item of splitItems(wrapper)) {
+        expect(item.classes()).toEqual(
+          expect.arrayContaining(['focus-visible:outline-2', 'focus-visible:outline-ink']),
+        )
+        expect(item.classes()).not.toContain('focus-visible:outline-none')
+      }
+    })
+
+    it('carries a rust rule at every split, selected or not', async () => {
+      const { wrapper } = await mountWithTwoGaps()
+
+      for (const item of splitItems(wrapper)) {
+        expect(item.classes()).toEqual(
+          expect.arrayContaining(['after:bg-split', 'after:w-0.5', 'tint-transition']),
+        )
+      }
     })
 
     it('follows a split that is added', async () => {
