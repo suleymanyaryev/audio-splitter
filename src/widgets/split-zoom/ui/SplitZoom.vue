@@ -27,10 +27,10 @@ split is a wider line with a drag handle at its top. The handle is a real elemen
 it can be reached with Tab and read by a screen reader. The view takes the page's keys, wherever the
 focus is: Left and Right move the split 10 ms, with Shift 100 ms, Delete (Backspace too, the delete
 key of a Mac keyboard) deletes it, and `[` and `]` select the previous and next split, as a click
-on it does. Space plays the clip across the split or stops it, as the "Play across split"
-button does (ticket 14); while it plays a 1 px ink line shows where the sound is, and a failure to
-play is said in a line at the bottom of the view. A held Space, `[` or `]` is ignored, so it does
-not start and stop the sound or step over and over.
+on it does. Space plays the clip across the split or stops it, as the "Play across split" button
+does (ticket 14); while it plays a 1 px ink line shows where the sound is, and a failure to play is
+said in a line at the bottom of the view. A held Space, `[` or `]` is ignored, so it does not start
+and stop the sound or step over and over.
 */
 
 // DESIGN.md: the whole canvas is framed in 1.5 px ink; the run-out line is 1 px.

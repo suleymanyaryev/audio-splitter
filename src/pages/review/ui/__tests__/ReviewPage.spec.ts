@@ -2039,9 +2039,7 @@ describe('ReviewPage', () => {
     it('works on a layout where the keys type other characters, by their physical code', async () => {
       const wrapper = await mountPageWithTrack(1)
 
-      /*
-      German: the key right of P types ü and, next to it, +; the brackets are AltGr 8 and 9.
-      */
+      // German: the key right of P types ü and, next to it, +; the brackets are AltGr 8 and 9.
       pressKey('+', { code: NEXT.code })
       await wrapper.vm.$nextTick()
 
