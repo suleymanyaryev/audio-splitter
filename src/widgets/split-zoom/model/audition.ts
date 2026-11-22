@@ -7,13 +7,10 @@ import { useSplitStore } from '@/entities/split/model/split.ts'
 import { decibelsToGain } from '@/shared/lib/audio/decibels-to-gain.ts'
 import { readSavedPlaySpeed, savePlaySpeed } from '../api/saved-play-speed.ts'
 import { readSavedVolume, saveVolume } from '../api/saved-volume.ts'
-import {
-  MAX_PLAY_SPEED,
-  MIN_PLAY_SPEED,
-  PLAY_SPEED_STEP,
-} from '../config/play-speed.ts'
+import { MAX_PLAY_SPEED, MIN_PLAY_SPEED } from '../config/play-speed.ts'
 import { MAX_VOLUME_DB, MIN_VOLUME_DB } from '../config/volume.ts'
 import { decodeWindow, nextWindow, windowHolds } from '../lib/decode-window.ts'
+import { snapPlaySpeed } from '../lib/snap-play-speed.ts'
 
 // How far the audition reaches either side of the split.
 const REACH_SECONDS = 4
@@ -164,9 +161,7 @@ export const useAuditionStore = defineStore('audition', () => {
   function setPlaySpeed(speed: number) {
     // Not a number: nothing changes.
     if (!Number.isFinite(speed)) return
-    // Divide by the step and back by its inverse, so 1.3 stays 1.3 and not 1.3000000000000003.
-    const onGrid = Math.round(speed / PLAY_SPEED_STEP) / Math.round(1 / PLAY_SPEED_STEP)
-    playSpeed.value = Math.min(Math.max(onGrid, MIN_PLAY_SPEED), MAX_PLAY_SPEED)
+    playSpeed.value = Math.min(Math.max(snapPlaySpeed(speed), MIN_PLAY_SPEED), MAX_PLAY_SPEED)
   }
 
   /*

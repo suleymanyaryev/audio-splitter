@@ -385,7 +385,7 @@ Character: firm and quiet; ink does the talking, colour only for danger.
 
 ### Tooltip
 
-Reka `TooltipProvider` / `TooltipRoot` / `TooltipTrigger` / `TooltipContent`, wrapped as `UiTooltip` (a `label`, an optional `hint` and a `disabled` switch); the icon button and an icon option of the segmented control use it. The trigger is the control itself, so it keeps its own focus and click.
+Reka `TooltipProvider` / `TooltipRoot` / `TooltipTrigger` / `TooltipContent`, wrapped as `UiTooltip` (a `label`, an optional `hint` and a `disabled` switch); the icon button, an icon option of the segmented control and the play speed's reset button use it. The trigger is the control itself, so it keeps its own focus and click.
 
 - **Opens** on hover after 400 ms and on keyboard focus at once; **closes** on pointer leave, on blur, on Escape and on a press. A disabled button takes no keyboard focus, so only hover shows its tooltip (Chrome does).
 - **Content:** `z-50 rounded-control bg-ink px-2 py-1 text-xs font-semibold whitespace-nowrap text-surface`, above the trigger with a 6 px gap: an inverted chip in Caption-strong, the same ink and surface as the primary button, so it holds in both themes. Text only, "Label (Key)". No arrow, no shadow, no animation: the Flat Sleeve Rule applies here as to everything that lies over the page.

@@ -2,21 +2,17 @@ import {
   DEFAULT_PLAY_SPEED,
   MAX_PLAY_SPEED,
   MIN_PLAY_SPEED,
-  PLAY_SPEED_STEP,
   PLAY_SPEED_STORAGE_KEY,
 } from '../config/play-speed.ts'
-
-// How many steps from zero a play speed is: 1.3 is 13, where 1.3 / 0.1 is 13.000000000000002.
-const stepsOf = (speed: number) => Math.round(speed / PLAY_SPEED_STEP)
+import { snapPlaySpeed } from '../lib/snap-play-speed.ts'
 
 // A number on the slider's grid, from the slowest to the fastest: anything else was not saved by this app.
 function isPlaySpeed(value: unknown): value is number {
-  if (typeof value !== 'number' || !Number.isFinite(value)) return false
-  const steps = stepsOf(value)
   return (
-    Math.abs(value - steps * PLAY_SPEED_STEP) < 1e-9 &&
-    steps >= stepsOf(MIN_PLAY_SPEED) &&
-    steps <= stepsOf(MAX_PLAY_SPEED)
+    typeof value === 'number' &&
+    value >= MIN_PLAY_SPEED &&
+    value <= MAX_PLAY_SPEED &&
+    snapPlaySpeed(value) === value
   )
 }
 
