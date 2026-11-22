@@ -33,6 +33,7 @@ import { useQuestionMarkKey } from '@/widgets/shortcuts-dialog/lib/use-question-
 import { useShortcutsDialogStore } from '@/widgets/shortcuts-dialog/model/shortcuts-dialog.ts'
 import ShortcutsDialog from '@/widgets/shortcuts-dialog/ui/ShortcutsDialog.vue'
 import { useAuditionStore } from '@/widgets/split-zoom/model/audition.ts'
+import PlaySpeedControl from '@/widgets/split-zoom/ui/PlaySpeedControl.vue'
 import RangeView from '@/widgets/split-zoom/ui/RangeView.vue'
 import SplitZoom from '@/widgets/split-zoom/ui/SplitZoom.vue'
 import TrackView from '@/widgets/split-zoom/ui/TrackView.vue'
@@ -62,8 +63,9 @@ selected), and "Play across split", which plays the selected split's clip (and r
 it loads or plays). The
 Range view and the Track view have "Play", which plays the range or the selected track (and reads
 "Stop" while it is decoded and "Pause" while it plays), and "Back to range start" or "Back to track
-start" beside it, which moves the playhead to the stretch's start. The volume control (a mute button
-and a slider) ends the row in all three views.
+start" beside it, which moves the playhead to the stretch's start. The play speed control (a button
+that shows the speed and resets it, and a slider) and then the volume control (a mute button and a
+slider) end the row in all three views.
 
 The split store holds back an action that would discard pending splits as its one open question,
 and this page shows it: "Discard N pending splits?" with Apply first, Discard and Cancel, the
@@ -366,6 +368,7 @@ watch(
         >
           <FileDown class="size-4 shrink-0" />
         </UiIconButton>
+        <PlaySpeedControl />
         <VolumeControl />
       </template>
       <!-- Capturing, so a press the view handles itself still clears the saved line. -->

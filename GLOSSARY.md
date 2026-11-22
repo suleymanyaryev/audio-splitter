@@ -88,6 +88,10 @@ _Avoid_: Cursor, marker, ghost playhead
 The 1 px line that marks the point being heard, or where playback will resume: in the Split view during an audition, and in the Range view and the Track view always.
 _Avoid_: Cursor, scrubber, position marker
 
+**Play speed**:
+How fast the source file is heard against real time, 0.5× to 2.0×, with its pitch kept. It changes only what is heard, never an export.
+_Avoid_: Playback rate, tempo, rate
+
 **Loudness curve**:
 The loudness of the source file over time, one value in decibels per short window.
 _Avoid_: Energy curve, RMS curve, volume graph

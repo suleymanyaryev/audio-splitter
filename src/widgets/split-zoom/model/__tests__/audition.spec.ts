@@ -3,6 +3,7 @@ import { createPinia, setActivePinia } from 'pinia'
 
 import { FileReplacedError, useSourceFileStore } from '@/entities/source-file/model/source-file.ts'
 import { useSplitStore } from '@/entities/split/model/split.ts'
+import { PLAY_SPEED_STORAGE_KEY } from '../../config/play-speed.ts'
 import { VOLUME_STORAGE_KEY } from '../../config/volume.ts'
 import { trackExtent } from '../../lib/track-extent.ts'
 import { useAuditionStore } from '../audition.ts'
@@ -172,7 +173,23 @@ describe('the audition store', () => {
     setActivePinia(createPinia())
     play = vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue()
     pause = vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => {})
-    vi.spyOn(HTMLMediaElement.prototype, 'load').mockImplementation(() => {})
+    /*
+    Like Chrome, and unlike jsdom: a new source, or a load, resets the element's rate to its default
+    rate (the media spec's "load algorithm"; docs/adr/0004-time-stretching-by-the-browser.md).
+    */
+    vi.spyOn(HTMLMediaElement.prototype, 'load').mockImplementation(function (
+      this: HTMLMediaElement,
+    ) {
+      this.playbackRate = this.defaultPlaybackRate
+    })
+    const setSource = Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, 'src')!.set!
+    vi.spyOn(HTMLMediaElement.prototype, 'src', 'set').mockImplementation(function (
+      this: HTMLMediaElement,
+      value: string,
+    ) {
+      setSource.call(this, value)
+      this.playbackRate = this.defaultPlaybackRate
+    })
     let urls = 0
     createObjectURL = vi.fn(() => `blob:clip-${++urls}`)
     revokeObjectURL = vi.fn()
@@ -1908,6 +1925,293 @@ describe('the audition store', () => {
       expect(audition.volumeDecibels).toBe(-10)
       expect(audio().volume).toBeCloseTo(0.3162, 4)
       expect(audio().muted).toBe(true)
+    })
+  })
+
+  /*
+  The play speed (docs/concepts/10-speed-without-pitch.md, docs/adr/0004-time-stretching-by-the-browser.md):
+  0.5 to 2.0 in steps of 0.1, applied to the one element with the pitch kept. A new source resets an
+  element's rate to its default rate, as the fake element does here as Chrome does.
+  */
+  describe('play speed', () => {
+    it('starts at 1.0', () => {
+      const { audition } = setUp()
+
+      expect(audition.playSpeed).toBe(1)
+    })
+
+    it('gives a new element the play speed set before it was made, with the pitch kept', async () => {
+      const { audition } = setUp()
+      audition.setPlaySpeed(1.5)
+
+      audition.toggle()
+      await flush()
+
+      expect(audio().playbackRate).toBe(1.5)
+      expect(audio().preservesPitch).toBe(true)
+    })
+
+    it('gives a new element the normal speed by default, with the pitch kept', async () => {
+      await playing()
+
+      expect(audio().playbackRate).toBe(1)
+      expect(audio().preservesPitch).toBe(true)
+    })
+
+    it('changes the speed of sound that is already playing, at once and without a stop', async () => {
+      const { audition } = await playing()
+      const played = play.mock.calls.length
+
+      audition.setPlaySpeed(2)
+      expect(audio().playbackRate).toBe(2)
+
+      audition.setPlaySpeed(0.5)
+      expect(audio().playbackRate).toBe(0.5)
+      expect(audio().preservesPitch).toBe(true)
+      expect(audition.status).toBe('playing')
+      expect(play).toHaveBeenCalledTimes(played)
+      expect(pause).not.toHaveBeenCalled()
+    })
+
+    it('plays a range and a track at the play speed too', async () => {
+      const range = await playingRange()
+      range.audition.setPlaySpeed(1.3)
+      expect(audio().playbackRate).toBeCloseTo(1.3, 10)
+      range.audition.stop()
+
+      const track = await playingTrack()
+      expect(audio().playbackRate).toBeCloseTo(1.3, 10)
+      track.audition.setPlaySpeed(0.7)
+      expect(audio().playbackRate).toBeCloseTo(0.7, 10)
+      expect(audio().preservesPitch).toBe(true)
+    })
+
+    it('holds the speed to 0.5 to 2.0, in steps of 0.1', () => {
+      const { audition } = setUp()
+
+      audition.setPlaySpeed(1.26)
+      expect(audition.playSpeed).toBeCloseTo(1.3, 10)
+
+      audition.setPlaySpeed(1.24)
+      expect(audition.playSpeed).toBeCloseTo(1.2, 10)
+
+      audition.setPlaySpeed(0.3)
+      expect(audition.playSpeed).toBe(0.5)
+
+      audition.setPlaySpeed(-1)
+      expect(audition.playSpeed).toBe(0.5)
+
+      audition.setPlaySpeed(3)
+      expect(audition.playSpeed).toBe(2)
+    })
+
+    it('ignores a value that is not a number, and keeps the speed it had', async () => {
+      const { audition } = await playing()
+      audition.setPlaySpeed(1.5)
+
+      audition.setPlaySpeed(NaN)
+      audition.setPlaySpeed(Infinity)
+
+      expect(audition.playSpeed).toBe(1.5)
+      expect(audio().playbackRate).toBe(1.5)
+    })
+
+    describe('survives a new source', () => {
+      it('after a new clip: the audition played again', async () => {
+        const { audition } = await playing()
+        audition.setPlaySpeed(1.5)
+
+        audition.stop()
+        audition.toggle()
+        await flush()
+
+        expect(audition.status).toBe('playing')
+        expect(audio().playbackRate).toBe(1.5)
+        expect(audio().preservesPitch).toBe(true)
+      })
+
+      it('after the audition gives way to a range', async () => {
+        const { audition, split } = await playing()
+        audition.setPlaySpeed(1.5)
+        split.setRange(10, 30)
+
+        audition.toggleStretch(rangeStretch())
+        await flush()
+
+        expect(audition.stretchStatus).toBe('playing')
+        expect(audio().playbackRate).toBe(1.5)
+        expect(audio().preservesPitch).toBe(true)
+      })
+
+      it('after the held clip is released', async () => {
+        const { audition } = await playing()
+        audition.setPlaySpeed(1.8)
+
+        audition.stop()
+
+        expect(audio().playbackRate).toBeCloseTo(1.8, 10)
+      })
+
+      it('after a new range, and after another track, replaces the held one', async () => {
+        const range = await playingRange()
+        range.audition.setPlaySpeed(0.8)
+
+        range.split.setRange(30, 50)
+        range.audition.toggleStretch(rangeStretch())
+        await flush()
+        expect(audio().playbackRate).toBeCloseTo(0.8, 10)
+
+        range.split.selectTrack(range.split.tracks[2]!)
+        range.audition.stop()
+        range.audition.toggleStretch(trackStretchOfSelection())
+        await flush()
+        expect(audio().playbackRate).toBeCloseTo(0.8, 10)
+      })
+
+      it('after a seek of a long track outside the window held', async () => {
+        const { audition } = await playingLongTrack()
+        audition.setPlaySpeed(2)
+
+        audition.seekStretch(longStretch(), 800)
+        await flush()
+
+        expect(audition.stretchStatus).toBe('playing')
+        expect(audio().playbackRate).toBe(2)
+        expect(audio().preservesPitch).toBe(true)
+      })
+
+      it('after a long track hands over to the window ahead', async () => {
+        const { audition } = await playingLongTrack()
+        audition.setPlaySpeed(1.7)
+        timeUpdate(570)
+        await flush()
+
+        audio().dispatchEvent(new Event('ended'))
+        await flush()
+
+        expect(audition.stretchStatus).toBe('playing')
+        expect(audio().playbackRate).toBeCloseTo(1.7, 10)
+        expect(audio().preservesPitch).toBe(true)
+      })
+
+      it('after the hand-over had to wait for its window to be decoded', async () => {
+        const { audition, pending } = await waitingForTheWindowAhead()
+        audition.setPlaySpeed(0.6)
+
+        pending.resolve(clipOf(600, 400))
+        await flush()
+
+        expect(audition.stretchStatus).toBe('playing')
+        expect(audio().playbackRate).toBeCloseTo(0.6, 10)
+      })
+
+      it('after a pause and a play of the same track', async () => {
+        const { audition } = await playingTrack()
+        audition.setPlaySpeed(1.4)
+
+        audition.toggleStretch(trackStretchOfSelection())
+        audition.toggleStretch(trackStretchOfSelection())
+        await flush()
+
+        expect(audition.stretchStatus).toBe('playing')
+        expect(audio().playbackRate).toBeCloseTo(1.4, 10)
+      })
+    })
+
+    describe('kept between visits', () => {
+      it('saves a change, so a store made later reads it back', () => {
+        const first = setUp().audition
+        first.setPlaySpeed(1.3)
+
+        setActivePinia(createPinia())
+        const second = useAuditionStore()
+
+        expect(second.playSpeed).toBeCloseTo(1.3, 10)
+      })
+
+      it('gives the element of a later store the saved play speed', async () => {
+        const first = setUp().audition
+        first.setPlaySpeed(0.7)
+
+        // A new pinia has a new source-file store, whose clip is stubbed afresh.
+        setActivePinia(createPinia())
+        vi.spyOn(useSourceFileStore(), 'clip').mockImplementation(async (start, length) =>
+          clipOf(start, length),
+        )
+        const later = setUp().audition
+        later.toggle()
+        await flush()
+
+        expect(audio().playbackRate).toBeCloseTo(0.7, 10)
+      })
+
+      it.each([
+        ['no saved value', null],
+        ['text that is no JSON', 'fast'],
+        ['a play speed off the 0.1 grid', '{"playSpeed":1.25}'],
+        ['a play speed under 0.5', '{"playSpeed":0.4}'],
+        ['a play speed over 2.0', '{"playSpeed":2.1}'],
+        ['a play speed that is a string', '{"playSpeed":"1.5"}'],
+        ['an object without a play speed', '{}'],
+        ['a value that is no object', '1.5'],
+      ])('starts at 1.0 for %s', (_, saved) => {
+        if (saved !== null) localStorage.setItem(PLAY_SPEED_STORAGE_KEY, saved)
+
+        const { audition } = setUp()
+
+        expect(audition.playSpeed).toBe(1)
+      })
+
+      it('starts at 1.0, and still works, when the browser blocks storage', async () => {
+        vi.spyOn(Storage.prototype, 'getItem').mockImplementation(throwBlocked)
+        vi.spyOn(Storage.prototype, 'setItem').mockImplementation(throwBlocked)
+
+        const { audition } = await playing()
+        expect(audition.playSpeed).toBe(1)
+
+        audition.setPlaySpeed(1.5)
+
+        expect(audition.playSpeed).toBe(1.5)
+        expect(audio().playbackRate).toBe(1.5)
+      })
+
+      it('keeps its entry apart from the volume entry', () => {
+        const first = setUp().audition
+        first.setPlaySpeed(1.5)
+        expect(localStorage.getItem(VOLUME_STORAGE_KEY)).toBeNull()
+
+        first.setVolume(-20)
+        first.setPlaySpeed(0.8)
+        first.toggleMute()
+
+        setActivePinia(createPinia())
+        const second = useAuditionStore()
+        expect(second.playSpeed).toBeCloseTo(0.8, 10)
+        expect(second.volumeDecibels).toBe(-20)
+        expect(second.isMuted).toBe(true)
+      })
+    })
+
+    it('is independent of the volume', async () => {
+      const { audition } = await playing()
+
+      audition.setPlaySpeed(1.5)
+      audition.setVolume(-20)
+      expect(audition.playSpeed).toBe(1.5)
+      expect(audition.volumeDecibels).toBe(-20)
+      expect(audio().playbackRate).toBe(1.5)
+      expect(audio().volume).toBeCloseTo(0.1, 6)
+
+      audition.setVolume(-6)
+      expect(audition.playSpeed).toBe(1.5)
+      expect(audio().playbackRate).toBe(1.5)
+
+      audition.setPlaySpeed(0.5)
+      expect(audition.volumeDecibels).toBe(-6)
+      expect(audio().volume).toBeCloseTo(0.5012, 4)
+
+      audition.toggleMute()
+      expect(audition.playSpeed).toBe(0.5)
     })
   })
 })

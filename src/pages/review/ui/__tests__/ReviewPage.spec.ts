@@ -202,6 +202,14 @@ async function volumeSlider(wrapper: ReturnType<typeof mount>) {
   return wrapper.get('[role="slider"][aria-label="Volume"]')
 }
 
+// The play speed's reset button, which shows the speed, and its slider once Reka has placed the thumb.
+const playSpeedButton = (wrapper: ReturnType<typeof mount>) =>
+  wrapper.get('button[aria-label^="Reset play speed"]')
+async function playSpeedSlider(wrapper: ReturnType<typeof mount>) {
+  await flushPromises()
+  return wrapper.get('[role="slider"][aria-label="Play speed"]')
+}
+
 // Track 2 (21 s to 71.5 s) has pending splits at 30 s and 50 s; track 3 is 71.5 s to 100 s.
 async function mountWithPending() {
   const wrapper = await mountWithMark()
@@ -1065,15 +1073,15 @@ describe('ReviewPage', () => {
     })
 
     it('has "Export track…" after Play in the Track view and "Export range…" in the Range view, and neither in the Split view', async () => {
-      // The volume's mute button ends every title row, after these.
+      // The play speed's reset button and the volume's mute button end every title row, after these.
       const track = await mountPageWithTrack(2)
       const trackNames = titleRowButtons(track)
-      expect(trackNames.at(-2)).toBe('Export track…')
-      expect(trackNames.at(-3)).toBe('Play')
+      expect(trackNames.at(-3)).toBe('Export track…')
+      expect(trackNames.at(-4)).toBe('Play')
       expect(await tooltipOf(exportButtonOf(track, 'Export track…'))).toBe('Export track…')
 
       const range = await mountPageWithRange()
-      expect(titleRowButtons(range).at(-2)).toBe('Export range…')
+      expect(titleRowButtons(range).at(-3)).toBe('Export range…')
 
       const onSplit = await mountPageOnSplit()
       expect(onSplit.find('button[aria-label^="Export "]').exists()).toBe(false)
@@ -1277,6 +1285,7 @@ describe('ReviewPage', () => {
         'Back to track start',
         'Play',
         'Export track…',
+        'Reset play speed, now 1.0×',
         'Mute',
       ])
     })
@@ -1679,6 +1688,139 @@ describe('ReviewPage', () => {
 
       const inTrackView = await volumeSlider(wrapper)
       expect(inTrackView.attributes('aria-valuetext')).toBe('−40 dB')
+    })
+  })
+
+  describe('the play speed', () => {
+    const views = [
+      ['Split', mountPageOnSplit, () => useSplitStore().selectedSplit!.seconds],
+      [
+        'Track',
+        () => mountPageWithTrack(2),
+        () =>
+          useAuditionStore().stretchPlayheadSeconds(trackExtent(useSplitStore().selectedTrack!)),
+      ],
+      [
+        'Range',
+        mountPageWithRange,
+        () => useAuditionStore().stretchPlayheadSeconds(useSplitStore().range!),
+      ],
+    ] as const
+
+    describe.each(views)('in the %s view', (_, mountView, where) => {
+      it('sits just before the volume control in the title row, with the speed on its button and a slider named Play speed that reads it', async () => {
+        const wrapper = await mountView()
+        const slider = await playSpeedSlider(wrapper)
+
+        expect(titleRowButtons(wrapper).slice(-2)).toEqual(['Reset play speed, now 1.0×', 'Mute'])
+        expect(playSpeedButton(wrapper).text()).toBe('1.0×')
+        expect(slider.attributes('aria-valuemin')).toBe('0.5')
+        expect(slider.attributes('aria-valuemax')).toBe('2')
+        expect(slider.attributes('aria-valuenow')).toBe('1')
+        expect(slider.attributes('aria-valuetext')).toBe('1.0×')
+        const before = Node.DOCUMENT_POSITION_FOLLOWING
+        const volume = await volumeSlider(wrapper)
+        const reset = playSpeedButton(wrapper).element
+        expect(reset.compareDocumentPosition(slider.element)).toBe(before)
+        expect(slider.element.compareDocumentPosition(muteButton(wrapper).element)).toBe(before)
+        expect(muteButton(wrapper).element.compareDocumentPosition(volume.element)).toBe(before)
+      })
+
+      it('steps the speed by 0.1 from the keyboard, in the player', async () => {
+        const wrapper = await mountView()
+        const slider = await playSpeedSlider(wrapper)
+
+        for (let press = 0; press < 5; press++) {
+          await slider.trigger('keydown', { key: 'ArrowRight' })
+        }
+
+        expect(useAuditionStore().playSpeed).toBe(1.5)
+        expect(slider.attributes('aria-valuetext')).toBe('1.5×')
+        expect(playSpeedButton(wrapper).text()).toBe('1.5×')
+      })
+
+      it('goes from 0.5× to 2.0× with Home and End', async () => {
+        const wrapper = await mountView()
+        const slider = await playSpeedSlider(wrapper)
+
+        await slider.trigger('keydown', { key: 'Home' })
+        expect(slider.attributes('aria-valuetext')).toBe('0.5×')
+        expect(useAuditionStore().playSpeed).toBe(0.5)
+
+        await slider.trigger('keydown', { key: 'End' })
+        expect(slider.attributes('aria-valuetext')).toBe('2.0×')
+        expect(useAuditionStore().playSpeed).toBe(2)
+      })
+
+      it('is reset to 1.0× by its button, which is on even at 1.0×', async () => {
+        const wrapper = await mountView()
+        const audition = useAuditionStore()
+        expect(playSpeedButton(wrapper).attributes('disabled')).toBeUndefined()
+        audition.setPlaySpeed(1.5)
+        await wrapper.vm.$nextTick()
+        expect(playSpeedButton(wrapper).text()).toBe('1.5×')
+
+        await playSpeedButton(wrapper).trigger('click')
+
+        expect(audition.playSpeed).toBe(1)
+        expect(playSpeedButton(wrapper).text()).toBe('1.0×')
+        const slider = await playSpeedSlider(wrapper)
+        expect(slider.attributes('aria-valuetext')).toBe('1.0×')
+        expect(playSpeedButton(wrapper).attributes('disabled')).toBeUndefined()
+        expect(await tooltipOf(playSpeedButton(wrapper))).toBe('Reset play speed to 1.0×')
+      })
+
+      it('leaves the speed and the volume independent', async () => {
+        const wrapper = await mountView()
+        const audition = useAuditionStore()
+        const speed = await playSpeedSlider(wrapper)
+        const volume = await volumeSlider(wrapper)
+
+        await speed.trigger('keydown', { key: 'End' })
+        await volume.trigger('keydown', { key: 'Home' })
+
+        expect(audition.playSpeed).toBe(2)
+        expect(audition.volumeDecibels).toBe(-40)
+      })
+
+      it('leaves the view its keys after a drag of the slider and after a click on the button', async () => {
+        const wrapper = await mountView()
+        const slider = await playSpeedSlider(wrapper)
+
+        await dragSlider(slider.element)
+        expect(document.activeElement).not.toBe(slider.element)
+        const afterDrag = where()
+        pressWhereFocused('ArrowRight')
+        expect(where()).toBeGreaterThan(afterDrag)
+
+        await mouseClick(playSpeedButton(wrapper).element)
+        expect(document.activeElement).not.toBe(playSpeedButton(wrapper).element)
+        const afterClick = where()
+        pressWhereFocused('ArrowRight')
+        expect(where()).toBeGreaterThan(afterClick)
+      })
+    })
+
+    it('shows the speed the player already has', async () => {
+      useAuditionStore().setPlaySpeed(1.7)
+
+      const wrapper = await mountPageOnSplit()
+      const slider = await playSpeedSlider(wrapper)
+
+      expect(slider.attributes('aria-valuetext')).toBe('1.7×')
+      expect(playSpeedButton(wrapper).text()).toBe('1.7×')
+    })
+
+    it('is one setting for every view: a speed set in one is the speed in the next', async () => {
+      const wrapper = await mountPageOnSplit()
+      const slider = await playSpeedSlider(wrapper)
+      await slider.trigger('keydown', { key: 'Home' })
+
+      await viewOption(wrapper, 'Track').trigger('click')
+
+      const inTrackView = await playSpeedSlider(wrapper)
+      expect(inTrackView.attributes('aria-valuetext')).toBe('0.5×')
+      expect(playSpeedButton(wrapper).text()).toBe('0.5×')
     })
   })
 
