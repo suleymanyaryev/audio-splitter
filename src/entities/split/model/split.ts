@@ -412,16 +412,25 @@ export const useSplitStore = defineStore('split', () => {
 
   /*
   Selects the split after (`step` 1) or before (-1) the selected one, as a click on it does: the
-  window centres on it. Whether the selection changed at once: not at the first or last split, or
-  with no split selected.
+  window centres on it. With none selected, it steps from the zoom window's centre: the first split
+  after it, or the last before it, a split at the centre itself being neither. Whether the selection
+  changed at once: not at the first or last split, or with no split in that direction.
   */
   function selectAdjacentSplit(step: -1 | 1) {
     const current = selectedSplitIndex.value
-    if (current === null) return false
-    const next = splits.value[current + step]
+    const next = current === null ? splitFromCentre(step) : splits.value[current + step]
     if (next === undefined) return false
     selectSplit(next.id)
     return selectedSplit.value?.id === next.id
+  }
+
+  // The split nearest the zoom window's centre on the `step` side of it, strictly past the centre.
+  function splitFromCentre(step: -1 | 1) {
+    const centre = zoomCentreSeconds.value
+    // The splits are in time order: the first from the centre on, or none when all lie before it.
+    const fromCentre = splits.value.findIndex((point) => point.seconds >= centre)
+    if (step === -1) return splits.value[(fromCentre === -1 ? splits.value.length : fromCentre) - 1]
+    return splits.value.find((point) => point.seconds > centre)
   }
 
   /*

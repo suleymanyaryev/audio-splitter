@@ -20,7 +20,7 @@ Versions follow [Semantic Versioning](https://semver.org/) applied to the produc
 
 ### Added
 
-- `]` selects the next track and `[` the previous one in the Track view, and the next and previous split in the Split view. The keys are the two to the right of P, so they work without a modifier on every keyboard layout, and they do nothing at the first and last item or while you type a track name. A track that is playing or being decoded carries on with the new track from its start; a paused or stopped one rests at its start. An audition that is playing or being decoded starts again across the new split; with none on, none starts.
+- `]` selects the next track and `[` the previous one in the Track view, and the next and previous split in the Split view. The keys are the two to the right of P, so they work without a modifier on every keyboard layout, and they do nothing at the first and last item or while you type a track name. A track that is playing or being decoded carries on with the new track from its start; a paused or stopped one rests at its start. An audition that is playing or being decoded starts again across the new split; with none on, none starts. With no split selected, they pick the nearest split on that side of the zoom window's centre.
 
 ## [1.3.0] - 2026-11-22
 

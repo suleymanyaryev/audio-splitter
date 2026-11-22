@@ -46,6 +46,16 @@ async function mountPageOnSplit() {
   return wrapper
 }
 
+// The page on the Split view with the zoom window at that time and no split selected, as a click
+// on empty ground in the whole-file view leaves it.
+async function mountAtCentre(seconds: number) {
+  const wrapper = await mountPageOnSplit()
+  useSplitStore().moveZoomTo(seconds)
+  await wrapper.vm.$nextTick()
+  expect(useSplitStore().selectedSplit).toBeNull()
+  return wrapper
+}
+
 // The page with the track of that number selected, as a click on its row's number button does.
 async function mountPageWithTrack(number: number) {
   const wrapper = mountPage()
@@ -2446,6 +2456,100 @@ describe('ReviewPage', () => {
         await wrapper.vm.$nextTick()
 
         expect(useSplitStore().selectedSplit?.seconds).toBe(21)
+      })
+    })
+
+    describe('with no split selected', () => {
+      it('selects the first split after the zoom window’s centre on ], and centres on it', async () => {
+        const wrapper = await mountAtCentre(10)
+        const split = useSplitStore()
+
+        const event = pressKey(NEXT.key, { code: NEXT.code })
+        await wrapper.vm.$nextTick()
+
+        expect(split.selectedSplit?.seconds).toBe(21)
+        expect(split.zoomCentreSeconds).toBe(21)
+        expect(markedSplit(wrapper)).toContain('Split 1')
+        expect(panelTitle(wrapper)).toBe('0:00:21.00')
+        expect(event.defaultPrevented).toBe(true)
+      })
+
+      it('selects the last split before the centre on [', async () => {
+        const wrapper = await mountAtCentre(80)
+        const split = useSplitStore()
+
+        const event = pressKey(PREVIOUS.key, { code: PREVIOUS.code })
+        await wrapper.vm.$nextTick()
+
+        expect(split.selectedSplit?.seconds).toBe(71.5)
+        expect(split.zoomCentreSeconds).toBe(71.5)
+        expect(markedSplit(wrapper)).toContain('Split 2')
+        expect(event.defaultPrevented).toBe(true)
+      })
+
+      it.each([
+        ['] to the one after', NEXT, 71.5],
+        ['[ to the one before', PREVIOUS, 21],
+      ])('steps from a centre between two splits with %s', async (_name, key, seconds) => {
+        const wrapper = await mountAtCentre(46)
+
+        pressKey(key.key, { code: key.code })
+        await wrapper.vm.$nextTick()
+
+        expect(useSplitStore().selectedSplit?.seconds).toBe(seconds)
+      })
+
+      it('looks strictly past a centre that lies on a split, so ] skips it', async () => {
+        const wrapper = await mountAtCentre(21)
+
+        pressKey(NEXT.key, { code: NEXT.code })
+        await wrapper.vm.$nextTick()
+
+        expect(useSplitStore().selectedSplit?.seconds).toBe(71.5)
+      })
+
+      it('looks strictly before a centre that lies on a split, so [ finds none', async () => {
+        const wrapper = await mountAtCentre(21)
+
+        const event = pressKey(PREVIOUS.key, { code: PREVIOUS.code })
+        await wrapper.vm.$nextTick()
+
+        expect(useSplitStore().selectedSplit).toBeNull()
+        expect(event.defaultPrevented).toBe(false)
+      })
+
+      it.each([
+        ['] after the last split', NEXT, 90],
+        ['[ before the first split', PREVIOUS, 10],
+      ])('do nothing, and the key is left to the browser, at %s', async (_name, key, seconds) => {
+        const wrapper = await mountAtCentre(seconds)
+        const split = useSplitStore()
+
+        const event = pressKey(key.key, { code: key.code })
+        await wrapper.vm.$nextTick()
+
+        expect(split.selectedSplit).toBeNull()
+        expect(split.zoomCentreSeconds).toBe(seconds)
+        expect(event.defaultPrevented).toBe(false)
+      })
+
+      it('do nothing in a source file with no splits', async () => {
+        const wrapper = await mountAtCentre(46)
+        const split = useSplitStore()
+        const ids = split.splits.map((point) => point.id)
+        for (const id of ids) split.deleteSplit(id)
+        split.moveZoomTo(46)
+        await wrapper.vm.$nextTick()
+        expect(split.splits).toHaveLength(0)
+
+        const next = pressKey(NEXT.key, { code: NEXT.code })
+        const previous = pressKey(PREVIOUS.key, { code: PREVIOUS.code })
+        await wrapper.vm.$nextTick()
+
+        expect(split.selectedSplit).toBeNull()
+        expect(split.zoomCentreSeconds).toBe(46)
+        expect(next.defaultPrevented).toBe(false)
+        expect(previous.defaultPrevented).toBe(false)
       })
     })
 
