@@ -97,7 +97,11 @@ At 0.5×, a double-click at 1:41 of the same track, outside the window held (600
 
 **The keys still work after the slider.** After a drag of the slider's thumb with the mouse, Space started and stopped the play in the Track view (0.5× to 1.0× by the drag; "Play" to "Pause" and back), in the Range view (1.0× to 1.7×) and in the Split view (1.0× to 1.3×; "Play across split" to "Stop" and back), at the speed that had been dragged to. The focus was on the page after a drag, so the key went to the view as before.
 
+**It is remembered across a reload.** The play speed is saved to `localStorage` on every change and read when the player is made, apart from the volume's entry. The first time (nothing saved), or when the browser blocks storage, it is 1.0×: the app plays at real time until the user changes it. A saved value that is not a tenth of a step from 0.5× to 2.0×, such as 1.55 or 3, is ignored and the default is used.
+
 ## Where it lives in the code
 
-- [`src/widgets/split-zoom/model/audition.ts`](../../src/widgets/split-zoom/model/audition.ts): the one player, whose `<audio>` element will play at the play speed.
+- [`src/widgets/split-zoom/model/audition.ts`](../../src/widgets/split-zoom/model/audition.ts): the one player. It owns the play speed (`playSpeed`), changed by `setPlaySpeed` (a tenth a step, held to the range). A synchronous watcher applies it to the element and saves it; `audioElement()` applies it when the element is made. Applying sets `preservesPitch` and both `defaultPlaybackRate` and `playbackRate`, because loading a source resets the rate to the default rate.
+- [`src/widgets/split-zoom/api/saved-play-speed.ts`](../../src/widgets/split-zoom/api/saved-play-speed.ts) and [`src/widgets/split-zoom/config/play-speed.ts`](../../src/widgets/split-zoom/config/play-speed.ts): the first reads and writes the one `localStorage` entry, a JSON object with the speed, and gives 1.0× for a value that is not what it writes or for storage that throws. The second holds 0.5, 2.0, 0.1 and 1.0, the slider's range, step and default, and the storage key.
+- [`src/widgets/split-zoom/ui/PlaySpeedControl.vue`](../../src/widgets/split-zoom/ui/PlaySpeedControl.vue): the button that reads the speed and resets it to 1.0×, and the slider (named "Play speed"), which [`ReviewPage.vue`](../../src/pages/review/ui/ReviewPage.vue) puts just before the volume control in the zoom panel's title row, in all three views.
 - [ADR 0004](../adr/0004-time-stretching-by-the-browser.md): why the stretch is the browser's, and what it needs from the player.

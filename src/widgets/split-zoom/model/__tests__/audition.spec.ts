@@ -3,6 +3,7 @@ import { createPinia, setActivePinia } from 'pinia'
 
 import { FileReplacedError, useSourceFileStore } from '@/entities/source-file/model/source-file.ts'
 import { useSplitStore } from '@/entities/split/model/split.ts'
+import { PLAY_SPEED_STORAGE_KEY } from '../../config/play-speed.ts'
 import { VOLUME_STORAGE_KEY } from '../../config/volume.ts'
 import { trackExtent } from '../../lib/track-extent.ts'
 import { useAuditionStore } from '../audition.ts'
@@ -2114,6 +2115,80 @@ describe('the audition store', () => {
 
         expect(audition.stretchStatus).toBe('playing')
         expect(audio().playbackRate).toBeCloseTo(1.4, 10)
+      })
+    })
+
+    describe('kept between visits', () => {
+      it('saves a change, so a store made later reads it back', () => {
+        const first = setUp().audition
+        first.setPlaySpeed(1.3)
+
+        setActivePinia(createPinia())
+        const second = useAuditionStore()
+
+        expect(second.playSpeed).toBeCloseTo(1.3, 10)
+      })
+
+      it('gives the element of a later store the saved play speed', async () => {
+        const first = setUp().audition
+        first.setPlaySpeed(0.7)
+
+        // A new pinia has a new source-file store, whose clip is stubbed afresh.
+        setActivePinia(createPinia())
+        vi.spyOn(useSourceFileStore(), 'clip').mockImplementation(async (start, length) =>
+          clipOf(start, length),
+        )
+        const later = setUp().audition
+        later.toggle()
+        await flush()
+
+        expect(audio().playbackRate).toBeCloseTo(0.7, 10)
+      })
+
+      it.each([
+        ['no saved value', null],
+        ['text that is no JSON', 'fast'],
+        ['a play speed off the 0.1 grid', '{"playSpeed":1.25}'],
+        ['a play speed under 0.5', '{"playSpeed":0.4}'],
+        ['a play speed over 2.0', '{"playSpeed":2.1}'],
+        ['a play speed that is a string', '{"playSpeed":"1.5"}'],
+        ['an object without a play speed', '{}'],
+        ['a value that is no object', '1.5'],
+      ])('starts at 1.0 for %s', (_, saved) => {
+        if (saved !== null) localStorage.setItem(PLAY_SPEED_STORAGE_KEY, saved)
+
+        const { audition } = setUp()
+
+        expect(audition.playSpeed).toBe(1)
+      })
+
+      it('starts at 1.0, and still works, when the browser blocks storage', async () => {
+        vi.spyOn(Storage.prototype, 'getItem').mockImplementation(throwBlocked)
+        vi.spyOn(Storage.prototype, 'setItem').mockImplementation(throwBlocked)
+
+        const { audition } = await playing()
+        expect(audition.playSpeed).toBe(1)
+
+        audition.setPlaySpeed(1.5)
+
+        expect(audition.playSpeed).toBe(1.5)
+        expect(audio().playbackRate).toBe(1.5)
+      })
+
+      it('keeps its entry apart from the volume entry', () => {
+        const first = setUp().audition
+        first.setPlaySpeed(1.5)
+        expect(localStorage.getItem(VOLUME_STORAGE_KEY)).toBeNull()
+
+        first.setVolume(-20)
+        first.setPlaySpeed(0.8)
+        first.toggleMute()
+
+        setActivePinia(createPinia())
+        const second = useAuditionStore()
+        expect(second.playSpeed).toBeCloseTo(0.8, 10)
+        expect(second.volumeDecibels).toBe(-20)
+        expect(second.isMuted).toBe(true)
       })
     })
 

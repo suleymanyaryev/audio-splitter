@@ -5,9 +5,9 @@ import { FileReplacedError, useSourceFileStore } from '@/entities/source-file/mo
 import type { TimeRange } from '@/entities/split/lib/range-between.ts'
 import { useSplitStore } from '@/entities/split/model/split.ts'
 import { decibelsToGain } from '@/shared/lib/audio/decibels-to-gain.ts'
+import { readSavedPlaySpeed, savePlaySpeed } from '../api/saved-play-speed.ts'
 import { readSavedVolume, saveVolume } from '../api/saved-volume.ts'
 import {
-  DEFAULT_PLAY_SPEED,
   MAX_PLAY_SPEED,
   MIN_PLAY_SPEED,
   PLAY_SPEED_STEP,
@@ -80,10 +80,11 @@ applied to the element as a linear gain when it is made and on every change, and
 
 The play speed (docs/concepts/10-speed-without-pitch.md, docs/adr/0004-time-stretching-by-the-browser.md)
 is the player's too: `playSpeed`, 0.5 to 2.0 in steps of 0.1, applied to the element when it is made
-and on every change, with the pitch kept: the browser does the time-stretching. Loading a source
-resets an element's rate to its default rate, which the player does at every new clip, release and
-window hand-over, so both rates are set. The playhead and the window logic stay in media time (the
-time in the file), which is the same at any speed. It is playback only too.
+and on every change, with the pitch kept: the browser does the time-stretching. Like the volume, it
+is kept in `localStorage` between visits. Loading a source resets an element's rate to its default
+rate, which the player does at every new clip, release and window hand-over, so both rates are set.
+The playhead and the window logic stay in media time (the time in the file), which is the same at
+any speed. It is playback only too.
 */
 export const useAuditionStore = defineStore('audition', () => {
   const sourceFile = useSourceFileStore()
@@ -156,8 +157,9 @@ export const useAuditionStore = defineStore('audition', () => {
     { flush: 'sync' },
   )
 
-  // How fast it is heard, from half speed to double, a tenth a step, with the pitch kept.
-  const playSpeed = ref(DEFAULT_PLAY_SPEED)
+  // How fast it is heard, from half speed to double, a tenth a step, with the pitch kept. Set on
+  // the page and kept between visits, like the volume.
+  const playSpeed = ref(readSavedPlaySpeed())
 
   function setPlaySpeed(speed: number) {
     // Not a number: nothing changes.
@@ -182,6 +184,7 @@ export const useAuditionStore = defineStore('audition', () => {
     playSpeed,
     () => {
       if (element !== undefined) applyPlaySpeed(element)
+      savePlaySpeed(playSpeed.value)
     },
     { flush: 'sync' },
   )

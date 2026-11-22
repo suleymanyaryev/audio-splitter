@@ -20,7 +20,7 @@ Versions follow [Semantic Versioning](https://semver.org/) applied to the produc
 
 ### Added
 
-- A play speed control in the zoom panel's title row, just before the volume, from 0.5× to 2.0× in steps of 0.1. It applies to the audition, the range and the selected track, the pitch stays the same, and a change takes effect while the sound plays. The button on its left shows the speed and resets it to 1.0×. It is not remembered across a reload yet, and an export is unaffected.
+- A play speed control in the zoom panel's title row, just before the volume, from 0.5× to 2.0× in steps of 0.1. It applies to the audition, the range and the selected track, the pitch stays the same, and a change takes effect while the sound plays. The button on its left shows the speed and resets it to 1.0×. It is remembered across a reload (1.0× the first time, and whenever the browser blocks storage), and an export is unaffected.
 
 ## [1.3.0] - 2026-11-22
 

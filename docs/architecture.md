@@ -39,7 +39,7 @@ An arrow means "may import from". Two slices of one layer never import each othe
 
 ## The stores
 
-All state lives in Pinia setup stores, in memory, except the theme ([below](#the-theme)). Only the volume, the mute flag and the theme choice are also saved, in `localStorage`.
+All state lives in Pinia setup stores, in memory, except the theme ([below](#the-theme)). Only the volume, the mute flag, the play speed and the theme choice are also saved, in `localStorage`.
 
 | Store              | Slice                      | Holds                                                         |
 | ------------------ | -------------------------- | ------------------------------------------------------------- |
