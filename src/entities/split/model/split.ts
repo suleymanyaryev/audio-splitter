@@ -419,6 +419,46 @@ export const useSplitStore = defineStore('split', () => {
     }, !isTrackSelected(track))
   }
 
+  /*
+  Selects the split after (`step` 1) or before (-1) the selected one, as a click on it does: the
+  window centres on it, and the discard question comes the same way. With none selected, it steps
+  from the zoom window's centre: the first split after it, or the last before it, a split at the
+  centre itself being neither. Whether the selection changed at once: not at the first or last
+  split, with no split in that direction, or when the question opened instead.
+  */
+  function selectAdjacentSplit(step: -1 | 1) {
+    const current = selectedSplitIndex.value
+    const next = current === null ? splitFromCentre(step) : splits.value[current + step]
+    if (next === undefined) return false
+    selectSplit(next.id)
+    return selectedSplit.value?.id === next.id
+  }
+
+  // The split nearest the zoom window's centre on the `step` side of it, strictly past the centre.
+  function splitFromCentre(step: -1 | 1) {
+    const centre = zoomCentreSeconds.value
+    // The splits are in time order: the first from the centre on, or none when all lie before it.
+    // `[` walks back from it because `findLast` is not in the project's TS lib.
+    const fromCentre = splits.value.findIndex((point) => point.seconds >= centre)
+    if (step === -1) return splits.value[(fromCentre === -1 ? splits.value.length : fromCentre) - 1]
+    return splits.value.find((point) => point.seconds > centre)
+  }
+
+  /*
+  Selects the track after (`step` 1) or before (-1) the selected one, as a click on its row does, so
+  the discard question comes the same way. Whether the selection changed at once: not at the first
+  or last track, with no track selected, or when the question opened instead.
+  */
+  function selectAdjacentTrack(step: -1 | 1) {
+    const current = selectedTrack.value
+    if (current === null) return false
+    // `Track.number` is 1-based and contiguous, so `number - 1` is the track's index.
+    const next = tracks.value[current.number - 1 + step]
+    if (next === undefined) return false
+    selectTrack(next)
+    return selectedTrack.value?.number === next.number
+  }
+
   function isTrackSelected(track: Track) {
     const current = selection.value
     return current?.kind === 'track' && current.startSplitId === (track.startSplit?.id ?? null)
@@ -740,6 +780,8 @@ export const useSplitStore = defineStore('split', () => {
     setMinimumGapLength,
     selectSplit,
     selectTrack,
+    selectAdjacentTrack,
+    selectAdjacentSplit,
     isTrackSelected,
     moveZoomTo,
     setRange,

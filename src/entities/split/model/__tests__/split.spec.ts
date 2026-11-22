@@ -76,6 +76,14 @@ function storeWithTwoGaps() {
   return { curve, store }
 }
 
+// Splits at 22 s, 42 s and 62 s in 80 s.
+function threeSplits() {
+  const curve = threeFarGapsCurve()
+  const store = useSplitStore()
+  store.detect(curve, timing(curve))
+  return store
+}
+
 // A range does not depend on the splits; 60 s with two of them will do.
 function loadedStore() {
   const curve = farGaps()
@@ -588,6 +596,121 @@ describe('the split store', () => {
       expect(store.selectedSplit).toBeNull()
       expect(store.selectedTrack).toBe(store.tracks[0])
       expect(store.zoomCentreSeconds).toBe(10)
+    })
+  })
+
+  describe('stepping to the next or previous split', () => {
+    it('selects the next or previous split and centres the window on it', () => {
+      const store = threeSplits()
+      store.selectSplit(store.splits[1]!.id)
+
+      expect(store.selectAdjacentSplit(1)).toBe(true)
+      expect(store.selectedSplit).toBe(store.splits[2])
+      expect(store.zoomCentreSeconds).toBeCloseTo(62, 9)
+
+      expect(store.selectAdjacentSplit(-1)).toBe(true)
+      expect(store.selectAdjacentSplit(-1)).toBe(true)
+      expect(store.selectedSplit).toBe(store.splits[0])
+    })
+
+    it('stays at the first or last split', () => {
+      const store = threeSplits()
+      store.selectSplit(store.splits[2]!.id)
+      expect(store.selectAdjacentSplit(1)).toBe(false)
+      expect(store.selectedSplit).toBe(store.splits[2])
+
+      store.selectSplit(store.splits[0]!.id)
+      expect(store.selectAdjacentSplit(-1)).toBe(false)
+      expect(store.selectedSplit).toBe(store.splits[0])
+    })
+
+    it('with none selected, steps from the window’s centre', () => {
+      const store = threeSplits()
+      store.moveZoomTo(50)
+      expect(store.selectAdjacentSplit(1)).toBe(true)
+      expect(store.selectedSplit).toBe(store.splits[2])
+
+      store.moveZoomTo(50)
+      expect(store.selectAdjacentSplit(-1)).toBe(true)
+      expect(store.selectedSplit).toBe(store.splits[1])
+    })
+
+    it('looks strictly past the centre, so a split on it is neither next nor previous', () => {
+      const store = threeSplits()
+      store.moveZoomTo(42)
+      expect(store.selectAdjacentSplit(1)).toBe(true)
+      expect(store.selectedSplit).toBe(store.splits[2])
+
+      store.moveZoomTo(42)
+      expect(store.selectAdjacentSplit(-1)).toBe(true)
+      expect(store.selectedSplit).toBe(store.splits[0])
+    })
+
+    it('does nothing with no split on that side of the centre, or none at all', () => {
+      const store = threeSplits()
+      store.moveZoomTo(70)
+      expect(store.selectAdjacentSplit(1)).toBe(false)
+      store.moveZoomTo(10)
+      expect(store.selectAdjacentSplit(-1)).toBe(false)
+      expect(store.selectedSplit).toBeNull()
+
+      store.setSilenceThreshold(-60)
+      expect(store.splits).toEqual([])
+      expect(store.selectAdjacentSplit(1)).toBe(false)
+      expect(store.selectAdjacentSplit(-1)).toBe(false)
+    })
+
+    it('asks the discard question as a click does, with the track’s pending splits still there', () => {
+      const store = pendingTwo()
+      store.showView('split')
+
+      expect(store.selectAdjacentSplit(1)).toBe(false)
+      expect(heldState(store)).toEqual({ ...HELD, view: 'split' })
+
+      store.discardPending()
+      expect(store.pendingSplits).toEqual([])
+      expect(store.selectedSplit).not.toBeNull()
+    })
+  })
+
+  describe('stepping to the next or previous track', () => {
+    it('selects the next or previous track', () => {
+      const store = loadedStore()
+      expect(store.selectedTrack).toBe(store.tracks[0])
+
+      expect(store.selectAdjacentTrack(1)).toBe(true)
+      expect(store.selectedTrack).toBe(store.tracks[1])
+
+      expect(store.selectAdjacentTrack(-1)).toBe(true)
+      expect(store.selectedTrack).toBe(store.tracks[0])
+    })
+
+    it('stays at the first or last track', () => {
+      const store = loadedStore()
+      expect(store.selectAdjacentTrack(-1)).toBe(false)
+      expect(store.selectedTrack).toBe(store.tracks[0])
+
+      store.selectTrack(store.tracks[2]!)
+      expect(store.selectAdjacentTrack(1)).toBe(false)
+      expect(store.selectedTrack).toBe(store.tracks[2])
+    })
+
+    it('does nothing with no track selected', () => {
+      const store = loadedStore()
+      store.selectSplit(store.splits[0]!.id)
+
+      expect(store.selectAdjacentTrack(1)).toBe(false)
+      expect(store.selectedSplit).toBe(store.splits[0])
+    })
+
+    it('asks the discard question as a click on the row does, and steps once it is answered', () => {
+      const store = pendingTwo()
+
+      expect(store.selectAdjacentTrack(1)).toBe(false)
+      expect(heldState(store)).toEqual(HELD)
+
+      store.discardPending()
+      expect(store.selectedTrack?.number).toBe(3)
     })
   })
 

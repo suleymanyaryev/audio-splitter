@@ -15,6 +15,7 @@ import { formatHundredths } from '@/shared/lib/time/format-hundredths.ts'
 import { roundToMillisecond } from '@/shared/lib/time/round-to-millisecond.ts'
 import { draggedTime } from '../lib/dragged-time.ts'
 import { rangeWindow } from '../lib/range-window.ts'
+import { stepOfKey } from '../lib/step-of-key.ts'
 import { trackExtent } from '../lib/track-extent.ts'
 import { usePlayheadFrames } from '../lib/use-playhead-frames.ts'
 import { useRangePress } from '../lib/use-range-press.ts'
@@ -46,9 +47,11 @@ the track, as the panel's button does, and Home takes the playhead back to the t
 adds a pending split at the mark and selects it; Shift+Enter adds one where the playhead is, without
 selecting it, so a tap along a playing track is always taken. Delete and Backspace delete the
 selected pending split and Escape deselects it; with none selected those keys are left alone, since
-removing a track deletes splits and has its own button. A held Space, Enter or Shift+Enter is
-ignored, so it does not start and stop the sound or add pending splits over and over. A failure to
-play is said in a line at the bottom of the view.
+removing a track deletes splits and has its own button. `[` and `]` select the previous and next
+track, as a click on its row does; a track that is playing or being decoded plays the new one from
+its start, and a paused or stopped one leaves it resting there. A held Space, Enter, Shift+Enter,
+`[` or `]` is ignored, so it does not start and stop the sound, add pending splits or step over and
+over. A failure to play is said in a line at the bottom of the view.
 
 The player plays the whole track, however long: a track over 10 min is heard through a window that
 moves along it (`model/audition.ts`), which this view does not see.
@@ -242,8 +245,26 @@ function actOnSelectedPendingSplit(key: string) {
   else split.deleteSelectedPendingSplit()
 }
 
+/*
+Whether the key stepped: at the first or last track, or over the discard question, it did not, and
+then nothing starts; the question's answer steps later, from the dialog. Whether sound was on is
+read before the step, which makes the player let go of the old track (`model/audition.ts`).
+*/
+function isStepKeyActedOn(step: -1 | 1) {
+  const wasOn = audition.stretchStatus === 'playing' || audition.stretchStatus === 'loading'
+  const hasStepped = split.selectAdjacentTrack(step)
+  if (hasStepped && wasOn && extent.value !== null) audition.toggleStretch(extent.value)
+  return hasStepped
+}
+
 // Whether the key was the view's: a key it leaves alone is the browser's, and is not reported.
 function isKeyActedOn(event: KeyboardEvent) {
+  const step = stepOfKey(event)
+  return step === null ? isOtherKeyActedOn(event) : isStepKeyActedOn(step)
+}
+
+// The view's other keys: Space, Enter, Delete, Escape, Home and the arrows.
+function isOtherKeyActedOn(event: KeyboardEvent) {
   switch (event.key) {
     case ' ': {
       // A held key must not start and stop the sound over and over.

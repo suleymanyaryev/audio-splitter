@@ -30,6 +30,10 @@ export const SHORTCUT_SECTIONS: ShortcutSection[] = [
       },
       { input: 'Left / Right', does: 'Move the selected split 10 ms (Shift: 100 ms)' },
       { input: 'Delete / Backspace', does: 'Delete the selected split' },
+      {
+        input: '[ / ]',
+        does: 'Select the previous or next split; a playing audition plays on from the new split',
+      },
       { input: 'Space', does: 'Play or pause the audition' },
       { input: ', / .', does: 'Move the playhead 100 ms back or forward (Shift: 1 s)' },
       { input: 'Home', does: 'Go back to the audition’s start' },
@@ -61,6 +65,10 @@ export const SHORTCUT_SECTIONS: ShortcutSection[] = [
       },
       { input: 'Delete / Backspace', does: 'Delete the selected pending split' },
       { input: 'Escape', does: 'Let go of the selected pending split' },
+      {
+        input: '[ / ]',
+        does: 'Select the previous or next track; a playing track plays the new one from its start',
+      },
       { input: 'Space', does: 'Play or pause the track' },
       { input: 'Home', does: 'Go back to the track’s start' },
     ],

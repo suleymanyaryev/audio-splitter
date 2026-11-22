@@ -26,6 +26,7 @@ Versions follow [Semantic Versioning](https://semver.org/) applied to the produc
 - In the Split view, `,` and `.` step the playhead back and forward 100 ms (1 s with Shift, and again while held), and Home or the new "Back to audition start" button takes it back to the start of the 8 s.
 - The Split view is a slider for the playhead, so a screen reader says where it is.
 - In the Split view, a click moves the playhead there and a drag moves it along, and a playing audition pauses while you hold it and plays on from where you let go. A press next to the split's line still moves the split.
+- `]` selects the next track and `[` the previous one in the Track view, and the next and previous split in the Split view. The keys are the two to the right of P, so they work without a modifier on every keyboard layout, and they do nothing at the first and last item or while you type a track name. A track that is playing or being decoded carries on with the new track from its start; a paused or stopped one rests at its start. An audition that is playing or being decoded starts again across the new split, a paused one rests at the new split's start, and with none on, none starts. With no split selected, they pick the nearest split on that side of the zoom window's centre.
 
 ### Changed
 
