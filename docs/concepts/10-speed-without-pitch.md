@@ -51,7 +51,51 @@ Pitch survives because no block is replayed at another rate: each is the origina
 
 ## In Chrome
 
-_Filled in once the control is built and heard in Chrome, with measured numbers._
+**Checked in Chrome (2026-11-22).** Chrome 158.0.8127.37 on an Apple M4 Pro with 24 GB, `pnpm dev`, `samples/sample1.m4a` loaded, driven with the browser automation skill. The page's one `<audio>` element was routed through an analyser node (`createMediaElementSource`, a 32,768-point FFT at 44,100 Hz, a bin 1.35 Hz wide), so what is measured is the sound after the element's own time-stretching, not the file. The element's events were logged with `performance.now()`.
+
+**The pitch is kept.** The strongest frequency is the highest peak of the power spectrum averaged over the frames that held only source seconds 134.0 to 137.1, the sound just after the split at 2:13.15. The same stretch of the file was played three ways, each at 0.5×, 1.0× and 2.0×: the audition (clip 2:09.15 to 2:17.15), a range dragged on the whole-file view (2:03.61 to 2:36.57) and track 2 (2:13.15 to 3:52.38). Each cell is the peak bin's centre, with the peak refined by a parabola through its two neighbours in brackets.
+
+| View     | 0.5×            | 1.0×            | 2.0×            |
+| -------- | --------------- | --------------- | --------------- |
+| Audition | 228.79 (228.92) | 228.79 (228.25) | 227.44 (228.08) |
+| Range    | 228.79 (228.53) | 228.79 (228.24) | 228.79 (228.36) |
+| Track    | 228.79 (228.81) | 228.79 (228.28) | 227.44 (228.09) |
+
+The refined peak never moves more than 0.7 Hz from its 1.0× value. The bin centre moves by one bin in two places, the audition and the track at 2.0×, one bin down at 227.44 Hz: the peak sits between two bins, and the parabola puts it back. A resample would read 457 Hz at 2.0× and 114 Hz at 0.5×. The same check on the note's own material, a range from 1:00.43 and source seconds 62 to 66, gives the bass of the worked example:
+
+| Range from 1:00.43  | 0.5×          | 1.0×          | 2.0×          |
+| ------------------- | ------------- | ------------- | ------------- |
+| Strongest frequency | 90.17 (90.03) | 90.17 (89.72) | 88.82 (89.17) |
+
+The 1.0× reading, 89.72 Hz, matches the native FFT's 89.73 Hz. At 2.0× it is 0.55 Hz lower and at 0.5× 0.31 Hz higher, inside the 1.35 Hz bin, and nowhere near the 179 Hz and 45 Hz of resampling.
+
+**The playhead moves, the times stay.** In the Range view from 1:00.43, 5 s of real time, starting about a second into the play:
+
+| Play speed | Real time | `currentTime` advanced | Per real second | Playhead on screen |
+| ---------- | --------- | ---------------------- | --------------- | ------------------ |
+| 0.5×       | 5.002 s   | 2.503 s                | 0.5003          | 0:01:01 to 0:01:03 |
+| 1.0×       | 5.001 s   | 5.001 s                | 1.0000          | 0:01:01 to 0:01:06 |
+| 2.0×       | 5.001 s   | 10.020 s               | 2.0035          | 0:01:01 to 0:01:11 |
+
+The playhead's readout is in source time, so it covers 2, 5 and 10 s of the file in the same 5 s, and the range's title, "0:01:00.43 – 0:01:25.15 · 0:24.72", did not change. A track's length, the split times and the axes are in source time too; only the real time they take changes.
+
+**A change while playing restarts nothing.** In the Range view the slider was set to 2.0×, then 0.5×, then the button reset it to 1.0×, all during one play from the range's start. The log has only `ratechange` for each change, two at the same instant (one for `playbackRate`, one for `defaultPlaybackRate`), and no `emptied`, `loadstart`, `seeking`, `pause` or `ended` after the play began. The media time carried on: 4.02 s at the change to 2.0×, 6.97 s at the change to 0.5× (2.95 s in 1.484 s of real time, 1.99 per second), 7.40 s at the change to 1.0× (0.43 s in 0.866 s, 0.50 per second). The button read "Pause" throughout.
+
+**A track over 10 min, at 2.0×, across the hand-over.** Eight splits at the top of the file were deleted, so track 1 is 0:00 to 16:15.85 (975.85 s) and is heard in two windows: 600.00 s and 375.85 s. At 2.0× the playhead was double-clicked to 585 s, so the hand-over came after about 7.4 s of real time. The element was sampled every 50 ms.
+
+| Measured                                                  | Value                                 |
+| --------------------------------------------------------- | ------------------------------------- |
+| `playbackRate` and `defaultPlaybackRate`, all 449 samples | 2 and 2, before and after             |
+| Last sample before (`currentTime` in the first window)    | 599.961 s, playhead 0:09:59           |
+| First sample after (`currentTime` in the second window)   | 0.055 s, playhead 0:10:00 (600.055 s) |
+| `ended` of the first window to `playing` of the second    | 3.4 ms                                |
+| Second window loaded                                      | `loadedmetadata` 2.8 ms after `play`  |
+
+Media time went from 599.961 s to 600.055 s in the 49.7 ms between those two samples, so the playhead carried on from the boundary at about the speed it had. The 3.4 ms is far below the 59 ms of note 08's 2026-11-19 measurements; why was not investigated. The play speed did not reset at any point, which is what setting the default rate is for.
+
+At 0.5×, a double-click at 1:41 of the same track, outside the window held (600 s to 975.85 s), released both windows and decoded a new one of 600 s: 644 ms from the release to `play`. The rate and the default rate were 0.5 at every event in between and in the new window, and the element was playing at 0.5 afterwards.
+
+**The keys still work after the slider.** After a drag of the slider's thumb with the mouse, Space started and stopped the play in the Track view (0.5× to 1.0× by the drag; "Play" to "Pause" and back), in the Range view (1.0× to 1.7×) and in the Split view (1.0× to 1.3×; "Play across split" to "Stop" and back), at the speed that had been dragged to. The focus was on the page after a drag, so the key went to the view as before.
 
 ## Where it lives in the code
 

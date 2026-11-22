@@ -6,6 +6,12 @@ import type { TimeRange } from '@/entities/split/lib/range-between.ts'
 import { useSplitStore } from '@/entities/split/model/split.ts'
 import { decibelsToGain } from '@/shared/lib/audio/decibels-to-gain.ts'
 import { readSavedVolume, saveVolume } from '../api/saved-volume.ts'
+import {
+  DEFAULT_PLAY_SPEED,
+  MAX_PLAY_SPEED,
+  MIN_PLAY_SPEED,
+  PLAY_SPEED_STEP,
+} from '../config/play-speed.ts'
 import { MAX_VOLUME_DB, MIN_VOLUME_DB } from '../config/volume.ts'
 import { decodeWindow, nextWindow, windowHolds } from '../lib/decode-window.ts'
 
@@ -71,6 +77,13 @@ forgets it and stops its decode, so a seek's window or an export's cut does not 
 The volume (docs/concepts/09-volume-is-gain.md) is the player's too: `volumeDecibels` and `isMuted`,
 applied to the element as a linear gain when it is made and on every change, and kept in
 `localStorage`. It is playback only: an export never passes through the element.
+
+The play speed (docs/concepts/10-speed-without-pitch.md, docs/adr/0004-time-stretching-by-the-browser.md)
+is the player's too: `playSpeed`, 0.5 to 2.0 in steps of 0.1, applied to the element when it is made
+and on every change, with the pitch kept: the browser does the time-stretching. Loading a source
+resets an element's rate to its default rate, which the player does at every new clip, release and
+window hand-over, so both rates are set. The playhead and the window logic stay in media time (the
+time in the file), which is the same at any speed. It is playback only too.
 */
 export const useAuditionStore = defineStore('audition', () => {
   const sourceFile = useSourceFileStore()
@@ -139,6 +152,36 @@ export const useAuditionStore = defineStore('audition', () => {
     () => {
       if (element !== undefined) applyVolume(element)
       saveVolume({ volumeDecibels: volumeDecibels.value, isMuted: isMuted.value })
+    },
+    { flush: 'sync' },
+  )
+
+  // How fast it is heard, from half speed to double, a tenth a step, with the pitch kept.
+  const playSpeed = ref(DEFAULT_PLAY_SPEED)
+
+  function setPlaySpeed(speed: number) {
+    // Not a number: nothing changes.
+    if (!Number.isFinite(speed)) return
+    // Divide by the step and back by its inverse, so 1.3 stays 1.3 and not 1.3000000000000003.
+    const onGrid = Math.round(speed / PLAY_SPEED_STEP) / Math.round(1 / PLAY_SPEED_STEP)
+    playSpeed.value = Math.min(Math.max(onGrid, MIN_PLAY_SPEED), MAX_PLAY_SPEED)
+  }
+
+  /*
+  Loading a source resets the element's rate to its default rate, so both are set: otherwise a new
+  clip, the release of the held one, a seek to a new window and the hand-over would drop to 1.0.
+  */
+  function applyPlaySpeed(target: HTMLAudioElement) {
+    target.preservesPitch = true
+    target.defaultPlaybackRate = playSpeed.value
+    target.playbackRate = playSpeed.value
+  }
+
+  // Sync, like the volume's: sound that is playing changes at once.
+  watch(
+    playSpeed,
+    () => {
+      if (element !== undefined) applyPlaySpeed(element)
     },
     { flush: 'sync' },
   )
@@ -245,6 +288,7 @@ export const useAuditionStore = defineStore('audition', () => {
     if (element === undefined) {
       element = new Audio()
       applyVolume(element)
+      applyPlaySpeed(element)
       element.addEventListener('ended', () => {
         if (status.value === 'playing') stop()
         else if (stretchStatus.value === 'playing') void carryOn()
@@ -602,6 +646,8 @@ export const useAuditionStore = defineStore('audition', () => {
     isActive,
     volumeDecibels,
     isMuted,
+    playSpeed,
+    setPlaySpeed,
     setVolume,
     toggleMute,
     toggle,

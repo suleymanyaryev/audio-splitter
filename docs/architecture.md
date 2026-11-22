@@ -41,15 +41,15 @@ An arrow means "may import from". Two slices of one layer never import each othe
 
 All state lives in Pinia setup stores, in memory, except the theme ([below](#the-theme)). Only the volume, the mute flag and the theme choice are also saved, in `localStorage`.
 
-| Store              | Slice                      | Holds                                                        |
-| ------------------ | -------------------------- | ------------------------------------------------------------ |
-| `source-file`      | `entities/source-file`     | The file, its analysis, load progress and the ffmpeg session |
-| `split`            | `entities/split`           | The settings, splits and track names, selection and edits    |
-| `audition`         | `widgets/split-zoom`       | The one player: what plays, its status, and the volume       |
-| `export-tracks`    | `widgets/track-strip`      | The export of every track into a folder                      |
-| `export-single`    | `widgets/track-strip`      | The export of one track or range as a single file            |
-| `export-lock`      | `widgets/track-strip`      | Which export is running, so the two never overlap            |
-| `shortcuts-dialog` | `widgets/shortcuts-dialog` | Whether the shortcuts dialog is open                         |
+| Store              | Slice                      | Holds                                                         |
+| ------------------ | -------------------------- | ------------------------------------------------------------- |
+| `source-file`      | `entities/source-file`     | The file, its analysis, load progress and the ffmpeg session  |
+| `split`            | `entities/split`           | The settings, splits and track names, selection and edits     |
+| `audition`         | `widgets/split-zoom`       | The one player: what plays, its status, volume and play speed |
+| `export-tracks`    | `widgets/track-strip`      | The export of every track into a folder                       |
+| `export-single`    | `widgets/track-strip`      | The export of one track or range as a single file             |
+| `export-lock`      | `widgets/track-strip`      | Which export is running, so the two never overlap             |
+| `shortcuts-dialog` | `widgets/shortcuts-dialog` | Whether the shortcuts dialog is open                          |
 
 ```mermaid
 flowchart LR
@@ -190,7 +190,7 @@ stateDiagram-v2
 - **A long track plays through a moving window.** At most 10 min is decoded at a time. The next window is decoded while the current one plays, and at most two are held ([`decode-window.ts`](../src/widgets/split-zoom/lib/decode-window.ts), [note 08](concepts/08-listening-to-a-range.md)).
 - **Watchers on the `split` store stop the sound at once** when the split, range or track it belongs to changes. A view change or the export only pauses a stretch, so its playhead stays.
 - **Every press takes a number.** A clip that arrives for an older press is dropped, so stale sound never starts.
-- **The volume applies to the element only**, so it never reaches an exported file ([note 09](concepts/09-volume-is-gain.md)).
+- **The volume and the play speed apply to the element only**, so they never reach an exported file ([note 09](concepts/09-volume-is-gain.md), [note 10](concepts/10-speed-without-pitch.md)). The browser keeps the pitch, and both of the element's rates are set because a new source resets one ([ADR 0004](adr/0004-time-stretching-by-the-browser.md)).
 
 ## Export
 
