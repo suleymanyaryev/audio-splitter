@@ -18,6 +18,10 @@ Versions follow [Semantic Versioning](https://semver.org/) applied to the produc
 
 ## [Unreleased]
 
+### Changed
+
+- In the Split view, Space and the play button now pause the audition and play it on from the same point; it starts again from the top only after it has played to the end. The playhead is always drawn, at the start of the 8 s before the first play and where you paused.
+
 ## [1.3.0] - 2026-11-22
 
 ### Added

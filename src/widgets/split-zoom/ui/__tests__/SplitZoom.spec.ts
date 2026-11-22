@@ -28,6 +28,12 @@ function setup() {
   return { split, wrapper: mount(SplitZoom, { attachTo: document.body }) }
 }
 
+// The window of the playhead specs is 11 s to 31 s on 200 px, so 10 px a second.
+function mountOnSplit() {
+  useSourceFileStore().peaks = new Float32Array(2000)
+  return setup()
+}
+
 function focusElement(element: Element) {
   if (element instanceof HTMLElement) element.focus()
 }
@@ -173,6 +179,74 @@ describe('SplitZoom', () => {
       await press({ key: ' ' })
 
       expect(split.selectedSplit?.seconds).toBe(21)
+    })
+  })
+
+  describe('the playhead', () => {
+    // A 200 x 160 canvas whose 2D context records the 1 px full-height lines it is asked to fill.
+    let lines: number[]
+
+    beforeEach(() => {
+      lines = []
+      const recorder = new Proxy(
+        {},
+        {
+          get: (_target, name) =>
+            name === 'fillRect'
+              ? (x: number, _y: number, width: number, height: number) => {
+                  if (width === 1 && height === 160) lines.push(x)
+                }
+              : () => {},
+          set: () => true,
+        },
+      )
+      vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(
+        recorder as unknown as CanvasRenderingContext2D,
+      )
+      vi.spyOn(Element.prototype, 'getBoundingClientRect').mockReturnValue(
+        new DOMRect(0, 0, 200, 160),
+      )
+    })
+
+    afterEach(() => {
+      vi.restoreAllMocks()
+      // jsdom has neither, so the paused test gave them to URL itself.
+      Reflect.deleteProperty(URL, 'createObjectURL')
+      Reflect.deleteProperty(URL, 'revokeObjectURL')
+    })
+
+    it('is drawn at the start of the audition before it is first played', () => {
+      mountOnSplit()
+
+      // The split is at 21 s, so the 8 s start at 17 s.
+      expect(lines.at(-1)).toBe(60)
+    })
+
+    it('stays drawn where the audition was paused', async () => {
+      const { wrapper } = mountOnSplit()
+      const audition = useAuditionStore()
+      vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue()
+      vi.spyOn(HTMLMediaElement.prototype, 'load').mockImplementation(() => {})
+      vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => {})
+      vi.spyOn(useSourceFileStore(), 'clip').mockResolvedValue({
+        wav: Uint8Array.of(1),
+        startSeconds: 17,
+        lengthSeconds: 8,
+      })
+      URL.createObjectURL = () => 'blob:clip'
+      URL.revokeObjectURL = () => {}
+
+      audition.toggle()
+      await new Promise((done) => setTimeout(done, 0))
+      const element = vi.mocked(HTMLMediaElement.prototype.play).mock
+        .contexts[0] as HTMLAudioElement
+      element.currentTime = 2.5
+      audition.toggle()
+      await wrapper.vm.$nextTick()
+
+      // 17 s + 2.5 s = 19.5 s.
+      expect(audition.status).toBe('paused')
+      expect(lines.at(-1)).toBe(85)
     })
   })
 

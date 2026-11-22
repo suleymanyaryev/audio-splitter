@@ -98,11 +98,11 @@ function deleteSplitButton(wrapper: ReturnType<typeof mount>) {
   return button
 }
 
-// The primary button of the zoom panel's title row; its name is "Play across split" or "Stop".
+// The primary button of the Split view's title row: "Play across split", "Pause" or "Stop".
 function auditionButton(wrapper: ReturnType<typeof mount>) {
   const button = wrapper
     .findAll('button')
-    .find((candidate) => ['Play across split', 'Stop'].includes(nameOf(candidate)))
+    .find((candidate) => ['Play across split', 'Pause', 'Stop'].includes(nameOf(candidate)))
   if (!button) throw new Error('no audition button')
   return button
 }
@@ -316,12 +316,16 @@ describe('ReviewPage', () => {
       expect(auditionButton(wrapper).attributes('disabled')).toBeDefined()
     })
 
-    it('say Stop (Space) in the Split view while a clip plays', async () => {
+    it('say Stop (Space) in the Split view while a clip is decoded, and Pause (Space) while it plays', async () => {
       const wrapper = await mountPageOnSplit()
-      useAuditionStore().status = 'playing'
+      const audition = useAuditionStore()
+      audition.status = 'loading'
       await wrapper.vm.$nextTick()
-
       expect(await tooltipOf(auditionButton(wrapper))).toBe('Stop (Space)')
+
+      audition.status = 'playing'
+      await wrapper.vm.$nextTick()
+      expect(await tooltipOf(auditionButton(wrapper))).toBe('Pause (Space)')
     })
 
     it('are Back to track start and Play in the Track view, with no Add split', async () => {
@@ -560,21 +564,32 @@ describe('ReviewPage', () => {
       expect(toggle).toHaveBeenCalledTimes(1)
     })
 
-    it('reads "Stop" with its own icon while a clip loads or plays, and stays enabled', async () => {
+    it('reads "Stop" while a clip loads, "Pause" while it plays and "Play across split" when paused, with its own icons, enabled throughout', async () => {
       const wrapper = await mountPageOnSplit()
       const audition = useAuditionStore()
       const playIcon = auditionButton(wrapper).get('svg').classes()
 
       audition.status = 'loading'
       await wrapper.vm.$nextTick()
-      const loading = auditionButton(wrapper)
-      expect(nameOf(loading)).toBe('Stop')
-      expect(loading.get('svg').classes()).not.toEqual(playIcon)
-      expect(loading.attributes('disabled')).toBeUndefined()
+      // The button is patched in place, so what each state looks like is read at once.
+      const stopIcon = auditionButton(wrapper).get('svg').classes()
+      expect(nameOf(auditionButton(wrapper))).toBe('Stop')
+      expect(stopIcon).not.toEqual(playIcon)
+      expect(auditionButton(wrapper).attributes('disabled')).toBeUndefined()
 
       audition.status = 'playing'
       await wrapper.vm.$nextTick()
-      expect(nameOf(auditionButton(wrapper))).toBe('Stop')
+      const pauseIcon = auditionButton(wrapper).get('svg').classes()
+      expect(nameOf(auditionButton(wrapper))).toBe('Pause')
+      expect(pauseIcon).not.toEqual(playIcon)
+      expect(pauseIcon).not.toEqual(stopIcon)
+      expect(auditionButton(wrapper).attributes('disabled')).toBeUndefined()
+
+      audition.status = 'paused'
+      await wrapper.vm.$nextTick()
+      expect(nameOf(auditionButton(wrapper))).toBe('Play across split')
+      expect(auditionButton(wrapper).get('svg').classes()).toEqual(playIcon)
+      expect(auditionButton(wrapper).attributes('disabled')).toBeUndefined()
 
       audition.status = 'idle'
       await wrapper.vm.$nextTick()

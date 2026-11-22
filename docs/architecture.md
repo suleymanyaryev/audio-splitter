@@ -158,17 +158,24 @@ The `audition` store is the one player. The `source-file` store decodes a stretc
 
 There are two kinds of listening. Starting one stops the other.
 
-**The audition** plays the 8 s across the selected split.
+**The audition** plays the 8 s across the selected split, its extent: the split ±4 s, held to the file. It can pause and resume without decoding again. Its playhead is always known while a split is selected: the sound while it plays, else the resting place, else the extent's start.
 
 ```mermaid
 stateDiagram-v2
   [*] --> idle
   idle --> loading: play
   loading --> playing: clip decoded
-  playing --> idle: clip ended
-  loading --> idle: pressed again, split changed, or failed
-  playing --> idle: pressed again, or split changed
+  playing --> paused: pressed again
+  paused --> playing: pressed again
+  playing --> idle: played to the end, or a view change or the export
+  paused --> idle: a view change, the export, or a stretch plays
+  loading --> idle: pressed again, a view change or the export, split changed, or failed
+  playing --> idle: split changed
+  paused --> idle: split changed
 ```
+
+- **The resting place is a time in the file, tied to its split.** A pause keeps it with the WAV. A view change, the export and a stretch that takes over keep it and let go of the WAV. Playing to the end, selecting another split or none, or deleting the split clears it.
+- **Moving the split ends the audition** and keeps the place, held into the moved extent.
 
 **The stretch** plays a range or the selected track. It can pause, resume and seek without decoding again.
 

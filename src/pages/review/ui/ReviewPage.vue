@@ -59,7 +59,7 @@ pending split" (only while one is selected). "Export track…" is off while the 
 splits, and its tooltip says why. The zoom view also has
 "Delete split", which deletes the selected split as Delete does on its handle (disabled with none
 selected), and "Play across split", which plays the selected split's clip (and reads "Stop" while
-it loads or plays). The
+it is decoded and "Pause" while it plays). The
 Range view and the Track view have "Play", which plays the range or the selected track (and reads
 "Stop" while it is decoded and "Pause" while it plays), and "Back to range start" or "Back to track
 start" beside it, which moves the playhead to the stretch's start. The volume control (a mute button
@@ -195,6 +195,15 @@ const showsSplitTime = computed(() => split.view === 'split' && split.selectedSp
 // "Stop" while the stretch is being decoded, so a press can take it back; "Pause" while it plays.
 const STRETCH_BUTTON_LABELS = { idle: 'Play', loading: 'Stop', playing: 'Pause', paused: 'Play' }
 const stretchButtonLabel = computed(() => STRETCH_BUTTON_LABELS[audition.stretchStatus])
+
+// The same for the audition, which keeps the name of what it plays while it is idle or paused.
+const AUDITION_BUTTON_LABELS = {
+  idle: 'Play across split',
+  loading: 'Stop',
+  playing: 'Pause',
+  paused: 'Play across split',
+}
+const auditionButtonLabel = computed(() => AUDITION_BUTTON_LABELS[audition.status])
 
 /*
 The two buttons of the Range view and of the Track view play the stretch on show: the range, or the
@@ -343,13 +352,19 @@ watch(
           v-else
           variant="primary"
           size="sm"
-          :label="audition.isActive ? 'Stop' : 'Play across split'"
+          :label="auditionButtonLabel"
           hint="Space"
           :disabled="split.selectedSplit === null && !audition.isActive"
           @click="audition.toggle()"
         >
           <Square
-            v-if="audition.isActive"
+            v-if="audition.status === 'loading'"
+            class="size-4 shrink-0"
+            fill="currentColor"
+            :stroke-width="0"
+          />
+          <Pause
+            v-else-if="audition.status === 'playing'"
             class="size-4 shrink-0"
             fill="currentColor"
             :stroke-width="0"
