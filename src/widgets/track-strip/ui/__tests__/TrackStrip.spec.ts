@@ -275,6 +275,17 @@ describe('TrackStrip', () => {
       expect(other?.classes()).toContain('focus-visible:bg-split')
     })
 
+    it('draws a focus ring on top of the rust fill, so a focused item differs from a selected one', async () => {
+      const { wrapper } = await mountWithTwoGaps()
+
+      for (const item of splitItems(wrapper)) {
+        expect(item.classes()).toEqual(
+          expect.arrayContaining(['focus-visible:outline-2', 'focus-visible:outline-ink']),
+        )
+        expect(item.classes()).not.toContain('focus-visible:outline-none')
+      }
+    })
+
     it('carries a rust rule at every split, selected or not', async () => {
       const { wrapper } = await mountWithTwoGaps()
 

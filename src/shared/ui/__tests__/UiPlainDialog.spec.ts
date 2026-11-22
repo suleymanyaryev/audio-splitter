@@ -46,6 +46,18 @@ describe('UiPlainDialog', () => {
     expect(dialog?.querySelector('button')?.textContent).toBe('Close')
   })
 
+  it('scrolls only its body, so the actions stay in view on a short window', async () => {
+    wrapper = mountDialog(true)
+    await flushPromises()
+
+    const dialog = dialogElement()
+    const body = [...(dialog?.children ?? [])].find((child) => child.textContent === 'body')
+    const actions = [...(dialog?.children ?? [])].find((child) => child.textContent === 'Close')
+    expect(dialog?.classList.contains('overflow-y-auto')).toBe(false)
+    expect(body?.classList.contains('overflow-y-auto')).toBe(true)
+    expect(actions?.classList.contains('shrink-0')).toBe(true)
+  })
+
   it('asks to close on Escape', async () => {
     wrapper = mountDialog(true)
     await flushPromises()

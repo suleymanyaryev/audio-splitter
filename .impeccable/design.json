@@ -1,212 +1,178 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-11-13T15:00:00Z",
+  "generatedAt": "2026-11-21T23:24:28Z",
   "title": "Design System: Audio Splitter",
   "extensions": {
     "colorMeta": {
       "ink": {
         "role": "neutral",
-        "displayName": "Vinyl Ink",
-        "canonical": "#121212",
-        "oklch": "oklch(18.2% 0.000 90)",
+        "displayName": "Graphite Ink",
+        "canonical": "#1B2326",
         "tonalRamp": [
-          "#0B0B0B",
-          "#252525",
-          "#424242",
-          "#616161",
-          "#828282",
-          "#A5A5A5",
-          "#C9C9C9",
-          "#EEEEEE"
-        ],
-        "cssVar": "--color-ink",
-        "theme": "light"
+          "#080C0D",
+          "#202629",
+          "#3B4447",
+          "#5A6367",
+          "#7A8488",
+          "#9DA7AB",
+          "#C3CBCE",
+          "#EAEFF2"
+        ]
       },
       "muted": {
         "role": "neutral",
         "displayName": "Label Grey",
-        "canonical": "#5E6066",
-        "oklch": "oklch(48.9% 0.010 271)",
+        "canonical": "#55615E",
         "tonalRamp": [
-          "#0B0B0C",
-          "#242527",
-          "#404246",
-          "#5F6167",
-          "#808288",
-          "#A3A5AA",
-          "#C8C9CC",
-          "#EEEEEF"
-        ],
-        "cssVar": "--color-muted",
-        "theme": "light"
+          "#080C0B",
+          "#1F2725",
+          "#394542",
+          "#586461",
+          "#798682",
+          "#9BA8A5",
+          "#C1CCC9",
+          "#E9F0EE"
+        ]
       },
       "ground": {
         "role": "neutral",
-        "displayName": "Sleeve Ground",
-        "canonical": "#F7F7F5",
-        "oklch": "oklch(97.6% 0.003 106)",
+        "displayName": "Fog Ground",
+        "canonical": "#E3E8E6",
         "tonalRamp": [
-          "#0B0B0B",
-          "#252524",
-          "#424241",
-          "#616160",
-          "#828281",
-          "#A5A5A3",
-          "#C9C9C8",
-          "#EEEEEE"
-        ],
-        "cssVar": "--color-ground",
-        "theme": "light"
+          "#0A0C0B",
+          "#232625",
+          "#3F4341",
+          "#5E6261",
+          "#7F8382",
+          "#A1A6A4",
+          "#C6CAC9",
+          "#ECEFEE"
+        ]
       },
       "surface": {
         "role": "neutral",
         "displayName": "Sleeve Surface",
-        "canonical": "#FFFFFF",
-        "oklch": "oklch(100.0% 0.000 90)",
+        "canonical": "#FAFBFA",
         "tonalRamp": [
           "#0B0B0B",
           "#252525",
-          "#424242",
+          "#414241",
           "#616161",
           "#828282",
-          "#A5A5A5",
-          "#C9C9C9",
+          "#A4A5A4",
+          "#C8C9C8",
           "#EEEEEE"
-        ],
-        "cssVar": "--color-surface",
-        "theme": "light"
+        ]
       },
       "hairline": {
         "role": "neutral",
         "displayName": "Hairline",
-        "canonical": "#E2E3E0",
-        "oklch": "oklch(91.4% 0.004 122)",
+        "canonical": "#D2D9D6",
         "tonalRamp": [
-          "#0B0B0B",
-          "#252524",
-          "#424240",
-          "#61625F",
-          "#828380",
-          "#A4A5A3",
-          "#C9C9C8",
-          "#EEEEEE"
-        ],
-        "cssVar": "--color-hairline",
-        "theme": "light"
+          "#090C0B",
+          "#222624",
+          "#3E4341",
+          "#5D6360",
+          "#7E8481",
+          "#A0A7A4",
+          "#C5CAC8",
+          "#ECEFEE"
+        ]
       },
       "edge": {
         "role": "neutral",
         "displayName": "Control Edge",
-        "canonical": "#8A8D93",
-        "oklch": "oklch(64.3% 0.010 264)",
+        "canonical": "#7F8B88",
         "tonalRamp": [
-          "#0B0B0C",
-          "#242527",
-          "#404246",
-          "#5E6167",
-          "#7F8288",
-          "#A3A5AA",
-          "#C8C9CC",
-          "#EEEEEF"
-        ],
-        "cssVar": "--color-edge",
-        "theme": "light"
+          "#080C0B",
+          "#1F2725",
+          "#3A4542",
+          "#596461",
+          "#798582",
+          "#9CA8A5",
+          "#C2CCC9",
+          "#E9F0EE"
+        ]
       },
       "wave": {
         "role": "neutral",
-        "displayName": "Groove Grey",
-        "canonical": "#3A3A3A",
-        "oklch": "oklch(34.8% 0.000 90)",
+        "displayName": "Graphite Wave",
+        "canonical": "#2C3639",
         "tonalRamp": [
-          "#0B0B0B",
-          "#252525",
-          "#424242",
-          "#616161",
-          "#828282",
-          "#A5A5A5",
-          "#C9C9C9",
-          "#EEEEEE"
-        ],
-        "cssVar": "--color-wave",
-        "theme": "light"
+          "#080C0D",
+          "#1F2629",
+          "#3A4447",
+          "#586367",
+          "#798588",
+          "#9CA7AB",
+          "#C2CBCE",
+          "#E9F0F2"
+        ]
       },
       "track": {
-        "role": "neutral",
-        "displayName": "Track Grey",
-        "canonical": "#3A3A3A",
-        "oklch": "oklch(34.8% 0.000 90)",
+        "role": "secondary",
+        "displayName": "Slate Track",
+        "canonical": "#3B4F57",
         "tonalRamp": [
-          "#0B0B0B",
-          "#252525",
-          "#424242",
-          "#616161",
-          "#828282",
-          "#A5A5A5",
-          "#C9C9C9",
-          "#EEEEEE"
-        ],
-        "cssVar": "--color-track",
-        "theme": "light"
+          "#050C10",
+          "#1A272D",
+          "#32454D",
+          "#50656D",
+          "#71868F",
+          "#93A9B2",
+          "#BBCDD4",
+          "#E5F1F6"
+        ]
       },
       "on-track": {
         "role": "neutral",
         "displayName": "On Track",
-        "canonical": "#FFFFFF",
-        "oklch": "oklch(100.0% 0.000 90)",
+        "canonical": "#F2F5F4",
         "tonalRamp": [
-          "#0B0B0B",
-          "#252525",
-          "#424242",
-          "#616161",
-          "#828282",
-          "#A5A5A5",
-          "#C9C9C9",
-          "#EEEEEE"
-        ],
-        "cssVar": "--color-on-track",
-        "theme": "light"
+          "#0A0B0B",
+          "#242525",
+          "#404342",
+          "#5F6261",
+          "#808382",
+          "#A3A6A5",
+          "#C7CAC9",
+          "#EDEFEE"
+        ]
       },
       "land": {
         "role": "neutral",
-        "displayName": "Sheen Land",
-        "canonical": "#C9CCD1",
-        "oklch": "oklch(84.4% 0.008 261)",
+        "displayName": "Sea-Mist Land",
+        "canonical": "#BCD2CD",
         "tonalRamp": [
-          "#0B0B0C",
-          "#242527",
-          "#404245",
-          "#5F6166",
-          "#808287",
-          "#A3A5A9",
-          "#C8C9CB",
-          "#EEEEEF"
-        ],
-        "cssVar": "--color-land",
-        "theme": "light"
+          "#060D0B",
+          "#1B2825",
+          "#344643",
+          "#526662",
+          "#738783",
+          "#95AAA6",
+          "#BDCDCA",
+          "#E6F1EF"
+        ]
       },
       "split": {
         "role": "primary",
-        "displayName": "Centre-Label Vermilion",
-        "canonical": "#C8341F",
-        "oklch": "oklch(55.1% 0.188 31)",
+        "displayName": "Rust",
+        "canonical": "#B83E0B",
         "tonalRamp": [
-          "#150705",
-          "#470D05",
-          "#7F0700",
-          "#B31B03",
-          "#DC4832",
-          "#F57D68",
-          "#FEB4A6",
-          "#FFE8E3"
-        ],
-        "cssVar": "--color-split",
-        "theme": "light"
+          "#1E0100",
+          "#451100",
+          "#752200",
+          "#A73502",
+          "#D2562B",
+          "#FA7A50",
+          "#FFB49C",
+          "#FEE9E3"
+        ]
       },
       "on-split": {
-        "role": "primary",
-        "displayName": "On Vermilion",
+        "role": "neutral",
+        "displayName": "On Rust",
         "canonical": "#FFFFFF",
-        "oklch": "oklch(100.0% 0.000 90)",
         "tonalRamp": [
           "#0B0B0B",
           "#252525",
@@ -216,307 +182,426 @@
           "#A5A5A5",
           "#C9C9C9",
           "#EEEEEE"
-        ],
-        "cssVar": "--color-on-split",
-        "theme": "light"
+        ]
       },
-      "vinyl": {
-        "role": "neutral",
-        "displayName": "Vinyl",
-        "canonical": "#121212",
-        "oklch": "oklch(18.2% 0.000 90)",
+      "fill": {
+        "role": "secondary",
+        "displayName": "Slate Fill",
+        "canonical": "#26343A",
         "tonalRamp": [
-          "#0B0B0B",
-          "#252525",
-          "#424242",
-          "#616161",
-          "#828282",
-          "#A5A5A5",
-          "#C9C9C9",
-          "#EEEEEE"
-        ],
-        "cssVar": "--color-vinyl",
-        "theme": "both"
+          "#070C0F",
+          "#1D272B",
+          "#36454B",
+          "#55646B",
+          "#75858C",
+          "#98A8AF",
+          "#BFCCD1",
+          "#E7F0F4"
+        ]
       },
-      "on-vinyl": {
-        "role": "neutral",
-        "displayName": "On Vinyl",
-        "canonical": "#EDEDEA",
-        "oklch": "oklch(94.5% 0.004 106)",
+      "fill-hover": {
+        "role": "secondary",
+        "displayName": "Slate Fill Hover",
+        "canonical": "#3B4F57",
         "tonalRamp": [
-          "#0B0B0B",
-          "#252524",
-          "#424240",
-          "#61615F",
-          "#828280",
-          "#A5A5A3",
-          "#C9C9C8",
-          "#EEEEEE"
-        ],
-        "cssVar": "--color-on-vinyl",
-        "theme": "both"
+          "#050C10",
+          "#1A272D",
+          "#32454D",
+          "#50656D",
+          "#71868F",
+          "#93A9B2",
+          "#BBCDD4",
+          "#E5F1F6"
+        ]
       },
-      "on-vinyl-muted": {
+      "on-fill": {
         "role": "neutral",
-        "displayName": "On Vinyl Muted",
-        "canonical": "#A3A5AA",
-        "oklch": "oklch(72.2% 0.008 269)",
+        "displayName": "On Slate Fill",
+        "canonical": "#F2F5F4",
         "tonalRamp": [
-          "#0B0B0C",
-          "#242527",
-          "#414245",
-          "#5F6166",
-          "#808287",
-          "#A3A5A9",
-          "#C8C9CB",
-          "#EEEEEF"
-        ],
-        "cssVar": "--color-on-vinyl-muted",
-        "theme": "both"
+          "#0A0B0B",
+          "#242525",
+          "#404342",
+          "#5F6261",
+          "#808382",
+          "#A3A6A5",
+          "#C7CAC9",
+          "#EDEFEE"
+        ]
       },
-      "vinyl-edge": {
-        "role": "neutral",
-        "displayName": "Vinyl Edge",
-        "canonical": "#3A3A3A",
-        "oklch": "oklch(34.8% 0.000 90)",
+      "band": {
+        "role": "secondary",
+        "displayName": "Band",
+        "canonical": "#26343A",
         "tonalRamp": [
-          "#0B0B0B",
-          "#252525",
-          "#424242",
-          "#616161",
-          "#828282",
-          "#A5A5A5",
-          "#C9C9C9",
-          "#EEEEEE"
-        ],
-        "cssVar": "--color-vinyl-edge",
-        "theme": "both"
+          "#070C0F",
+          "#1D272B",
+          "#36454B",
+          "#55646B",
+          "#75858C",
+          "#98A8AF",
+          "#BFCCD1",
+          "#E7F0F4"
+        ]
+      },
+      "on-band": {
+        "role": "neutral",
+        "displayName": "On Band",
+        "canonical": "#E6EEEC",
+        "tonalRamp": [
+          "#090C0B",
+          "#222625",
+          "#3D4442",
+          "#5C6361",
+          "#7D8482",
+          "#9FA7A5",
+          "#C5CBC9",
+          "#EBEFEE"
+        ]
+      },
+      "on-band-muted": {
+        "role": "neutral",
+        "displayName": "On Band Muted",
+        "canonical": "#A3B5B2",
+        "tonalRamp": [
+          "#070D0C",
+          "#1D2826",
+          "#364643",
+          "#556563",
+          "#758784",
+          "#98A9A6",
+          "#BFCDCA",
+          "#E7F1EF"
+        ]
+      },
+      "band-edge": {
+        "role": "neutral",
+        "displayName": "Band Edge",
+        "canonical": "#3A4A51",
+        "tonalRamp": [
+          "#060C0F",
+          "#1C272C",
+          "#35454C",
+          "#54646C",
+          "#74868D",
+          "#96A8B0",
+          "#BECCD2",
+          "#E7F0F5"
+        ]
+      },
+      "mark": {
+        "role": "neutral",
+        "displayName": "Mark",
+        "canonical": "#BCD2CD",
+        "tonalRamp": [
+          "#060D0B",
+          "#1B2825",
+          "#344643",
+          "#526662",
+          "#738783",
+          "#95AAA6",
+          "#BDCDCA",
+          "#E6F1EF"
+        ]
       },
       "ink-dark": {
         "role": "neutral",
-        "displayName": "Vinyl Ink (dark)",
-        "canonical": "#EDEDEA",
-        "oklch": "oklch(94.5% 0.004 106)",
+        "displayName": "Graphite Ink (dark)",
+        "canonical": "#E2E9E7",
         "tonalRamp": [
-          "#0B0B0B",
-          "#252524",
-          "#424240",
-          "#61615F",
-          "#828280",
-          "#A5A5A3",
-          "#C9C9C8",
-          "#EEEEEE"
-        ],
-        "cssVar": "--color-ink",
-        "theme": "dark"
+          "#090C0B",
+          "#222625",
+          "#3E4342",
+          "#5D6361",
+          "#7E8482",
+          "#A0A7A5",
+          "#C5CAC9",
+          "#ECEFEE"
+        ]
       },
       "muted-dark": {
         "role": "neutral",
         "displayName": "Label Grey (dark)",
-        "canonical": "#A3A5AA",
-        "oklch": "oklch(72.2% 0.008 269)",
+        "canonical": "#98A6A3",
         "tonalRamp": [
-          "#0B0B0C",
-          "#242527",
-          "#414245",
-          "#5F6166",
-          "#808287",
-          "#A3A5A9",
-          "#C8C9CB",
-          "#EEEEEF"
-        ],
-        "cssVar": "--color-muted",
-        "theme": "dark"
+          "#080C0B",
+          "#1F2725",
+          "#394542",
+          "#586462",
+          "#788683",
+          "#9BA9A6",
+          "#C1CCCA",
+          "#E9F0EF"
+        ]
       },
       "ground-dark": {
         "role": "neutral",
-        "displayName": "Sleeve Ground (dark)",
-        "canonical": "#0E0E0E",
-        "oklch": "oklch(16.4% 0.000 90)",
+        "displayName": "Fog Ground (dark)",
+        "canonical": "#101618",
         "tonalRamp": [
-          "#0B0B0B",
-          "#252525",
-          "#424242",
-          "#616161",
-          "#828282",
-          "#A5A5A5",
-          "#C9C9C9",
-          "#EEEEEE"
-        ],
-        "cssVar": "--color-ground",
-        "theme": "dark"
+          "#090C0D",
+          "#212628",
+          "#3C4346",
+          "#5B6365",
+          "#7C8486",
+          "#9FA7A9",
+          "#C4CACC",
+          "#EBEFF1"
+        ]
       },
       "surface-dark": {
         "role": "neutral",
         "displayName": "Sleeve Surface (dark)",
-        "canonical": "#171717",
-        "oklch": "oklch(20.5% 0.000 90)",
+        "canonical": "#182023",
         "tonalRamp": [
-          "#0B0B0B",
-          "#252525",
-          "#424242",
-          "#616161",
-          "#828282",
-          "#A5A5A5",
-          "#C9C9C9",
-          "#EEEEEE"
-        ],
-        "cssVar": "--color-surface",
-        "theme": "dark"
+          "#080C0D",
+          "#202629",
+          "#3B4447",
+          "#5A6367",
+          "#7A8488",
+          "#9DA7AB",
+          "#C3CBCE",
+          "#EAEFF2"
+        ]
       },
       "hairline-dark": {
         "role": "neutral",
         "displayName": "Hairline (dark)",
-        "canonical": "#2A2B2D",
-        "oklch": "oklch(28.9% 0.004 265)",
+        "canonical": "#263033",
         "tonalRamp": [
-          "#0B0B0B",
-          "#252526",
-          "#414244",
-          "#606163",
-          "#818285",
-          "#A4A5A7",
-          "#C8C9CA",
-          "#EEEEEF"
-        ],
-        "cssVar": "--color-hairline",
-        "theme": "dark"
+          "#080C0D",
+          "#1F2629",
+          "#3A4447",
+          "#586367",
+          "#798588",
+          "#9BA7AB",
+          "#C1CBCE",
+          "#E9F0F2"
+        ]
       },
       "edge-dark": {
         "role": "neutral",
         "displayName": "Control Edge (dark)",
-        "canonical": "#6E7076",
-        "oklch": "oklch(54.5% 0.010 271)",
+        "canonical": "#6B7977",
         "tonalRamp": [
-          "#0B0B0C",
-          "#242527",
-          "#404246",
-          "#5F6167",
-          "#808288",
-          "#A3A5AA",
-          "#C8C9CC",
-          "#EEEEEF"
-        ],
-        "cssVar": "--color-edge",
-        "theme": "dark"
+          "#070C0C",
+          "#1E2726",
+          "#384543",
+          "#576563",
+          "#788684",
+          "#9AA9A7",
+          "#C0CCCA",
+          "#E8F0EF"
+        ]
       },
       "wave-dark": {
         "role": "neutral",
-        "displayName": "Groove Grey (dark)",
-        "canonical": "#B9BCC1",
-        "oklch": "oklch(79.4% 0.008 261)",
+        "displayName": "Graphite Wave (dark)",
+        "canonical": "#B4C0BD",
         "tonalRamp": [
-          "#0B0B0C",
-          "#242527",
-          "#404245",
-          "#5F6166",
-          "#808287",
-          "#A3A5A9",
-          "#C8C9CB",
-          "#EEEEEF"
-        ],
-        "cssVar": "--color-wave",
-        "theme": "dark"
+          "#080C0B",
+          "#202725",
+          "#3A4542",
+          "#596461",
+          "#7A8582",
+          "#9CA8A5",
+          "#C2CBC9",
+          "#EAF0EE"
+        ]
       },
       "track-dark": {
-        "role": "neutral",
-        "displayName": "Track Grey (dark)",
-        "canonical": "#5C5E63",
-        "oklch": "oklch(48.2% 0.008 268)",
+        "role": "secondary",
+        "displayName": "Slate Track (dark)",
+        "canonical": "#4C6670",
         "tonalRamp": [
-          "#0B0B0C",
-          "#242527",
-          "#404246",
-          "#5F6166",
-          "#808287",
-          "#A3A5A9",
-          "#C8C9CC",
-          "#EEEEEF"
-        ],
-        "cssVar": "--color-track",
-        "theme": "dark"
+          "#040D11",
+          "#16282F",
+          "#2D4650",
+          "#4C6670",
+          "#6C8792",
+          "#8EAAB5",
+          "#B8CDD6",
+          "#E3F1F7"
+        ]
       },
       "on-track-dark": {
         "role": "neutral",
         "displayName": "On Track (dark)",
-        "canonical": "#EDEDEA",
-        "oklch": "oklch(94.5% 0.004 106)",
+        "canonical": "#F0F4F3",
         "tonalRamp": [
-          "#0B0B0B",
-          "#252524",
-          "#424240",
-          "#61615F",
-          "#828280",
-          "#A5A5A3",
-          "#C9C9C8",
-          "#EEEEEE"
-        ],
-        "cssVar": "--color-on-track",
-        "theme": "dark"
+          "#0A0B0B",
+          "#232625",
+          "#404342",
+          "#5F6261",
+          "#808382",
+          "#A2A6A5",
+          "#C7CAC9",
+          "#EDEFEE"
+        ]
       },
       "land-dark": {
         "role": "neutral",
-        "displayName": "Sheen Land (dark)",
-        "canonical": "#383A3E",
-        "oklch": "oklch(34.8% 0.007 264)",
+        "displayName": "Sea-Mist Land (dark)",
+        "canonical": "#24403D",
         "tonalRamp": [
-          "#0B0B0C",
-          "#242527",
-          "#404245",
-          "#5F6166",
-          "#808287",
-          "#A3A5A9",
-          "#C8C9CB",
-          "#EEEEEF"
-        ],
-        "cssVar": "--color-land",
-        "theme": "dark"
+          "#030E0C",
+          "#152927",
+          "#2C4845",
+          "#4B6864",
+          "#6B8986",
+          "#8DACA9",
+          "#B7CFCC",
+          "#E2F3F0"
+        ]
       },
       "split-dark": {
         "role": "primary",
-        "displayName": "Centre-Label Vermilion (dark)",
-        "canonical": "#FF5A43",
-        "oklch": "oklch(68.5% 0.204 31)",
+        "displayName": "Rust (dark)",
+        "canonical": "#F28A4E",
         "tonalRamp": [
-          "#160604",
-          "#4A0803",
-          "#840000",
-          "#B90000",
-          "#E33E29",
-          "#FB7863",
-          "#FFB2A3",
-          "#FFE7E2"
-        ],
-        "cssVar": "--color-split",
-        "theme": "dark"
+          "#1B0400",
+          "#3F1800",
+          "#6B2D00",
+          "#9B4400",
+          "#C66221",
+          "#ED864A",
+          "#FDB791",
+          "#FFEADF"
+        ]
       },
       "on-split-dark": {
-        "role": "primary",
-        "displayName": "On Vermilion (dark)",
-        "canonical": "#0E0E0E",
-        "oklch": "oklch(16.4% 0.000 90)",
+        "role": "neutral",
+        "displayName": "On Rust (dark)",
+        "canonical": "#101618",
         "tonalRamp": [
-          "#0B0B0B",
-          "#252525",
-          "#424242",
-          "#616161",
-          "#828282",
-          "#A5A5A5",
-          "#C9C9C9",
-          "#EEEEEE"
-        ],
-        "cssVar": "--color-on-split",
-        "theme": "dark"
+          "#090C0D",
+          "#212628",
+          "#3C4346",
+          "#5B6365",
+          "#7C8486",
+          "#9FA7A9",
+          "#C4CACC",
+          "#EBEFF1"
+        ]
+      },
+      "fill-dark": {
+        "role": "secondary",
+        "displayName": "Slate Fill (dark)",
+        "canonical": "#8FB0BA",
+        "tonalRamp": [
+          "#030D11",
+          "#13292F",
+          "#294750",
+          "#486770",
+          "#698892",
+          "#8BABB5",
+          "#B5CED6",
+          "#E1F2F7"
+        ]
+      },
+      "fill-hover-dark": {
+        "role": "secondary",
+        "displayName": "Slate Fill Hover (dark)",
+        "canonical": "#A8C5CE",
+        "tonalRamp": [
+          "#040D10",
+          "#16282E",
+          "#2D474E",
+          "#4C666E",
+          "#6C8890",
+          "#8EABB3",
+          "#B7CED5",
+          "#E2F2F6"
+        ]
+      },
+      "on-fill-dark": {
+        "role": "neutral",
+        "displayName": "On Slate Fill (dark)",
+        "canonical": "#101618",
+        "tonalRamp": [
+          "#090C0D",
+          "#212628",
+          "#3C4346",
+          "#5B6365",
+          "#7C8486",
+          "#9FA7A9",
+          "#C4CACC",
+          "#EBEFF1"
+        ]
+      },
+      "band-dark": {
+        "role": "secondary",
+        "displayName": "Band (dark)",
+        "canonical": "#0B1012",
+        "tonalRamp": [
+          "#090C0D",
+          "#222628",
+          "#3D4346",
+          "#5C6265",
+          "#7D8486",
+          "#9FA6A9",
+          "#C5CACC",
+          "#EBEFF1"
+        ]
+      },
+      "on-band-dark": {
+        "role": "neutral",
+        "displayName": "On Band (dark)",
+        "canonical": "#E2E9E7",
+        "tonalRamp": [
+          "#090C0B",
+          "#222625",
+          "#3E4342",
+          "#5D6361",
+          "#7E8482",
+          "#A0A7A5",
+          "#C5CAC9",
+          "#ECEFEE"
+        ]
+      },
+      "on-band-muted-dark": {
+        "role": "neutral",
+        "displayName": "On Band Muted (dark)",
+        "canonical": "#8FA19E",
+        "tonalRamp": [
+          "#060D0C",
+          "#1C2826",
+          "#364643",
+          "#556563",
+          "#758784",
+          "#97AAA6",
+          "#BECDCA",
+          "#E7F1EF"
+        ]
+      },
+      "band-edge-dark": {
+        "role": "neutral",
+        "displayName": "Band Edge (dark)",
+        "canonical": "#263033",
+        "tonalRamp": [
+          "#080C0D",
+          "#1F2629",
+          "#3A4447",
+          "#586367",
+          "#798588",
+          "#9BA7AB",
+          "#C1CBCE",
+          "#E9F0F2"
+        ]
       }
     },
     "typographyMeta": {
+      "display": {
+        "displayName": "Display",
+        "purpose": "The selected split's time in the zoom panel's Split view, the one large figure on the screen."
+      },
       "headline": {
         "displayName": "Headline",
-        "purpose": "Product name; the single most important reading on a panel."
+        "purpose": "The product name in the header and the Track and Range views' panel titles."
       },
       "title": {
         "displayName": "Title",
-        "purpose": "Panel titles and the Export button label."
+        "purpose": "Panel titles and the large Export button's label."
       },
       "body": {
         "displayName": "Body",
@@ -524,192 +609,162 @@
       },
       "label": {
         "displayName": "Label",
-        "purpose": "Button labels, slider readouts, in-progress counts, the selected row."
+        "purpose": "Button labels, slider value readouts, an in-progress count, the selected table row."
       },
       "caption": {
         "displayName": "Caption",
-        "purpose": "Axis times, table headings, track durations, quiet header text."
+        "purpose": "Axis times under a canvas, table headings (500 weight), track durations, quiet header text."
       },
       "caption-strong": {
         "displayName": "Caption Strong",
-        "purpose": "File chip, invalid message, split numbers and chips."
+        "purpose": "The file chip, an invalid field's message, split numbers and chips."
       }
     },
     "shadows": [],
     "motion": [
       {
-        "name": "control-colors",
-        "value": "color, background-color, border-color 100ms (Tailwind default ease)",
-        "purpose": "Hover and state colour change on buttons and icon buttons; nothing else animates."
+        "name": "tint-transition",
+        "value": "color, background-color, border-color 120ms ease-out",
+        "purpose": "Colour-only easing on controls, rows, blocks and split items; none under prefers-reduced-motion."
       }
     ],
-    "breakpoints": [],
     "focusRing": {
+      "name": "focus-ring",
       "value": "outline: 2px solid var(--color-ink); outline-offset: 2px",
-      "purpose": "Keyboard focus on every control; on-vinyl on the header band, on-track on a track block, split on an invalid field."
+      "purpose": "Every interactive element on keyboard focus; on-band on the header band, on-track on a track block, split on an invalid field."
     },
-    "disabled": {
-      "value": "opacity: 0.4; cursor: not-allowed",
-      "purpose": "Every disabled control (the slider via data-disabled); hover is gated by :enabled."
-    },
-    "icons": {
-      "library": "lucide-vue-next",
-      "size": "16px",
-      "strokeWidth": 2,
-      "linecap": "round",
-      "linejoin": "round",
-      "note": "Play drawn filled (fill currentColor, no stroke). Used so far: Play, ChevronsLeft, ChevronsRight, Trash2, Plus, Download. Unicode glyphs are never icons."
-    },
-    "canvas": {
-      "readColors": "getComputedStyle(document.documentElement).getPropertyValue('--color-…'); redraw on prefers-color-scheme change",
-      "font": "700 12px Manrope",
-      "wave": "wave bars 2px wide on a 3px pitch",
-      "land": "land band with no waveform; at least 12px wide in whole-file views",
-      "split": "1.5px split line; selected 3px plus a 20px filled split chip with on-split number",
-      "splitNumbers": "22px band above the whole-file waveform, numbers in split",
-      "zoomWindow": "1.5px ink outline in the whole-file view, matching the zoom view frame",
-      "loudness": "1.5px wave line, 14% wave fill beneath, lands full height behind",
-      "threshold": "dashed 5/4, 1.5px, split; label on a surface plate (text width + 8px, 17px tall); 18x10 drag handle at the right edge",
-      "zoom": "land band with a flat 1px wave run-out line; 3px split line with a 14x10 handle at the top; 1.5px ink frame"
-    }
+    "breakpoints": []
   },
   "components": [
     {
       "name": "Primary Button",
       "kind": "button",
       "refersTo": "button-primary",
-      "description": "The main action of a panel, one per panel at most; ink fill, groove-grey on hover.",
-      "html": "<button class=\"ds-btn ds-btn-primary\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"currentColor\" stroke=\"none\" aria-hidden=\"true\"><polygon points=\"6 3 20 12 6 21 6 3\"/></svg>Play across split</button>",
-      "css": ".ds-btn { display:inline-flex; align-items:center; gap:8px; height:36px; padding:0 14px; border-radius:var(--radius-control,6px); font:600 14px/20px Manrope,ui-sans-serif,system-ui,sans-serif; font-variant-numeric:tabular-nums; white-space:nowrap; cursor:pointer; border:1px solid transparent; transition:background-color .1s,border-color .1s,color .1s; } .ds-btn:focus-visible { outline:2px solid var(--color-ink); outline-offset:2px; } .ds-btn:disabled { opacity:.4; cursor:not-allowed; } .ds-btn-primary { background:var(--color-ink); color:var(--color-surface); } .ds-btn-primary:enabled:hover { background:var(--color-wave); } "
-    },
-    {
-      "name": "Primary Button Large",
-      "kind": "button",
-      "refersTo": "button-primary-lg",
-      "description": "Reserved for the Export action in the Tracks panel title row; the only large button.",
-      "html": "<button class=\"ds-btn ds-btn-primary ds-btn-lg\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4\"/><path d=\"m7 10 5 5 5-5\"/><path d=\"M12 15V3\"/></svg>Export to folder…</button>",
-      "css": ".ds-btn { display:inline-flex; align-items:center; gap:8px; height:36px; padding:0 14px; border-radius:var(--radius-control,6px); font:600 14px/20px Manrope,ui-sans-serif,system-ui,sans-serif; font-variant-numeric:tabular-nums; white-space:nowrap; cursor:pointer; border:1px solid transparent; transition:background-color .1s,border-color .1s,color .1s; } .ds-btn:focus-visible { outline:2px solid var(--color-ink); outline-offset:2px; } .ds-btn:disabled { opacity:.4; cursor:not-allowed; } .ds-btn-primary { background:var(--color-ink); color:var(--color-surface); } .ds-btn-primary:enabled:hover { background:var(--color-wave); } .ds-btn-lg { height:40px; padding:0 20px; font-size:16px; line-height:24px; }"
+      "description": "The slate fill of what you press: Play, Export. One per panel at most.",
+      "html": "<button class=\"ds-btn-primary\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"currentColor\" stroke=\"none\" aria-hidden=\"true\"><polygon points=\"6 3 20 12 6 21 6 3\"/></svg>Play across split</button>",
+      "css": ".ds-btn-primary { display: inline-flex; align-items: center; gap: 8px; height: 36px; padding: 0 14px; border-radius: 3px; font-family: \"Albert Sans\", ui-sans-serif, system-ui, sans-serif; font-size: 14px; line-height: 20px; font-weight: 600; white-space: nowrap; cursor: pointer; transition: color 120ms ease-out, background-color 120ms ease-out, border-color 120ms ease-out; border: 1px solid transparent; background: var(--color-fill); color: var(--color-on-fill); } .ds-btn-primary:hover { background: var(--color-fill-hover); } .ds-btn-primary:focus-visible { outline: 2px solid var(--color-ink); outline-offset: 2px; } .ds-btn-primary:active { background: var(--color-ink); }"
     },
     {
       "name": "Secondary Button",
       "kind": "button",
       "refersTo": "button-secondary",
-      "description": "Every other action; edge border on surface, ink border and land tint on hover.",
-      "html": "<button class=\"ds-btn ds-btn-secondary\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M5 12h14\"/><path d=\"M12 5v14\"/></svg>Add split</button>",
-      "css": ".ds-btn { display:inline-flex; align-items:center; gap:8px; height:36px; padding:0 14px; border-radius:var(--radius-control,6px); font:600 14px/20px Manrope,ui-sans-serif,system-ui,sans-serif; font-variant-numeric:tabular-nums; white-space:nowrap; cursor:pointer; border:1px solid transparent; transition:background-color .1s,border-color .1s,color .1s; } .ds-btn:focus-visible { outline:2px solid var(--color-ink); outline-offset:2px; } .ds-btn:disabled { opacity:.4; cursor:not-allowed; } .ds-btn-secondary { background:var(--color-surface); color:var(--color-ink); border-color:var(--color-edge); } .ds-btn-secondary:enabled:hover { border-color:var(--color-ink); background:color-mix(in srgb, var(--color-land) 40%, var(--color-surface)); } "
+      "description": "Outlined sleeve-white button for ordinary actions; ink border and a land tint on hover.",
+      "html": "<button class=\"ds-btn-secondary\">Cancel</button>",
+      "css": ".ds-btn-secondary { display: inline-flex; align-items: center; gap: 8px; height: 36px; padding: 0 14px; border-radius: 3px; font-family: \"Albert Sans\", ui-sans-serif, system-ui, sans-serif; font-size: 14px; line-height: 20px; font-weight: 600; white-space: nowrap; cursor: pointer; transition: color 120ms ease-out, background-color 120ms ease-out, border-color 120ms ease-out; border: 1px solid var(--color-edge); background: var(--color-surface); color: var(--color-ink); } .ds-btn-secondary:hover { border-color: var(--color-ink); background: color-mix(in srgb, var(--color-land) 40%, transparent); } .ds-btn-secondary:focus-visible { outline: 2px solid var(--color-ink); outline-offset: 2px; } .ds-btn-secondary:active { background: var(--color-land); }"
     },
     {
       "name": "Danger Button",
       "kind": "button",
       "refersTo": "button-danger",
-      "description": "Destructive actions; vermilion outline at rest, filled vermilion on hover.",
-      "html": "<button class=\"ds-btn ds-btn-danger\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M3 6h18\"/><path d=\"M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6\"/><path d=\"M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2\"/><line x1=\"10\" x2=\"10\" y1=\"11\" y2=\"17\"/><line x1=\"14\" x2=\"14\" y1=\"11\" y2=\"17\"/></svg>Delete split</button>",
-      "css": ".ds-btn { display:inline-flex; align-items:center; gap:8px; height:36px; padding:0 14px; border-radius:var(--radius-control,6px); font:600 14px/20px Manrope,ui-sans-serif,system-ui,sans-serif; font-variant-numeric:tabular-nums; white-space:nowrap; cursor:pointer; border:1px solid transparent; transition:background-color .1s,border-color .1s,color .1s; } .ds-btn:focus-visible { outline:2px solid var(--color-ink); outline-offset:2px; } .ds-btn:disabled { opacity:.4; cursor:not-allowed; } .ds-btn-danger { background:var(--color-surface); color:var(--color-split); border-color:var(--color-split); } .ds-btn-danger:enabled:hover { background:var(--color-split); color:var(--color-on-split); } "
+      "description": "Outlined rust at rest, filled rust on hover and while pressed; for discarding edits.",
+      "html": "<button class=\"ds-btn-danger\">Replace</button>",
+      "css": ".ds-btn-danger { display: inline-flex; align-items: center; gap: 8px; height: 36px; padding: 0 14px; border-radius: 3px; font-family: \"Albert Sans\", ui-sans-serif, system-ui, sans-serif; font-size: 14px; line-height: 20px; font-weight: 600; white-space: nowrap; cursor: pointer; transition: color 120ms ease-out, background-color 120ms ease-out, border-color 120ms ease-out; border: 1px solid var(--color-split); background: var(--color-surface); color: var(--color-split); } .ds-btn-danger:hover { background: var(--color-split); color: var(--color-on-split); } .ds-btn-danger:focus-visible { outline: 2px solid var(--color-ink); outline-offset: 2px; } .ds-btn-danger:active { background: var(--color-split); color: var(--color-on-split); }"
     },
     {
-      "name": "Panel Title Row with Small Buttons",
+      "name": "Inverse Button",
       "kind": "button",
-      "refersTo": "button-secondary",
-      "description": "The sm size (32 px, 12 px padding) for actions in a panel title row and in table rows; the row centres when it holds a control, with 8 px between buttons.",
-      "html": "<section class=\"ds-panel\"><div class=\"ds-panel-head ds-panel-head-ctl\"><h2>Split</h2><div class=\"ds-actions\"><button class=\"ds-btn ds-btn-secondary ds-btn-sm\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M5 12h14\"/><path d=\"M12 5v14\"/></svg>Add split</button><button class=\"ds-btn ds-btn-primary ds-btn-sm\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"currentColor\" stroke=\"none\" aria-hidden=\"true\"><polygon points=\"6 3 20 12 6 21 6 3\"/></svg>Play across split</button></div></div></section>",
-      "css": ".ds-panel { border:1px solid var(--color-hairline); border-radius:var(--radius-panel,8px); background:var(--color-surface); color:var(--color-ink); padding:16px; font:400 14px/20px Manrope,ui-sans-serif,system-ui,sans-serif; font-variant-numeric:tabular-nums; } .ds-panel-head { display:flex; align-items:baseline; justify-content:space-between; gap:24px; margin-bottom:12px; } .ds-panel-head h2 { margin:0; font:600 16px/24px Manrope,sans-serif; } .ds-panel-head p { margin:0; color:var(--color-muted); } .ds-panel-head-ctl { align-items:center; margin-bottom:0; } .ds-actions { display:flex; align-items:center; gap:8px; color:var(--color-muted); } .ds-btn { display:inline-flex; align-items:center; gap:8px; height:36px; padding:0 14px; border-radius:var(--radius-control,6px); font:600 14px/20px Manrope,ui-sans-serif,system-ui,sans-serif; font-variant-numeric:tabular-nums; white-space:nowrap; cursor:pointer; border:1px solid transparent; transition:background-color .1s,border-color .1s,color .1s; } .ds-btn:focus-visible { outline:2px solid var(--color-ink); outline-offset:2px; } .ds-btn:disabled { opacity:.4; cursor:not-allowed; } .ds-btn-primary { background:var(--color-ink); color:var(--color-surface); } .ds-btn-primary:enabled:hover { background:var(--color-wave); } .ds-btn-secondary { background:var(--color-surface); color:var(--color-ink); border-color:var(--color-edge); } .ds-btn-secondary:enabled:hover { border-color:var(--color-ink); background:color-mix(in srgb, var(--color-land) 40%, var(--color-surface)); } .ds-btn-sm { height:32px; padding:0 12px; } "
+      "refersTo": "button-inverse",
+      "description": "Light fill for the header band only; its focus ring is on-band.",
+      "html": "<div class=\"ds-band-demo\"><button class=\"ds-btn-inverse\">New file</button></div>",
+      "css": ".ds-band-demo { background: var(--color-band); padding: 12px 16px; } .ds-btn-inverse { display: inline-flex; align-items: center; gap: 8px; height: 36px; padding: 0 14px; border-radius: 3px; font-family: \"Albert Sans\", ui-sans-serif, system-ui, sans-serif; font-size: 14px; line-height: 20px; font-weight: 600; white-space: nowrap; cursor: pointer; transition: color 120ms ease-out, background-color 120ms ease-out, border-color 120ms ease-out; border: 1px solid transparent; background: var(--color-on-band); color: var(--color-band); } .ds-btn-inverse:hover { background: #FFFFFF; } .ds-btn-inverse:focus-visible { outline: 2px solid var(--color-on-band); outline-offset: 2px; } .ds-btn-inverse:active { background: var(--color-on-band-muted); }"
     },
     {
-      "name": "Inverse Button on the Header Band",
-      "kind": "nav",
-      "refersTo": "header-band",
-      "description": "The vinyl-black header band, identical in both themes: centre-label mark, product name, file chip (only once a file is loaded), quiet local-only note and the inverse New file button.",
-      "html": "<header class=\"ds-band\"><span class=\"ds-mark\" aria-hidden=\"true\"><span></span></span><span class=\"ds-name\">Audio Splitter</span><span class=\"ds-chip\">sample1.m4a</span><span class=\"ds-quiet\">Local only · nothing is uploaded</span><button class=\"ds-btn-inverse\">New file</button></header>",
-      "css": ".ds-band { display:flex; align-items:center; gap:16px; height:48px; padding:0 16px; background:var(--color-vinyl); color:var(--color-on-vinyl); border-bottom:1px solid var(--color-vinyl-edge); font-family:Manrope,ui-sans-serif,system-ui,sans-serif; font-variant-numeric:tabular-nums; } .ds-mark { flex-shrink:0; display:grid; place-items:center; width:20px; height:20px; border-radius:9999px; background:var(--color-split); } .ds-mark span { width:6px; height:6px; border-radius:9999px; background:var(--color-vinyl); } .ds-name { font:700 20px/28px Manrope,sans-serif; } .ds-chip { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; border:1px solid var(--color-vinyl-edge); border-radius:var(--radius-control,6px); padding:4px 10px; font:600 12px/16px Manrope,sans-serif; } .ds-quiet { margin-left:auto; flex-shrink:0; font-size:12px; line-height:16px; color:var(--color-on-vinyl-muted); } .ds-btn-inverse { display:inline-flex; align-items:center; gap:8px; white-space:nowrap; height:36px; padding:0 14px; border:0; border-radius:var(--radius-control,6px); background:var(--color-on-vinyl); color:var(--color-vinyl); font:600 14px/20px Manrope,sans-serif; cursor:pointer; transition:background-color .1s,color .1s; } .ds-btn-inverse:enabled:hover { background:#FFFFFF; } .ds-btn-inverse:focus-visible { outline:2px solid var(--color-on-vinyl); outline-offset:2px; } .ds-btn-inverse:disabled { opacity:.4; cursor:not-allowed; }"
-    },
-    {
-      "name": "IconButton",
+      "name": "Icon Button",
       "kind": "button",
       "refersTo": "icon-button",
-      "description": "A square secondary button holding one 16 px Lucide icon; aria-label required. md is 36 px; sm is 32 px, for table rows (the track list's delete).",
-      "html": "<div class=\"ds-row\"><button class=\"ds-ibtn\" aria-label=\"Play\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"currentColor\" stroke=\"none\" aria-hidden=\"true\"><polygon points=\"6 3 20 12 6 21 6 3\"/></svg></button><button class=\"ds-ibtn ds-ibtn-sm\" aria-label=\"Delete split\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M3 6h18\"/><path d=\"M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6\"/><path d=\"M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2\"/><line x1=\"10\" x2=\"10\" y1=\"11\" y2=\"17\"/><line x1=\"14\" x2=\"14\" y1=\"11\" y2=\"17\"/></svg></button></div>",
-      "css": ".ds-row { display:flex; align-items:center; gap:8px; } .ds-ibtn { display:inline-flex; align-items:center; justify-content:center; width:36px; height:36px; border:1px solid var(--color-edge); border-radius:var(--radius-control,6px); background:var(--color-surface); color:var(--color-ink); cursor:pointer; transition:background-color .1s,border-color .1s; } .ds-ibtn:enabled:hover { border-color:var(--color-ink); background:color-mix(in srgb, var(--color-land) 40%, var(--color-surface)); } .ds-ibtn:focus-visible { outline:2px solid var(--color-ink); outline-offset:2px; } .ds-ibtn:disabled { opacity:.4; cursor:not-allowed; } .ds-ibtn-sm { width:32px; height:32px; }"
+      "description": "A 36 px square styled like a secondary button around one 16 px icon; its label is its tooltip.",
+      "html": "<button class=\"ds-icon-btn\" aria-label=\"Delete split\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M3 6h18\"/><path d=\"M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6\"/><path d=\"M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2\"/></svg></button>",
+      "css": ".ds-icon-btn { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; border: 1px solid var(--color-edge); border-radius: 3px; background: var(--color-surface); color: var(--color-ink); cursor: pointer; transition: color 120ms ease-out, background-color 120ms ease-out, border-color 120ms ease-out; } .ds-icon-btn:hover { border-color: var(--color-ink); background: color-mix(in srgb, var(--color-land) 40%, transparent); } .ds-icon-btn:focus-visible { outline: 2px solid var(--color-ink); outline-offset: 2px; } .ds-icon-btn:active { background: var(--color-land); }"
     },
     {
-      "name": "TextField",
+      "name": "Text Field",
       "kind": "input",
       "refersTo": "text-field",
-      "description": "Default field: edge border, ink border on hover, ink ring on focus. Setting `error` adds a vermilion border, ring and message below; no shipped field uses it yet.",
-      "html": "<label class=\"ds-flabel\">Folder name<input class=\"ds-field\" value=\"Night Drive 2024\"></label>",
-      "css": ".ds-flabel { display:grid; gap:12px; color:var(--color-muted); font:400 14px/20px Manrope,ui-sans-serif,system-ui,sans-serif; } .ds-field { box-sizing:border-box; height:36px; width:100%; max-width:224px; padding:0 10px; border:1px solid var(--color-edge); border-radius:var(--radius-control,6px); background:var(--color-surface); color:var(--color-ink); font:400 14px/20px Manrope,ui-sans-serif,system-ui,sans-serif; font-variant-numeric:tabular-nums; } .ds-field:enabled:hover { border-color:var(--color-ink); } .ds-field:focus-visible { outline:2px solid var(--color-ink); outline-offset:2px; } .ds-field:disabled { opacity:.4; } .ds-field[aria-invalid=true] { border-color:var(--color-split); outline-color:var(--color-split); } .ds-err { margin:4px 0 0; font:600 12px/16px Manrope,sans-serif; color:var(--color-split); }"
+      "description": "Native input on the sleeve surface with a control-edge border; hover darkens to ink, focus is the ink ring.",
+      "html": "<input class=\"ds-text-field\" type=\"text\" value=\"Track 01\" aria-label=\"Name\">",
+      "css": ".ds-text-field { height: 36px; width: 224px; padding: 0 10px; border: 1px solid var(--color-edge); border-radius: 3px; background: var(--color-surface); color: var(--color-ink); font-family: \"Albert Sans\", ui-sans-serif, system-ui, sans-serif; font-size: 14px; line-height: 20px; transition: color 120ms ease-out, background-color 120ms ease-out, border-color 120ms ease-out; } .ds-text-field:hover { border-color: var(--color-ink); } .ds-text-field:focus-visible { outline: 2px solid var(--color-ink); outline-offset: 2px; } .ds-text-field[aria-invalid=\"true\"] { border-color: var(--color-split); outline-color: var(--color-split); }"
     },
     {
-      "name": "TextField Inline",
-      "kind": "input",
-      "refersTo": "text-field-inline",
-      "description": "Renames a track inside its track-list row: reads as the row's text until hovered (edge border) or focused (ink ring). It has no invalid state; export sanitises filenames.",
-      "html": "<div class=\"ds-trow\"><span class=\"ds-tnum\">03</span><input class=\"ds-ifield\" value=\"Sunrise Drive\" aria-label=\"Track 3 name\"><span class=\"ds-tdur\">7:21</span></div>",
-      "css": ".ds-trow { display:grid; grid-template-columns:20px 1fr auto; align-items:center; gap:12px; width:320px; padding:6px 0; border-bottom:1px solid var(--color-hairline); background:var(--color-surface); color:var(--color-ink); font:400 14px/20px Manrope,ui-sans-serif,system-ui,sans-serif; font-variant-numeric:tabular-nums; } .ds-tnum { color:var(--color-muted); text-align:center; } .ds-tdur { color:var(--color-muted); } .ds-ifield { box-sizing:border-box; margin:0 -6px; width:calc(100% + 12px); height:24px; padding:0 6px; border:1px solid transparent; border-radius:var(--radius-control,6px); background:transparent; color:var(--color-ink); font:400 14px/20px Manrope,ui-sans-serif,system-ui,sans-serif; font-variant-numeric:tabular-nums; } .ds-ifield:enabled:hover { border-color:var(--color-edge); } .ds-ifield:focus-visible { outline:2px solid var(--color-ink); outline-offset:2px; }"
+      "name": "Segmented Control",
+      "kind": "custom",
+      "refersTo": "segmented-control",
+      "description": "One choice among a few views; the chosen option is carried by ink border and a land tint, never a fill.",
+      "html": "<div class=\"ds-seg\" role=\"radiogroup\" aria-label=\"View\"><button class=\"ds-seg-opt\" role=\"radio\" aria-checked=\"true\">Split</button><button class=\"ds-seg-opt\" role=\"radio\" aria-checked=\"false\">Track</button><button class=\"ds-seg-opt\" role=\"radio\" aria-checked=\"false\">Range</button></div>",
+      "css": ".ds-seg { display: inline-flex; align-items: center; gap: 2px; height: 32px; padding: 2px; border: 1px solid var(--color-edge); border-radius: 3px; background: var(--color-surface); } .ds-seg-opt { display: inline-flex; align-items: center; justify-content: center; height: 100%; padding: 0 12px; border: 1px solid transparent; border-radius: 3px; background: transparent; color: var(--color-ink); font-family: \"Albert Sans\", ui-sans-serif, system-ui, sans-serif; font-size: 14px; line-height: 20px; font-weight: 600; white-space: nowrap; cursor: pointer; transition: color 120ms ease-out, background-color 120ms ease-out, border-color 120ms ease-out; } .ds-seg-opt:hover { background: color-mix(in srgb, var(--color-land) 40%, transparent); } .ds-seg-opt:focus-visible { outline: 2px solid var(--color-ink); outline-offset: 2px; } .ds-seg-opt:active { background: var(--color-land); } .ds-seg-opt[aria-checked=\"true\"] { border-color: var(--color-ink); background: color-mix(in srgb, var(--color-land) 50%, transparent); }"
     },
     {
       "name": "Slider",
       "kind": "custom",
-      "refersTo": "slider-thumb",
-      "description": "Name in muted on the left, hairline track with ink range and an ink thumb that grows on hover, a 56 px Label readout on the right; the caller sets the overall width (w-72 in the Loudness title row).",
-      "html": "<div class=\"ds-slider-row\"><span class=\"ds-slider-name\">Minimum gap length</span><span class=\"ds-slider\"><span class=\"ds-slider-track\"><span class=\"ds-slider-range\"></span></span><span class=\"ds-slider-thumb\" role=\"slider\" tabindex=\"0\" aria-label=\"Minimum gap length\" aria-valuemin=\"0.2\" aria-valuemax=\"5\" aria-valuenow=\"1\"></span></span><span class=\"ds-slider-value\">1.0 s</span></div>",
-      "css": ".ds-slider-row { display:flex; align-items:center; gap:12px; width:288px; font:400 14px/20px Manrope,ui-sans-serif,system-ui,sans-serif; font-variant-numeric:tabular-nums; } .ds-slider-name { white-space:nowrap; color:var(--color-muted); } .ds-slider { position:relative; display:flex; flex:1; min-width:128px; align-items:center; height:20px; } .ds-slider-track { position:relative; width:100%; height:4px; border-radius:9999px; background:var(--color-hairline); } .ds-slider-range { position:absolute; left:0; width:18%; height:4px; border-radius:9999px; background:var(--color-ink); } .ds-slider-thumb { position:absolute; left:18%; transform:translateX(-50%); display:block; width:16px; height:16px; box-sizing:border-box; border:2px solid var(--color-surface); border-radius:9999px; background:var(--color-ink); cursor:grab; } .ds-slider-thumb:hover { width:20px; height:20px; } .ds-slider-thumb:focus-visible { outline:2px solid var(--color-ink); outline-offset:2px; } .ds-slider-value { width:56px; flex-shrink:0; text-align:right; white-space:nowrap; font-weight:600; color:var(--color-ink); }"
+      "refersTo": "slider-track",
+      "description": "Hairline track, ink range, a 16 px ink thumb with a surface ring that grows to 20 px on hover.",
+      "html": "<div class=\"ds-slider\"><div class=\"ds-slider-range\"></div><button class=\"ds-slider-thumb\" aria-label=\"Volume\"></button></div>",
+      "css": ".ds-slider { position: relative; width: 160px; height: 20px; display: flex; align-items: center; } .ds-slider::before { content: \"\"; position: absolute; left: 0; right: 0; height: 4px; border-radius: 9999px; background: var(--color-hairline); } .ds-slider-range { position: absolute; left: 0; width: 60%; height: 4px; border-radius: 9999px; background: var(--color-ink); } .ds-slider-thumb { position: absolute; left: 60%; width: 16px; height: 16px; margin-left: -8px; padding: 0; border: 2px solid var(--color-surface); border-radius: 9999px; background: var(--color-ink); cursor: grab; } .ds-slider-thumb:hover { width: 20px; height: 20px; margin-left: -10px; } .ds-slider-thumb:focus-visible { outline: 2px solid var(--color-ink); outline-offset: 2px; } .ds-slider-thumb:active { cursor: grabbing; }"
     },
     {
-      "name": "ProgressBar",
-      "kind": "custom",
-      "refersTo": "progress-indicator",
-      "description": "Determinate bar on land with an ink fill, followed by a count in words: semibold ink while running, muted when idle or done. No percentage.",
-      "html": "<div class=\"ds-pstack\"><div class=\"ds-progress\"><div class=\"ds-progress-track\" role=\"progressbar\" aria-valuemin=\"0\" aria-valuemax=\"62\" aria-valuenow=\"38\" aria-labelledby=\"ds-p1\"><div class=\"ds-progress-fill\" style=\"width:61%\"></div></div><span id=\"ds-p1\" class=\"ds-progress-count ds-running\">38 / 62 slices</span></div><div class=\"ds-progress\"><div class=\"ds-progress-track\" role=\"progressbar\" aria-valuemin=\"0\" aria-valuemax=\"8\" aria-valuenow=\"8\" aria-labelledby=\"ds-p2\"><div class=\"ds-progress-fill\" style=\"width:100%\"></div></div><span id=\"ds-p2\" class=\"ds-progress-count\">Track 8 of 8</span></div></div>",
-      "css": ".ds-pstack { display:grid; gap:16px; width:360px; font:400 14px/20px Manrope,ui-sans-serif,system-ui,sans-serif; font-variant-numeric:tabular-nums; } .ds-progress { display:flex; align-items:center; gap:12px; } .ds-progress-track { flex:1; height:6px; overflow:hidden; border-radius:9999px; background:var(--color-land); } .ds-progress-fill { height:100%; border-radius:9999px; background:var(--color-ink); } .ds-progress-count { color:var(--color-muted); } .ds-progress-count.ds-running { font-weight:600; color:var(--color-ink); }"
-    },
-    {
-      "name": "Panel with Track Strip",
+      "name": "Panel",
       "kind": "card",
       "refersTo": "panel",
-      "description": "A titled frame on the ground; here holding the track strip, where each 6 px gap between groove-grey blocks is a land.",
-      "html": "<section class=\"ds-panel\"><div class=\"ds-panel-head\"><h2>8 tracks</h2><p>1:01:24</p></div><div class=\"ds-strip\"><div class=\"ds-block\" style=\"flex:462\"><b>01</b><span>7:42</span></div><div class=\"ds-block\" style=\"flex:448\"><b>02</b><span>7:28</span></div><div class=\"ds-block\" style=\"flex:441\"><b>03 Sunrise Drive</b><span>7:21</span></div></div></section>",
-      "css": ".ds-panel { border:1px solid var(--color-hairline); border-radius:var(--radius-panel,8px); background:var(--color-surface); color:var(--color-ink); padding:16px; font:400 14px/20px Manrope,ui-sans-serif,system-ui,sans-serif; font-variant-numeric:tabular-nums; } .ds-panel-head { display:flex; align-items:baseline; justify-content:space-between; gap:24px; margin-bottom:12px; } .ds-panel-head h2 { margin:0; font:600 16px/24px Manrope,sans-serif; } .ds-panel-head p { margin:0; color:var(--color-muted); } .ds-strip { display:flex; gap:6px; height:56px; border-radius:var(--radius-control,6px); background:var(--color-land); } .ds-block { display:flex; flex-direction:column; justify-content:center; gap:2px; min-width:0; padding:0 12px; border-radius:var(--radius-control,6px); background:var(--color-track); color:var(--color-on-track); } .ds-block b { font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; } .ds-block span { font-size:12px; line-height:16px; }"
+      "description": "A titled sleeve-white frame with a 1 px hairline and 4 px corners, laid on the fog ground.",
+      "html": "<section class=\"ds-panel\"><div class=\"ds-panel-head\"><h2 class=\"ds-panel-title\">Tracks</h2><span class=\"ds-panel-meta\">34 tracks</span></div><p class=\"ds-panel-body\">Panels separate by a hairline and the ground between them.</p></section>",
+      "css": ".ds-panel { padding: 16px; border: 1px solid var(--color-hairline); border-radius: 4px; background: var(--color-surface); color: var(--color-ink); font-family: \"Albert Sans\", ui-sans-serif, system-ui, sans-serif; } .ds-panel-head { display: flex; align-items: baseline; justify-content: space-between; gap: 24px; margin-bottom: 12px; } .ds-panel-title { margin: 0; font-size: 16px; line-height: 24px; font-weight: 600; } .ds-panel-meta { color: var(--color-muted); font-size: 14px; line-height: 20px; } .ds-panel-body { margin: 0; font-size: 14px; line-height: 20px; }"
+    },
+    {
+      "name": "Header Band",
+      "kind": "nav",
+      "refersTo": "header-band",
+      "description": "Slate band by day and near-black by night: mark, product name, file chip, theme switch, quiet text, inverse buttons.",
+      "html": "<header class=\"ds-header\"><span class=\"ds-mark\" aria-hidden=\"true\"></span><span class=\"ds-name\">Audio Splitter</span><span class=\"ds-chip\">album.flac</span><div class=\"ds-theme\" role=\"radiogroup\" aria-label=\"Theme\"><button class=\"ds-theme-opt\" role=\"radio\" aria-checked=\"false\" aria-label=\"System\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><rect width=\"20\" height=\"14\" x=\"2\" y=\"3\" rx=\"2\"/><path d=\"M8 21h8M12 17v4\"/></svg></button><button class=\"ds-theme-opt\" role=\"radio\" aria-checked=\"true\" aria-label=\"Light\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><circle cx=\"12\" cy=\"12\" r=\"4\"/><path d=\"M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41\"/></svg></button><button class=\"ds-theme-opt\" role=\"radio\" aria-checked=\"false\" aria-label=\"Dark\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z\"/></svg></button></div><span class=\"ds-quiet\">Local only</span><button class=\"ds-hdr-btn\">New file</button></header>",
+      "css": ".ds-header { display: flex; align-items: center; gap: 16px; height: 56px; padding: 0 32px; border-bottom: 1px solid var(--color-band-edge); background: var(--color-band); color: var(--color-on-band); font-family: \"Albert Sans\", ui-sans-serif, system-ui, sans-serif; } .ds-mark { width: 20px; height: 20px; border-radius: 9999px; background: var(--color-mark); box-shadow: none; position: relative; } .ds-mark::after { content: \"\"; position: absolute; top: 7px; left: 7px; width: 6px; height: 6px; border-radius: 9999px; background: var(--color-band); } .ds-name { font-size: 20px; line-height: 28px; font-weight: 700; } .ds-chip { padding: 4px 10px; border: 1px solid var(--color-band-edge); border-radius: 3px; font-size: 12px; line-height: 16px; font-weight: 600; } .ds-theme { margin-left: auto; display: inline-flex; align-items: center; gap: 2px; height: 32px; padding: 2px; border: 1px solid var(--color-band-edge); border-radius: 3px; } .ds-theme-opt { display: inline-flex; align-items: center; justify-content: center; height: 100%; padding: 0 8px; border: 1px solid transparent; border-radius: 3px; background: transparent; color: var(--color-on-band); cursor: pointer; transition: color 120ms ease-out, background-color 120ms ease-out, border-color 120ms ease-out; } .ds-theme-opt:hover { background: color-mix(in srgb, var(--color-on-band) 15%, transparent); } .ds-theme-opt:focus-visible { outline: 2px solid var(--color-on-band); outline-offset: 2px; } .ds-theme-opt:active { background: color-mix(in srgb, var(--color-on-band) 30%, transparent); } .ds-theme-opt[aria-checked=\"true\"] { border-color: var(--color-on-band); background: color-mix(in srgb, var(--color-on-band) 20%, transparent); } .ds-quiet { color: var(--color-on-band-muted); font-size: 12px; line-height: 16px; } .ds-hdr-btn { display: inline-flex; align-items: center; height: 36px; padding: 0 14px; border: 1px solid transparent; border-radius: 3px; background: var(--color-on-band); color: var(--color-band); font-family: inherit; font-size: 14px; line-height: 20px; font-weight: 600; cursor: pointer; transition: color 120ms ease-out, background-color 120ms ease-out, border-color 120ms ease-out; } .ds-hdr-btn:hover { background: #FFFFFF; } .ds-hdr-btn:focus-visible { outline: 2px solid var(--color-on-band); outline-offset: 2px; } .ds-hdr-btn:active { background: var(--color-on-band-muted); }"
+    },
+    {
+      "name": "Track Strip",
+      "kind": "custom",
+      "refersTo": "track-block",
+      "description": "Proportional slate track blocks on one sea-mist field; the 8 px split items between them take rust on hover, focus and selection.",
+      "html": "<ul class=\"ds-strip\"><li class=\"ds-block ds-block-selected\" style=\"width:180px\"><button class=\"ds-block-btn\"><span class=\"ds-block-name\">Opening</span><span class=\"ds-block-dur\">3:42</span></button></li><li class=\"ds-split\"><button class=\"ds-split-btn\" aria-label=\"Split 1\"></button></li><li class=\"ds-block\" style=\"width:120px\"><button class=\"ds-block-btn\"><span class=\"ds-block-name\">Second</span><span class=\"ds-block-dur\">2:31</span></button></li><li class=\"ds-split\"><button class=\"ds-split-btn\" aria-label=\"Split 2\" aria-current=\"true\"></button></li><li class=\"ds-block\" style=\"width:90px\"><button class=\"ds-block-btn\"><span class=\"ds-block-name\">Third</span><span class=\"ds-block-dur\">1:50</span></button></li></ul>",
+      "css": ".ds-strip { display: flex; height: 56px; margin: 0; padding: 0; list-style: none; border-radius: 3px; background: var(--color-land); font-family: \"Albert Sans\", ui-sans-serif, system-ui, sans-serif; } .ds-block { flex: none; min-width: 0; box-sizing: border-box; padding: 0 10px; border: 2px solid transparent; border-radius: 3px; background: var(--color-track); color: var(--color-on-track); transition: color 120ms ease-out, background-color 120ms ease-out, border-color 120ms ease-out; } .ds-block-selected { border-color: var(--color-on-track); } .ds-block-btn { display: flex; flex-direction: column; justify-content: center; gap: 2px; width: 100%; height: 100%; min-width: 0; padding: 0; border: 0; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; } .ds-block-btn:focus-visible { outline: 2px solid var(--color-on-track); outline-offset: -4px; } .ds-block-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; line-height: 20px; font-weight: 600; } .ds-block-dur { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; line-height: 16px; } .ds-split { flex: none; width: 8px; list-style: none; } .ds-split-btn { position: relative; display: block; width: 100%; height: 100%; padding: 0; border: 0; border-radius: 3px; background: transparent; cursor: pointer; transition: color 120ms ease-out, background-color 120ms ease-out, border-color 120ms ease-out; } .ds-split-btn::after { content: \"\"; position: absolute; top: 0; bottom: 0; left: 3px; width: 2px; background: var(--color-split); } .ds-split-btn:hover { background: var(--color-split); } .ds-split-btn:focus-visible { z-index: 1; background: var(--color-split); outline: 2px solid var(--color-ink); outline-offset: 1px; } .ds-split-btn:active { background: var(--color-split); } .ds-split-btn[aria-current=\"true\"] { background: var(--color-split); }"
     },
     {
       "name": "Dialog",
       "kind": "custom",
-      "refersTo": "panel",
-      "description": "Reka AlertDialog: an opaque ground replaces the screen and the dialog is the one panel lying on it, centred, max 448 px, no shadow. Secondary Cancel first, the action last (danger when it discards edits).",
-      "html": "<div class=\"ds-overlay\"><div class=\"ds-dialog\" role=\"alertdialog\" aria-labelledby=\"ds-dt\" aria-describedby=\"ds-dd\"><h2 id=\"ds-dt\">Load a new file?</h2><p id=\"ds-dd\">Your splits and track names for this file will be lost.</p><div class=\"ds-dactions\"><button class=\"ds-btn ds-btn-secondary\">Cancel</button><button class=\"ds-btn ds-btn-danger\">Discard edits</button></div></div></div>",
-      "css": ".ds-overlay { display:grid; place-items:center; padding:32px 16px; background:var(--color-ground); font:400 14px/20px Manrope,ui-sans-serif,system-ui,sans-serif; font-variant-numeric:tabular-nums; } .ds-dialog { box-sizing:border-box; width:100%; max-width:448px; padding:16px; border:1px solid var(--color-hairline); border-radius:var(--radius-panel,8px); background:var(--color-surface); color:var(--color-ink); } .ds-dialog h2 { margin:0; font:600 16px/24px Manrope,sans-serif; } .ds-dialog p { margin:4px 0 0; } .ds-dactions { display:flex; justify-content:flex-end; gap:8px; margin-top:16px; } .ds-btn { display:inline-flex; align-items:center; gap:8px; height:36px; padding:0 14px; border-radius:var(--radius-control,6px); font:600 14px/20px Manrope,ui-sans-serif,system-ui,sans-serif; font-variant-numeric:tabular-nums; white-space:nowrap; cursor:pointer; border:1px solid transparent; transition:background-color .1s,border-color .1s,color .1s; } .ds-btn:focus-visible { outline:2px solid var(--color-ink); outline-offset:2px; } .ds-btn:disabled { opacity:.4; cursor:not-allowed; } .ds-btn-secondary { background:var(--color-surface); color:var(--color-ink); border-color:var(--color-edge); } .ds-btn-secondary:enabled:hover { border-color:var(--color-ink); background:color-mix(in srgb, var(--color-land) 40%, var(--color-surface)); } .ds-btn-danger { background:var(--color-surface); color:var(--color-split); border-color:var(--color-split); } .ds-btn-danger:enabled:hover { background:var(--color-split); color:var(--color-on-split); } "
+      "refersTo": "dialog",
+      "description": "The one panel lying on an opaque fog overlay: no dimming, no shadow. Secondary action first, the action last.",
+      "html": "<div class=\"ds-overlay\"><div class=\"ds-dialog\" role=\"alertdialog\"><h2 class=\"ds-dialog-title\">Replace the file?</h2><p class=\"ds-dialog-desc\">Your edits to this file will be lost.</p><div class=\"ds-dialog-actions\"><button class=\"ds-dlg-secondary\">Keep edits</button><button class=\"ds-dlg-danger\">Replace</button></div></div></div>",
+      "css": ".ds-overlay { display: flex; align-items: center; justify-content: center; padding: 32px; background: var(--color-ground); } .ds-dialog { width: 100%; max-width: 448px; padding: 16px; border: 1px solid var(--color-hairline); border-radius: 4px; background: var(--color-surface); color: var(--color-ink); font-family: \"Albert Sans\", ui-sans-serif, system-ui, sans-serif; } .ds-dialog-title { margin: 0; font-size: 16px; line-height: 24px; font-weight: 600; } .ds-dialog-desc { margin: 4px 0 0; font-size: 14px; line-height: 20px; } .ds-dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; } .ds-dlg-secondary, .ds-dlg-danger { height: 36px; padding: 0 14px; border-radius: 3px; font-family: inherit; font-size: 14px; line-height: 20px; font-weight: 600; cursor: pointer; transition: color 120ms ease-out, background-color 120ms ease-out, border-color 120ms ease-out; } .ds-dlg-secondary { border: 1px solid var(--color-edge); background: var(--color-surface); color: var(--color-ink); } .ds-dlg-secondary:hover { border-color: var(--color-ink); background: color-mix(in srgb, var(--color-land) 40%, transparent); } .ds-dlg-secondary:focus-visible { outline: 2px solid var(--color-ink); outline-offset: 2px; } .ds-dlg-secondary:active { background: var(--color-land); } .ds-dlg-danger { border: 1px solid var(--color-split); background: var(--color-surface); color: var(--color-split); } .ds-dlg-danger:hover { background: var(--color-split); color: var(--color-on-split); } .ds-dlg-danger:focus-visible { outline: 2px solid var(--color-ink); outline-offset: 2px; } .ds-dlg-danger:active { background: var(--color-split); color: var(--color-on-split); }"
     }
   ],
   "narrative": {
-    "northStar": "Side of an LP",
-    "overview": "On a record you can see where one track ends: the textured groove bands stop and a smooth land runs between them. Audio Splitter draws a source file the same way. Tracks are dense grey waveform bands, every gap is a flat land, and a split reads as something you can see before you read a number. The world refuses the dark audio editor with a bright blue waveform, the studio-gear look, decoration that competes with the waveforms, and dense tiny technical type.\n\nBy day the ground is sleeve white and the panels are white; by night the ground is vinyl black and the panels near-black. Ink is vinyl black, inverted at night. Waveforms and track blocks are groove grey, lands are sheen grey, and one centre-label vermilion marks splits and the silence threshold. Colour is flat: no gradients, no shadows. Panels separate by a hairline and the ground between them. The theme follows the system setting; there is no theme toggle.\n\nThe waveforms and the loudness curve are the content, so the chrome is quiet: one face (Manrope) with tabular figures, two radii, a 16 px rhythm, and controls that carry state through ink and border rather than colour. Motion is limited to a 100 ms colour transition on controls.",
+    "northStar": "Next to Silence",
+    "overview": "**Creative North Star: \"Next to Silence\"**\n\nOn an ECM sleeve, quiet is the field the music sits on. Audio Splitter draws a source file that way: every gap is one sea-mist field in every view, tracks are graphite waveforms and slate blocks laid on it, and a split reads as a rust line you can see before you read a number. The world refuses the dark audio editor with a bright blue waveform, the studio-gear look, the grey screen with one accent, decoration that competes with the waveforms, and dense tiny technical type.\n\nBy day the ground is fog and the panels are sleeve white; by night the ground is slate-black, the panels a step lighter and the gaps deep-sea. Ink and audio are graphite, inverted at night. Slate is the colour of what you press (the filled buttons) and of the header band and the track blocks; only a pressable thing is a slate fill. Rust marks splits and the silence threshold, and nothing else. Colour is flat: no gradients, no shadows. Panels separate by a hairline and the ground between them. A `data-theme` attribute on `<html>` carries the theme in effect; how it is set is in [docs/architecture.md](docs/architecture.md#the-theme).\n\nThe waveforms and the loudness curve are the content, so the chrome is quiet: one face (Albert Sans), two small radii, 32 px page margins and 24 px gutters, and controls that carry state through ink and border rather than colour. Motion is limited to a 120 ms colour transition on controls and on selection, off under `prefers-reduced-motion`.",
     "keyCharacteristics": [
-      "Groove grey for everything that is audio; sheen-grey lands for every gap.",
-      "One reserved vermilion: splits, the silence threshold, danger and invalid states, and the centre-label mark in the header.",
-      "A vinyl-black header band in both themes.",
+      "Graphite for everything that is audio; one sea-mist field for every gap.",
+      "One reserved rust: splits, the silence threshold, danger and invalid states.",
+      "Slate only for pressable fills, the header band and the track blocks; a sea-mist mark in the header.",
+      "A slate header band by day and a near-black one by night.",
       "Flat colour throughout; depth comes from ground versus surface and a 1 px hairline.",
-      "Manrope everywhere, tabular figures everywhere, nothing smaller than 12 px.",
+      "Albert Sans everywhere, nothing smaller than 12 px.",
       "Hand-drawn canvas views read the same colour tokens as the kit."
     ],
     "rules": [
       {
-        "name": "The Centre-Label Rule",
-        "body": "Vermilion marks a split, the silence threshold, a destructive action, an invalid value, or the centre-label mark in the header, and nothing else: not hover, not selection, not links, not emphasis, not a progress fill.",
+        "name": "The Rust Rule",
+        "body": "Rust marks a split, the silence threshold, a destructive action or an invalid value, and nothing else: not hover, not selection, not links, not emphasis, not a progress fill, not the brand mark. A split item in the track strip is a split, so it takes rust when it is hovered, focused or selected.",
         "section": "colors"
       },
       {
-        "name": "The Vinyl Band Rule",
-        "body": "The header band is vinyl black with on-vinyl text in both themes; its tokens never take dark-mode overrides.",
+        "name": "The Slate Fill Rule",
+        "body": "Only a pressable thing is a slate fill: the primary button, Play and Export. Panels, tooltips, sliders and progress are never slate.",
         "section": "colors"
       },
       {
-        "name": "The Groove Grey Rule",
-        "body": "Audio is drawn in groove grey. A waveform, curve or track block is never coloured, never blue, never vermilion.",
+        "name": "The Silence Rule",
+        "body": "A gap is one sea-mist field in every view, never a grey, never a second colour.",
         "section": "colors"
       },
       {
-        "name": "The Tabular Rule",
-        "body": "`font-variant-numeric: tabular-nums` is set once on `body` and is never switched off; every time, gap, count and dB value is tabular.",
-        "section": "typography"
+        "name": "The Graphite Rule",
+        "body": "Audio is drawn in graphite. A waveform or curve is never coloured, never blue, never rust. A track block is slate, as the one block-shaped thing.",
+        "section": "colors"
       },
       {
         "name": "The Twelve-Pixel Floor",
@@ -728,7 +783,7 @@
       },
       {
         "name": "The Two Radii Rule",
-        "body": "6 px for anything you press or type into, 8 px for a panel, fully round only for tracks, thumbs, bars and chips. No other radius.",
+        "body": "3 px for anything you press or type into, 4 px for a panel, fully round only for tracks, thumbs, bars and chips. No other radius.",
         "section": "shapes"
       },
       {
@@ -743,31 +798,30 @@
       },
       {
         "name": "The Ink Focus Rule",
-        "body": "Keyboard focus is always a 2 px outline at 2 px offset in the ink of its ground (`ink`, `on-vinyl` on the header band, `on-track` on a track block, `split` on an invalid field).",
+        "body": "Keyboard focus is always a 2 px outline at 2 px offset in the ink of its ground (`ink`, `on-band` on the header band, `on-track` on a track block, `split` on an invalid field).",
         "section": "components"
       }
     ],
     "dos": [
-      "Do take every colour, radius and text size from the token block; add a token before adding a one-off value.",
-      "Do follow the system theme through `prefers-color-scheme` alone.",
-      "Do draw every gap as a land, at least 12 px wide in whole-file views, and keep audio in groove grey.",
-      "Do keep vermilion for splits, the silence threshold, danger, invalid states and the header's centre-label mark.",
-      "Do read canvas colours from the `--color-…` variables and redraw when the colour scheme changes.",
-      "Do give every control a visible keyboard focus ring (2 px outline, 2 px offset) and every icon button an `aria-label`.",
-      "Do use `lucide-vue-next` icons at 16 px with a 2 px round stroke.",
-      "Do keep figures tabular and text at 12 px or larger.",
-      "Do reserve the large button size for the Export action."
+      "**Do** take every colour, radius and text size from the token block; add a token before adding a one-off value.",
+      "**Do** key the dark values on `[data-theme='dark']`, set only by the theme module; nothing in CSS, the kit or a canvas reads `prefers-color-scheme`.",
+      "**Do** draw every gap as a land, at least 12 px wide in whole-file views, and keep audio in graphite.",
+      "**Do** keep rust for splits, the silence threshold, danger and invalid states, and slate fills for what is pressed.",
+      "**Do** read canvas colours from the `--color-…` variables and redraw when the theme in effect changes.",
+      "**Do** give every control a visible keyboard focus ring (2 px outline, 2 px offset) and every icon button an `aria-label`.",
+      "**Do** use `lucide-vue-next` icons at 16 px with a 2 px round stroke.",
+      "**Do** keep text at 12 px or larger.",
+      "**Do** reserve the large button size for the Export action."
     ],
     "donts": [
-      "Don't use gradients, shadows, blur or translucency over content.",
-      "Don't draw a bright blue (or any coloured) waveform, or dress the screen as studio gear.",
-      "Don't use vermilion for hover, selection, links, emphasis, progress or branding beyond the centre-label mark.",
-      "Don't add a theme toggle or a `data-theme` switch.",
-      "Don't fetch fonts or any other asset from the network at runtime.",
-      "Don't use Unicode glyphs as icons.",
-      "Don't dim text with opacity to make hierarchy; use `muted`, size or weight.",
-      "Don't set text below 12 px, or uppercase and letter-space labels to look technical.",
-      "Don't introduce a third radius or a second typeface."
+      "**Don't** use gradients, shadows, blur or translucency over content.",
+      "**Don't** draw a bright blue (or any coloured) waveform, or dress the screen as studio gear.",
+      "**Don't** use rust for hover, selection, links, emphasis, progress or branding, and don't fill anything slate that is not pressable.",
+      "**Don't** fetch fonts or any other asset from the network at runtime.",
+      "**Don't** use Unicode glyphs as icons.",
+      "**Don't** dim text with opacity to make hierarchy; use `muted`, size or weight.",
+      "**Don't** set text below 12 px, or uppercase and letter-space labels to look technical.",
+      "**Don't** introduce a third radius or a second typeface."
     ]
   }
 }

@@ -17,7 +17,8 @@ Every block is a button that selects its track, the first included, and the bloc
 track is marked with a 2 px `on-track` border (DESIGN.md's "Selected" bullet). A split item is a
 button that selects the split where the next block starts, which shows the zoom view centred on it.
 It is the land between the blocks at rest, and rust, the colour of a split, when it is hovered,
-focused or selected. A mouse press on either takes no focus, so the next key goes to the view on
+focused or selected; focus also draws the ink ring, so a focused item never reads as a selected
+one. A mouse press on either takes no focus, so the next key goes to the view on
 show (src/shared/lib/keyboard/use-page-keys.ts); Tab still reaches them.
 */
 const split = useSplitStore()
@@ -74,7 +75,7 @@ const blocks = computed(() => {
           :aria-label="block.splitItem.label"
           :title="block.splitItem.label"
           :aria-current="block.splitItem.isSelected ? 'true' : undefined"
-          class="relative block size-full cursor-pointer rounded-control tint-transition after:absolute after:inset-y-0 after:left-[3px] after:w-0.5 after:bg-split hover:bg-split focus-visible:bg-split focus-visible:outline-none"
+          class="relative block size-full cursor-pointer rounded-control tint-transition after:absolute after:inset-y-0 after:left-[3px] after:w-0.5 after:bg-split hover:bg-split focus-visible:z-10 focus-visible:bg-split focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ink"
           :class="block.splitItem.isSelected ? 'bg-split' : ''"
           @mousedown="releaseFocus"
           @click="split.selectSplit(block.splitItem.id)"

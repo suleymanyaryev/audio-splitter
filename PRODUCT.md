@@ -20,7 +20,7 @@ Nothing is uploaded: decoding, analysis and cutting all run locally in the brows
 
 ## Operating Context
 
-- Desktop Chrome only, at a desk, used in daylight and in the evening; the theme follows the system setting.
+- Desktop Chrome only, at a desk, used in daylight and in the evening; the theme follows the system setting until the user picks Light or Dark in the header.
 - One source file at a time; state lives in memory and is lost on reload.
 - Two screens: a load screen (pick a file, watch it decode) and a review screen with five panels (whole-file waveform, loudness curve with threshold, zoomed view around one split, track list with rename, track strip with export). Wireframes: `docs/screens/1.png`, `docs/screens/2.png`.
 - Source files are mostly `.m4a`, `.mp3` and `.opus`.

@@ -29,15 +29,16 @@ const SIZE_CLASSES = { md: 'max-w-md', lg: 'max-w-2xl' }
       on it is a press outside the dialog, which closes it. -->
       <DialogOverlay class="fixed inset-0 z-40 bg-ground" />
       <DialogContent
-        class="fixed top-1/2 left-1/2 z-50 max-h-[calc(100vh-32px)] w-[calc(100vw-32px)] -translate-1/2 overflow-y-auto rounded-panel border border-hairline bg-surface p-4 focus:outline-none"
+        class="fixed top-1/2 left-1/2 z-50 flex max-h-[calc(100vh-32px)] w-[calc(100vw-32px)] -translate-1/2 flex-col rounded-panel border border-hairline bg-surface p-4 focus:outline-none"
         :class="SIZE_CLASSES[size]"
       >
-        <DialogTitle class="text-base font-semibold">{{ title }}</DialogTitle>
-        <DialogDescription class="mt-1">{{ description }}</DialogDescription>
-        <div v-if="slots.default" class="mt-4">
+        <DialogTitle class="shrink-0 text-base font-semibold">{{ title }}</DialogTitle>
+        <DialogDescription class="mt-1 shrink-0">{{ description }}</DialogDescription>
+        <!-- Only the body scrolls, so the title and the actions stay in view on a short window. -->
+        <div v-if="slots.default" class="mt-4 min-h-0 overflow-y-auto">
           <slot />
         </div>
-        <div v-if="slots.actions" class="mt-4 flex justify-end gap-2">
+        <div v-if="slots.actions" class="mt-4 flex shrink-0 justify-end gap-2">
           <slot name="actions" />
         </div>
       </DialogContent>
