@@ -158,17 +158,22 @@ The `audition` store is the one player. The `source-file` store decodes a stretc
 
 There are two kinds of listening. Starting one stops the other.
 
-**The audition** plays the 8 s across the selected split.
+**The audition** plays the 8 s across the selected split, its extent: the split ±4 s, held to the file. It can pause and resume without decoding again. Its playhead is always known while a split is selected: the sound while it plays, else the resting place, else the extent's start.
 
 ```mermaid
 stateDiagram-v2
   [*] --> idle
   idle --> loading: play
   loading --> playing: clip decoded
-  playing --> idle: clip ended
-  loading --> idle: pressed again, split changed, or failed
-  playing --> idle: pressed again, or split changed
+  playing --> paused: pressed again, or split moved
+  paused --> playing: pressed again
+  paused --> loading: pressed again after a move
+  playing --> idle: played to the end, a view change, the export, or split changed
+  paused --> idle: a view change, the export, a stretch plays, or split changed
+  loading --> idle: pressed again, a view change or the export, split moved or changed, or failed
 ```
+
+"Split changed" is another split selected, none, or the selected one deleted. When the resting place is kept or cleared is in the header comment of `src/widgets/split-zoom/model/audition.ts`.
 
 **The stretch** plays a range or the selected track. It can pause, resume and seek without decoding again.
 

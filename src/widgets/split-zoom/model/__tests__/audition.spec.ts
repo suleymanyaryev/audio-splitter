@@ -120,6 +120,26 @@ function deferred<T>() {
   return { promise, ...handlers }
 }
 
+// A split at 100 s, so the audition is 96 s to 104 s: quiet from 98 s to 102 s in a file of 150 s.
+function setUpAtHundred() {
+  const split = useSplitStore()
+  split.detect(curveOf([LOUD, 1960], [QUIET, 80], [LOUD, 960]), {
+    windowSeconds: 0.05,
+    durationSeconds: 150,
+  })
+  split.selectSplit(split.splits[0]!.id)
+  expect(split.selectedSplit?.seconds).toBeCloseTo(100, 6)
+  return { split, audition: useAuditionStore() }
+}
+
+async function setUpAtHundredPlaying() {
+  const parts = setUpAtHundred()
+  parts.audition.toggle()
+  await flush()
+  expect(parts.audition.status).toBe('playing')
+  return parts
+}
+
 function setUp() {
   const split = useSplitStore()
   const curve = farGaps()
@@ -212,7 +232,27 @@ describe('the audition store', () => {
     expect(audition.status).toBe('idle')
     expect(audition.isActive).toBe(false)
     expect(audition.failure).toBeNull()
+  })
+
+  it('has its playhead at the start of the 8 s before the first play, and none without a selected split', () => {
+    const { split, audition } = setUp()
+
+    expect(audition.playheadSeconds()).toBe(18)
+
+    split.moveZoomTo(30)
     expect(audition.playheadSeconds()).toBeNull()
+  })
+
+  it('holds the audition to the start of the file, so the playhead waits at 0 s', () => {
+    // Quiet from 1 s to 5 s, so the only split is at 3 s.
+    const split = useSplitStore()
+    split.detect(curveOf([LOUD, 20], [QUIET, 80], [LOUD, 1100]), {
+      windowSeconds: 0.05,
+      durationSeconds: 60,
+    })
+    split.selectSplit(split.splits[0]!.id)
+
+    expect(useAuditionStore().playheadSeconds()).toBe(0)
   })
 
   it('asks for the clip around the selected split and plays it as a WAV from its start', async () => {
@@ -301,21 +341,650 @@ describe('the audition store', () => {
     audio().dispatchEvent(new Event('ended'))
 
     expect(audition.status).toBe('idle')
-    expect(audition.playheadSeconds()).toBeNull()
+    expect(audition.playheadSeconds()).toBe(18)
     expect(revokeObjectURL).toHaveBeenCalledExactlyOnceWith('blob:clip-1')
     expect(audio().hasAttribute('src')).toBe(false)
   })
 
-  it('stops on a second press while playing', async () => {
-    const { audition } = setUp()
-    audition.toggle()
-    await flush()
+  describe('pausing', () => {
+    it('pauses on a second press while playing, with the playhead where the sound stopped', async () => {
+      const { audition } = await playing()
+      audio().currentTime = 2.5
 
-    audition.toggle()
+      audition.toggle()
 
-    expect(audition.status).toBe('idle')
-    expect(pause).toHaveBeenCalled()
-    expect(revokeObjectURL).toHaveBeenCalledExactlyOnceWith('blob:clip-1')
+      expect(audition.status).toBe('paused')
+      expect(audition.isActive).toBe(false)
+      expect(pause).toHaveBeenCalled()
+      expect(audition.playheadSeconds()).toBe(20.5)
+    })
+
+    it('resumes from the same time at once, without decoding the 8 s again', async () => {
+      const { audition } = await playing()
+      audio().currentTime = 2.5
+      audition.toggle()
+
+      audition.toggle()
+
+      expect(audition.status).toBe('playing')
+      expect(audio().currentTime).toBe(2.5)
+      expect(play).toHaveBeenCalledTimes(2)
+      expect(clip).toHaveBeenCalledOnce()
+      expect(createObjectURL).toHaveBeenCalledOnce()
+      expect(revokeObjectURL).not.toHaveBeenCalled()
+    })
+
+    it('plays again from the top after it played to its end, with the playhead back at the start', async () => {
+      const { audition } = await playing()
+      audio().currentTime = 7
+      audition.toggle()
+      audition.toggle()
+
+      audio().dispatchEvent(new Event('ended'))
+
+      expect(audition.status).toBe('idle')
+      expect(audition.playheadSeconds()).toBe(18)
+
+      audition.toggle()
+      await flush()
+
+      expect(audition.status).toBe('playing')
+      expect(audio().currentTime).toBe(0)
+    })
+
+    it('reads "loading" until the clip arrives, and a press then takes it back for good', async () => {
+      const { audition } = setUp()
+      const pending = deferred<Clip>()
+      clip.mockReturnValueOnce(pending.promise)
+      audition.toggle()
+      expect(audition.isActive).toBe(true)
+
+      audition.toggle()
+      expect(audition.status).toBe('idle')
+      pending.resolve(clipAroundFirstSplit())
+      await flush()
+
+      expect(audition.status).toBe('idle')
+      expect(play).not.toHaveBeenCalled()
+    })
+
+    it('drops a clip still being decoded when the split moves', async () => {
+      const { split, audition } = setUp()
+      const pending = deferred<Clip>()
+      clip.mockReturnValueOnce(pending.promise)
+      audition.toggle()
+
+      split.moveSplit(split.selectedSplit!.id, 21)
+      pending.resolve(clipAroundFirstSplit())
+      await flush()
+
+      expect(play).not.toHaveBeenCalled()
+      expect(audition.status).toBe('idle')
+    })
+
+    it('does not report the rejected play() of a press that was paused', async () => {
+      const { audition } = setUp()
+      const refused = deferred<void>()
+      play.mockReturnValueOnce(refused.promise)
+      audition.toggle()
+      await flush()
+
+      audition.toggle()
+      refused.reject(new DOMException('The play() request was interrupted', 'AbortError'))
+      await flush()
+
+      expect(audition.status).toBe('paused')
+      expect(audition.failure).toBeNull()
+    })
+
+    it('keeps the paused place while a stretch plays, and lets go of the WAV', async () => {
+      const { split, audition } = await playing()
+      audio().currentTime = 2.5
+      audition.toggle()
+
+      audition.toggleStretch(trackExtent(split.tracks[1]!))
+      await flush()
+
+      expect(audition.status).toBe('idle')
+      expect(audition.stretchStatus).toBe('playing')
+      expect(audition.playheadSeconds()).toBe(20.5)
+      expect(heldWavs()).toBe(1)
+    })
+
+    it('lets go of a playing stretch for the audition, and plays the audition from its resting place', async () => {
+      const { split, audition } = await playing()
+      audio().currentTime = 2.5
+      audition.toggle()
+      audition.toggleStretch(trackExtent(split.tracks[1]!))
+      await flush()
+
+      audition.toggleStretch(trackExtent(split.tracks[1]!))
+      audition.toggle()
+      await flush()
+
+      expect(audition.status).toBe('playing')
+      expect(audition.stretchStatus).not.toBe('playing')
+      expect(audio().currentTime).toBe(2.5)
+      expect(heldWavs()).toBe(1)
+    })
+
+    it('keeps the place across a view switch, which stops the sound', async () => {
+      const { audition } = await playing()
+      audio().currentTime = 2.5
+
+      audition.stop()
+
+      expect(audition.status).toBe('idle')
+      expect(audition.playheadSeconds()).toBe(20.5)
+      expect(heldWavs()).toBe(0)
+
+      audio().currentTime = 0
+      audition.toggle()
+      await flush()
+
+      expect(audio().currentTime).toBe(2.5)
+    })
+
+    it('ends a paused audition on stop, keeping its place', async () => {
+      const { audition } = await playing()
+      audio().currentTime = 2.5
+      audition.toggle()
+
+      audition.stop()
+
+      expect(audition.status).toBe('idle')
+      expect(audition.playheadSeconds()).toBe(20.5)
+      expect(heldWavs()).toBe(0)
+    })
+
+    it('says "split" when the resumed 8 s cannot be played', async () => {
+      const { audition } = await playing()
+      audio().currentTime = 2.5
+      audition.toggle()
+      play.mockRejectedValueOnce(new DOMException('Not allowed', 'NotAllowedError'))
+
+      audition.toggle()
+      await flush()
+
+      expect(audition.status).toBe('idle')
+      expect(audition.failure).toBe("Couldn't play this split: Not allowed")
+    })
+  })
+
+  describe('the resting place', () => {
+    it('is cleared when another split is selected', async () => {
+      const { split, audition } = await playing()
+      audio().currentTime = 2.5
+      audition.toggle()
+
+      split.selectSplit(split.splits[1]!.id)
+      expect(audition.status).toBe('idle')
+      expect(audition.playheadSeconds()).toBe(38)
+
+      split.selectSplit(split.splits[0]!.id)
+      expect(audition.playheadSeconds()).toBe(18)
+    })
+
+    it('is cleared when no split is selected, and the playhead has no place', async () => {
+      const { split, audition } = await playing()
+      audio().currentTime = 2.5
+      audition.toggle()
+
+      split.moveZoomTo(30)
+      expect(audition.playheadSeconds()).toBeNull()
+
+      split.selectSplit(split.splits[0]!.id)
+      expect(audition.playheadSeconds()).toBe(18)
+    })
+
+    it('is cleared when the selected split is deleted', async () => {
+      const { split, audition } = await playing()
+      audio().currentTime = 2.5
+      audition.toggle()
+      const firstId = split.splits[0]!.id
+
+      split.deleteSplit(firstId)
+
+      // The next split is selected, and its playhead waits at the start of its own 8 s.
+      expect(audition.playheadSeconds()).toBe(38)
+    })
+
+    it('is held to the 8 s of the split when the split moves', async () => {
+      const { split, audition } = await playing()
+      audio().currentTime = 7.5
+      audition.toggle()
+
+      split.moveSplit(split.selectedSplit!.id, 21)
+
+      expect(audition.status).toBe('paused')
+      // 25.5 s in the file is past the moved 8 s, 17 s to 25 s, so it waits on the edge.
+      expect(audition.playheadSeconds()).toBe(25)
+    })
+  })
+
+  describe('moving the split', () => {
+    it('pauses a playing audition where the sound was, and lets go of the WAV, whose 8 s moved', async () => {
+      const { split, audition } = await playing()
+      audio().currentTime = 2.5
+
+      split.moveSplit(split.selectedSplit!.id, 21)
+
+      expect(audition.status).toBe('paused')
+      expect(audition.isActive).toBe(false)
+      expect(pause).toHaveBeenCalled()
+      expect(audition.playheadSeconds()).toBe(20.5)
+      expect(heldWavs()).toBe(0)
+    })
+
+    it('keeps a paused audition paused, with the place and without the WAV', async () => {
+      const { split, audition } = await playing()
+      audio().currentTime = 2.5
+      audition.toggle()
+
+      split.moveSplit(split.selectedSplit!.id, 21)
+
+      expect(audition.status).toBe('paused')
+      expect(audition.playheadSeconds()).toBe(20.5)
+      expect(heldWavs()).toBe(0)
+      expect(play).toHaveBeenCalledOnce()
+    })
+
+    it('resumes by decoding the moved 8 s, reading "Stop" meanwhile, and starts at the kept time', async () => {
+      const { split, audition } = await setUpAtHundredPlaying()
+      audio().currentTime = 3.5
+      audition.toggle()
+
+      split.moveSplit(split.selectedSplit!.id, 100.05)
+      expect(audition.playheadSeconds()).toBeCloseTo(99.5, 6)
+      const pending = deferred<Clip>()
+      clip.mockReturnValueOnce(pending.promise)
+      audition.toggle()
+
+      expect(audition.status).toBe('loading')
+      expect(audition.isActive).toBe(true)
+      expect(clip).toHaveBeenLastCalledWith(expect.closeTo(96.05, 6), 8)
+      expect(play).toHaveBeenCalledOnce()
+
+      pending.resolve(clipOf(96.05, 8))
+      await flush()
+
+      expect(audition.status).toBe('playing')
+      // 99.50 s in a clip that starts at 96.05 s.
+      expect(audio().currentTime).toBeCloseTo(3.45, 6)
+      expect(audition.playheadSeconds()).toBeCloseTo(99.5, 6)
+      expect(heldWavs()).toBe(1)
+    })
+
+    it('takes back a press that is decoding the moved 8 s, and drops its clip', async () => {
+      const { split, audition } = await setUpAtHundredPlaying()
+      audition.toggle()
+      split.moveSplit(split.selectedSplit!.id, 100.05)
+      const pending = deferred<Clip>()
+      clip.mockReturnValueOnce(pending.promise)
+      audition.toggle()
+
+      audition.toggle()
+      pending.resolve(clipOf(96.05, 8))
+      await flush()
+
+      expect(audition.status).toBe('idle')
+      expect(play).toHaveBeenCalledOnce()
+      expect(heldWavs()).toBe(0)
+    })
+
+    it('takes back a press that is decoding when the split moves, keeping the playhead where it was put', async () => {
+      const { split, audition } = setUp()
+      const pending = deferred<Clip>()
+      clip.mockReturnValueOnce(pending.promise)
+      audition.seekAudition(20)
+      audition.toggle()
+
+      split.moveSplit(split.selectedSplit!.id, 21)
+      pending.resolve(clipAroundFirstSplit())
+      await flush()
+
+      expect(audition.status).toBe('idle')
+      expect(play).not.toHaveBeenCalled()
+      expect(heldWavs()).toBe(0)
+      expect(audition.playheadSeconds()).toBe(20)
+    })
+
+    it('decodes the moved 8 s when a drag of the playhead is dropped after the split moved', async () => {
+      const { split, audition } = await playing()
+      audio().currentTime = 2.5
+      audition.grabAuditionPlayhead()
+      split.moveSplit(split.selectedSplit!.id, 21)
+
+      audition.dropAuditionPlayhead()
+      await flush()
+
+      expect(clip).toHaveBeenLastCalledWith(17, 8)
+      expect(audition.status).toBe('playing')
+      expect(audio().currentTime).toBe(3.5)
+    })
+
+    it('ends a paused audition, and lets go of its WAV, when another split is selected', async () => {
+      const { split, audition } = await playing()
+      audition.toggle()
+
+      split.selectSplit(split.splits[1]!.id)
+
+      expect(audition.status).toBe('idle')
+      expect(heldWavs()).toBe(0)
+    })
+
+    it('ends a paused audition, and lets go of its WAV, when the selected split is deleted', async () => {
+      const { split, audition } = await playing()
+      audition.toggle()
+
+      split.deleteSplit(split.selectedSplit!.id)
+
+      expect(audition.status).toBe('idle')
+      expect(heldWavs()).toBe(0)
+      expect(audition.playheadSeconds()).toBe(38)
+    })
+
+    it('ends a paused audition, and lets go of its WAV, when the split is deselected', async () => {
+      const { split, audition } = await playing()
+      audition.toggle()
+
+      split.moveZoomTo(30)
+
+      expect(audition.status).toBe('idle')
+      expect(heldWavs()).toBe(0)
+      expect(audition.playheadSeconds()).toBeNull()
+    })
+
+    it('keeps the place through a trip to the Range view and back, with the same split selected', async () => {
+      const { split, audition } = await playing()
+      audio().currentTime = 2.5
+      audition.toggle()
+
+      split.setRange(10, 30)
+      audition.stop()
+      split.showView('split')
+
+      expect(split.selectedSplit?.seconds).toBeCloseTo(22, 6)
+      expect(audition.playheadSeconds()).toBe(20.5)
+    })
+
+    it('keeps the place through a range played and left', async () => {
+      const { split, audition } = await playing()
+      audio().currentTime = 2.5
+      audition.toggle()
+      split.setRange(10, 30)
+
+      audition.toggleStretch(rangeStretch())
+      await flush()
+      audition.stop()
+
+      expect(audition.stretchStatus).toBe('paused')
+      expect(audition.playheadSeconds()).toBe(20.5)
+    })
+  })
+
+  describe('moving the playhead', () => {
+    // The 8 s of the first split, at 22 s, are 18 s to 26 s.
+    it('sets the sound inside the WAV while the audition plays, and goes on playing', async () => {
+      const { audition } = await playing()
+      const element = audio()
+      play.mockClear()
+
+      audition.seekAudition(22.5)
+
+      expect(element.currentTime).toBe(4.5)
+      expect(audition.status).toBe('playing')
+      expect(audition.playheadSeconds()).toBe(22.5)
+      expect(play).not.toHaveBeenCalled()
+      expect(clip).toHaveBeenCalledOnce()
+    })
+
+    it('moves the playhead of a paused audition and leaves it paused, with Play starting there', async () => {
+      const { audition } = await playing()
+      audition.toggle()
+      play.mockClear()
+
+      audition.seekAudition(20)
+
+      expect(audition.status).toBe('paused')
+      expect(audition.playheadSeconds()).toBe(20)
+      expect(play).not.toHaveBeenCalled()
+
+      audition.toggle()
+      await flush()
+
+      expect(audition.status).toBe('playing')
+      expect(audio().currentTime).toBe(2)
+      expect(clip).toHaveBeenCalledOnce()
+    })
+
+    it('moves the playhead of an audition not yet played, and the first Play decodes it and starts there', async () => {
+      const { audition } = setUp()
+
+      audition.seekAudition(24)
+
+      expect(audition.status).toBe('idle')
+      expect(audition.playheadSeconds()).toBe(24)
+      expect(clip).not.toHaveBeenCalled()
+
+      audition.toggle()
+      await flush()
+
+      expect(audition.status).toBe('playing')
+      expect(audio().currentTime).toBe(6)
+    })
+
+    it('sets where playback starts when the clip arrives, if moved during the decode', async () => {
+      const { audition } = setUp()
+      const pending = deferred<Clip>()
+      clip.mockReturnValueOnce(pending.promise)
+      audition.toggle()
+
+      audition.seekAudition(21)
+
+      expect(audition.status).toBe('loading')
+      expect(audition.playheadSeconds()).toBe(21)
+      expect(play).not.toHaveBeenCalled()
+
+      pending.resolve(clipAroundFirstSplit())
+      await flush()
+
+      expect(audition.status).toBe('playing')
+      expect(audio().currentTime).toBe(3)
+    })
+
+    it('holds the playhead to the 8 s, whether it plays or not', async () => {
+      const { audition } = setUp()
+
+      audition.seekAudition(3)
+      expect(audition.playheadSeconds()).toBe(18)
+
+      audition.seekAudition(99)
+      expect(audition.playheadSeconds()).toBe(26)
+
+      audition.toggle()
+      await flush()
+      audition.seekAudition(99)
+      expect(audio().currentTime).toBe(8)
+      expect(audition.playheadSeconds()).toBe(26)
+
+      audition.seekAudition(-5)
+      expect(audio().currentTime).toBe(0)
+      expect(audition.playheadSeconds()).toBe(18)
+    })
+
+    it('holds the playhead to the start of the file, where the 8 s are shorter', () => {
+      // Quiet from 1 s to 5 s, so the only split is at 3 s and the 8 s start at 0 s.
+      const split = useSplitStore()
+      split.detect(curveOf([LOUD, 20], [QUIET, 80], [LOUD, 1100]), {
+        windowSeconds: 0.05,
+        durationSeconds: 60,
+      })
+      split.selectSplit(split.splits[0]!.id)
+      const audition = useAuditionStore()
+
+      audition.seekAudition(-2)
+
+      expect(audition.playheadSeconds()).toBe(0)
+    })
+
+    it('holds the playhead to the end of the file, where the 8 s are shorter', () => {
+      // Quiet from 55 s to 59 s, so the only split is at 57 s and the 8 s end at 60 s.
+      const split = useSplitStore()
+      split.detect(curveOf([LOUD, 1100], [QUIET, 80], [LOUD, 20]), {
+        windowSeconds: 0.05,
+        durationSeconds: 60,
+      })
+      split.selectSplit(split.splits[0]!.id)
+      const audition = useAuditionStore()
+
+      audition.seekAudition(99)
+
+      expect(audition.playheadSeconds()).toBe(60)
+    })
+
+    it('does nothing without a selected split', () => {
+      const { split, audition } = setUp()
+      split.moveZoomTo(30)
+
+      audition.seekAudition(20)
+      audition.backToAuditionStart()
+      split.selectSplit(split.splits[0]!.id)
+
+      expect(audition.playheadSeconds()).toBe(18)
+    })
+
+    describe('back to the start', () => {
+      it('moves a playing audition to its start and keeps it playing', async () => {
+        const { audition } = await playing()
+        const element = audio()
+        element.currentTime = 6
+        play.mockClear()
+
+        audition.backToAuditionStart()
+
+        expect(element.currentTime).toBe(0)
+        expect(audition.status).toBe('playing')
+        expect(audition.playheadSeconds()).toBe(18)
+        expect(play).not.toHaveBeenCalled()
+      })
+
+      it('moves a paused audition to its start and leaves it paused', async () => {
+        const { audition } = await playing()
+        audio().currentTime = 6
+        audition.toggle()
+        expect(audition.playheadSeconds()).toBe(24)
+
+        audition.backToAuditionStart()
+
+        expect(audition.status).toBe('paused')
+        expect(audition.playheadSeconds()).toBe(18)
+      })
+    })
+
+    describe('pausing for a drag', () => {
+      it('pauses a playing audition on the grab and plays it on from the drop', async () => {
+        const { audition } = await playing()
+        play.mockClear()
+
+        audition.grabAuditionPlayhead()
+        expect(audition.status).toBe('paused')
+
+        audition.seekAudition(20)
+        audition.seekAudition(24)
+        expect(audition.status).toBe('paused')
+        expect(audition.playheadSeconds()).toBe(24)
+        expect(play).not.toHaveBeenCalled()
+
+        audition.dropAuditionPlayhead()
+        await flush()
+
+        expect(audition.status).toBe('playing')
+        expect(audio().currentTime).toBe(6)
+        expect(play).toHaveBeenCalledOnce()
+        expect(clip).toHaveBeenCalledOnce()
+      })
+
+      it('leaves a paused audition paused after the drop', async () => {
+        const { audition } = await playing()
+        audition.toggle()
+        play.mockClear()
+
+        audition.grabAuditionPlayhead()
+        audition.seekAudition(20)
+        audition.dropAuditionPlayhead()
+        await flush()
+
+        expect(audition.status).toBe('paused')
+        expect(audition.playheadSeconds()).toBe(20)
+        expect(play).not.toHaveBeenCalled()
+      })
+
+      it('leaves an idle audition idle, and one still decoding decoding', async () => {
+        const { audition } = setUp()
+        audition.grabAuditionPlayhead()
+        audition.seekAudition(20)
+        audition.dropAuditionPlayhead()
+        expect(audition.status).toBe('idle')
+        expect(clip).not.toHaveBeenCalled()
+
+        const pending = deferred<Clip>()
+        clip.mockReturnValueOnce(pending.promise)
+        audition.toggle()
+        audition.grabAuditionPlayhead()
+        audition.seekAudition(21)
+        audition.dropAuditionPlayhead()
+
+        expect(audition.status).toBe('loading')
+        pending.resolve(clipAroundFirstSplit())
+        await flush()
+        expect(audio().currentTime).toBe(3)
+      })
+
+      it('does not play on when a stretch took over during the drag', async () => {
+        const { audition, split } = await playing()
+        audition.grabAuditionPlayhead()
+        split.setRange(10, 30)
+        audition.toggleStretch(rangeStretch())
+        await flush()
+        audition.toggleStretch(rangeStretch())
+        play.mockClear()
+
+        audition.dropAuditionPlayhead()
+        await flush()
+
+        expect(audition.status).toBe('idle')
+        expect(audition.stretchStatus).toBe('paused')
+        expect(play).not.toHaveBeenCalled()
+      })
+
+      it('does not play on when another split was selected during the drag', async () => {
+        const { audition, split } = await playing()
+        audition.grabAuditionPlayhead()
+        play.mockClear()
+
+        split.selectSplit(split.splits[1]!.id)
+        audition.dropAuditionPlayhead()
+        await flush()
+
+        expect(audition.status).toBe('idle')
+        expect(play).not.toHaveBeenCalled()
+      })
+
+      it('does not play on a second time from a drop with no grab', async () => {
+        const { audition } = await playing()
+        audition.grabAuditionPlayhead()
+        audition.dropAuditionPlayhead()
+        audition.toggle()
+        play.mockClear()
+
+        audition.dropAuditionPlayhead()
+        await flush()
+
+        expect(audition.status).toBe('paused')
+        expect(play).not.toHaveBeenCalled()
+      })
+    })
   })
 
   it('drops the pending clip when pressed again while loading', async () => {
@@ -362,7 +1031,7 @@ describe('the audition store', () => {
     const { audition } = setUp()
     audition.toggle()
     await flush()
-    audition.toggle()
+    audition.stop()
     audition.toggle()
     await flush()
 
@@ -372,14 +1041,6 @@ describe('the audition store', () => {
   })
 
   describe('stop rules', () => {
-    it('stops when the selected split moves', async () => {
-      const { split, audition } = await playing()
-
-      split.moveSplit(split.selectedSplit!.id, 22.5)
-
-      expect(audition.status).toBe('idle')
-    })
-
     it('stops when another split is selected', async () => {
       const { split, audition } = await playing()
 
@@ -546,7 +1207,7 @@ describe('the audition store', () => {
 
       expect(audition.status).toBe('idle')
       expect(audition.isActive).toBe(false)
-      expect(audition.playheadSeconds()).toBeNull()
+      expect(audition.playheadSeconds()).toBe(18)
     })
 
     it('puts the playhead at the clip start plus the element time, within the clip', async () => {
@@ -1017,7 +1678,7 @@ describe('the audition store', () => {
         split.setRange(10, 30)
 
         expect(audition.status).toBe('idle')
-        expect(audition.playheadSeconds()).toBeNull()
+        expect(audition.playheadSeconds()).toBe(18)
       })
     })
 

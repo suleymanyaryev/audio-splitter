@@ -23,9 +23,16 @@ export const SHORTCUT_SECTIONS: ShortcutSection[] = [
     title: 'Split view',
     rows: [
       { input: 'Drag the split’s line or handle', does: 'Move the selected split' },
+      { input: 'Click', does: 'Move the playhead there' },
+      {
+        input: 'Drag',
+        does: 'Move the playhead along the audition; a playing audition pauses while it is held',
+      },
       { input: 'Left / Right', does: 'Move the selected split 10 ms (Shift: 100 ms)' },
       { input: 'Delete / Backspace', does: 'Delete the selected split' },
-      { input: 'Space', does: 'Play across the selected split, or stop' },
+      { input: 'Space', does: 'Play or pause the audition' },
+      { input: ', / .', does: 'Move the playhead 100 ms back or forward (Shift: 1 s)' },
+      { input: 'Home', does: 'Go back to the audition’s start' },
     ],
   },
   {

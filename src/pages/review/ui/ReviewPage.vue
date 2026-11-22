@@ -62,12 +62,13 @@ pending split" (only while one is selected). "Export track…" is off while the 
 splits, and its tooltip says why. The zoom view also has
 "Delete split", which deletes the selected split as Delete does on its handle (disabled with none
 selected), and "Play across split", which plays the selected split's clip (and reads "Stop" while
-it loads or plays). The
+it is decoded and "Pause" while it plays). The
 Range view and the Track view have "Play", which plays the range or the selected track (and reads
 "Stop" while it is decoded and "Pause" while it plays), and "Back to range start" or "Back to track
-start" beside it, which moves the playhead to the stretch's start. The play speed control (a button
-that shows the speed and resets it, and a slider) and then the volume control (a mute button and a
-slider) end the row in all three views.
+start" beside it, which moves the playhead to the stretch's start; the zoom view has "Back to
+audition start" before its play button, off while no split is selected. The play speed control (a
+button that shows the speed and resets it, and a slider) and then the volume control (a mute button
+and a slider) end the row in all three views.
 
 The split store holds back an action that would discard pending splits as its one open question,
 and this page shows it: "Discard N pending splits?" with Apply first, Discard and Cancel, the
@@ -205,6 +206,15 @@ const showsSplitTime = computed(() => split.view === 'split' && split.selectedSp
 const STRETCH_BUTTON_LABELS = { idle: 'Play', loading: 'Stop', playing: 'Pause', paused: 'Play' }
 const stretchButtonLabel = computed(() => STRETCH_BUTTON_LABELS[audition.stretchStatus])
 
+// The same for the audition, which keeps the name of what it plays while it is idle or paused.
+const AUDITION_BUTTON_LABELS = {
+  idle: 'Play across split',
+  loading: 'Stop',
+  playing: 'Pause',
+  paused: 'Play across split',
+}
+const auditionButtonLabel = computed(() => AUDITION_BUTTON_LABELS[audition.status])
+
 /*
 The two buttons of the Range view and of the Track view play the stretch on show: the range, or the
 selected track (all of it, however long). With none there is nothing to play.
@@ -216,8 +226,10 @@ const stretch = computed(() => {
     : null
 })
 
-function backToStretchStart() {
-  if (stretch.value !== null) audition.backToStretchStart(stretch.value)
+// The same move as Home: the stretch on show, or the audition in the Split view.
+function backToStart() {
+  if (split.view === 'split') audition.backToAuditionStart()
+  else if (stretch.value !== null) audition.backToStretchStart(stretch.value)
 }
 
 function toggleStretch() {
@@ -318,11 +330,11 @@ watch(
           <Trash2 class="size-4 shrink-0" />
         </UiIconButton>
         <UiIconButton
-          v-if="split.view !== 'split'"
           size="sm"
-          :label="`Back to ${split.view} start`"
+          :label="`Back to ${split.view === 'split' ? 'audition' : split.view} start`"
           hint="Home"
-          @click="backToStretchStart"
+          :disabled="split.view === 'split' && split.selectedSplit === null"
+          @click="backToStart"
         >
           <SkipBack class="size-4 shrink-0" />
         </UiIconButton>
@@ -352,13 +364,19 @@ watch(
           v-else
           variant="primary"
           size="sm"
-          :label="audition.isActive ? 'Stop' : 'Play across split'"
+          :label="auditionButtonLabel"
           hint="Space"
           :disabled="split.selectedSplit === null && !audition.isActive"
           @click="audition.toggle()"
         >
           <Square
-            v-if="audition.isActive"
+            v-if="audition.status === 'loading'"
+            class="size-4 shrink-0"
+            fill="currentColor"
+            :stroke-width="0"
+          />
+          <Pause
+            v-else-if="audition.status === 'playing'"
             class="size-4 shrink-0"
             fill="currentColor"
             :stroke-width="0"
