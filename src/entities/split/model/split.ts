@@ -555,7 +555,7 @@ export const useSplitStore = defineStore('split', () => {
     if (!addedIds.value.has(id)) movedIds.value.add(id)
   }
 
-  // The new split is unnamed, so its track takes its number from its place.
+  // The new split is unnamed, so its track takes its prefixed number from its place.
   function insertSplit(seconds: number) {
     const index = splits.value.findIndex((candidate) => candidate.seconds > seconds)
     const split: Split = { id: nextSplitId++, seconds, name: null }
