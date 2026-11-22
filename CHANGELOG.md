@@ -20,6 +20,7 @@ Versions follow [Semantic Versioning](https://semver.org/) applied to the produc
 
 ### Added
 
+- The Split view marks where the 8 s of the audition start and end with a small bracket at the top and bottom of the view, so you can see which part of the 20 s you can hear. Near the start or end of the file the brackets sit on the file's edge.
 - In the Split view, `,` and `.` step the playhead back and forward 100 ms (1 s with Shift, and again while held), and Home or the new "Back to audition start" button takes it back to the start of the 8 s.
 - The Split view is a slider for the playhead, so a screen reader says where it is.
 - In the Split view, a click moves the playhead there and a drag moves it along, and a playing audition pauses while you hold it and plays on from where you let go. A press next to the split's line still moves the split.

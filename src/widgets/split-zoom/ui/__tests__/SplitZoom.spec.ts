@@ -19,6 +19,13 @@ function curveWithTwoGaps() {
   return curve
 }
 
+// 100 s: loud, a 2 s silence from 1 s, loud, so the split is at 2 s, within 4 s of the start.
+function curveWithGapNearTheStart() {
+  const curve = new Float32Array(2000).fill(-10)
+  curve.fill(-70, 20, 60)
+  return curve
+}
+
 function setup() {
   useSourceFileStore().durationSeconds = 100
   const split = useSplitStore()
@@ -778,6 +785,103 @@ describe('SplitZoom', () => {
       // 17 s + 2.5 s = 19.5 s.
       expect(audition.status).toBe('paused')
       expect(lines.at(-1)).toBe(85)
+    })
+  })
+
+  describe('the audition’s edges', () => {
+    // A 200 x 160 canvas, so 10 px a second, whose 2D context records every rectangle it is filled.
+    let rects: { x: number; y: number; width: number; height: number }[]
+
+    beforeEach(() => {
+      rects = []
+      const recorder = new Proxy(
+        {},
+        {
+          get: (_target, name) =>
+            name === 'fillRect'
+              ? (x: number, y: number, width: number, height: number) => {
+                  rects.push({ x, y, width, height })
+                }
+              : () => {},
+          set: () => true,
+        },
+      )
+      vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(
+        recorder as unknown as CanvasRenderingContext2D,
+      )
+      vi.spyOn(Element.prototype, 'getBoundingClientRect').mockReturnValue(
+        new DOMRect(0, 0, 200, 160),
+      )
+    })
+
+    afterEach(() => {
+      vi.restoreAllMocks()
+    })
+
+    // The position in the drawing order of the last rectangle of that size.
+    const lastDrawnIndex = (width: number, height: number) =>
+      rects.map((rect) => rect.width === width && rect.height === height).lastIndexOf(true)
+
+    // The stem each edge draws down from the top of the canvas: 2 px wide, 16 px long.
+    const stemsAt = () =>
+      rects.filter((rect) => rect.width === 2 && rect.height === 16 && rect.y === 0).map((r) => r.x)
+
+    it('are marked at the 8 s around the split, in a 20 s window', () => {
+      mountOnSplit()
+
+      // The split is at 21 s in the window 11 to 31 s: the 8 s run 17 to 25 s, at 60 and 140 px.
+      expect(stemsAt().slice(-2)).toEqual([59, 139])
+    })
+
+    it('are marked at the bottom of the canvas too, as a bracket with a foot toward the audition', () => {
+      mountOnSplit()
+
+      expect(rects).toContainEqual({ x: 59, y: 144, width: 2, height: 16 })
+      expect(rects).toContainEqual({ x: 59, y: 144, width: 8, height: 2 })
+      expect(rects).toContainEqual({ x: 133, y: 144, width: 8, height: 2 })
+    })
+
+    it('move with the split', async () => {
+      mountOnSplit()
+
+      await press({ key: 'ArrowRight', shiftKey: true })
+
+      // The window stays at 11 to 31 s: the 8 s now run 17.1 to 25.1 s, at 61 and 141 px.
+      expect(stemsAt().slice(-2)).toEqual([60, 140])
+    })
+
+    it('follow the file’s start where the audition is held there', () => {
+      useSourceFileStore().peaks = new Float32Array(2000)
+      useSourceFileStore().durationSeconds = 100
+      const split = useSplitStore()
+      split.detect(curveWithGapNearTheStart(), { windowSeconds: 0.05, durationSeconds: 100 })
+      split.selectSplit(split.splits[0]!.id)
+      mount(SplitZoom, { attachTo: document.body })
+
+      // The split is at 2 s, so the audition starts at 0 s, which is 8 s into the window 2 - 10 s:
+      // 80 px. The end is at 6 s, 140 px.
+      expect(split.selectedSplit?.seconds).toBe(2)
+      expect(stemsAt().slice(-2)).toEqual([79, 139])
+    })
+
+    it('are drawn under the split line, and the split line under the playhead', () => {
+      mountOnSplit()
+
+      const stem = lastDrawnIndex(2, 16)
+      const playheadLine = lastDrawnIndex(1, 160)
+      const splitLine = lastDrawnIndex(3, 160)
+
+      expect(stem).toBeLessThan(splitLine)
+      expect(splitLine).toBeLessThan(playheadLine)
+    })
+
+    it('are not drawn while no split is selected', () => {
+      useSourceFileStore().peaks = new Float32Array(2000)
+      useSourceFileStore().durationSeconds = 100
+      useSplitStore().detect(curveWithTwoGaps(), { windowSeconds: 0.05, durationSeconds: 100 })
+      mount(SplitZoom, { attachTo: document.body })
+
+      expect(stemsAt()).toEqual([])
     })
   })
 

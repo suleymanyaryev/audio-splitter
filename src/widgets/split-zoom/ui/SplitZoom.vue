@@ -12,6 +12,7 @@ import { zoomTimeToX } from '@/shared/lib/canvas/zoom-axis.ts'
 import { usePageKeys } from '@/shared/lib/keyboard/use-page-keys.ts'
 import { formatHundredths } from '@/shared/lib/time/format-hundredths.ts'
 import { roundToMillisecond } from '@/shared/lib/time/round-to-millisecond.ts'
+import { auditionEdgeRects } from '../lib/audition-edges.ts'
 import { draggedTime } from '../lib/dragged-time.ts'
 import { usePlayheadFrames } from '../lib/use-playhead-frames.ts'
 import { useSplitDrag } from '../lib/use-split-drag.ts'
@@ -160,6 +161,34 @@ handle, a slider, never counts as a control that keeps the arrows for itself.
 */
 usePageKeys(isKeyActedOn, { root: () => frame.value })
 
+/*
+The audition's edges are marked over the ground and under the split lines and the playhead
+(`lib/audition-edges.ts`). They are ink brackets at the frame, not a tint, so they cannot be read as
+the empty ground, which is a flat fill. The extent is already held to the file, so a held edge is
+drawn at the file's end.
+*/
+function drawAuditionEdges(
+  context: CanvasRenderingContext2D,
+  style: CSSStyleDeclaration,
+  centre: number,
+  width: number,
+  height: number,
+) {
+  if (extent.value === null) return
+  context.fillStyle = style.getPropertyValue('--color-ink')
+  const edges = [
+    { seconds: extent.value.startSeconds, inward: 1 },
+    { seconds: extent.value.endSeconds, inward: -1 },
+  ] as const
+  for (const { seconds, inward } of edges) {
+    const x = zoomTimeToX(seconds, centre, ZOOM_WINDOW_SECONDS, width)
+    if (x < 0 || x > width) continue
+    for (const rect of auditionEdgeRects(x, inward, height)) {
+      context.fillRect(rect.x, rect.y, rect.width, rect.height)
+    }
+  }
+}
+
 function draw() {
   const peaks = sourceFile.peaks
   const prepared = peaks && canvas.value ? prepareCanvas(canvas.value) : null
@@ -196,6 +225,8 @@ function draw() {
   for (const { left, right } of outside) {
     context.fillRect(left, 0, right - left, height)
   }
+
+  drawAuditionEdges(context, style, centre, width, height)
 
   drawSplitLines(
     context,

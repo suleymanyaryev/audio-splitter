@@ -65,7 +65,8 @@ export function useSplitDrag({
     const line = lineX()
     // With no split selected there is no audition to move the playhead in.
     if (line === null) return
-    ;(event.currentTarget as HTMLElement).setPointerCapture(event.pointerId)
+    const frame = event.currentTarget as HTMLElement
+    frame.setPointerCapture(event.pointerId)
     if (isOnLine(x)) {
       grabOffset = x - line
       held.value = 'split'
