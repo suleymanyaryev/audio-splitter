@@ -44,7 +44,7 @@ All state lives in Pinia setup stores, in memory, except the theme ([below](#the
 | Store              | Slice                      | Holds                                                         |
 | ------------------ | -------------------------- | ------------------------------------------------------------- |
 | `source-file`      | `entities/source-file`     | The file, its analysis, load progress and the ffmpeg session  |
-| `split`            | `entities/split`           | The settings, splits and track names, selection and edits     |
+| `split`            | `entities/split`           | Settings, splits, track names and prefix, selection, edits    |
 | `audition`         | `widgets/split-zoom`       | The one player: what plays, its status, volume and play speed |
 | `export-tracks`    | `widgets/track-strip`      | The export of every track into a folder                       |
 | `export-single`    | `widgets/track-strip`      | The export of one track or range as a single file             |
@@ -62,7 +62,7 @@ flowchart LR
   reviewPage["ReviewPage"]
 
   sourceFile -- "loudness curve, on mount" --> reviewPage
-  reviewPage -- "detect(curve)" --> split
+  reviewPage -- "detect(curve), prefix" --> split
   split -- "selection, range, view" --> audition
   audition -- "clip" --> sourceFile
   split -- "tracks and names" --> exporter
@@ -73,7 +73,7 @@ flowchart LR
   exporterSingle -- "take, release" --> exportLock
 ```
 
-- **`split` can't import `source-file`.** `ReviewPage` hands it the loudness curve once, on mount.
+- **`split` can't import `source-file`.** `ReviewPage` hands it the loudness curve and the track name prefix once, on mount.
 - **Widgets read the entity stores directly.** They never go through another widget.
 - **Tracks are derived from the splits**, never stored. Deleting a split merges the tracks either side of it.
 - **One selection at a time:** a split, a track or nothing.

@@ -3,17 +3,16 @@ import { defineStore } from 'pinia'
 
 import { useSourceFileStore } from '@/entities/source-file/model/source-file.ts'
 import type { TimeRange } from '@/entities/split/lib/range-between.ts'
+import { sourceStem } from '@/entities/split/lib/source-stem.ts'
 import { MAX_TRACK_NAME_LENGTH } from '@/entities/split/config/track-name.ts'
 import { useSplitStore, type Track } from '@/entities/split/model/split.ts'
 import { pickExportFolder, type ExportFolder } from '../api/export-folder.ts'
 import { writeFile } from '../api/write-file.ts'
 import { freeFileName } from '../lib/free-file-name.ts'
 import { messageOf } from '../lib/message-of.ts'
-import { padTrackNumber } from '../lib/pad-track-number.ts'
 import { rangeDefaultName } from '../lib/range-default-name.ts'
 import { rangeFileName } from '../lib/range-file-name.ts'
 import { rangeTags } from '../lib/range-tags.ts'
-import { sourceStem } from '../lib/source-stem.ts'
 import { trackFileName } from '../lib/track-file-name.ts'
 import { trackTags } from '../lib/track-tags.ts'
 import { useExportLockStore } from './export-lock.ts'
@@ -26,6 +25,8 @@ type Subject =
       count: number
       // The user's own name for the track, null while it has none.
       ownName: string | null
+      // The track name prefix as it was when the dialog opened.
+      prefix: string
       // The split where the track starts, null for the first track: what `renameTrack` takes.
       startSplitId: number | null
       startSeconds: number
@@ -95,18 +96,19 @@ export const useExportSingleStore = defineStore('export-single', () => {
     const { file } = sourceFile
     if (file === null) return
     const tracks = splitStore.tracks
-    const ownName = track.startSplit === null ? splitStore.firstTrackName : track.startSplit.name
+    const { ownName } = track
     open(
       {
         kind: 'track',
         number: track.number,
         count: tracks.length,
         ownName,
+        prefix: splitStore.trackNamePrefix,
         startSplitId: track.startSplit?.id ?? null,
         startSeconds: track.startSeconds,
         endSeconds: tracks[track.number]?.startSeconds,
       },
-      ownName ?? `${sourceStem(file.name)} ${padTrackNumber(track.number, tracks.length)}`,
+      track.name,
     )
   }
 
@@ -182,7 +184,7 @@ export const useExportSingleStore = defineStore('export-single', () => {
 
   // Whether the name is the one the dialog offered, held to a name's length as the typed one is.
   function isOffered(name: string): boolean {
-    return name === defaultName.value.trim().slice(0, MAX_TRACK_NAME_LENGTH)
+    return name === defaultName.value.trim()
   }
 
   // The name the track has once confirmed: its own, or none for an unnamed track left as offered.

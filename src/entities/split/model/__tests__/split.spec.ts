@@ -69,6 +69,13 @@ function namedFourTracks() {
 const trackNames = (store: ReturnType<typeof useSplitStore>) =>
   store.tracks.map((track) => track.name)
 
+function storeWithTwoGaps() {
+  const curve = twoGaps()
+  const store = useSplitStore()
+  store.detect(curve, timing(curve))
+  return { curve, store }
+}
+
 // A range does not depend on the splits; 60 s with two of them will do.
 function loadedStore() {
   const curve = farGaps()
@@ -180,7 +187,7 @@ describe('the split store', () => {
     store.detect(curve, timing(curve))
 
     expect(store.tracks.map((track) => track.number)).toEqual([1, 2, 3])
-    expect(store.tracks.map((track) => track.name)).toEqual(['1', '2', '3'])
+    expect(store.tracks.map((track) => track.name)).toEqual(['01', '02', '03'])
     expect(store.tracks.map((track) => track.startSeconds)).toEqual([
       0,
       expect.closeTo(3.5, 9),
@@ -214,7 +221,23 @@ describe('the split store', () => {
     store.firstTrackName = 'Opening'
     store.splits[1]!.name = 'Encore'
 
-    expect(store.tracks.map((track) => track.name)).toEqual(['Opening', '2', 'Encore'])
+    expect(store.tracks.map((track) => track.name)).toEqual(['Opening', '02', 'Encore'])
+  })
+
+  it('gives the own name beside the shown name: the typed name, or null while unnamed', () => {
+    const curve = twoGaps()
+    const store = useSplitStore()
+    store.detect(curve, timing(curve))
+
+    store.firstTrackName = 'Opening'
+    store.splits[1]!.name = 'Encore'
+
+    expect(store.tracks.map((track) => track.ownName)).toEqual(['Opening', null, 'Encore'])
+
+    store.firstTrackName = null
+
+    expect(store.tracks[0]).toMatchObject({ ownName: null, name: '01' })
+    expect(store.tracks[1]).toMatchObject({ ownName: null, name: '02' })
   })
 
   it('is one track over the whole file when there is no split', () => {
@@ -225,7 +248,14 @@ describe('the split store', () => {
 
     expect(store.splits).toEqual([])
     expect(store.tracks).toEqual([
-      { number: 1, name: '1', startSeconds: 0, lengthSeconds: 5, startSplit: null },
+      {
+        number: 1,
+        ownName: null,
+        name: '01',
+        startSeconds: 0,
+        lengthSeconds: 5,
+        startSplit: null,
+      },
     ])
   })
 
@@ -696,7 +726,7 @@ describe('the split store', () => {
       expect(store.splits[1]!.name).toBeNull()
       expect(store.selectedSplit).toBe(store.splits[1])
       expect(store.zoomCentreSeconds).toBe(31.5)
-      expect(store.tracks.map((track) => track.name)).toEqual(['1', '2', '3', '4'])
+      expect(store.tracks.map((track) => track.name)).toEqual(['01', '02', '03', '04'])
     })
 
     it('does nothing when there is no room for it', () => {
@@ -728,7 +758,7 @@ describe('the split store', () => {
 
       store.addSplit()
 
-      expect(store.tracks.map((track) => track.name)).toEqual(['1', '2', '3', 'Encore'])
+      expect(store.tracks.map((track) => track.name)).toEqual(['01', '02', '03', 'Encore'])
     })
   })
 
@@ -985,7 +1015,7 @@ describe('the split store', () => {
         store.removeTrack(store.tracks[0]!)
 
         expect(store.firstTrackName).toBeNull()
-        expect(trackNames(store)).toEqual(['1', '2', '3'])
+        expect(trackNames(store)).toEqual(['01', '02', '03'])
       })
 
       it('keeps the names of the tracks that were not merged', () => {
@@ -1218,7 +1248,7 @@ describe('the split store', () => {
       store.renameTrack(store.splits[1]!.id, 'Encore')
       store.renameTrack(null, 'Opening')
 
-      expect(store.tracks.map((track) => track.name)).toEqual(['Opening', '2', 'Encore'])
+      expect(store.tracks.map((track) => track.name)).toEqual(['Opening', '02', 'Encore'])
       expect(store.splits[1]!.name).toBe('Encore')
       expect(store.firstTrackName).toBe('Opening')
     })
@@ -1245,7 +1275,7 @@ describe('the split store', () => {
 
       expect(store.splits[0]!.name).toBeNull()
       expect(store.firstTrackName).toBeNull()
-      expect(store.tracks.map((track) => track.name)).toEqual(['1', '2', '3'])
+      expect(store.tracks.map((track) => track.name)).toEqual(['01', '02', '03'])
     })
 
     it('keeps at most 100 characters, counted after trimming', () => {
@@ -1266,8 +1296,97 @@ describe('the split store', () => {
 
       store.renameTrack(-1, 'Ghost')
 
-      expect(store.tracks.map((track) => track.name)).toEqual(['1', '2', '3'])
+      expect(store.tracks.map((track) => track.name)).toEqual(['01', '02', '03'])
       expect(store.firstTrackName).toBeNull()
+    })
+  })
+
+  describe('the track name prefix', () => {
+    it('starts empty, so an unnamed track shows its padded number', () => {
+      const { store } = storeWithTwoGaps()
+
+      expect(store.trackNamePrefix).toBe('')
+      expect(trackNames(store)).toEqual(['01', '02', '03'])
+    })
+
+    it('goes before the padded number of every unnamed track, with nothing between them', () => {
+      const { store } = storeWithTwoGaps()
+
+      store.setTrackNamePrefix('dreamscape-')
+      expect(trackNames(store)).toEqual(['dreamscape-01', 'dreamscape-02', 'dreamscape-03'])
+
+      store.setTrackNamePrefix('dreamscape ')
+      expect(trackNames(store)).toEqual(['dreamscape 01', 'dreamscape 02', 'dreamscape 03'])
+    })
+
+    it('leaves a renamed track alone, whatever the prefix', () => {
+      const { store } = storeWithTwoGaps()
+      store.renameTrack(store.splits[0]!.id, 'Intro')
+
+      store.setTrackNamePrefix('set-')
+
+      expect(trackNames(store)).toEqual(['set-01', 'Intro', 'set-03'])
+      expect(store.tracks.map((track) => track.ownName)).toEqual([null, 'Intro', null])
+    })
+
+    it('pads to the width of the track count, as the number alone does', () => {
+      // 150 s, so 99 splits 1.5 s apart make 100 tracks, numbered from 001.
+      const curve = curveOf([LOUD, 3000])
+      const store = useSplitStore()
+      store.detect(curve, timing(curve))
+      for (let index = 1; index <= 99; index++) store.addSplitAt(index * 1.5)
+
+      store.setTrackNamePrefix('t')
+
+      expect(store.tracks).toHaveLength(100)
+      expect(trackNames(store).slice(0, 2)).toEqual(['t001', 't002'])
+      expect(trackNames(store).at(-1)).toBe('t100')
+    })
+
+    it('is kept as typed: a space or a separator at its end stays', () => {
+      const { store } = storeWithTwoGaps()
+
+      store.setTrackNamePrefix('  a b - ')
+
+      expect(store.trackNamePrefix).toBe('  a b - ')
+    })
+
+    it('keeps at most 100 characters', () => {
+      const { store } = storeWithTwoGaps()
+
+      store.setTrackNamePrefix('a'.repeat(150))
+
+      expect(store.trackNamePrefix).toBe('a'.repeat(MAX_TRACK_NAME_LENGTH))
+    })
+
+    it('is no edit', () => {
+      const { store } = storeWithTwoGaps()
+
+      store.setTrackNamePrefix('set-')
+
+      expect(store.editCount).toBe(0)
+      expect(store.hasEdits).toBe(false)
+    })
+
+    it('survives a change of either detection setting', () => {
+      const { store } = storeWithTwoGaps()
+      store.setTrackNamePrefix('set-')
+
+      store.setSilenceThreshold(-40)
+      expect(store.trackNamePrefix).toBe('set-')
+
+      store.setMinimumGapLength(1)
+      expect(store.trackNamePrefix).toBe('set-')
+      expect(trackNames(store)[0]).toBe('set-01')
+    })
+
+    it('is forgotten on reset', () => {
+      const { store } = storeWithTwoGaps()
+      store.setTrackNamePrefix('set-')
+
+      store.reset()
+
+      expect(store.trackNamePrefix).toBe('')
     })
   })
 
@@ -2620,7 +2739,7 @@ describe('the split store', () => {
         expect.closeTo(42, 9),
       ])
       expect(store.splits[0]!.name).toBeNull()
-      expect(store.tracks.map((track) => track.name)).toEqual(['1', '2', '3', '4'])
+      expect(store.tracks.map((track) => track.name)).toEqual(['01', '02', '03', '04'])
     })
 
     it('does not select it, move the zoom window or leave the range view', () => {

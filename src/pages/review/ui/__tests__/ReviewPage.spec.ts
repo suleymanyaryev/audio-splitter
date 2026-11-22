@@ -34,6 +34,12 @@ function mountPage() {
   return mount(ReviewPage, { attachTo: document.body })
 }
 
+// The page for a source file of that name, which sets the track name prefix the page starts with.
+function mountPageForFile(name: string) {
+  useSourceFileStore().file = new File([], name)
+  return mountPage()
+}
+
 /*
 The page on the Split view with split 1 selected, as a click on its row does: analysis opens on
 track 1 in the Track view, and these specs are about the zoom view.
@@ -290,6 +296,47 @@ describe('ReviewPage', () => {
     // The volume is kept in localStorage, which a spec must not inherit from another.
     localStorage.clear()
     setActivePinia(createPinia())
+  })
+
+  describe('the track name prefix', () => {
+    it('starts as the source file’s name without its extension, followed by "-"', () => {
+      const wrapper = mountPageForFile('dreamscape.m4a')
+
+      expect(useSplitStore().trackNamePrefix).toBe('dreamscape-')
+      expect(
+        wrapper.get<HTMLInputElement>('input[aria-label="Track name prefix"]').element.value,
+      ).toBe('dreamscape-')
+      expect(useSplitStore().tracks.map((track) => track.name)).toEqual([
+        'dreamscape-01',
+        'dreamscape-02',
+        'dreamscape-03',
+      ])
+    })
+
+    it('is empty for a file whose name has nothing before its extension', () => {
+      mountPageForFile('.m4a')
+
+      expect(useSplitStore().trackNamePrefix).toBe('')
+    })
+
+    it('starts again from the next file, since the page mounts again', () => {
+      mountPageForFile('first.m4a').unmount()
+      const wrapper = mountPageForFile('second.mp3')
+
+      expect(useSplitStore().trackNamePrefix).toBe('second-')
+      wrapper.unmount()
+    })
+
+    it('has its field in the header of the Track list panel', () => {
+      const wrapper = mountPageForFile('dreamscape.m4a')
+
+      const panel = wrapper.get(
+        'section[aria-labelledby]:has(input[aria-label="Track name prefix"])',
+      )
+
+      expect(panel.get('h2').text()).toBe('Track list')
+      expect(panel.get('label').text()).toBe('Prefix')
+    })
   })
 
   describe('the title row’s icon buttons', () => {
@@ -607,7 +654,7 @@ describe('ReviewPage', () => {
       expect(viewOption(wrapper, 'Track').attributes('disabled')).toBeUndefined()
       expect(viewOption(wrapper, 'Range').attributes('disabled')).toBeDefined()
       expect(wrapper.find('[aria-label="Waveform of the track"]').exists()).toBe(true)
-      expect(panelTitle(wrapper)).toBe('1 · 0:00:00.00 – 0:00:21.00')
+      expect(panelTitle(wrapper)).toBe('01 · 0:00:00.00 – 0:00:21.00')
     })
 
     it('shows the file’s opening seconds, with no split selected, when Split is chosen', async () => {
@@ -709,14 +756,14 @@ describe('ReviewPage', () => {
         expect(viewOption(wrapper, 'Track').attributes('disabled')).toBeUndefined()
         expect(wrapper.find('[aria-label="Waveform of the track"]').exists()).toBe(true)
         expect(wrapper.find('[aria-label="Zoomed waveform of the split"]').exists()).toBe(false)
-        expect(panelTitle(wrapper)).toBe('3 · 0:01:11.50 – 0:01:40.00')
+        expect(panelTitle(wrapper)).toBe('03 · 0:01:11.50 – 0:01:40.00')
       })
 
       it('shows the first track too', async () => {
         const wrapper = await mountPageWithTrack(1)
 
         expect(wrapper.find('[aria-label="Waveform of the track"]').exists()).toBe(true)
-        expect(panelTitle(wrapper)).toBe('1 · 0:00:00.00 – 0:00:21.00')
+        expect(panelTitle(wrapper)).toBe('01 · 0:00:00.00 – 0:00:21.00')
       })
 
       it('has no "Add split" and no "Play across split" in its title row', async () => {
@@ -758,7 +805,7 @@ describe('ReviewPage', () => {
         await viewOption(wrapper, 'Track').trigger('click')
 
         expect(wrapper.find('[aria-label="Waveform of the track"]').exists()).toBe(true)
-        expect(panelTitle(wrapper)).toBe('2 · 0:00:21.00 – 0:01:11.50')
+        expect(panelTitle(wrapper)).toBe('02 · 0:00:21.00 – 0:01:11.50')
       })
 
       it('shows track 1 again when a setting change finds the splits again', async () => {
@@ -768,7 +815,7 @@ describe('ReviewPage', () => {
         await wrapper.vm.$nextTick()
 
         expect(viewOption(wrapper, 'Track').attributes('aria-checked')).toBe('true')
-        expect(panelTitle(wrapper)).toMatch(/^1 · /)
+        expect(panelTitle(wrapper)).toMatch(/^01 · /)
       })
 
       it('plays the track as a stretch when Play is clicked', async () => {
@@ -1087,7 +1134,7 @@ describe('ReviewPage', () => {
       expect(onSplit.find('button[aria-label^="Export "]').exists()).toBe(false)
     })
 
-    it('opens the name dialog on the track, with "<source stem> NN", and does not stop the sound', async () => {
+    it('opens the name dialog on the track, with the track’s shown name, and does not stop the sound', async () => {
       const wrapper = await mountPageWithTrack(2)
       const stop = vi.spyOn(useAuditionStore(), 'stop')
 
@@ -1095,7 +1142,7 @@ describe('ReviewPage', () => {
       await flushPromises()
 
       expect(dialog()?.textContent).toContain('Export track')
-      expect(nameField().value).toBe('Evening Set 02')
+      expect(nameField().value).toBe('Evening Set-02')
       expect(stop).not.toHaveBeenCalled()
     })
 
@@ -1138,8 +1185,8 @@ describe('ReviewPage', () => {
       await pressEnterInField()
 
       expect(dialog()).toBeNull()
-      expect(folder.files.has('02 Chorus.m4a')).toBe(true)
-      expect(savedLine(wrapper).text()).toBe('Saved 02 Chorus.m4a in Music')
+      expect(folder.files.has('Chorus.m4a')).toBe(true)
+      expect(savedLine(wrapper).text()).toBe('Saved Chorus.m4a in Music')
     })
 
     it('has OK off and Enter doing nothing while the name is empty', async () => {
@@ -2023,7 +2070,7 @@ describe('ReviewPage', () => {
           .mockImplementation(() => {})
         const block = wrapper
           .findAll('button')
-          .find((candidate) => nameOf(candidate).startsWith('2, '))
+          .find((candidate) => nameOf(candidate).startsWith('02, '))
 
         await mouseClick(block!.element)
         pressWhereFocused(' ')

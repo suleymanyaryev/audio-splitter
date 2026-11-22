@@ -68,6 +68,37 @@ describe('TrackStrip', () => {
     ])
   })
 
+  it('labels an unnamed block with its number and a renamed one with its name, as typed', async () => {
+    const { split, wrapper } = await mountWithTwoGaps()
+    split.setTrackNamePrefix('dreamscape-')
+    split.renameTrack(split.splits[0]!.id, 'Intro')
+    await flushPromises()
+
+    expect(blocks(wrapper).map((block) => block.text())).toEqual([
+      '10:00:21',
+      'Intro0:00:50',
+      '30:00:28',
+    ])
+  })
+
+  it('gives the full name in the tooltip and the accessible label', async () => {
+    const { split, wrapper } = await mountWithTwoGaps()
+    split.setTrackNamePrefix('dreamscape-')
+    split.renameTrack(split.splits[0]!.id, 'Intro')
+    await flushPromises()
+
+    expect(blocks(wrapper).map((block) => block.attributes('title'))).toEqual([
+      'dreamscape-01, 0:00:21',
+      'Intro, 0:00:50',
+      'dreamscape-03, 0:00:28',
+    ])
+    expect(blocks(wrapper).map((block) => block.get('button').attributes('aria-label'))).toEqual([
+      'dreamscape-01, 0:00:21',
+      'Intro, 0:00:50',
+      'dreamscape-03, 0:00:28',
+    ])
+  })
+
   it('is one block over the whole file when there are no splits', async () => {
     useSplitStore().detect(new Float32Array(400).fill(-10), {
       windowSeconds: 0.05,
@@ -93,12 +124,12 @@ describe('TrackStrip', () => {
     // A sliver has no padding: border-box padding would keep it from getting narrower than itself.
     expect(blocks(wrapper)[0]?.classes()).not.toContain('px-1')
     expect(blocks(wrapper)[1]?.classes()).toContain('px-1')
-    expect(blocks(wrapper)[0]?.attributes('title')).toBe('1, 0:00:21')
+    expect(blocks(wrapper)[0]?.attributes('title')).toBe('01, 0:00:21')
     // A block with no text is still a button with a name.
     expect(blocks(wrapper).map((block) => block.get('button').attributes('aria-label'))).toEqual([
-      '1, 0:00:21',
-      '2, 0:00:50',
-      '3, 0:00:28',
+      '01, 0:00:21',
+      '02, 0:00:50',
+      '03, 0:00:28',
     ])
   })
 

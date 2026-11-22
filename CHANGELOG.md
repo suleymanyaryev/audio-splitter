@@ -21,6 +21,12 @@ Versions follow [Semantic Versioning](https://semver.org/) applied to the produc
 ### Added
 
 - A play speed control in the zoom panel's title row, just before the volume, from 0.5× to 2.0× in steps of 0.1. It applies to the audition, the range and the selected track, the pitch stays the same, and a change takes effect while the sound plays. The button on its left shows the speed and resets it to 1.0×. It is remembered across a reload. An export is unaffected.
+- A "Prefix" field in the Track list's header, starting as the source file's name and a dash (`dreamscape-`). Every track you have not renamed shows it before its number (`dreamscape-01`), in muted text in the list, and changes with it as you type.
+
+### Changed
+
+- An export names every track you have not renamed after the list's name for it: the prefix and the number (`dreamscape-01.m4a`, or `01.m4a` when the prefix is empty), and its title tag is the same name. The single export dialog now offers that name too, where it offered the file's name and the number, so confirming it writes the file you were offered. A prefix too long for the file name is cut, never the number.
+- A renamed track's file no longer starts with its number: it is called what you called it (`Intro.m4a`, not `02 Intro.m4a`). When two files in an export would share a name, ignoring capital letters, the later track's becomes `name (2).m4a`, so nothing is overwritten. A name with no usable characters (`...`) is written under the track's prefixed name, and its title tag keeps what you typed.
 
 ## [1.3.0] - 2026-11-22
 

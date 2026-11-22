@@ -17,7 +17,7 @@ The import rules are in AGENTS.md "Code layout" and enforced by `pnpm lint`; thi
 
 ## Wiring stores together
 
-- Two slices of one layer never import each other, so the page wires them: `ReviewPage.vue` hands the loudness curve to `split.detect` on mount and resets `split` on unmount. Wire a new cross-store need the same way, in the page.
+- Two slices of one layer never import each other, so the page wires them: `ReviewPage.vue` hands the loudness curve to `split.detect` and the track name prefix to `split.setTrackNamePrefix` on mount, and resets `split` on unmount. Wire a new cross-store need the same way, in the page.
 - Buttons enable on store getters (`canAddSplit`) and take their labels from store status.
 - A click on a list or strip item selects through the store, and the selected item carries `aria-current="true"`. A button inside an item stops the click (`@click.stop`) so it does only what it says. Reference: `TrackList.vue`.
 
