@@ -2,18 +2,18 @@ import { computed, ref, watch } from 'vue'
 import { defineStore } from 'pinia'
 
 import { useSourceFileStore } from '@/entities/source-file/model/source-file.ts'
+import { padTrackNumber } from '@/entities/split/lib/pad-track-number.ts'
 import type { TimeRange } from '@/entities/split/lib/range-between.ts'
+import { sourceStem } from '@/entities/split/lib/source-stem.ts'
 import { MAX_TRACK_NAME_LENGTH } from '@/entities/split/config/track-name.ts'
 import { useSplitStore, type Track } from '@/entities/split/model/split.ts'
 import { pickExportFolder, type ExportFolder } from '../api/export-folder.ts'
 import { writeFile } from '../api/write-file.ts'
 import { freeFileName } from '../lib/free-file-name.ts'
 import { messageOf } from '../lib/message-of.ts'
-import { padTrackNumber } from '../lib/pad-track-number.ts'
 import { rangeDefaultName } from '../lib/range-default-name.ts'
 import { rangeFileName } from '../lib/range-file-name.ts'
 import { rangeTags } from '../lib/range-tags.ts'
-import { sourceStem } from '../lib/source-stem.ts'
 import { trackFileName } from '../lib/track-file-name.ts'
 import { trackTags } from '../lib/track-tags.ts'
 import { useExportLockStore } from './export-lock.ts'
@@ -95,7 +95,7 @@ export const useExportSingleStore = defineStore('export-single', () => {
     const { file } = sourceFile
     if (file === null) return
     const tracks = splitStore.tracks
-    const ownName = track.startSplit === null ? splitStore.firstTrackName : track.startSplit.name
+    const { ownName } = track
     open(
       {
         kind: 'track',

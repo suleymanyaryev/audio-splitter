@@ -5,6 +5,7 @@ import { trackTitle } from '../track-title.ts'
 
 const track = (overrides: Partial<Track>): Track => ({
   number: 4,
+  ownName: null,
   name: '4',
   startSeconds: 180.93,
   lengthSeconds: 109.09,

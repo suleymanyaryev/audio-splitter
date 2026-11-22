@@ -2,13 +2,13 @@ import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 
 import { useSourceFileStore } from '@/entities/source-file/model/source-file.ts'
+import { sourceStem } from '@/entities/split/lib/source-stem.ts'
 import { useSplitStore } from '@/entities/split/model/split.ts'
 import { exportFolderName } from '../lib/export-folder-name.ts'
 import type { ExportFailure } from '../lib/export-summary.ts'
 import { pickExportFolder, type ExportFolder } from '../api/export-folder.ts'
 import { writeFile } from '../api/write-file.ts'
 import { messageOf } from '../lib/message-of.ts'
-import { sourceStem } from '../lib/source-stem.ts'
 import { trackFileName } from '../lib/track-file-name.ts'
 import { trackTags } from '../lib/track-tags.ts'
 import { useExportLockStore } from './export-lock.ts'
@@ -67,7 +67,7 @@ export const useExportTracksStore = defineStore('export-tracks', () => {
     return tracks.map((track, index) => ({
       number: track.number,
       // The user's own name: `track.name` falls back to the number, which is no name.
-      name: track.startSplit === null ? splitStore.firstTrackName : track.startSplit.name,
+      name: track.ownName,
       startSeconds: track.startSeconds,
       endSeconds: tracks[index + 1]?.startSeconds,
     }))

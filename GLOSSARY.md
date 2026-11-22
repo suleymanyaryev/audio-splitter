@@ -21,8 +21,12 @@ A stretch of the source file between two neighbouring splits (or between a split
 _Avoid_: Segment, part, chunk, song
 
 **Track name**:
-The name a track is exported under: its number until the user renames it. It belongs to the split where the track starts (or to the start of the source file for the first track), so it follows that split when it moves and disappears when that split is deleted.
+The name a track is exported under: the track name prefix followed by the track's number until the user renames it, then the name as typed. It belongs to the split where the track starts (or to the start of the source file for the first track), so it follows that split when it moves and disappears when that split is deleted.
 _Avoid_: Title, label
+
+**Track name prefix**:
+The text put before the number of every unnamed track, any separator included. Each source file has its own, starting as the source file's name without its extension followed by `-`.
+_Avoid_: Base name, stem
 
 **Export**:
 Writing every track as its own audio file, in the source file's format, into a new folder named after the source file, made inside a folder the user picks (a second export of the same file makes `name (2)`).

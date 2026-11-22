@@ -217,6 +217,22 @@ describe('the split store', () => {
     expect(store.tracks.map((track) => track.name)).toEqual(['Opening', '2', 'Encore'])
   })
 
+  it('gives the own name beside the shown name: the typed name, or null while unnamed', () => {
+    const curve = twoGaps()
+    const store = useSplitStore()
+    store.detect(curve, timing(curve))
+
+    store.firstTrackName = 'Opening'
+    store.splits[1]!.name = 'Encore'
+
+    expect(store.tracks.map((track) => track.ownName)).toEqual(['Opening', null, 'Encore'])
+
+    store.firstTrackName = null
+
+    expect(store.tracks[0]).toMatchObject({ ownName: null, name: '1' })
+    expect(store.tracks[1]).toMatchObject({ ownName: null, name: '2' })
+  })
+
   it('is one track over the whole file when there is no split', () => {
     const curve = curveOf([LOUD, 100])
     const store = useSplitStore()
@@ -225,7 +241,14 @@ describe('the split store', () => {
 
     expect(store.splits).toEqual([])
     expect(store.tracks).toEqual([
-      { number: 1, name: '1', startSeconds: 0, lengthSeconds: 5, startSplit: null },
+      {
+        number: 1,
+        ownName: null,
+        name: '1',
+        startSeconds: 0,
+        lengthSeconds: 5,
+        startSplit: null,
+      },
     ])
   })
 

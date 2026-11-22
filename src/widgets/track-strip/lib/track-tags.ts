@@ -1,5 +1,5 @@
 import type { TrackTags } from '@/entities/source-file/api/cut-track.ts'
-import { padTrackNumber } from './pad-track-number.ts'
+import { padTrackNumber } from '@/entities/split/lib/pad-track-number.ts'
 
 /*
 The tags one track is written with. `name` is the name the user gave the track, null while it has

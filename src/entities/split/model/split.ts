@@ -31,7 +31,9 @@ export interface Split {
 
 export interface Track {
   number: number
-  // The track's own name, or its number while it has none.
+  // The name the user typed, null while the track is unnamed.
+  ownName: string | null
+  // The name shown: the own name, or the number while the track has none.
   name: string
   startSeconds: number
   lengthSeconds: number
@@ -147,11 +149,11 @@ export const useSplitStore = defineStore('split', () => {
     return starts.map((startSeconds, index) => {
       const startSplit = splits.value[index - 1] ?? null
       const endSeconds = starts[index + 1] ?? durationSeconds
-      const name =
-        (startSplit === null ? firstTrackName.value : startSplit.name) ?? String(index + 1)
+      const ownName = startSplit === null ? firstTrackName.value : startSplit.name
       return {
         number: index + 1,
-        name,
+        ownName,
+        name: ownName ?? String(index + 1),
         startSeconds,
         lengthSeconds: endSeconds - startSeconds,
         startSplit,

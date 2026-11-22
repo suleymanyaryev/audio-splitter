@@ -1,4 +1,4 @@
-import { padTrackNumber } from './pad-track-number.ts'
+import { padTrackNumber } from '@/entities/split/lib/pad-track-number.ts'
 import { sanitiseFileName } from './sanitise-file-name.ts'
 
 /*
