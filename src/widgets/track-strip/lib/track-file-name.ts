@@ -20,7 +20,7 @@ export function trackFileName(track: {
   const typed = track.name === null ? '' : sanitiseFileName(track.name)
   if (typed !== '') return `${typed}.${extension}`
   const number = padTrackNumber(track.number, track.count)
-  // By code point, as `sanitiseFileName` counts, so a character outside the basic plane stays whole.
+  // By code point, as `sanitiseFileName` counts, so no character is cut in half.
   const room = Math.max(0, MAX_FILE_NAME_LENGTH - number.length)
   const prefix = [...track.prefix].slice(0, room).join('')
   const stem = sanitiseFileName(prefix + number)

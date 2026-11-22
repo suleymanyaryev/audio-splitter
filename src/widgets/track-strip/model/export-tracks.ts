@@ -69,7 +69,7 @@ export const useExportTracksStore = defineStore('export-tracks', () => {
     const tracks = splitStore.tracks
     return tracks.map((track, index) => ({
       number: track.number,
-      // The user's own name: `track.name` falls back to the prefixed number, which is no name of its own.
+      // The user's own name: `track.name` falls back to the prefixed number, which is none.
       name: track.ownName,
       prefix: splitStore.trackNamePrefix,
       startSeconds: track.startSeconds,

@@ -13,12 +13,13 @@ import TrackNameField from './TrackNameField.vue'
 The file as a table, in time order: a row for each track with a row for each split between two
 tracks. A track row has its number (a button, so the row can be selected from the keyboard), its
 name (edited in place, `TrackNameField`, muted while the track has no name of its own), its start
-(hundredths, where a split's position is read) and its length (whole seconds), then a merge button that removes the track and merges it with its
-neighbours (none when it is the only track). A split row reads `Split N` where the name goes, its
-time in the start column, no length and a trash button that deletes the split, which merges the
-tracks either side of it; it has no name field, because naming belongs to tracks. The two buttons
-carry different icons, so one is not taken for the other. The box is as tall as the zoom view's
-160 px content area and scrolls inside itself, the heading row staying in view.
+(hundredths, where a split's position is read) and its length (whole seconds), then a merge button
+that removes the track and merges it with its neighbours (none when it is the only track). A split
+row reads `Split N` where the name goes, its time in the start column, no length and a trash button
+that deletes the split, which merges the tracks either side of it; it has no name field, because
+naming belongs to tracks. The two buttons carry different icons, so one is not taken for the other.
+The box is as tall as the zoom view's 160 px content area and scrolls inside itself, the heading row
+staying in view.
 
 A click on a row selects what it shows, a track or a split (the first track included), and the
 marked row, whichever kind it is, follows the selection and is kept in view; focusing a name field
