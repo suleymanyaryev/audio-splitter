@@ -17,6 +17,8 @@ import { useExportLockStore } from './export-lock.ts'
 interface PlannedTrack {
   number: number
   name: string | null
+  // The track name prefix as it was when the export started.
+  prefix: string
   startSeconds: number
   endSeconds: number | undefined
 }
@@ -68,6 +70,7 @@ export const useExportTracksStore = defineStore('export-tracks', () => {
       number: track.number,
       // The user's own name: `track.name` falls back to the number, which is no name.
       name: track.ownName,
+      prefix: splitStore.trackNamePrefix,
       startSeconds: track.startSeconds,
       endSeconds: tracks[index + 1]?.startSeconds,
     }))

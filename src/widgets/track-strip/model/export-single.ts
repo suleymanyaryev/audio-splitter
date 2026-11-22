@@ -2,7 +2,6 @@ import { computed, ref, watch } from 'vue'
 import { defineStore } from 'pinia'
 
 import { useSourceFileStore } from '@/entities/source-file/model/source-file.ts'
-import { padTrackNumber } from '@/entities/split/lib/pad-track-number.ts'
 import type { TimeRange } from '@/entities/split/lib/range-between.ts'
 import { sourceStem } from '@/entities/split/lib/source-stem.ts'
 import { MAX_TRACK_NAME_LENGTH } from '@/entities/split/config/track-name.ts'
@@ -26,6 +25,8 @@ type Subject =
       count: number
       // The user's own name for the track, null while it has none.
       ownName: string | null
+      // The track name prefix as it was when the dialog opened.
+      prefix: string
       // The split where the track starts, null for the first track: what `renameTrack` takes.
       startSplitId: number | null
       startSeconds: number
@@ -102,11 +103,12 @@ export const useExportSingleStore = defineStore('export-single', () => {
         number: track.number,
         count: tracks.length,
         ownName,
+        prefix: splitStore.trackNamePrefix,
         startSplitId: track.startSplit?.id ?? null,
         startSeconds: track.startSeconds,
         endSeconds: tracks[track.number]?.startSeconds,
       },
-      ownName ?? `${sourceStem(file.name)} ${padTrackNumber(track.number, tracks.length)}`,
+      track.name,
     )
   }
 

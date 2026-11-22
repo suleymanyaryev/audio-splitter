@@ -1126,7 +1126,7 @@ describe('ReviewPage', () => {
       expect(onSplit.find('button[aria-label^="Export "]').exists()).toBe(false)
     })
 
-    it('opens the name dialog on the track, with "<source stem> NN", and does not stop the sound', async () => {
+    it('opens the name dialog on the track, with the track’s shown name, and does not stop the sound', async () => {
       const wrapper = await mountPageWithTrack(2)
       const stop = vi.spyOn(useAuditionStore(), 'stop')
 
@@ -1134,7 +1134,7 @@ describe('ReviewPage', () => {
       await flushPromises()
 
       expect(dialog()?.textContent).toContain('Export track')
-      expect(nameField().value).toBe('Evening Set 02')
+      expect(nameField().value).toBe('Evening Set-02')
       expect(stop).not.toHaveBeenCalled()
     })
 

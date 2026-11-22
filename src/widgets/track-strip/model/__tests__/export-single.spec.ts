@@ -75,15 +75,24 @@ describe('the single export store', () => {
   })
 
   describe('opening', () => {
-    it('opens a track unnamed with "<source stem> NN" as the default name', () => {
+    it('opens an unnamed track with its shown name as the default name', () => {
       const { split, exporter } = setUp()
+      split.setTrackNamePrefix('Evening Set-')
 
       exporter.openTrack(trackOf(split, 2))
 
       expect(exporter.status).toBe('naming')
       expect(exporter.subject).toBe('track')
-      expect(exporter.defaultName).toBe('Evening Set 02')
+      expect(exporter.defaultName).toBe('Evening Set-02')
       expect(picker).not.toHaveBeenCalled()
+    })
+
+    it('opens an unnamed track with its bare number when the prefix is empty', () => {
+      const { split, exporter } = setUp()
+
+      exporter.openTrack(trackOf(split, 2))
+
+      expect(exporter.defaultName).toBe('02')
     })
 
     it("opens a named track with the track's name, the first track too", () => {
@@ -227,47 +236,67 @@ describe('the single export store', () => {
       expect(trackOf(split, 2).name).toBe('Chorus')
     })
 
-    it('is left alone when an unnamed track’s default is confirmed as it is', async () => {
+    it('is left alone when an unnamed track’s default is confirmed as it is, so a later prefix change renames it', async () => {
       const { split, exporter } = setUp()
+      split.setTrackNamePrefix('Evening Set-')
       exporter.openTrack(trackOf(split, 2))
 
-      await exporter.confirm('Evening Set 02')
+      await exporter.confirm('Evening Set-02')
+      split.setTrackNamePrefix('Late-')
 
       expect(trackOf(split, 2).ownName).toBeNull()
+      expect(trackOf(split, 2).name).toBe('Late-02')
       expect(split.editCount).toBe(0)
     })
 
-    it('writes the full export’s file for an unnamed track whose default is confirmed as it is', async () => {
+    it('writes the file the dialog offered, titled the same, for an unnamed track confirmed as it is', async () => {
       const { split, exporter } = setUp()
+      split.setTrackNamePrefix('Evening Set-')
       exporter.openTrack(trackOf(split, 2))
 
-      await exporter.confirm('Evening Set 02')
+      await exporter.confirm(exporter.defaultName)
 
-      expect(filesOf(folder)).toEqual(['02.m4a'])
+      expect(filesOf(folder)).toEqual(['Evening Set-02.m4a'])
       expect(cutTrack).toHaveBeenCalledWith(
         expect.objectContaining({
-          tags: { title: 'Evening Set 02', track: '2/3', album: 'Evening Set' },
+          tags: { title: 'Evening Set-02', track: '2/3', album: 'Evening Set' },
         }),
       )
     })
 
+    it('offers and writes the bare number when the prefix is empty', async () => {
+      const { split, exporter } = setUp()
+      exporter.openTrack(trackOf(split, 2))
+
+      expect(exporter.defaultName).toBe('02')
+      await exporter.confirm('02')
+
+      expect(filesOf(folder)).toEqual(['02.m4a'])
+      expect(cutTrack).toHaveBeenCalledWith(
+        expect.objectContaining({ tags: { title: '02', track: '2/3', album: 'Evening Set' } }),
+      )
+      expect(trackOf(split, 2).ownName).toBeNull()
+    })
+
     it('is left alone when the default is too long for a name and is confirmed as it is', async () => {
-      const { sourceFile, split, exporter } = setUp()
-      // `<stem> 02` is 101 characters: the dialog's field takes it whole and the name is held to 100.
-      sourceFile.file = new File([], `${'x'.repeat(98)}.m4a`)
+      const { split, exporter } = setUp()
+      // The prefix and `02` are 102 characters: the dialog's field takes them whole and the name is held to 100.
+      split.setTrackNamePrefix('x'.repeat(100))
       exporter.openTrack(trackOf(split, 2))
 
       await exporter.confirm(exporter.defaultName)
 
       expect(trackOf(split, 2).ownName).toBeNull()
       expect(split.editCount).toBe(0)
+      expect(filesOf(folder)).toEqual([`${'x'.repeat(98)}02.m4a`])
     })
 
     it('is left alone when the default is confirmed with spaces around it', async () => {
       const { split, exporter } = setUp()
+      split.setTrackNamePrefix('Evening Set-')
       exporter.openTrack(trackOf(split, 2))
 
-      await exporter.confirm('  Evening Set 02 ')
+      await exporter.confirm('  Evening Set-02 ')
 
       expect(split.editCount).toBe(0)
     })

@@ -43,6 +43,7 @@ function onKeydown(event: KeyboardEvent) {
     Prefix
     <UiTextField
       v-model="prefix"
+      variant="compact"
       aria-label="Track name prefix"
       :maxlength="MAX_TRACK_NAME_LENGTH"
       @focus="onFocus"

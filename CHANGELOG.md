@@ -22,6 +22,10 @@ Versions follow [Semantic Versioning](https://semver.org/) applied to the produc
 
 - A "Prefix" field in the Track list's header. It starts as the source file's name followed by a dash (`dreamscape-`), and every track you have not renamed shows it before its number (`dreamscape-01`) in the list, the strip's tooltips and the Track view's title. Typing a prefix renames those tracks at once and leaves the ones you named alone; Enter keeps the text, and Escape puts back what the field held when you clicked into it. Unnamed track names show in muted text in the list. The prefix is not an edit, and a change of a detection setting keeps it.
 
+### Changed
+
+- An export names every track you have not renamed after the list's name for it: the prefix and the number (`dreamscape-01.m4a`, or `01.m4a` when the prefix is empty), and its title tag is the same name. The single export dialog now offers that name too, where it offered the file's name and the number, so confirming it writes the file you were offered. A prefix too long for the file name is cut, never the number. Renamed tracks are exported as before.
+
 ## [1.3.0] - 2026-11-22
 
 ### Added

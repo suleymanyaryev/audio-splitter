@@ -36,6 +36,11 @@ const flush = () => new Promise((done) => setTimeout(done, 0))
 
 const bytesOf = (track: number) => Uint8Array.of(track, track, track)
 
+// The names of the files the export wrote into its subfolder, in order.
+const fileNames = (folder: FakeFolder) => [
+  ...(folder.folders.get('Evening Set')?.files.keys() ?? []),
+]
+
 describe('the export store', () => {
   let picked: FakeFolder
   let picker: ReturnType<typeof vi.fn>
@@ -133,13 +138,87 @@ describe('the export store', () => {
     expect(cutTrack.mock.calls.map(([cut]) => cut.tags)).toEqual([
       { title: 'Opener', track: '1/3', album: 'Evening Set' },
       { title: 'Sunrise: Drive', track: '2/3', album: 'Evening Set' },
-      { title: 'Evening Set 03', track: '3/3', album: 'Evening Set' },
+      { title: '03', track: '3/3', album: 'Evening Set' },
     ])
     expect([...(picked.folders.get('Evening Set')?.files.keys() ?? [])]).toEqual([
       '01 Opener.m4a',
       '02 Sunrise- Drive.m4a',
       '03.m4a',
     ])
+  })
+
+  describe('the track name prefix', () => {
+    it('writes an unnamed track as the prefix and its padded number, and titles it the same', async () => {
+      const { exporter, split } = setUp()
+      split.setTrackNamePrefix('Evening Set-')
+
+      await exporter.start()
+
+      expect(fileNames(picked)).toEqual([
+        'Evening Set-01.m4a',
+        'Evening Set-02.m4a',
+        'Evening Set-03.m4a',
+      ])
+      expect(cutTrack.mock.calls.map(([cut]) => cut.tags)).toEqual([
+        { title: 'Evening Set-01', track: '1/3', album: 'Evening Set' },
+        { title: 'Evening Set-02', track: '2/3', album: 'Evening Set' },
+        { title: 'Evening Set-03', track: '3/3', album: 'Evening Set' },
+      ])
+    })
+
+    it('puts nothing between the prefix and the number', async () => {
+      const { exporter, split } = setUp()
+      split.setTrackNamePrefix('take ')
+
+      await exporter.start()
+
+      expect(fileNames(picked)).toEqual(['take 01.m4a', 'take 02.m4a', 'take 03.m4a'])
+    })
+
+    it('writes plain numbers, and titles them with the bare number, when the prefix is empty', async () => {
+      const { exporter } = setUp()
+
+      await exporter.start()
+
+      expect(fileNames(picked)).toEqual(['01.m4a', '02.m4a', '03.m4a'])
+      expect(cutTrack.mock.calls.map(([cut]) => cut.tags.title)).toEqual(['01', '02', '03'])
+    })
+
+    it('turns unsafe characters in the prefix into -, in the file name only', async () => {
+      const { exporter, split } = setUp()
+      split.setTrackNamePrefix('a/b: ')
+
+      await exporter.start()
+
+      expect(fileNames(picked)).toEqual(['a-b- 01.m4a', 'a-b- 02.m4a', 'a-b- 03.m4a'])
+      expect(cutTrack.mock.calls[0]?.[0].tags.title).toBe('a/b: 01')
+    })
+
+    it('cuts a 100-character prefix, and not the number, so the files stay apart', async () => {
+      const { exporter, split } = setUp()
+      split.setTrackNamePrefix('x'.repeat(100))
+
+      await exporter.start()
+
+      expect(fileNames(picked)).toEqual(
+        ['01', '02', '03'].map((number) => `${'x'.repeat(98)}${number}.m4a`),
+      )
+    })
+
+    it('uses the prefix the export started with, whatever is typed while it runs', async () => {
+      const { exporter, split } = setUp()
+      split.setTrackNamePrefix('a-')
+      const firstCut = deferred<Uint8Array>()
+      cutTrack.mockImplementationOnce(() => firstCut.promise)
+
+      const running = exporter.start()
+      await flush()
+      split.setTrackNamePrefix('b-')
+      firstCut.resolve(bytesOf(1))
+      await running
+
+      expect(fileNames(picked)).toEqual(['a-01.m4a', 'a-02.m4a', 'a-03.m4a'])
+    })
   })
 
   it('exports the whole file as one track when there are no splits', async () => {
