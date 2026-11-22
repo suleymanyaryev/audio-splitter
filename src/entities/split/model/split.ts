@@ -412,9 +412,10 @@ export const useSplitStore = defineStore('split', () => {
 
   /*
   Selects the split after (`step` 1) or before (-1) the selected one, as a click on it does: the
-  window centres on it. With none selected, it steps from the zoom window's centre: the first split
-  after it, or the last before it, a split at the centre itself being neither. Whether the selection
-  changed at once: not at the first or last split, or with no split in that direction.
+  window centres on it, and the discard question comes the same way. With none selected, it steps
+  from the zoom window's centre: the first split after it, or the last before it, a split at the
+  centre itself being neither. Whether the selection changed at once: not at the first or last
+  split, with no split in that direction, or when the question opened instead.
   */
   function selectAdjacentSplit(step: -1 | 1) {
     const current = selectedSplitIndex.value

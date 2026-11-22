@@ -79,8 +79,8 @@ const { overLine, dragging, onPointerDown, onPointerMove, onPointerEnd } = useSp
 })
 
 /*
-Whether the key stepped: at the first or last split it did not, and an audition that is on goes on
-untouched. An audition that was on, playing or still decoded, starts again across the new split. It
+Whether the key stepped: at the first or last split, or over the discard question, it did not, and
+an audition that is on goes on untouched. An audition that was on, playing or still decoded, starts again across the new split. It
 is read before the step, which ends the old audition (`model/audition.ts`); with none on, none
 starts.
 */

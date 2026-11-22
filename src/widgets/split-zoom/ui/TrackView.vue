@@ -246,11 +246,9 @@ function actOnSelectedPendingSplit(key: string) {
 }
 
 /*
-Whether the key stepped: at the first or last track, or over the discard question, it did not. Sound
-that was on, playing or still decoded, goes on with the new track from its start. It is read before
-the step, which makes the player let go of the old track (`model/audition.ts`); the track that is
-then selected rests at its start, and plays only if the sound was on. After the discard question
-the sound is not carried: the step happens later, from the dialog.
+Whether the key stepped: at the first or last track, or over the discard question, it did not, and
+then nothing starts; the question's answer steps later, from the dialog. Whether sound was on is
+read before the step, which makes the player let go of the old track (`model/audition.ts`).
 */
 function isStepKeyActedOn(step: -1 | 1) {
   const wasOn = audition.stretchStatus === 'playing' || audition.stretchStatus === 'loading'
@@ -262,11 +260,11 @@ function isStepKeyActedOn(step: -1 | 1) {
 // Whether the key was the view's: a key it leaves alone is the browser's, and is not reported.
 function isKeyActedOn(event: KeyboardEvent) {
   const step = stepOfKey(event)
-  return step === null ? isNonStepKeyActedOn(event) : isStepKeyActedOn(step)
+  return step === null ? isOtherKeyActedOn(event) : isStepKeyActedOn(step)
 }
 
 // The view's other keys: Space, Enter, Delete, Escape, Home and the arrows.
-function isNonStepKeyActedOn(event: KeyboardEvent) {
+function isOtherKeyActedOn(event: KeyboardEvent) {
   switch (event.key) {
     case ' ': {
       // A held key must not start and stop the sound over and over.
