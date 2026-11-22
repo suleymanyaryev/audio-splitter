@@ -54,6 +54,10 @@ export const SHORTCUT_SECTIONS: ShortcutSection[] = [
       },
       { input: 'Delete / Backspace', does: 'Delete the selected pending split' },
       { input: 'Escape', does: 'Let go of the selected pending split' },
+      {
+        input: '[ / ]',
+        does: 'Select the previous or next track; a playing track plays the new one from its start',
+      },
       { input: 'Space', does: 'Play or pause the track' },
       { input: 'Home', does: 'Go back to the track’s start' },
     ],

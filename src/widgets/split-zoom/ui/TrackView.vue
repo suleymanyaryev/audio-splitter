@@ -46,8 +46,9 @@ the track, as the panel's button does, and Home takes the playhead back to the t
 adds a pending split at the mark and selects it; Shift+Enter adds one where the playhead is, without
 selecting it, so a tap along a playing track is always taken. Delete and Backspace delete the
 selected pending split and Escape deselects it; with none selected those keys are left alone, since
-removing a track deletes splits and has its own button. A held Space, Enter or Shift+Enter is
-ignored, so it does not start and stop the sound or add pending splits over and over. A failure to
+removing a track deletes splits and has its own button. `[` and `]` select the previous and next
+track, as a click on its row does. A held Space, Enter, Shift+Enter, `[` or `]` is ignored, so it
+does not start and stop the sound, add pending splits or step over and over. A failure to
 play is said in a line at the bottom of the view.
 
 The player plays the whole track, however long: a track over 10 min is heard through a window that
@@ -242,8 +243,23 @@ function actOnSelectedPendingSplit(key: string) {
   else split.deleteSelectedPendingSplit()
 }
 
+/*
+`[` and `]` step to the previous and next track. They are matched by the physical key, to the right
+of P, not by the character it types: on a German or similar layout `[` and `]` need AltGr or Option,
+and the page keys leave a key with Alt to the browser, so a match on `event.key` would never arrive.
+Shift is left free, and a held key steps once.
+*/
+const STEP_BY_CODE: Record<string, -1 | 1> = { BracketLeft: -1, BracketRight: 1 }
+
+// Whether the key stepped: at the first or last track, or over the discard question, it did not.
+function isStepKeyActedOn(event: KeyboardEvent, step: -1 | 1) {
+  return !event.shiftKey && !event.repeat && split.selectAdjacentTrack(step)
+}
+
 // Whether the key was the view's: a key it leaves alone is the browser's, and is not reported.
 function isKeyActedOn(event: KeyboardEvent) {
+  const step = STEP_BY_CODE[event.code]
+  if (step !== undefined) return isStepKeyActedOn(event, step)
   switch (event.key) {
     case ' ': {
       // A held key must not start and stop the sound over and over.

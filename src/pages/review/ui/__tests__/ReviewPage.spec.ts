@@ -264,6 +264,14 @@ async function dragSlider(thumb: Element) {
   await flushPromises()
 }
 
+// The previous and next track keys are the physical ones, to the right of P: the code is what the page matches.
+const NEXT = { key: ']', code: 'BracketRight' }
+const PREVIOUS = { key: '[', code: 'BracketLeft' }
+
+// The track list's row that is marked, by the label of its select button.
+const markedTrack = (wrapper: ReturnType<typeof mount>) =>
+  wrapper.get('tr[aria-current="true"] [aria-label^="Select track"]').attributes('aria-label')
+
 const question = () => document.querySelector('[role="alertdialog"]')
 function questionButton(text: string) {
   const button = [...(question()?.querySelectorAll('button') ?? [])].find(
@@ -1171,6 +1179,54 @@ describe('ReviewPage', () => {
         expect(savedLine(wrapper).exists()).toBe(false)
       })
 
+      it('stays at ] on the last track', async () => {
+        const wrapper = await mountPageWithTrack(3)
+        await exportButtonOf(wrapper, 'Export track…').trigger('click')
+        await flushPromises()
+        await pressEnterInField()
+        expect(savedLine(wrapper).exists()).toBe(true)
+
+        pressKey(NEXT.key, { code: NEXT.code })
+        await wrapper.vm.$nextTick()
+
+        expect(savedLine(wrapper).exists()).toBe(true)
+      })
+
+      it('stays at [ on the first track', async () => {
+        const wrapper = await mountPageWithTrack(1)
+        await exportButtonOf(wrapper, 'Export track…').trigger('click')
+        await flushPromises()
+        await pressEnterInField()
+        expect(savedLine(wrapper).exists()).toBe(true)
+
+        pressKey(PREVIOUS.key, { code: PREVIOUS.code })
+        await wrapper.vm.$nextTick()
+
+        expect(savedLine(wrapper).exists()).toBe(true)
+      })
+
+      it('stays at a held ], a repeat that steps nowhere', async () => {
+        const wrapper = await exportTrack2()
+
+        pressKey(NEXT.key, { code: NEXT.code, repeat: true })
+        await wrapper.vm.$nextTick()
+
+        expect(useSplitStore().selectedTrack?.number).toBe(2)
+        expect(savedLine(wrapper).exists()).toBe(true)
+      })
+
+      it('stays at ] that opens the discard question, which leaves the track as it was', async () => {
+        const wrapper = await exportTrack2()
+        useSplitStore().addPendingSplit(30, false)
+        await wrapper.vm.$nextTick()
+
+        pressKey(NEXT.key, { code: NEXT.code })
+        await flushPromises()
+
+        expect(question()).not.toBeNull()
+        expect(savedLine(wrapper).exists()).toBe(true)
+      })
+
       it('stays at a key no view acts on, Tab or a letter', async () => {
         const wrapper = await exportTrack2()
 
@@ -1918,6 +1974,227 @@ describe('ReviewPage', () => {
       pressKey(' ')
 
       expect(toggleStretch).toHaveBeenCalledExactlyOnceWith(split.range)
+    })
+  })
+
+  describe('the previous and next track keys', () => {
+    it('selects the next track on ], marks its row and names it in the title', async () => {
+      const wrapper = await mountPageWithTrack(1)
+
+      const event = pressKey(NEXT.key, { code: NEXT.code })
+      await wrapper.vm.$nextTick()
+
+      expect(useSplitStore().selectedTrack?.number).toBe(2)
+      expect(markedTrack(wrapper)).toContain('Select track 2')
+      expect(panelTitle(wrapper)).toBe('2 · 0:00:21.00 – 0:01:11.50')
+      expect(event.defaultPrevented).toBe(true)
+    })
+
+    it('selects the previous track on [', async () => {
+      const wrapper = await mountPageWithTrack(3)
+
+      pressKey(PREVIOUS.key, { code: PREVIOUS.code })
+      await wrapper.vm.$nextTick()
+
+      expect(markedTrack(wrapper)).toContain('Select track 2')
+      expect(panelTitle(wrapper)).toBe('2 · 0:00:21.00 – 0:01:11.50')
+    })
+
+    it('works on a layout where the keys type other characters, by their physical code', async () => {
+      const wrapper = await mountPageWithTrack(1)
+
+      // German: the key right of P types ü and, next to it, + (the bracket keys are AltGr 8 and 9).
+      pressKey('+', { code: NEXT.code })
+      await wrapper.vm.$nextTick()
+
+      expect(markedTrack(wrapper)).toContain('Select track 2')
+    })
+
+    it('leave Shift with the physical key that types ? to the shortcuts dialog, as on Dvorak', async () => {
+      const wrapper = await mountPageWithTrack(2)
+
+      pressKey('?', { code: PREVIOUS.code, shiftKey: true })
+      await flushPromises()
+
+      expect(shortcutsDialog()).not.toBeNull()
+      expect(useSplitStore().selectedTrack?.number).toBe(2)
+      wrapper.unmount()
+    })
+
+    it('marks the new track’s block in the track strip', async () => {
+      const wrapper = await mountPageWithTrack(1)
+      const strip = wrapper.get('ol[aria-label="Tracks"]')
+
+      pressKey(NEXT.key, { code: NEXT.code })
+      await wrapper.vm.$nextTick()
+
+      const marked = strip.findAll('li[aria-current="true"]')
+      expect(marked).toHaveLength(1)
+      expect(marked[0]!.get('button').attributes('aria-label')).toMatch(/^2, /)
+    })
+
+    it('lets go of the old track’s mark, as a click does', async () => {
+      const wrapper = await mountWithMark()
+      const split = useSplitStore()
+      expect(split.trackMarkSeconds).toBe(40)
+
+      pressKey(NEXT.key, { code: NEXT.code })
+      await wrapper.vm.$nextTick()
+
+      expect(split.trackMarkSeconds).toBeNull()
+    })
+
+    describe('at the first and last track', () => {
+      it('do nothing, and the key is left to the browser', async () => {
+        const wrapper = await mountPageWithTrack(1)
+        const split = useSplitStore()
+
+        const before = pressKey(PREVIOUS.key, { code: PREVIOUS.code })
+        await wrapper.vm.$nextTick()
+        expect(split.selectedTrack?.number).toBe(1)
+        expect(before.defaultPrevented).toBe(false)
+
+        await wrapper.get('[aria-label^="Select track 3"]').trigger('click')
+        const after = pressKey(NEXT.key, { code: NEXT.code })
+        await wrapper.vm.$nextTick()
+        expect(split.selectedTrack?.number).toBe(3)
+        expect(after.defaultPrevented).toBe(false)
+      })
+    })
+
+    describe('are left alone', () => {
+      it('with Shift held', async () => {
+        const wrapper = await mountPageWithTrack(1)
+
+        const event = pressKey(NEXT.key, { code: NEXT.code, shiftKey: true })
+        await wrapper.vm.$nextTick()
+
+        expect(useSplitStore().selectedTrack?.number).toBe(1)
+        expect(event.defaultPrevented).toBe(false)
+      })
+
+      it('when the key is held down, which steps once', async () => {
+        const wrapper = await mountPageWithTrack(1)
+
+        pressKey(NEXT.key, { code: NEXT.code })
+        pressKey(NEXT.key, { code: NEXT.code, repeat: true })
+        pressKey(NEXT.key, { code: NEXT.code, repeat: true })
+        await wrapper.vm.$nextTick()
+
+        expect(useSplitStore().selectedTrack?.number).toBe(2)
+      })
+
+      it('in a track name', async () => {
+        const wrapper = await mountPageWithTrack(1)
+        const field = wrapper.get('input[aria-label="Name of track 1"]')
+
+        const event = pressKey(NEXT.key, { code: NEXT.code }, field.element)
+        await wrapper.vm.$nextTick()
+
+        expect(useSplitStore().selectedTrack?.number).toBe(1)
+        expect(event.defaultPrevented).toBe(false)
+      })
+
+      it('while a dialog is open', async () => {
+        const wrapper = await mountPageWithTrack(1)
+        pressQuestionMark()
+        await flushPromises()
+        expect(shortcutsDialog()).not.toBeNull()
+
+        pressKey(NEXT.key, { code: NEXT.code })
+        await wrapper.vm.$nextTick()
+
+        expect(useSplitStore().selectedTrack?.number).toBe(1)
+      })
+
+      it('in the Range view', async () => {
+        const wrapper = await mountWithMark()
+        const split = useSplitStore()
+        split.setRange(10, 20)
+        await wrapper.vm.$nextTick()
+        expect(split.view).toBe('range')
+        expect(split.selectedTrack?.number).toBe(2)
+
+        const event = pressKey(NEXT.key, { code: NEXT.code })
+        await wrapper.vm.$nextTick()
+
+        expect(split.selectedTrack?.number).toBe(2)
+        expect(event.defaultPrevented).toBe(false)
+      })
+    })
+
+    describe('on a track with pending splits', () => {
+      it('open the discard question and change nothing yet, and the key is left to the browser', async () => {
+        const { split, wrapper } = await mountWithPending()
+
+        const event = pressKey(NEXT.key, { code: NEXT.code })
+        await flushPromises()
+
+        expect(question()?.textContent).toContain('Discard 2 pending splits?')
+        expect(split.selectedTrack?.number).toBe(2)
+        expect(split.pendingSplits).toEqual([30, 50])
+        expect(event.defaultPrevented).toBe(false)
+        wrapper.unmount()
+      })
+
+      it('select the next track after "Apply first", with no pending split left selected', async () => {
+        const { split } = await mountWithPending()
+        split.selectPendingSplit(30)
+        pressKey(NEXT.key, { code: NEXT.code })
+        await flushPromises()
+
+        await clickElement(questionButton('Apply first'))
+
+        expect(split.splits.map((point) => point.seconds)).toEqual([21, 30, 50, 71.5])
+        expect(split.selectedTrack?.startSeconds).toBe(71.5)
+        expect(split.selectedPendingSplit).toBeNull()
+      })
+
+      it('select the previous track after "Discard", with no pending split left selected', async () => {
+        const { split } = await mountWithPending()
+        split.selectPendingSplit(30)
+        pressKey(PREVIOUS.key, { code: PREVIOUS.code })
+        await flushPromises()
+
+        await clickElement(questionButton('Discard'))
+
+        expect(split.splits).toHaveLength(2)
+        expect(split.selectedTrack?.number).toBe(1)
+        expect(split.pendingSplits).toEqual([])
+        expect(split.selectedPendingSplit).toBeNull()
+      })
+
+      it('stay on the track, with its pending splits, when cancelled', async () => {
+        const { split } = await mountWithPending()
+        split.selectPendingSplit(30)
+        pressKey(NEXT.key, { code: NEXT.code })
+        await flushPromises()
+
+        await clickElement(questionButton('Cancel'))
+
+        expect(split.selectedTrack?.number).toBe(2)
+        expect(split.pendingSplits).toEqual([30, 50])
+        expect(split.selectedPendingSplit).toBe(30)
+      })
+    })
+
+    it('are listed in the shortcuts dialog’s Track view section', async () => {
+      await mountPageWithTrack(2)
+
+      pressQuestionMark()
+      await flushPromises()
+
+      const section = [...(shortcutsDialog()?.querySelectorAll('section') ?? [])].find(
+        (candidate) => candidate.querySelector('h3')?.textContent === 'Track view',
+      )
+      const rows = [...(section?.querySelectorAll('dt') ?? [])].map((term) => [
+        term.textContent,
+        term.nextElementSibling?.textContent,
+      ])
+      expect(rows).toContainEqual([
+        '[ / ]',
+        'Select the previous or next track; a playing track plays the new one from its start',
+      ])
     })
   })
 })

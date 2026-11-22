@@ -18,6 +18,10 @@ Versions follow [Semantic Versioning](https://semver.org/) applied to the produc
 
 ## [Unreleased]
 
+### Added
+
+- In the Track view, `]` selects the next track and `[` the previous one. The keys are the two to the right of P, so they work without a modifier on every keyboard layout, and they do nothing at the first and last track or while you type a track name.
+
 ## [1.3.0] - 2026-11-22
 
 ### Added

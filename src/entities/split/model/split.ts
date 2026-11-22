@@ -410,6 +410,20 @@ export const useSplitStore = defineStore('split', () => {
     }, !isTrackSelected(track))
   }
 
+  /*
+  Selects the track after (`step` 1) or before (-1) the selected one, as a click on its row does, so
+  the discard question comes the same way. Whether the selection changed at once: not at the first
+  or last track, with no track selected, or when the question opened instead.
+  */
+  function selectAdjacentTrack(step: -1 | 1) {
+    const current = selectedTrack.value
+    if (current === null) return false
+    const next = tracks.value[current.number - 1 + step]
+    if (next === undefined) return false
+    selectTrack(next)
+    return selectedTrack.value?.number === next.number
+  }
+
   function isTrackSelected(track: Track) {
     const current = selection.value
     return current?.kind === 'track' && current.startSplitId === (track.startSplit?.id ?? null)
@@ -724,6 +738,7 @@ export const useSplitStore = defineStore('split', () => {
     setMinimumGapLength,
     selectSplit,
     selectTrack,
+    selectAdjacentTrack,
     isTrackSelected,
     moveZoomTo,
     setRange,
