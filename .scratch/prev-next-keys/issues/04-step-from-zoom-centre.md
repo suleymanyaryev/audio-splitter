@@ -11,6 +11,7 @@
 - [x] No split in that direction: nothing changes and the key is not taken.
 - [x] A source file with no splits: nothing changes and the key is not taken.
 - [x] Cases in the Review page spec, reaching the no-selection state the way the user does.
+- [x] Final tier passes.
 
 ## Comments
 
@@ -18,3 +19,4 @@
 - The handler in `SplitZoom.vue` is unchanged: an audition cannot be on with no selected split (the audition store's sync watch on the selected split ends it when the selection goes), so there is nothing to carry over from that state. A step from the centre therefore starts no sound, as in the spec's "none on, none starts".
 - The specs reach the state with `moveZoomTo`, the store action the existing "no split selected" cases use for a click on empty ground in the whole-file view. They cover a centre before, between and past the splits, one lying on a split, and a file with all splits deleted.
 - The shortcuts row (`[ / ]`: "Select the previous or next split; an audition plays on from the new split") is still true, so it is unchanged. The CHANGELOG line from tickets 01 to 03 is extended by one sentence, not duplicated.
+- The ticket had no `Final tier passes` box; it was added once code-review, its grouped fixes (commit `9913e1c`) and the Final tier (`pnpm verify`, `pnpm lint`, `pnpm knip`, `pnpm depcruise`, all exit 0) had run after the last code change. The review's items not taken: an audition-store getter (the spec says the store is unchanged) and store or helper specs (the spec says the page is the one seam).
