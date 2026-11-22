@@ -39,7 +39,7 @@ function onKeydown(event: KeyboardEvent) {
 </script>
 
 <template>
-  <label class="flex items-center gap-2 text-xs font-medium text-muted">
+  <label class="flex items-center gap-3 text-xs font-medium text-muted">
     Prefix
     <UiTextField
       v-model="prefix"
