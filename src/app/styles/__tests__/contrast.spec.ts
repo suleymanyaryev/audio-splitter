@@ -60,6 +60,9 @@ const textPairs = [
   ['on-fill', 'fill-hover'],
   ['on-band', 'band'],
   ['on-band-muted', 'band'],
+  ['split', 'surface'], // the danger button, the error messages and the threshold readout
+  ['band', 'on-band'], // the inverse button
+  ['surface', 'ink'], // the tooltip
 ] as const
 
 const nonTextPairs = [

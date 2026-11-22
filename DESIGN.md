@@ -509,7 +509,7 @@ The whole-file waveform, the loudness curve and the zoom view are hand-drawn can
 ### Do:
 
 - **Do** take every colour, radius and text size from the token block; add a token before adding a one-off value.
-- **Do** key the dark values on `[data-theme='dark']`, set only by the theme module; nothing in CSS, the kit or a canvas reads `prefers-color-scheme`.
+- **Do** key the dark values on `[data-theme='dark']`, set only by the theme module and the head script in `index.html` before it; nothing in CSS, the kit or a canvas reads `prefers-color-scheme`.
 - **Do** draw every gap as a land, at least 12 px wide in whole-file views, and keep audio in graphite.
 - **Do** keep rust for splits, the silence threshold, danger and invalid states, and slate fills for what is pressed.
 - **Do** read canvas colours from the `--color-…` variables and redraw when the theme in effect changes.
