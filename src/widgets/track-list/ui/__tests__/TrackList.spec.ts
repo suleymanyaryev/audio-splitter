@@ -40,6 +40,10 @@ function nameField(wrapper: ReturnType<typeof mount>, trackNumber: number) {
   return wrapper.get<HTMLInputElement>(`input[aria-label="Name of track ${trackNumber}"]`)
 }
 
+// What the three name fields show, in order.
+const fieldValues = (wrapper: ReturnType<typeof mount>) =>
+  [1, 2, 3].map((number) => nameField(wrapper, number).element.value)
+
 function removeButton(wrapper: ReturnType<typeof mount>, trackNumber: number) {
   return wrapper.get(`button[aria-label="Remove track ${trackNumber}"]`)
 }
@@ -88,11 +92,11 @@ describe('TrackList', () => {
       'Actions',
     ])
     expect(rows(wrapper)).toEqual([
-      ['1', '1', '0:00:00.00', '0:00:21'],
+      ['1', '01', '0:00:00.00', '0:00:21'],
       ['', 'Split 1', '0:00:21.00', ''],
-      ['2', '2', '0:00:21.00', '0:00:50'],
+      ['2', '02', '0:00:21.00', '0:00:50'],
       ['', 'Split 2', '0:01:11.50', ''],
-      ['3', '3', '0:01:11.50', '0:00:28'],
+      ['3', '03', '0:01:11.50', '0:00:28'],
     ])
   })
 
@@ -102,7 +106,7 @@ describe('TrackList', () => {
       durationSeconds: 20,
     })
 
-    expect(rows(mount(TrackList))).toEqual([['1', '1', '0:00:00.00', '0:00:20']])
+    expect(rows(mount(TrackList))).toEqual([['1', '01', '0:00:00.00', '0:00:20']])
   })
 
   it('follows the minimum gap length: fewer gaps, fewer rows', async () => {
@@ -245,7 +249,7 @@ describe('TrackList', () => {
       await removeButton(wrapper, 2).trigger('click')
 
       expect(split.splits).toHaveLength(0)
-      expect(rows(wrapper)).toEqual([['1', '1', '0:00:00.00', '0:01:40']])
+      expect(rows(wrapper)).toEqual([['1', '01', '0:00:00.00', '0:01:40']])
     })
 
     it('merges the first track into the next', async () => {
@@ -311,7 +315,7 @@ describe('TrackList', () => {
       await wrapper.vm.$nextTick()
 
       expect(nameField(wrapper, 3).element.value).toBe('Outro')
-      expect(nameField(wrapper, 2).element.value).toBe('2')
+      expect(nameField(wrapper, 2).element.value).toBe('02')
     })
 
     it('saves the name on Enter', async () => {
@@ -357,8 +361,8 @@ describe('TrackList', () => {
       await field.trigger('keydown', { key: 'Escape' })
       await field.trigger('blur')
 
-      expect(field.element.value).toBe('3')
-      expect(split.tracks[2]?.name).toBe('3')
+      expect(field.element.value).toBe('03')
+      expect(split.tracks[2]?.name).toBe('03')
       expect(split.hasEdits).toBe(false)
     })
 
@@ -373,8 +377,8 @@ describe('TrackList', () => {
       await field.trigger('keydown', { key: 'Enter' })
       await wrapper.vm.$nextTick()
 
-      expect(split.tracks[2]?.name).toBe('3')
-      expect(field.element.value).toBe('3')
+      expect(split.tracks[2]?.name).toBe('03')
+      expect(field.element.value).toBe('03')
     })
 
     it('shows the trimmed name after saving', async () => {
@@ -396,7 +400,7 @@ describe('TrackList', () => {
       await field.trigger('focus')
       await field.trigger('blur')
 
-      expect(split.tracks[2]?.name).toBe('3')
+      expect(split.tracks[2]?.name).toBe('03')
       expect(split.hasEdits).toBe(false)
     })
 
@@ -414,6 +418,96 @@ describe('TrackList', () => {
       await nameField(wrapper, 1).trigger('focus')
 
       expect(split.selectedTrack?.number).toBe(1)
+    })
+  })
+
+  describe('the track name prefix', () => {
+    it('shows each unnamed track as the prefix and its number, following the prefix at once', async () => {
+      const { split, wrapper } = mountWithTwoGaps()
+
+      split.setTrackNamePrefix('dreamscape-')
+      await wrapper.vm.$nextTick()
+      expect(fieldValues(wrapper)).toEqual(['dreamscape-01', 'dreamscape-02', 'dreamscape-03'])
+
+      split.setTrackNamePrefix('')
+      await wrapper.vm.$nextTick()
+      expect(fieldValues(wrapper)).toEqual(['01', '02', '03'])
+    })
+
+    it('leaves a renamed track’s name alone when the prefix changes', async () => {
+      const { split, wrapper } = mountWithTwoGaps()
+      split.renameTrack(split.splits[0]!.id, 'Intro')
+
+      split.setTrackNamePrefix('set-')
+      await wrapper.vm.$nextTick()
+
+      expect(fieldValues(wrapper)).toEqual(['set-01', 'Intro', 'set-03'])
+    })
+
+    it('mutes the names of unnamed tracks and not the names the user typed', async () => {
+      const { split, wrapper } = mountWithTwoGaps()
+      split.renameTrack(split.splits[0]!.id, 'Intro')
+      await wrapper.vm.$nextTick()
+
+      expect(nameField(wrapper, 1).classes()).toContain('text-muted')
+      expect(nameField(wrapper, 2).classes()).toContain('text-ink')
+      expect(nameField(wrapper, 2).classes()).not.toContain('text-muted')
+    })
+
+    it('shows the name in full strength while it is being edited', async () => {
+      const { wrapper } = mountWithTwoGaps()
+      const field = nameField(wrapper, 1)
+
+      await field.trigger('focus')
+
+      expect(field.classes()).toContain('text-ink')
+      expect(field.classes()).not.toContain('text-muted')
+    })
+
+    it('starts editing an unnamed track from its prefixed name, and saving it unchanged is no rename', async () => {
+      const { split, wrapper } = mountWithTwoGaps()
+      split.setTrackNamePrefix('set-')
+      await wrapper.vm.$nextTick()
+      const field = nameField(wrapper, 2)
+
+      await field.trigger('focus')
+      expect(field.element.value).toBe('set-02')
+      await field.trigger('keydown', { key: 'Enter' })
+
+      expect(split.tracks[1]?.ownName).toBeNull()
+      expect(split.hasEdits).toBe(false)
+    })
+
+    it('names the track after an edit of its prefixed name, and a later prefix change leaves it', async () => {
+      const { split, wrapper } = mountWithTwoGaps()
+      split.setTrackNamePrefix('set-')
+      await wrapper.vm.$nextTick()
+      const field = nameField(wrapper, 2)
+
+      await field.trigger('focus')
+      await field.setValue('set-02 live')
+      await field.trigger('keydown', { key: 'Enter' })
+      split.setTrackNamePrefix('other-')
+      await wrapper.vm.$nextTick()
+
+      expect(split.tracks[1]?.ownName).toBe('set-02 live')
+      expect(fieldValues(wrapper)).toEqual(['other-01', 'set-02 live', 'other-03'])
+    })
+
+    it('falls back to the prefixed name when a name is cleared', async () => {
+      const { split, wrapper } = mountWithTwoGaps()
+      split.setTrackNamePrefix('set-')
+      split.renameTrack(split.splits[1]!.id, 'Outro')
+      await wrapper.vm.$nextTick()
+      const field = nameField(wrapper, 3)
+
+      await field.trigger('focus')
+      await field.setValue('')
+      await field.trigger('keydown', { key: 'Enter' })
+      await wrapper.vm.$nextTick()
+
+      expect(split.tracks[2]?.ownName).toBeNull()
+      expect(field.element.value).toBe('set-03')
     })
   })
 

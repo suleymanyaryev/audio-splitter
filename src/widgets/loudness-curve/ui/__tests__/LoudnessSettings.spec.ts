@@ -190,7 +190,7 @@ describe('LoudnessSettings', () => {
       expect(dialog()).toBeNull()
       expect(split.silenceThreshold).toBeCloseTo(before + 0.1, 9)
       expect(split.hasEdits).toBe(false)
-      expect(split.tracks[0]?.name).toBe('1')
+      expect(split.tracks[0]?.name).toBe('01')
       wrapper.unmount()
     })
 

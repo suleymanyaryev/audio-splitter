@@ -6,6 +6,7 @@ import { DEFAULT_MINIMUM_GAP_SECONDS, DEFAULT_OFFSET_DB } from '../config/defaul
 import { MAX_TRACK_NAME_LENGTH } from '../config/track-name.ts'
 import { ZOOM_WINDOW_SECONDS } from '../config/zoom-window.ts'
 import { findGaps, splitsOf, type Gap } from '../lib/find-gaps.ts'
+import { padTrackNumber } from '../lib/pad-track-number.ts'
 import { rangeBetween, type TimeRange } from '../lib/range-between.ts'
 
 /*
@@ -64,8 +65,8 @@ The splits proposed for the source file and the tracks between them. This slice 
 one of the two settings moves.
 
 A track name belongs to the split where the track starts, and the first track's to the file's
-start, so moving or deleting a split keeps the right name with it, and unnamed tracks take their
-number from their position. Removing a track deletes the splits at both its ends, which is two
+start, so moving or deleting a split keeps the right name with it, and an unnamed track shows the
+track name prefix followed by its padded number, from its position. Removing a track deletes the splits at both its ends, which is two
 deletes with the names and edits of a delete. Every change of a setting replaces all splits and all names.
 
 One selection (`Selection`) holds what is under review: a split, a track or nothing. The selected
@@ -95,6 +96,11 @@ export const useSplitStore = defineStore('split', () => {
   const gaps = ref<Gap[]>([])
   const splits = ref<Split[]>([])
   const firstTrackName = ref<string | null>(null)
+  /*
+  The track name prefix (GLOSSARY.md): file-level state, so no edit, no setting change and no
+  detection touches it. The page sets it once per file; `reset` clears it.
+  */
+  const trackNamePrefix = ref('')
   const selection = ref<Selection>(null)
   // With nothing to centre on, the window starts at 0:00.
   const zoomCentreSeconds = ref(ZOOM_WINDOW_SECONDS / 2)
@@ -153,7 +159,7 @@ export const useSplitStore = defineStore('split', () => {
       return {
         number: index + 1,
         ownName,
-        name: ownName ?? String(index + 1),
+        name: ownName ?? `${trackNamePrefix.value}${padTrackNumber(index + 1, starts.length)}`,
         startSeconds,
         lengthSeconds: endSeconds - startSeconds,
         startSplit,
@@ -676,6 +682,11 @@ export const useSplitStore = defineStore('split', () => {
     else renamedKeys.value.add(startSplitId)
   }
 
+  // Kept as typed, a separator or a space at its end included, up to a track name's length.
+  function setTrackNamePrefix(prefix: string) {
+    trackNamePrefix.value = prefix.slice(0, MAX_TRACK_NAME_LENGTH)
+  }
+
   function reset() {
     curve.value = null
     timing.value = null
@@ -684,6 +695,7 @@ export const useSplitStore = defineStore('split', () => {
     gaps.value = []
     splits.value = []
     firstTrackName.value = null
+    trackNamePrefix.value = ''
     clearEdits()
     selection.value = null
     zoomCentreSeconds.value = ZOOM_WINDOW_SECONDS / 2
@@ -702,6 +714,7 @@ export const useSplitStore = defineStore('split', () => {
     gaps,
     splits,
     firstTrackName,
+    trackNamePrefix,
     selection,
     selectedSplit,
     selectedSplitIndex,
@@ -748,6 +761,7 @@ export const useSplitStore = defineStore('split', () => {
     deleteSplit,
     removeTrack,
     renameTrack,
+    setTrackNamePrefix,
     reset,
   }
 })

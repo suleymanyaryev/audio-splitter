@@ -16,6 +16,7 @@ import {
 
 import { useSourceFileStore } from '@/entities/source-file/model/source-file.ts'
 import { formatPendingSplits } from '@/entities/split/lib/format-edits.ts'
+import { sourceStem } from '@/entities/split/lib/source-stem.ts'
 import { useSplitStore, type PanelView } from '@/entities/split/model/split.ts'
 import UiButton from '@/shared/ui/UiButton.vue'
 import UiDialog from '@/shared/ui/UiDialog.vue'
@@ -38,6 +39,7 @@ import SplitZoom from '@/widgets/split-zoom/ui/SplitZoom.vue'
 import TrackView from '@/widgets/split-zoom/ui/TrackView.vue'
 import VolumeControl from '@/widgets/split-zoom/ui/VolumeControl.vue'
 import TrackList from '@/widgets/track-list/ui/TrackList.vue'
+import TrackNamePrefixField from '@/widgets/track-list/ui/TrackNamePrefixField.vue'
 import { useExportSingleStore } from '@/widgets/track-strip/model/export-single.ts'
 import { useExportTracksStore } from '@/widgets/track-strip/model/export-tracks.ts'
 import ExportDialog from '@/widgets/track-strip/ui/ExportDialog.vue'
@@ -70,7 +72,10 @@ and this page shows it: "Discard N pending splits?" with Apply first, Discard an
 store's answers. Apply first comes first, so it takes the focus, and Escape cancels.
 
 The page mounts only once the source file is ready (src/app/App.vue), which is when the split store
-looks for the gaps in its loudness curve, once; the split store cannot import the source-file store.
+looks for the gaps in its loudness curve, once, and gets the track name prefix the file starts with:
+its name without the extension and a "-", or none when nothing is left of the name. The split store
+cannot import the source-file store. "New file" unmounts the page, so a new file mounts it again and
+gets its own prefix.
 */
 const sourceFile = useSourceFileStore()
 const split = useSplitStore()
@@ -85,6 +90,8 @@ useQuestionMarkKey(() => {
 })
 
 const { loudness, loudnessWindowSeconds, durationSeconds } = sourceFile
+const stem = sourceStem(sourceFile.file?.name ?? '')
+split.setTrackNamePrefix(stem === '' ? '' : `${stem}-`)
 if (loudness && loudnessWindowSeconds !== null && durationSeconds !== null) {
   split.detect(loudness, { windowSeconds: loudnessWindowSeconds, durationSeconds })
 }
@@ -381,6 +388,9 @@ watch(
     </UiPanel>
 
     <UiPanel title="Track list" class="col-span-4">
+      <template #actions>
+        <TrackNamePrefixField />
+      </template>
       <TrackList />
     </UiPanel>
 

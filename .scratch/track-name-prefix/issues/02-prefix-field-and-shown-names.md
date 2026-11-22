@@ -11,13 +11,22 @@
 
 **Blocked by:** 01 (Tracks carry their own name beside the name shown)
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] Split store spec: an unnamed track's shown name is the prefix plus its padded number; changing the prefix changes every unnamed track and no renamed one; an empty prefix gives the padded number; the prefix is no edit; a setting change keeps it; reset clears it
-- [ ] Review page spec: the prefix is `<stem>-` after mount, and empty for a file with no stem
-- [ ] Track list spec: the field is in the header with its label and accessible name; typing renames unnamed tracks at once; Enter keeps the text; Escape restores the earlier value; unnamed names are muted, renamed ones are not
-- [ ] Track strip spec: an unnamed block shows its number and a renamed one its typed name; the tooltip and accessible label give the shown name
-- [ ] Track title spec matches the prefixed name
-- [ ] Changelog line under Added, in the same commit
-- [ ] Architecture doc updated only if its description of the split store's state needs the prefix
-- [ ] Shown in the browser: load a sample, edit the prefix, rename one track, edit the prefix again
+- [x] Split store spec: an unnamed track's shown name is the prefix plus its padded number; changing the prefix changes every unnamed track and no renamed one; an empty prefix gives the padded number; the prefix is no edit; a setting change keeps it; reset clears it
+- [x] Review page spec: the prefix is `<stem>-` after mount, and empty for a file with no stem
+- [x] Track list spec: the field is in the header with its label and accessible name; typing renames unnamed tracks at once; Enter keeps the text; Escape restores the earlier value; unnamed names are muted, renamed ones are not
+- [x] Track strip spec: an unnamed block shows its number and a renamed one its typed name; the tooltip and accessible label give the shown name
+- [x] Track title spec matches the prefixed name
+- [x] Changelog line under Added, in the same commit
+- [x] Architecture doc updated only if its description of the split store's state needs the prefix
+- [x] Shown in the browser: load a sample, edit the prefix, rename one track, edit the prefix again
+
+## Comments
+
+- The header field is its own component, `TrackNamePrefixField.vue` in `widgets/track-list`, because the "Track list" panel's header belongs to the review page's `UiPanel` slot. Its spec is `TrackNamePrefixField.spec.ts`; the review page spec checks that it sits in that panel's header, and the track list spec covers the muted and prefixed names.
+- A strip block's label for an unnamed track is the plain number (`1`), as before, not the padded one: the ticket says "the number" and this keeps the strip as it looked.
+- `UiTextField` gained a `muted` option (documented in DESIGN.md's inline variant) for the unnamed names. The field is muted only while the user is not editing it.
+- The prefix is capped at 100 characters in the store as well as by the field's `maxlength`, and is stored as typed (no trim), so a trailing separator or space stays.
+- The shown name of an unnamed track is now padded (`01`) even with an empty prefix, so the old specs that expected `1` were updated to `01`; export file names still use the old rules until ticket 03.
+- Browser check: `e2e/fixtures/bursts.m4a` (no `samples/` folder here). Prefill `bursts-`, live renames, Enter, Escape, a renamed track and a second prefix change all behaved as the ticket says; the header fits on one row and the list box stays 160 px.

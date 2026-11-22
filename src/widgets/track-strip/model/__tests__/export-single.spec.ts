@@ -233,7 +233,7 @@ describe('the single export store', () => {
 
       await exporter.confirm('Evening Set 02')
 
-      expect(trackOf(split, 2).name).toBe('2')
+      expect(trackOf(split, 2).ownName).toBeNull()
       expect(split.editCount).toBe(0)
     })
 
@@ -259,7 +259,7 @@ describe('the single export store', () => {
 
       await exporter.confirm(exporter.defaultName)
 
-      expect(trackOf(split, 2).name).toBe('2')
+      expect(trackOf(split, 2).ownName).toBeNull()
       expect(split.editCount).toBe(0)
     })
 
@@ -372,7 +372,7 @@ describe('the single export store', () => {
       expect(exporter.failure).toBeNull()
       expect(cutTrack).not.toHaveBeenCalled()
       // The name is not taken yet: a closed picker is no confirmation.
-      expect(trackOf(split, 2).name).toBe('2')
+      expect(trackOf(split, 2).ownName).toBeNull()
 
       await exporter.confirm('Chorus')
       expect(exporter.status).toBe('saved')
@@ -392,7 +392,7 @@ describe('the single export store', () => {
 
       expect(exporter.status).toBe('idle')
       expect(cutTrack).not.toHaveBeenCalled()
-      expect(trackOf(split, 2).name).toBe('2')
+      expect(trackOf(split, 2).ownName).toBeNull()
       expect(folder.files.size).toBe(0)
     })
 
@@ -458,7 +458,7 @@ describe('the single export store', () => {
       await exporter.confirm('Anything at all')
 
       expect(split.editCount).toBe(0)
-      expect(split.tracks.map((track) => track.name)).toEqual(['1', '2', '3'])
+      expect(split.tracks.map((track) => track.ownName)).toEqual([null, null, null])
     })
 
     it('goes to the folder the tracks go to, and takes (2) like a track', async () => {
