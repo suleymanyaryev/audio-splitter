@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, it, expect, vi, type MockInstance } fr
 import { createPinia, setActivePinia } from 'pinia'
 import { nextTick } from 'vue'
 
-import { enableAutoUnmount, mount } from '@vue/test-utils'
+import { enableAutoUnmount, mount, type VueWrapper } from '@vue/test-utils'
 import { useSourceFileStore } from '@/entities/source-file/model/source-file.ts'
 import { useSplitStore } from '@/entities/split/model/split.ts'
 import { useAuditionStore } from '../../model/audition.ts'
@@ -33,6 +33,16 @@ function mountOnSplit() {
   useSourceFileStore().peaks = new Float32Array(2000)
   return setup()
 }
+
+// The split's handle, a slider of its own beside the playhead's.
+const handleOf = (wrapper: Pick<VueWrapper, 'get'>) => wrapper.get('[aria-label="Split 1"]')
+
+// The slider the whole view is, for the audition's playhead.
+const playheadSliderOf = (wrapper: Pick<VueWrapper, 'get'>) =>
+  wrapper.get('[aria-label="Playhead in the audition"]')
+
+// Where the audition's playhead is in the file.
+const playhead = () => useAuditionStore().playheadSeconds()
 
 function focusElement(element: Element) {
   if (element instanceof HTMLElement) element.focus()
@@ -65,7 +75,7 @@ describe('SplitZoom', () => {
     it('is a slider on the selected split, named by its number and valued by its time', () => {
       const { wrapper } = setup()
 
-      const handle = wrapper.get('[role="slider"]')
+      const handle = handleOf(wrapper)
 
       expect(handle.attributes('aria-label')).toBe('Split 1')
       expect(handle.attributes('aria-valuenow')).toBe('21')
@@ -79,7 +89,7 @@ describe('SplitZoom', () => {
     it('stays at the window position of the split, which is the centre after selecting it', () => {
       const { wrapper } = setup()
 
-      expect(wrapper.get('[role="slider"]').attributes('style')).toContain('left: 50%')
+      expect(handleOf(wrapper).attributes('style')).toContain('left: 50%')
     })
 
     it('is not there while no split is selected', async () => {
@@ -88,7 +98,7 @@ describe('SplitZoom', () => {
       split.moveZoomTo(40)
       await wrapper.vm.$nextTick()
 
-      expect(wrapper.find('[role="slider"]').exists()).toBe(false)
+      expect(wrapper.find('[aria-label="Split 1"]').exists()).toBe(false)
     })
 
     it('moves the split 10 ms with Left and Right', async () => {
@@ -115,7 +125,7 @@ describe('SplitZoom', () => {
 
     it('follows the split: the slider value and the handle move with it', async () => {
       const { wrapper } = setup()
-      const handle = wrapper.get('[role="slider"]')
+      const handle = handleOf(wrapper)
 
       await press({ key: 'ArrowRight', shiftKey: true })
 
@@ -146,6 +156,201 @@ describe('SplitZoom', () => {
       expect(arrow.defaultPrevented).toBe(true)
       expect(other.defaultPrevented).toBe(false)
       expect(split.splits).toHaveLength(2)
+    })
+  })
+
+  describe('the playhead keys', () => {
+    // The split is at 21 s, so the 8 s are 17 s to 25 s and the playhead waits at 17 s.
+    it('steps the playhead 100 ms forward with the key where "." sits on a US layout', async () => {
+      setup()
+
+      await press({ code: 'Period', key: '.' })
+      expect(playhead()).toBeCloseTo(17.1, 6)
+
+      await press({ code: 'Period', key: '.' })
+      await press({ code: 'Period', key: '.' })
+      expect(playhead()).toBeCloseTo(17.3, 6)
+    })
+
+    it('steps it 100 ms back with the key where "," sits', async () => {
+      setup()
+      await press({ code: 'Period', key: '.', shiftKey: true })
+
+      await press({ code: 'Comma', key: ',' })
+
+      expect(playhead()).toBeCloseTo(17.9, 6)
+    })
+
+    it('steps 1 s with Shift, whatever character Shift makes of the key', async () => {
+      setup()
+
+      await press({ code: 'Period', key: '>', shiftKey: true })
+      expect(playhead()).toBe(18)
+
+      await press({ code: 'Comma', key: '<', shiftKey: true })
+      expect(playhead()).toBe(17)
+    })
+
+    it('works on a Russian layout, where those keys type other letters', async () => {
+      setup()
+
+      await press({ code: 'Period', key: 'ю' })
+      expect(playhead()).toBeCloseTo(17.1, 6)
+
+      await press({ code: 'Comma', key: 'б' })
+      expect(playhead()).toBe(17)
+    })
+
+    it('steps again while the key is held', async () => {
+      setup()
+
+      await press({ code: 'Period', key: '.' })
+      await press({ code: 'Period', key: '.', repeat: true })
+      await press({ code: 'Period', key: '.', repeat: true })
+
+      expect(playhead()).toBeCloseTo(17.3, 6)
+    })
+
+    it('does not scroll the page, and leaves the split where it is', async () => {
+      const { split } = setup()
+
+      const step = new KeyboardEvent('keydown', { code: 'Period', key: '.', cancelable: true })
+      document.dispatchEvent(step)
+
+      expect(step.defaultPrevented).toBe(true)
+      expect(split.selectedSplit?.seconds).toBe(21)
+    })
+
+    it('stops at the edges of the 8 s', async () => {
+      setup()
+
+      await press({ code: 'Comma', key: ',', shiftKey: true })
+      expect(playhead()).toBe(17)
+
+      for (let step = 0; step < 9; step++) await press({ code: 'Period', key: '.', shiftKey: true })
+      expect(playhead()).toBe(25)
+
+      await press({ code: 'Period', key: '.' })
+      expect(playhead()).toBe(25)
+    })
+
+    it('does nothing with Alt, Ctrl or Cmd, which are the browser’s', async () => {
+      setup()
+
+      await press({ code: 'Period', key: '.', altKey: true })
+      await press({ code: 'Comma', key: ',', ctrlKey: true })
+      await press({ code: 'Period', key: '.', metaKey: true })
+
+      expect(playhead()).toBe(17)
+    })
+
+    it('does nothing with no split selected, and leaves the keys to the browser', async () => {
+      const { split, wrapper } = setup()
+      split.moveZoomTo(40)
+      await wrapper.vm.$nextTick()
+
+      const step = new KeyboardEvent('keydown', { code: 'Period', key: '.', cancelable: true })
+      document.dispatchEvent(step)
+
+      expect(step.defaultPrevented).toBe(false)
+      expect(playhead()).toBeNull()
+    })
+
+    it('takes the playhead back to the start of the 8 s with Home', async () => {
+      setup()
+      await press({ code: 'Period', key: '>', shiftKey: true })
+      expect(playhead()).toBe(18)
+
+      const home = new KeyboardEvent('keydown', { code: 'Home', key: 'Home', cancelable: true })
+      document.dispatchEvent(home)
+
+      expect(playhead()).toBe(17)
+      expect(home.defaultPrevented).toBe(true)
+    })
+
+    it('takes it back with Home from the split handle too, which would be the slider’s minimum', async () => {
+      const { split, wrapper } = setup()
+      await press({ code: 'Period', key: '>', shiftKey: true })
+      focusElement(handleOf(wrapper).element)
+
+      const home = new KeyboardEvent('keydown', {
+        code: 'Home',
+        key: 'Home',
+        bubbles: true,
+        cancelable: true,
+      })
+      handleOf(wrapper).element.dispatchEvent(home)
+
+      expect(playhead()).toBe(17)
+      expect(home.defaultPrevented).toBe(true)
+      expect(split.selectedSplit?.seconds).toBe(21)
+    })
+
+    it('leaves Left, Right, Delete and Backspace to the split', async () => {
+      const { split } = setup()
+
+      await press({ key: 'ArrowRight' })
+      expect(split.selectedSplit?.seconds).toBeCloseTo(21.01)
+      expect(playhead()).toBeCloseTo(17.01, 6)
+
+      await press({ key: 'Delete' })
+      expect(split.splits.map((point) => point.seconds)).toEqual([71.5])
+    })
+  })
+
+  describe('the playhead slider', () => {
+    it('is the whole view, named for the playhead and valued by its time over the 8 s', () => {
+      const { wrapper } = setup()
+
+      const slider = playheadSliderOf(wrapper)
+
+      expect(slider.attributes('role')).toBe('slider')
+      expect(slider.attributes('aria-valuemin')).toBe('17')
+      expect(slider.attributes('aria-valuemax')).toBe('25')
+      expect(slider.attributes('aria-valuenow')).toBe('17')
+      expect(slider.attributes('aria-valuetext')).toBe('0:00:17.00')
+    })
+
+    it('is focusable but not a Tab stop, and the handle stays the only one', () => {
+      const { wrapper } = setup()
+
+      expect(playheadSliderOf(wrapper).attributes('tabindex')).toBe('-1')
+      expect(handleOf(wrapper).attributes('tabindex')).toBe('0')
+      // The handle is no child of the playhead slider, whose children a screen reader skips.
+      expect(playheadSliderOf(wrapper).element.contains(handleOf(wrapper).element)).toBe(false)
+    })
+
+    it('follows the playhead to the hundredth while it does not play', async () => {
+      const { wrapper } = setup()
+
+      await press({ code: 'Period', key: '.' })
+      await press({ code: 'Period', key: '.' })
+
+      const slider = playheadSliderOf(wrapper)
+      expect(slider.attributes('aria-valuenow')).toBe('17.2')
+      expect(slider.attributes('aria-valuetext')).toBe('0:00:17.20')
+    })
+
+    it('follows the split: the 8 s it spans move with it', async () => {
+      const { split, wrapper } = setup()
+      const selected = split.selectedSplit
+      if (selected) split.moveSplit(selected.id, 25)
+      await wrapper.vm.$nextTick()
+
+      const slider = playheadSliderOf(wrapper)
+      expect(slider.attributes('aria-valuemin')).toBe('21')
+      expect(slider.attributes('aria-valuemax')).toBe('29')
+      expect(slider.attributes('aria-valuenow')).toBe('21')
+    })
+
+    it('has no value to give while no split is selected', async () => {
+      const { split, wrapper } = setup()
+      split.moveZoomTo(40)
+      await wrapper.vm.$nextTick()
+
+      expect(
+        wrapper.find('[aria-label="Playhead in the audition"]').attributes('role'),
+      ).toBeUndefined()
     })
   })
 
@@ -222,6 +427,15 @@ describe('SplitZoom', () => {
       expect(lines.at(-1)).toBe(60)
     })
 
+    it('is redrawn where a step puts it, though nothing else changed', async () => {
+      mountOnSplit()
+
+      await press({ code: 'Period', key: '.' })
+
+      // 17.1 s is 6.1 s into the window: 61 px.
+      expect(lines.at(-1)).toBe(61)
+    })
+
     it('stays drawn where the audition was paused', async () => {
       const { wrapper } = mountOnSplit()
       const audition = useAuditionStore()
@@ -269,6 +483,10 @@ describe('SplitZoom', () => {
     afterEach(() => {
       requestFrame.mockRestore()
       cancelFrame.mockRestore()
+      // The slider test gave URL these itself, as jsdom has neither, and spied on the media element.
+      vi.restoreAllMocks()
+      Reflect.deleteProperty(URL, 'createObjectURL')
+      Reflect.deleteProperty(URL, 'revokeObjectURL')
     })
 
     it('asks for no frames while nothing plays', async () => {
@@ -304,6 +522,37 @@ describe('SplitZoom', () => {
       requestFrame.mockClear()
       frames.at(-1)?.(32)
       expect(requestFrame).not.toHaveBeenCalled()
+    })
+
+    it('gives the slider the whole second while the audition plays, and the hundredth once paused', async () => {
+      const { wrapper } = setup()
+      vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue()
+      vi.spyOn(HTMLMediaElement.prototype, 'load').mockImplementation(() => {})
+      vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => {})
+      vi.spyOn(useSourceFileStore(), 'clip').mockResolvedValue({
+        wav: Uint8Array.of(1),
+        startSeconds: 17,
+        lengthSeconds: 8,
+      })
+      URL.createObjectURL = () => 'blob:clip'
+      URL.revokeObjectURL = () => {}
+      const audition = useAuditionStore()
+
+      audition.toggle()
+      await new Promise((done) => setTimeout(done, 0))
+      const element = vi.mocked(HTMLMediaElement.prototype.play).mock
+        .contexts[0] as HTMLAudioElement
+      element.currentTime = 2.55
+      frames.at(-1)?.(0)
+      await wrapper.vm.$nextTick()
+
+      // 17 s + 2.55 s is 19.55 s, heard as the second it is in.
+      expect(playheadSliderOf(wrapper).attributes('aria-valuenow')).toBe('19')
+      expect(playheadSliderOf(wrapper).attributes('aria-valuetext')).toBe('0:00:19.00')
+
+      audition.toggle()
+      await wrapper.vm.$nextTick()
+      expect(playheadSliderOf(wrapper).attributes('aria-valuenow')).toBe('19.55')
     })
 
     it('is cancelled when the view goes away while playing', async () => {
@@ -387,14 +636,14 @@ describe('SplitZoom', () => {
 
     it('moves the split from the handle focused by Tab exactly as from elsewhere', async () => {
       const { split, wrapper } = setup()
-      focusElement(wrapper.get('[role="slider"]').element)
+      focusElement(handleOf(wrapper).element)
 
       const arrow = new KeyboardEvent('keydown', {
         key: 'ArrowRight',
         bubbles: true,
         cancelable: true,
       })
-      wrapper.get('[role="slider"]').element.dispatchEvent(arrow)
+      handleOf(wrapper).element.dispatchEvent(arrow)
 
       expect(split.selectedSplit?.seconds).toBeCloseTo(21.01)
       expect(arrow.defaultPrevented).toBe(true)
@@ -425,7 +674,7 @@ describe('SplitZoom', () => {
       const { wrapper } = setup()
 
       expect(wrapper.attributes('tabindex')).toBeUndefined()
-      expect(wrapper.get('[role="slider"]').attributes('tabindex')).toBe('0')
+      expect(handleOf(wrapper).attributes('tabindex')).toBe('0')
       expect(wrapper.vm).not.toHaveProperty('focusHandle')
     })
   })
@@ -435,7 +684,7 @@ describe('SplitZoom', () => {
       const wrapper = mountWithoutSplits()
 
       expect(wrapper.get('[role="status"]').text()).toBe('No splits were found in this file.')
-      expect(wrapper.find('[role="slider"]').exists()).toBe(false)
+      expect(wrapper.find('[aria-label="Split 1"]').exists()).toBe(false)
     })
 
     it('says nothing while there are splits', () => {

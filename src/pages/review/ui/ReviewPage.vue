@@ -62,8 +62,9 @@ selected), and "Play across split", which plays the selected split's clip (and r
 it is decoded and "Pause" while it plays). The
 Range view and the Track view have "Play", which plays the range or the selected track (and reads
 "Stop" while it is decoded and "Pause" while it plays), and "Back to range start" or "Back to track
-start" beside it, which moves the playhead to the stretch's start. The volume control (a mute button
-and a slider) ends the row in all three views.
+start" beside it, which moves the playhead to the stretch's start; the zoom view has "Back to
+audition start" before its play button, off while no split is selected. The volume control (a mute
+button and a slider) ends the row in all three views.
 
 The split store holds back an action that would discard pending splits as its one open question,
 and this page shows it: "Discard N pending splits?" with Apply first, Discard and Cancel, the
@@ -216,8 +217,10 @@ const stretch = computed(() => {
     : null
 })
 
-function backToStretchStart() {
-  if (stretch.value !== null) audition.backToStretchStart(stretch.value)
+// The same move as Home: the stretch on show, or the audition in the Split view.
+function backToStart() {
+  if (split.view === 'split') audition.backToAuditionStart()
+  else if (stretch.value !== null) audition.backToStretchStart(stretch.value)
 }
 
 function toggleStretch() {
@@ -318,11 +321,11 @@ watch(
           <Trash2 class="size-4 shrink-0" />
         </UiIconButton>
         <UiIconButton
-          v-if="split.view !== 'split'"
           size="sm"
-          :label="`Back to ${split.view} start`"
+          :label="`Back to ${split.view === 'split' ? 'audition' : split.view} start`"
           hint="Home"
-          @click="backToStretchStart"
+          :disabled="split.view === 'split' && split.selectedSplit === null"
+          @click="backToStart"
         >
           <SkipBack class="size-4 shrink-0" />
         </UiIconButton>

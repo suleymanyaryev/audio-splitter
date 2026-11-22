@@ -116,6 +116,11 @@ function rangeButton(wrapper: ReturnType<typeof mount>) {
   return button
 }
 
+// The icon button left of the audition button.
+function backToAuditionStartButton(wrapper: ReturnType<typeof mount>) {
+  return wrapper.get('button[aria-label="Back to audition start"]')
+}
+
 // The icon button left of the range button.
 function backButton(wrapper: ReturnType<typeof mount>) {
   return wrapper.get('button[aria-label="Back to range start"]')
@@ -603,6 +608,51 @@ describe('ReviewPage', () => {
       wrapper.unmount()
 
       expect(stop).toHaveBeenCalled()
+    })
+  })
+
+  describe('the "Back to audition start" button', () => {
+    it('sits between "Delete split" and "Play across split", told by its key', async () => {
+      const wrapper = await mountPageOnSplit()
+      const labels = iconButtons(wrapper).map((button) => nameOf(button))
+
+      expect(labels.indexOf('Back to audition start')).toBe(labels.indexOf('Delete split') + 1)
+      expect(labels.indexOf('Back to audition start')).toBe(labels.indexOf('Play across split') - 1)
+      expect(await tooltipOf(backToAuditionStartButton(wrapper))).toBe(
+        'Back to audition start (Home)',
+      )
+      expect(labels).not.toContain('Back to split start')
+    })
+
+    it('takes the playhead back to the audition’s start when clicked', async () => {
+      const wrapper = await mountPageOnSplit()
+      const audition = useAuditionStore()
+      const selected = useSplitStore().selectedSplit!
+      audition.seekAudition(selected.seconds + 3)
+      expect(audition.playheadSeconds()).toBe(selected.seconds + 3)
+
+      await backToAuditionStartButton(wrapper).trigger('click')
+
+      expect(audition.playheadSeconds()).toBe(selected.seconds - 4)
+    })
+
+    it('is disabled while no split is selected', async () => {
+      const wrapper = mountPage()
+      useSplitStore().moveZoomTo(46)
+      await wrapper.vm.$nextTick()
+
+      expect(backToAuditionStartButton(wrapper).attributes('disabled')).toBeDefined()
+    })
+
+    it('is enabled whatever the audition is doing', async () => {
+      const wrapper = await mountPageOnSplit()
+      const audition = useAuditionStore()
+
+      for (const status of ['loading', 'playing', 'paused'] as const) {
+        audition.status = status
+        await wrapper.vm.$nextTick()
+        expect(backToAuditionStartButton(wrapper).attributes('disabled')).toBeUndefined()
+      }
     })
   })
 

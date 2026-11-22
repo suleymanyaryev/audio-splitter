@@ -11,13 +11,23 @@
 
 **Blocked by:** 02 (Pause and resume the audition).
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] `.` / `,` step 100 ms, Shift 1 s, by physical key; a held key repeats
-- [ ] A step never passes the audition's edges, at the file's start and end too
-- [ ] A step while playing jumps the sound and keeps playing; while paused it only moves the playhead
-- [ ] Home and "Back to audition start" go to the audition's start, also with the split handle focused
-- [ ] Left/Right and Delete/Backspace behave as before
-- [ ] The frame is a playhead slider with the right value and range, not a Tab stop
-- [ ] Audition store spec, Split view spec and review page spec cover the above
-- [ ] Shortcuts dialog rows for `,` / `.` (Shift) and Home; `CHANGELOG.md` line updated
+- [x] `.` / `,` step 100 ms, Shift 1 s, by physical key; a held key repeats
+- [x] A step never passes the audition's edges, at the file's start and end too
+- [x] A step while playing jumps the sound and keeps playing; while paused it only moves the playhead
+- [x] Home and "Back to audition start" go to the audition's start, also with the split handle focused
+- [x] Left/Right and Delete/Backspace behave as before
+- [x] The frame is a playhead slider with the right value and range, not a Tab stop
+- [x] Audition store spec, Split view spec and review page spec cover the above
+- [x] Shortcuts dialog rows for `,` / `.` (Shift) and Home; `CHANGELOG.md` line updated
+
+## Comments
+
+- The slider is a sibling of the split handle, not its parent (a slider's children are skipped by a screen reader). Its `role` and `tabindex` are dropped while no split is selected, since a slider with no value is invalid.
+- Home matches `event.key` like the Track and Range views (a numpad Home works); `,` and `.` match `event.code`. Home and the step keys are left to the browser while no split is selected.
+- Stepping forward to the extent's very end while playing sets `currentTime` to the clip's end, which ends the audition and puts the playhead back at the start. The Track view behaves the same, so it is left as is.
+- `auditionExtent` is exported from the store so the view can set the slider's range. Moving it to `lib/` is a possible later tidy.
+- Left alone from the code-review: the slider/step code repeats TrackView and RangeView (a shared composable is a refactor candidate, no documented rule asks for it) and `aria-valuenow` while playing is floored, as in those views.
+- Fixed from the code-review: the changelog line split into Added and Changed bullets, a ragged comment, a leaky test cleanup moved into `afterEach`, and Home matched by key.
+- Checks: `pnpm test` -> pass (1736, before the fixes); after the fixes `pnpm test:changed -> pass` (464), `pnpm lint:changed -> pass`, `pnpm typecheck -> pass`.

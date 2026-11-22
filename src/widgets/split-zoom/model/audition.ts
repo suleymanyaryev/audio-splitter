@@ -40,7 +40,8 @@ call `toggle`: a press while it decodes takes it back, while it plays pauses it,
 plays it on from the same place without decoding, and otherwise decodes the extent and plays it from
 the resting place. `status` is where it is (idle, loading, playing or paused), and the Split view
 draws its playhead from `playheadSeconds`: the sound while it plays, else the resting place, else
-the extent's start, so it is never empty while a split is selected.
+the extent's start, so it is never empty while a split is selected. `seekAudition` moves it (held
+to the extent) and `backToAuditionStart` takes it to the extent's start.
 
 The resting place is a time in the file, tied to the split it was made for, so another split never
 draws it. A pause keeps it with the WAV. A stop (the view change, the export) and a stretch that
@@ -424,6 +425,28 @@ export const useAuditionStore = defineStore('audition', () => {
   }
 
   /*
+  Moves the audition's playhead to a time, held to the extent. While the audition plays, the sound
+  jumps there at once (an exact `currentTime` inside the WAV) and goes on; otherwise only the
+  resting place moves, which a later play, or the clip still being decoded, starts from.
+  */
+  function seekAudition(seconds: number) {
+    const selected = splitStore.selectedSplit
+    if (selected === null) return
+    const extent = auditionExtent(selected)
+    const target = Math.min(Math.max(seconds, extent.startSeconds), extent.endSeconds)
+    if (status.value === 'playing') {
+      audioElement().currentTime = offsetOf(target)
+    } else {
+      auditionResting.value = { splitId: selected.id, seconds: target }
+    }
+  }
+
+  function backToAuditionStart() {
+    const selected = splitStore.selectedSplit
+    if (selected !== null) seekAudition(auditionExtent(selected).startSeconds)
+  }
+
+  /*
   What a failure to play the stretch calls it: the view says which stretch is on show, and a view
   change stops the sound, so no failure is worded for the wrong one.
   */
@@ -697,6 +720,9 @@ export const useAuditionStore = defineStore('audition', () => {
     setVolume,
     toggleMute,
     toggle,
+    seekAudition,
+    backToAuditionStart,
+    auditionExtent,
     toggleStretch,
     seekStretch,
     backToStretchStart,

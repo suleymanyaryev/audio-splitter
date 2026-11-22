@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, useTemplateRef, watch } from 'vue'
+import { computed, ref, useTemplateRef, watch } from 'vue'
 
 import { useSourceFileStore } from '@/entities/source-file/model/source-file.ts'
 import { ZOOM_WINDOW_SECONDS } from '@/entities/split/config/zoom-window.ts'
@@ -11,6 +11,7 @@ import { useCanvasRedraw } from '@/shared/lib/canvas/use-canvas-redraw.ts'
 import { zoomTimeToX } from '@/shared/lib/canvas/zoom-axis.ts'
 import { usePageKeys } from '@/shared/lib/keyboard/use-page-keys.ts'
 import { formatHundredths } from '@/shared/lib/time/format-hundredths.ts'
+import { roundToMillisecond } from '@/shared/lib/time/round-to-millisecond.ts'
 import { draggedTime } from '../lib/dragged-time.ts'
 import { usePlayheadFrames } from '../lib/use-playhead-frames.ts'
 import { useSplitDrag } from '../lib/use-split-drag.ts'
@@ -29,6 +30,12 @@ delete key of a Mac keyboard) deletes it. Space plays the clip across the split 
 "Play across split" button does (ticket 14); a 1 px ink line always shows the audition's playhead,
 where the sound is while it plays and where it resumes otherwise, and a failure to play is said in
 a line at the bottom of the view.
+
+The playhead is moved by the keys `,` and `.` (back and forward 100 ms, with Shift 1 s, and again
+while held) and Home (back to the audition's start). `,` and `.` are matched by the physical key
+(`event.code`), so Shift and a Russian or Turkmen layout do not change them. The canvas is a slider
+on the playhead, focusable but no Tab stop, as in the Track view; it sits beside the split's handle,
+not around it, since a slider's children are skipped by a screen reader.
 */
 
 // DESIGN.md: the whole canvas is framed in 1.5 px ink; the run-out line is 1 px.
@@ -39,6 +46,11 @@ const PLAYHEAD_WIDTH = 1
 // Arrow keys move 10 ms, one bucket; with Shift, 100 ms.
 const KEY_STEP_SECONDS = 0.01
 const SHIFT_KEY_STEP_SECONDS = 0.1
+// `,` and `.` step the playhead 100 ms, with Shift 1 s.
+const PLAYHEAD_STEP_SECONDS = 0.1
+const SHIFT_PLAYHEAD_STEP_SECONDS = 1
+// The physical keys where `,` and `.` sit on a US layout, to step back and forward.
+const PLAYHEAD_KEY_DIRECTIONS: Record<string, -1 | 1> = { Comma: -1, Period: 1 }
 
 const sourceFile = useSourceFileStore()
 const split = useSplitStore()
@@ -58,6 +70,22 @@ const handleLeft = computed(() => {
   return fraction < 0 || fraction > 1 ? null : `${Math.round(fraction * 10_000) / 100}%`
 })
 
+// The audition's 8 s, which the playhead slider spans; null with no split selected.
+const extent = computed(() =>
+  split.selectedSplit === null ? null : audition.auditionExtent(split.selectedSplit),
+)
+
+/*
+The playhead slider's value. While the audition plays the playhead follows the audio, which Vue does
+not see, so each frame copies it here to the whole second: a screen reader hears a new value once
+a second, not on every frame. Otherwise it is the resting place, which Vue does see, to the
+hundredth.
+*/
+const heardSeconds = ref(0)
+const sliderSeconds = computed(() =>
+  audition.status === 'playing' ? heardSeconds.value : (audition.playheadSeconds() ?? 0),
+)
+
 function frameWidth() {
   return frame.value?.getBoundingClientRect().width ?? 0
 }
@@ -76,6 +104,14 @@ const { overLine, dragging, onPointerDown, onPointerMove, onPointerEnd } = useSp
   },
 })
 
+// A held key steps again, so the playhead can be swept by keyboard.
+function stepPlayhead(direction: -1 | 1, isShifted: boolean) {
+  const playhead = audition.playheadSeconds()
+  if (playhead === null) return
+  const step = isShifted ? SHIFT_PLAYHEAD_STEP_SECONDS : PLAYHEAD_STEP_SECONDS
+  audition.seekAudition(roundToMillisecond(playhead + direction * step))
+}
+
 // Whether the key was the view's: a key it leaves alone is the browser's, and is not reported.
 function isKeyActedOn(event: KeyboardEvent) {
   // A held Space must not start and stop the sound over and over.
@@ -85,6 +121,15 @@ function isKeyActedOn(event: KeyboardEvent) {
   }
   const selected = split.selectedSplit
   if (selected === null) return false
+  if (event.key === 'Home') {
+    audition.backToAuditionStart()
+    return true
+  }
+  const playheadDirection = PLAYHEAD_KEY_DIRECTIONS[event.code]
+  if (playheadDirection !== undefined) {
+    stepPlayhead(playheadDirection, event.shiftKey)
+    return true
+  }
   // A held key deletes one split: the next one is selected at once and would go too, then the rest.
   if (event.key === 'Delete' || event.key === 'Backspace') {
     if (!event.repeat) split.deleteSplit(selected.id)
@@ -170,7 +215,13 @@ function draw() {
 }
 
 // The playhead moves with the audio, which Vue does not see: draw on every frame while it plays.
-usePlayheadFrames(() => audition.status === 'playing', draw)
+usePlayheadFrames(
+  () => audition.status === 'playing',
+  () => {
+    heardSeconds.value = Math.floor(audition.playheadSeconds() ?? 0)
+    draw()
+  },
+)
 
 useCanvasRedraw(canvas, draw)
 
@@ -181,6 +232,8 @@ watch(
     split.splits.map((point) => point.seconds),
     split.selectedSplit?.id,
     split.zoomCentreSeconds,
+    // The resting place moves while paused, when nothing else here changes.
+    audition.playheadSeconds(),
   ],
   draw,
 )
@@ -196,7 +249,20 @@ watch(
     @pointerup="onPointerEnd"
     @pointercancel="onPointerEnd"
   >
-    <canvas ref="canvas" class="block size-full" aria-label="Zoomed waveform of the split" />
+    <!-- A slider must take the focus for a screen reader, but it is no tab stop: the keys reach the view
+    wherever the focus is. -->
+    <div
+      :role="extent === null ? undefined : 'slider'"
+      :tabindex="extent === null ? undefined : -1"
+      aria-label="Playhead in the audition"
+      :aria-valuemin="extent?.startSeconds"
+      :aria-valuemax="extent?.endSeconds"
+      :aria-valuenow="extent === null ? undefined : sliderSeconds"
+      :aria-valuetext="extent === null ? undefined : formatHundredths(sliderSeconds)"
+      class="size-full"
+    >
+      <canvas ref="canvas" class="block size-full" aria-label="Zoomed waveform of the split" />
+    </div>
     <div
       v-if="split.selectedSplit !== null && handleLeft !== null"
       ref="handle"

@@ -18,9 +18,15 @@ Versions follow [Semantic Versioning](https://semver.org/) applied to the produc
 
 ## [Unreleased]
 
+### Added
+
+- In the Split view, `,` and `.` step the playhead back and forward 100 ms (1 s with Shift, and again while held), and Home or the new "Back to audition start" button takes it back to the start of the 8 s.
+- The Split view is a slider for the playhead, so a screen reader says where it is.
+
 ### Changed
 
-- In the Split view, Space and the play button now pause the audition and play it on from the same point; it starts again from the top only after it has played to the end. The playhead is always drawn, at the start of the 8 s before the first play and where you paused.
+- In the Split view, Space and the play button now pause the audition and play it on from the same point. It starts again from the top only after it has played to the end.
+- The Split view always draws the playhead: at the start of the 8 s before the first play, and where you paused.
 
 ## [1.3.0] - 2026-11-22
 

@@ -525,6 +525,166 @@ describe('the audition store', () => {
     })
   })
 
+  describe('moving the playhead', () => {
+    // The 8 s of the first split, at 22 s, are 18 s to 26 s.
+    it('sets the sound inside the WAV while the audition plays, and goes on playing', async () => {
+      const { audition } = await playing()
+      const element = audio()
+      play.mockClear()
+
+      audition.seekAudition(22.5)
+
+      expect(element.currentTime).toBe(4.5)
+      expect(audition.status).toBe('playing')
+      expect(audition.playheadSeconds()).toBe(22.5)
+      expect(play).not.toHaveBeenCalled()
+      expect(clip).toHaveBeenCalledOnce()
+    })
+
+    it('moves the playhead of a paused audition and leaves it paused, with Play starting there', async () => {
+      const { audition } = await playing()
+      audition.toggle()
+      play.mockClear()
+
+      audition.seekAudition(20)
+
+      expect(audition.status).toBe('paused')
+      expect(audition.playheadSeconds()).toBe(20)
+      expect(play).not.toHaveBeenCalled()
+
+      audition.toggle()
+      await flush()
+
+      expect(audition.status).toBe('playing')
+      expect(audio().currentTime).toBe(2)
+      expect(clip).toHaveBeenCalledOnce()
+    })
+
+    it('moves the playhead of an audition not yet played, and the first Play decodes it and starts there', async () => {
+      const { audition } = setUp()
+
+      audition.seekAudition(24)
+
+      expect(audition.status).toBe('idle')
+      expect(audition.playheadSeconds()).toBe(24)
+      expect(clip).not.toHaveBeenCalled()
+
+      audition.toggle()
+      await flush()
+
+      expect(audition.status).toBe('playing')
+      expect(audio().currentTime).toBe(6)
+    })
+
+    it('sets where playback starts when the clip arrives, if moved during the decode', async () => {
+      const { audition } = setUp()
+      const pending = deferred<Clip>()
+      clip.mockReturnValueOnce(pending.promise)
+      audition.toggle()
+
+      audition.seekAudition(21)
+
+      expect(audition.status).toBe('loading')
+      expect(audition.playheadSeconds()).toBe(21)
+      expect(play).not.toHaveBeenCalled()
+
+      pending.resolve(clipAroundFirstSplit())
+      await flush()
+
+      expect(audition.status).toBe('playing')
+      expect(audio().currentTime).toBe(3)
+    })
+
+    it('holds the playhead to the 8 s, whether it plays or not', async () => {
+      const { audition } = setUp()
+
+      audition.seekAudition(3)
+      expect(audition.playheadSeconds()).toBe(18)
+
+      audition.seekAudition(99)
+      expect(audition.playheadSeconds()).toBe(26)
+
+      audition.toggle()
+      await flush()
+      audition.seekAudition(99)
+      expect(audio().currentTime).toBe(8)
+      expect(audition.playheadSeconds()).toBe(26)
+
+      audition.seekAudition(-5)
+      expect(audio().currentTime).toBe(0)
+      expect(audition.playheadSeconds()).toBe(18)
+    })
+
+    it('holds the playhead to the start of the file, where the 8 s are shorter', () => {
+      // Quiet from 1 s to 5 s, so the only split is at 3 s and the 8 s start at 0 s.
+      const split = useSplitStore()
+      split.detect(curveOf([LOUD, 20], [QUIET, 80], [LOUD, 1100]), {
+        windowSeconds: 0.05,
+        durationSeconds: 60,
+      })
+      split.selectSplit(split.splits[0]!.id)
+      const audition = useAuditionStore()
+
+      audition.seekAudition(-2)
+
+      expect(audition.playheadSeconds()).toBe(0)
+    })
+
+    it('holds the playhead to the end of the file, where the 8 s are shorter', () => {
+      // Quiet from 55 s to 59 s, so the only split is at 57 s and the 8 s end at 60 s.
+      const split = useSplitStore()
+      split.detect(curveOf([LOUD, 1100], [QUIET, 80], [LOUD, 20]), {
+        windowSeconds: 0.05,
+        durationSeconds: 60,
+      })
+      split.selectSplit(split.splits[0]!.id)
+      const audition = useAuditionStore()
+
+      audition.seekAudition(99)
+
+      expect(audition.playheadSeconds()).toBe(60)
+    })
+
+    it('does nothing without a selected split', () => {
+      const { split, audition } = setUp()
+      split.moveZoomTo(30)
+
+      audition.seekAudition(20)
+      audition.backToAuditionStart()
+      split.selectSplit(split.splits[0]!.id)
+
+      expect(audition.playheadSeconds()).toBe(18)
+    })
+
+    describe('back to the start', () => {
+      it('moves a playing audition to its start and keeps it playing', async () => {
+        const { audition } = await playing()
+        const element = audio()
+        element.currentTime = 6
+        play.mockClear()
+
+        audition.backToAuditionStart()
+
+        expect(element.currentTime).toBe(0)
+        expect(audition.status).toBe('playing')
+        expect(audition.playheadSeconds()).toBe(18)
+        expect(play).not.toHaveBeenCalled()
+      })
+
+      it('moves a paused audition to its start and leaves it paused', async () => {
+        const { audition } = await playing()
+        audio().currentTime = 6
+        audition.toggle()
+        expect(audition.playheadSeconds()).toBe(24)
+
+        audition.backToAuditionStart()
+
+        expect(audition.status).toBe('paused')
+        expect(audition.playheadSeconds()).toBe(18)
+      })
+    })
+  })
+
   it('drops the pending clip when pressed again while loading', async () => {
     const { audition } = setUp()
     const pending = deferred<Clip>()
