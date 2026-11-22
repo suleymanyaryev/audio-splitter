@@ -315,6 +315,71 @@ describe('SplitZoom', () => {
     })
   })
 
+  describe('moving the split with the keys while the audition is heard', () => {
+    const clipOfTheAudition = { wav: Uint8Array.of(1), startSeconds: 17, lengthSeconds: 8 }
+    let clip: MockInstance<ReturnType<typeof useSourceFileStore>['clip']>
+    let play: MockInstance<HTMLMediaElement['play']>
+
+    beforeEach(() => {
+      play = vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue()
+      vi.spyOn(HTMLMediaElement.prototype, 'load').mockImplementation(() => {})
+      vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => {})
+      // jsdom has none of these, so the specs give them to URL themselves.
+      URL.createObjectURL = () => 'blob:clip'
+      URL.revokeObjectURL = () => {}
+    })
+
+    afterEach(() => {
+      vi.restoreAllMocks()
+      Reflect.deleteProperty(URL, 'createObjectURL')
+      Reflect.deleteProperty(URL, 'revokeObjectURL')
+    })
+
+    // The audition plays and then pauses at 2.5 s into its 8 s, which is 19.5 s in the file.
+    async function pausedAtTwoAndAHalf() {
+      const parts = mountOnSplit()
+      clip = vi.spyOn(useSourceFileStore(), 'clip').mockResolvedValue(clipOfTheAudition)
+      const audition = useAuditionStore()
+      audition.toggle()
+      await new Promise((done) => setTimeout(done, 0))
+      const element = play.mock.contexts[0] as HTMLAudioElement
+      element.currentTime = 2.5
+      audition.toggle()
+      return { ...parts, audition, element }
+    }
+
+    it('keeps the audition paused at the same time in the file, and plays on after decoding the moved 8 s', async () => {
+      const { split, audition, element } = await pausedAtTwoAndAHalf()
+
+      await press({ key: 'ArrowRight', shiftKey: true })
+
+      expect(split.selectedSplit?.seconds).toBeCloseTo(21.1, 6)
+      expect(audition.status).toBe('paused')
+      expect(playhead()).toBeCloseTo(19.5, 6)
+
+      clip.mockResolvedValueOnce({ ...clipOfTheAudition, startSeconds: 17.1 })
+      // Not awaited: the press is seen before the clip arrives.
+      document.dispatchEvent(new KeyboardEvent('keydown', { code: 'Space', key: ' ' }))
+      expect(audition.status).toBe('loading')
+      await new Promise((done) => setTimeout(done, 0))
+
+      expect(audition.status).toBe('playing')
+      expect(element.currentTime).toBeCloseTo(2.4, 6)
+    })
+
+    it('pauses a playing audition on a move, and keeps its playhead drawn where the sound was', async () => {
+      const { split, audition, element } = await pausedAtTwoAndAHalf()
+      audition.toggle()
+      element.currentTime = 4
+
+      await press({ key: 'ArrowLeft' })
+
+      expect(split.selectedSplit?.seconds).toBeCloseTo(20.99, 6)
+      expect(audition.status).toBe('paused')
+      expect(playhead()).toBeCloseTo(21, 6)
+    })
+  })
+
   describe('the playhead slider', () => {
     it('is the whole view, named for the playhead and valued by its time over the 8 s', () => {
       const { wrapper } = setup()

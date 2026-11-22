@@ -37,18 +37,19 @@ of one stretch, or the audition's clip.
 The audition is the 8 s across the selected split, its extent: the split plus and minus 4 s, held
 to the file, worked out from the split each time. The button and the Space key of the Split view
 call `toggle`: a press while it decodes takes it back, while it plays pauses it, while it is paused
-plays it on from the same place without decoding, and otherwise decodes the extent and plays it from
-the resting place. `status` is where it is (idle, loading, playing or paused), and the Split view
-draws its playhead from `playheadSeconds`: the sound while it plays, else the resting place, else
-the extent's start, so it is never empty while a split is selected. `seekAudition` moves it (held
+and still holds its WAV plays it on from the same place without decoding, and otherwise decodes the
+extent and plays it from the resting place. `status` is where it is (idle, loading, playing or
+paused), and the Split view draws its playhead from `playheadSeconds`: the sound while it plays,
+else the resting place, else the extent's start, so it is never empty while a split is selected. `seekAudition` moves it (held
 to the extent) and `backToAuditionStart` takes it to the extent's start. A pointer drag of it
 pauses a playing audition on `grabAuditionPlayhead` and plays it on from `dropAuditionPlayhead`.
 
 The resting place is a time in the file, tied to the split it was made for, so another split never
 draws it. A pause keeps it with the WAV. A stop (the view change, the export) and a stretch that
 takes over keep it and let go of the WAV. Playing to the end clears it, and so does selecting
-another split, none, or deleting the selected one. Moving the split ends the audition for now (ticket 05
-changes that): the WAV goes and the place is held into the moved extent.
+another split, none, or deleting the selected one; these also end the audition. Moving the split
+pauses a playing audition where the sound was and lets go of the WAV, whose 8 s moved: the place is
+held into the moved extent when it is read, and the next play decodes the moved 8 s and starts there.
 
 Playing a stretch (docs/concepts/08-listening-to-a-range.md) is a second state, `stretchStatus`,
 which adds `paused`. A stretch is a start and an end the caller hands in with every call: the range
@@ -413,18 +414,27 @@ export const useAuditionStore = defineStore('audition', () => {
   }
 
   /*
+  Plays the audition on from its resting place. A paused audition that still holds its WAV plays at
+  once; one whose split moved has none, so it decodes the moved 8 s first, as an idle one does.
+  */
+  function playAudition(selected: Split) {
+    if (url !== undefined && status.value === 'paused') {
+      failure.value = null
+      void playAuditionFromPlace(selected, auditionExtent(selected), beginPress())
+    } else {
+      void start(selected)
+    }
+  }
+
+  /*
   The button and Space key of the Split view: a press while the clip decodes takes it back, while
-  it plays pauses it, while it is paused plays it on, and otherwise plays the 8 s from the place.
+  it plays pauses it, and otherwise plays the 8 s from the place.
   */
   function toggle() {
     const selected = splitStore.selectedSplit
     if (status.value === 'loading') stop()
     else if (status.value === 'playing') pauseAudition()
-    else if (selected === null) return
-    else if (status.value === 'paused') {
-      failure.value = null
-      void playAuditionFromPlace(selected, auditionExtent(selected), beginPress())
-    } else void start(selected)
+    else if (selected !== null) playAudition(selected)
   }
 
   /*
@@ -464,7 +474,7 @@ export const useAuditionStore = defineStore('audition', () => {
     // Only an audition still paused is played on: another sound or another split may have taken over.
     const canResume = shouldResumeAudition && status.value === 'paused' && selected !== null
     shouldResumeAudition = false
-    if (canResume) void playAuditionFromPlace(selected, auditionExtent(selected), beginPress())
+    if (canResume) playAudition(selected)
   }
 
   /*
@@ -681,16 +691,26 @@ export const useAuditionStore = defineStore('audition', () => {
   }
 
   /*
-  Moving the split, selecting another and deselecting all end the audition (ticket 14); so do
-  deleting and a setting change, which change the selection. Another split, or none, has no use for
-  the place, which goes; a move of the same split keeps it. Sync: a clip that arrives right after
-  must already find its press gone.
+  Selecting another split, deselecting, deleting and a setting change (which re-selects) end the
+  audition, and the place goes with the split it was made for. Moving the selected split keeps both
+  the split and the place: a playing audition is paused where it is, a paused one stays paused, and
+  either lets go of its WAV, since the 8 s it was decoded for moved. A press still decoding is taken
+  back. Sync: a clip that arrives right after must already find its press gone.
   */
   watch(
     () => [splitStore.selectedSplit?.id, splitStore.selectedSplit?.seconds] as const,
     ([id], [previousId]) => {
-      if (status.value !== 'idle' || failure.value !== null) stop()
-      if (id !== previousId) auditionResting.value = null
+      if (id !== previousId) {
+        if (status.value !== 'idle' || failure.value !== null) stop()
+        auditionResting.value = null
+      } else if (status.value === 'playing') {
+        pauseAudition()
+        release()
+      } else if (status.value === 'paused') {
+        release()
+      } else if (status.value === 'loading' || failure.value !== null) {
+        stop()
+      }
     },
     { flush: 'sync' },
   )

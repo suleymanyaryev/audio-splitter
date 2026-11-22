@@ -11,13 +11,22 @@ Example: the split is at 100.00 s, so the audition is 96–104 s. Pause at 99.50
 
 **Blocked by:** 02 (Pause and resume the audition).
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] Moving the split by key or drag pauses a playing audition and keeps the playhead's file time
-- [ ] The kept time is held into the new extent when needed
-- [ ] The next play decodes the moved 8 s and starts at the kept time
-- [ ] Selecting another split, deselecting and deleting reset the playhead to the new audition's start
-- [ ] A trip to another view and back, same split selected, keeps the place
-- [ ] Playing a range or track and coming back keeps the place
-- [ ] Audition store spec covers the above (with the Split view spec for a move by key)
-- [ ] `docs/architecture.md` says what ends the audition and what pauses it; `CHANGELOG.md` line updated
+- [x] Moving the split by key or drag pauses a playing audition and keeps the playhead's file time
+- [x] The kept time is held into the new extent when needed
+- [x] The next play decodes the moved 8 s and starts at the kept time
+- [x] Selecting another split, deselecting and deleting reset the playhead to the new audition's start
+- [x] A trip to another view and back, same split selected, keeps the place
+- [x] Playing a range or track and coming back keeps the place
+- [x] Audition store spec covers the above (with the Split view spec for a move by key)
+- [x] `docs/architecture.md` says what ends the audition and what pauses it; `CHANGELOG.md` line updated
+
+## Comments
+
+- A move of the same split pauses a playing audition and leaves a paused one paused, and either lets go of its WAV. A press still decoding is taken back (idle), so a late clip is dropped by the press number. `playAudition` plays at once only while a WAV is held, and otherwise decodes ("Stop" meanwhile).
+- The Track view can't be a trip "with the same split selected", since showing a track selects the track. The view-trip test uses the Range view.
+- The place is stored raw and held into the extent when read, so moving the split back restores it. A place held to the extent's end edge plays from the extent's start, as the stretch does for a playhead at its end.
+- A drag-move of the split takes the same store path as a key move, so it has no spec of its own beyond the split-drag-during-grab case.
+- Code-review fixes: a header comment re-wrapped, the architecture bullets folded into one rule each, the changelog line reworded to what the user notices.
+- Checks: `pnpm test` -> pass (1780, before the doc fixes); after them `pnpm test:changed -> pass`, `pnpm lint:changed -> pass`, `pnpm typecheck -> pass`.

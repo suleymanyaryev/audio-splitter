@@ -169,13 +169,16 @@ stateDiagram-v2
   paused --> playing: pressed again
   playing --> idle: played to the end, or a view change or the export
   paused --> idle: a view change, the export, or a stretch plays
-  loading --> idle: pressed again, a view change or the export, split changed, or failed
-  playing --> idle: split changed
-  paused --> idle: split changed
+  loading --> idle: pressed again, a view change or the export, split moved or changed, or failed
+  playing --> paused: split moved
+  paused --> loading: pressed again after a move
+  playing --> idle: another split selected, none, or deleted
+  paused --> idle: another split selected, none, or deleted
 ```
 
-- **The resting place is a time in the file, tied to its split.** A pause keeps it with the WAV. A view change, the export and a stretch that takes over keep it and let go of the WAV. Playing to the end, selecting another split or none, or deleting the split clears it.
-- **Moving the split ends the audition** and keeps the place, held into the moved extent.
+- **The resting place is a time in the file, tied to its split.** A pause keeps it with the WAV. A view change, the export and a stretch that takes over keep it and let go of the WAV.
+- **Moving the split pauses the audition** and keeps the place, held into the moved extent. The 8 s moved, so the next play decodes again.
+- **Another split, none or a deleted split ends the audition** and clears the place, as does playing to the end.
 
 **The stretch** plays a range or the selected track. It can pause, resume and seek without decoding again.
 
