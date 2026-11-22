@@ -69,7 +69,7 @@ The 20 second stretch of the source file around a centre time that the Split vie
 _Avoid_: Viewport, zoom range, visible range
 
 **Audition**:
-Hearing the 8 seconds across the selected split (4 before it, 4 after) to judge where the cut falls. The user starts and stops it with "Play across split"; moving or changing the selection ends it.
+Hearing the 8 seconds across the selected split (4 before it, 4 after) to judge where the cut falls. It can be paused, resumed and heard from any point in it. Moving the split pauses it and keeps the point being heard; selecting another split, or none, ends it.
 _Avoid_: Preview, playback
 
 **Range**:
@@ -85,7 +85,7 @@ The dashed spot the user clicks in the stretch on show: in the Range view where 
 _Avoid_: Cursor, marker, ghost playhead
 
 **Playhead**:
-The 1 px line that marks the point being heard, or where playback will resume: in the Split view during an audition, and in the Range view and the Track view always.
+The 1 px line that marks the point being heard, or where playback will resume, in each of the three views at all times.
 _Avoid_: Cursor, scrubber, position marker
 
 **Loudness curve**:

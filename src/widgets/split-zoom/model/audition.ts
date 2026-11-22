@@ -178,18 +178,27 @@ export const useAuditionStore = defineStore('audition', () => {
     return Math.min(Math.max(seconds - clipStartSeconds, 0), clipLengthSeconds)
   }
 
-  // Where the stretch's sound is in the file, clamped: the element can report a hair past the end.
-  function stretchPosition() {
+  // Where the sound is in the file, clamped: the element can report a hair past the end.
+  function soundPosition() {
     return element === undefined
       ? clipStartSeconds
       : clipStartSeconds + Math.min(element.currentTime, clipLengthSeconds)
+  }
+
+  /*
+  Takes a new press number and returns its guard: true once a later press (or a stop) took over, so
+  a clip that arrives for this one must be dropped.
+  */
+  function beginPress() {
+    const thisPress = ++press
+    return () => thisPress !== press
   }
 
   // Stops the sound and keeps the stretch's place and its WAV, so a press resumes at once.
   function pauseStretch() {
     // A pause that interrupts a pending `play()` makes it stale, so its rejection is not reported.
     press++
-    if (held !== null) resting.value = { stretch: held.stretch, seconds: stretchPosition() }
+    if (held !== null) resting.value = { stretch: held.stretch, seconds: soundPosition() }
     element?.pause()
     stretchStatus.value = 'paused'
   }
@@ -225,7 +234,7 @@ export const useAuditionStore = defineStore('audition', () => {
   // The stretch gives way to the audition or to a new range: its sound and its WAV go, its place stays.
   function letGoOfStretch() {
     if (held !== null && stretchStatus.value === 'playing') {
-      resting.value = { stretch: held.stretch, seconds: stretchPosition() }
+      resting.value = { stretch: held.stretch, seconds: soundPosition() }
     }
     if (held !== null) release()
     stretchStatus.value = 'idle'
@@ -258,8 +267,7 @@ export const useAuditionStore = defineStore('audition', () => {
 
   async function start(splitSeconds: number) {
     const startSeconds = Math.max(0, splitSeconds - REACH_SECONDS)
-    const thisPress = ++press
-    const isStale = () => thisPress !== press
+    const isStale = beginPress()
     failure.value = null
     letGoOfStretch()
     status.value = 'loading'
@@ -346,8 +354,7 @@ export const useAuditionStore = defineStore('audition', () => {
   later ones set the place in it, and a playhead outside the held window decodes another.
   */
   async function playStretch(stretch: Stretch) {
-    const thisPress = ++press
-    const isStale = () => thisPress !== press
+    const isStale = beginPress()
     failure.value = null
     letGoOfAudition()
     const subject = stretchSubject()
@@ -429,7 +436,7 @@ export const useAuditionStore = defineStore('audition', () => {
   function fetchAhead() {
     if (ahead !== undefined) return ahead.done
     if (held === null) return Promise.resolve()
-    const window = nextWindow(held.stretch, held.window, stretchPosition())
+    const window = nextWindow(held.stretch, held.window, soundPosition())
     if (window === null) return Promise.resolve()
     const asked = { done: Promise.resolve(), stopper: new AbortController() }
     ahead = asked
@@ -460,8 +467,7 @@ export const useAuditionStore = defineStore('audition', () => {
       return
     }
     const { stretch, window } = held
-    const thisPress = ++press
-    const isStale = () => thisPress !== press
+    const isStale = beginPress()
     const subject = stretchSubject()
     let place = window.endSeconds
     if (upcoming === undefined) {
@@ -531,19 +537,16 @@ export const useAuditionStore = defineStore('audition', () => {
   */
   function stretchPlayheadSeconds(stretch: Stretch) {
     return stretchStatus.value === 'playing'
-      ? stretchPosition()
+      ? soundPosition()
       : (restingSecondsOf(stretch) ?? stretch.startSeconds)
   }
 
   /*
   Where the audio is in the file, for the zoom view to draw each animation frame. A plain function,
-  not state: `currentTime` moves without Vue knowing. Clamped, because the element can report a
-  hair past the end before `ended` arrives.
+  not state: `currentTime` moves without Vue knowing.
   */
   function playheadSeconds() {
-    return element !== undefined && status.value === 'playing'
-      ? clipStartSeconds + Math.min(element.currentTime, clipLengthSeconds)
-      : null
+    return status.value === 'playing' ? soundPosition() : null
   }
 
   /*
