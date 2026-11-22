@@ -2276,7 +2276,7 @@ describe('ReviewPage', () => {
 
       expect(useSplitStore().selectedTrack?.number).toBe(2)
       expect(markedTrack(wrapper)).toContain('Select track 2')
-      expect(panelTitle(wrapper)).toBe('2 · 0:00:21.00 – 0:01:11.50')
+      expect(panelTitle(wrapper)).toBe('02 · 0:00:21.00 – 0:01:11.50')
       expect(event.defaultPrevented).toBe(true)
     })
 
@@ -2287,7 +2287,7 @@ describe('ReviewPage', () => {
       await wrapper.vm.$nextTick()
 
       expect(markedTrack(wrapper)).toContain('Select track 2')
-      expect(panelTitle(wrapper)).toBe('2 · 0:00:21.00 – 0:01:11.50')
+      expect(panelTitle(wrapper)).toBe('02 · 0:00:21.00 – 0:01:11.50')
     })
 
     it('works on a layout where the keys type other characters, by their physical code', async () => {
@@ -2320,7 +2320,7 @@ describe('ReviewPage', () => {
 
       const marked = strip.findAll('li[aria-current="true"]')
       expect(marked).toHaveLength(1)
-      expect(marked[0]!.get('button').attributes('aria-label')).toMatch(/^2, /)
+      expect(marked[0]!.get('button').attributes('aria-label')).toMatch(/^02, /)
     })
 
     it('lets go of the old track’s mark, as a click does', async () => {
@@ -2905,6 +2905,21 @@ describe('ReviewPage', () => {
         expect(useAuditionStore().status).toBe('idle')
       })
 
+      it('let go of a paused one, which rests at the start of the new split’s 8 s', async () => {
+        const wrapper = await mountPageOnSplit()
+        const toggle = spyOnToggle()
+        const audition = useAuditionStore()
+        audition.status = 'paused'
+
+        pressKey(NEXT.key, { code: NEXT.code })
+        await wrapper.vm.$nextTick()
+
+        expect(useSplitStore().selectedSplit?.seconds).toBe(71.5)
+        expect(toggle).not.toHaveBeenCalled()
+        expect(audition.status).toBe('idle')
+        expect(audition.playheadSeconds()).toBe(67.5)
+      })
+
       it.each([
         ['[ on the first split', PREVIOUS, 0],
         ['] on the last split', NEXT, 1],
@@ -2954,7 +2969,7 @@ describe('ReviewPage', () => {
       ])
       expect(rows).toContainEqual([
         '[ / ]',
-        'Select the previous or next split; an audition plays on from the new split',
+        'Select the previous or next split; a playing audition plays on from the new split',
       ])
     })
   })
