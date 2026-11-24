@@ -11,6 +11,11 @@ import TrackView from '../TrackView.vue'
 
 enableAutoUnmount(afterEach)
 
+// The worker is replaced by an answer: the third track repeats the first.
+vi.mock('@/entities/split/api/find-matches-client.ts', () => ({
+  findMatchesInWorker: () => Promise.resolve([{ duplicate: 2, kept: 0 }]),
+}))
+
 /*
 100 s at 50 ms per window: loud, a 2 s silence from 20 s, loud, a 2 s silence from 70.5 s, loud. The
 splits are at 21 s and 71.5 s, so the second track runs from 21 s to 71.5 s, 50.5 s.
@@ -295,6 +300,30 @@ describe('TrackView', () => {
 
       await press({ key: 'X' })
       expect(split.tracks.map((track) => track.isLeftOut)).toEqual([false, false, false])
+    })
+
+    it('dismisses the match of a duplicate instead of leaving it out by hand', async () => {
+      useSourceFileStore().durationSeconds = 107
+      const split = useSplitStore()
+      // 107 s: three loud stretches of 35 s with a 2 s silence between each two.
+      const curve = new Float32Array(2140).fill(-10)
+      curve.fill(-70, 700, 740)
+      curve.fill(-70, 1440, 1480)
+      split.open(curve, { windowSeconds: 0.05, durationSeconds: 107 })
+      split.addGapSplits()
+      await split.findDuplicates()
+      split.selectTrack(split.tracks[2]!)
+      mount(TrackView)
+      expect(split.tracks[2]?.inclusion).toBe('duplicate')
+
+      await press({ key: 'x' })
+
+      expect(split.tracks[2]).toMatchObject({ inclusion: 'included', isLeftOut: false })
+      expect(split.tracks[2]?.duplicateOf).toBeNull()
+      expect(split.editCount).toBe(1)
+
+      await press({ key: 'x' })
+      expect(split.tracks[2]).toMatchObject({ inclusion: 'by-hand', isLeftOut: true })
     })
 
     it('is reported to the page, and leaves the splits, the selection and the sound alone', async () => {

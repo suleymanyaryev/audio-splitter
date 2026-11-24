@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, useTemplateRef, watch } from 'vue'
-import { Eye, EyeOff, Merge, Trash2 } from 'lucide-vue-next'
+import { Eye, EyeOff, Merge, Trash2, X } from 'lucide-vue-next'
 
 import { duplicateWords } from '@/entities/split/lib/match-words.ts'
 import { useSplitStore, type Split, type Track } from '@/entities/split/model/split.ts'
@@ -14,7 +14,8 @@ import TrackNameField from './TrackNameField.vue'
 The file as a table, in time order: a row for each track with a row for each split between two
 tracks. A track row has its number (a button, so the row can be selected from the keyboard), its
 name (edited in place, `TrackNameField`, muted while the track has no name of its own, with the
-words of its match under it, "duplicate of 01", while it repeats an earlier track), its start
+words of its match under it, "duplicate of 01", while it repeats an earlier track, with a button
+that dismisses the match), its start
 (hundredths, where a split's position is read) and its length (whole seconds), then two buttons: one
 that leaves the track out of the export or brings it back (a left-out row is muted), and a merge
 button that removes the track and merges it with its neighbours (none when it is the only track). A split
@@ -116,9 +117,24 @@ watch(
                 @start="split.selectTrack(row.track)"
                 @save="split.renameTrack(row.track.startSplit?.id ?? null, $event)"
               />
-              <p v-if="row.track.duplicateOf !== null" class="truncate text-xs">
-                {{ duplicateWords(row.track.duplicateOf, split.tracks.length) }}
-              </p>
+              <div v-if="row.track.duplicateOf !== null" class="flex items-center gap-1">
+                <p class="truncate text-xs">
+                  {{ duplicateWords(row.track.duplicateOf, split.tracks.length) }}
+                </p>
+                <UiIconButton
+                  size="sm"
+                  :label="`Dismiss the match of track ${row.track.number}`"
+                  class="-my-1 shrink-0"
+                  @click.stop="
+                    split.dismissMatch(
+                      row.track.startSplit?.id ?? null,
+                      row.track.duplicateOf.startSplitId,
+                    )
+                  "
+                >
+                  <X class="size-4 shrink-0" />
+                </UiIconButton>
+              </div>
             </td>
             <td class="border-b border-hairline py-1.5 pr-4 whitespace-nowrap">
               {{ formatHundredths(row.track.startSeconds) }}

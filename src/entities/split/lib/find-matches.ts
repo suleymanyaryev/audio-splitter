@@ -18,6 +18,11 @@ export interface MatchInput {
   it out by hand.
   */
   tracks: { startSeconds: number; endSeconds: number; isLeftOutByHand: boolean }[]
+  /*
+  The pairs the user dismissed that still hold, as indices into `tracks` with the earlier track
+  as `kept`: they give no match and join no recording.
+  */
+  dismissed: { duplicate: number; kept: number }[]
 }
 
 /*
@@ -94,12 +99,16 @@ earlier track from end to end. The method is in docs/concepts/11-finding-repeats
   earliest track of it not left out by hand, and every later track of it is a duplicate naming that
   copy, a track left out by hand included. A recording with every track left out by hand has no
   kept copy and no match, and a track before the kept copy, left out by hand, names nothing: a
-  match always names an earlier track.
+  match always names an earlier track;
+- a dismissed pair is not compared, so it joins no recording, and it is never the match of a track:
+  a dismissed duplicate is a track like any other.
 
 A pure function, so the store and the worker share it. The matches come in track order.
 */
 export function findMatches(input: MatchInput): FoundMatch[] {
   const { windowSeconds, silenceThreshold, tracks } = input
+  const isDismissed = (duplicate: number, kept: number) =>
+    input.dismissed.some((pair) => pair.duplicate === duplicate && pair.kept === kept)
   const factor = Math.max(1, Math.round(COMPARED_STEP_SECONDS / windowSeconds))
   const stepSeconds = factor * windowSeconds
   const curve = coarseCurve(input.curve, factor, COMPARED_FLOOR_DB)
@@ -126,7 +135,13 @@ export function findMatches(input: MatchInput): FoundMatch[] {
 
   for (const [later, stretch] of stretches.entries()) {
     for (const [earlier, other] of stretches.slice(0, later).entries()) {
-      if (stretch === null || other === null || !isFullMatch(stretch, other, compared)) continue
+      if (
+        stretch === null ||
+        other === null ||
+        isDismissed(later, earlier) ||
+        !isFullMatch(stretch, other, compared)
+      )
+        continue
       const earlierRoot = root(earlier)
       const laterRoot = root(later)
       parent[Math.max(earlierRoot, laterRoot)] = Math.min(earlierRoot, laterRoot)
@@ -143,7 +158,8 @@ export function findMatches(input: MatchInput): FoundMatch[] {
   const found: FoundMatch[] = []
   for (const index of tracks.keys()) {
     const kept = keptOf.get(root(index))
-    if (kept !== undefined && kept < index) found.push({ duplicate: index, kept })
+    if (kept !== undefined && kept < index && !isDismissed(index, kept))
+      found.push({ duplicate: index, kept })
   }
   return found
 }

@@ -68,9 +68,10 @@ export interface Track {
   isLeftOut: boolean
   /*
   The track this one repeats from end to end (GLOSSARY.md: Duplicate), the kept copy, or null: its
-  live number and the name the user gave it (null while unnamed), the parts of the words that say so.
+  live number and the name the user gave it (null while unnamed), the parts of the words that say
+  so, and the split where it starts (null for the first track), which `dismissMatch` names it by.
   */
-  duplicateOf: { number: number; ownName: string | null } | null
+  duplicateOf: { number: number; ownName: string | null; startSplitId: number | null } | null
   // 1…K among the tracks the export writes, null for a left-out track.
   exportNumber: number | null
   // The name the user typed, null while the track is unnamed.
@@ -117,6 +118,14 @@ interface StoredMatch {
   kept: MatchedTrack
 }
 
+function isSameTrack(first: MatchedTrack, second: MatchedTrack) {
+  return (
+    first.startSplitId === second.startSplitId &&
+    first.startSeconds === second.startSeconds &&
+    first.endSeconds === second.endSeconds
+  )
+}
+
 /*
 The splits of the source file and the tracks between them. This slice cannot import
 `entities/source-file`, so `open` receives the loudness curve as data and keeps a reference to it
@@ -148,7 +157,9 @@ file opened. The splits Find gaps adds are no edit; moving or deleting one is.
 lasts while both its tracks keep the ends they had, so an edit drops it by changing a track, and a
 track with a live match with an earlier track is a `duplicate` (`Inclusion`), derived and never
 kept on a split. Finding matches is no edit and changes no split, name or selection; `clearSplits`,
-`open` and `reset` drop every match.
+`open` and `reset` drop every match. `dismissMatch` rejects a match: the pair is remembered with
+both tracks' ends, so it lasts as long as a match does, is one edit meanwhile, and the next press
+leaves it out.
 
 The range (GLOSSARY.md) is view state beside the window's centre: a stretch the user dragged out on
 the whole-file view, or none. It belongs to the file, so a setting change and the edits leave it
@@ -214,6 +225,11 @@ export const useSplitStore = defineStore('split', () => {
   const matches = shallowRef<StoredMatch[]>([])
   const duplicateSearchStatus = ref<'idle' | 'running'>('idle')
   const hasSearched = ref(false)
+  /*
+  The pairs the user dismissed, as the match had them: a dismissal lives as long as both tracks keep
+  those ends, as a match does, and counts as an edit while it lives.
+  */
+  const dismissed = shallowRef<StoredMatch[]>([])
   // Every press takes a number, and the answer of an older press, or of an older file, is dropped.
   let searchNumber = 0
   /*
@@ -261,21 +277,42 @@ export const useSplitStore = defineStore('split', () => {
   exist with the ends they had. A split moved, deleted or added inside changes a track's ends, so
   its matches, and those naming it, stop holding at once and nothing has to remove them.
   */
-  const liveMatches = computed(() => {
+  const heldTracks = computed(() => {
     const ends = trackEnds.value
     const indexByStart = new Map(ends.map((track, index) => [track.startSplit?.id ?? null, index]))
-    function indexOfHeld(held: MatchedTrack) {
+    return function indexOfHeld(held: MatchedTrack) {
       const index = indexByStart.get(held.startSplitId)
       const track = index === undefined ? undefined : ends[index]
       return track?.startSeconds === held.startSeconds && track.endSeconds === held.endSeconds
         ? index
         : undefined
     }
+  })
+
+  // The dismissed pairs that still hold, as the indices of their two tracks.
+  const liveDismissals = computed(() => {
+    const indexOfHeld = heldTracks.value
+    const live: { duplicate: number; kept: number }[] = []
+    for (const pair of dismissed.value) {
+      const duplicate = indexOfHeld(pair.duplicate)
+      const kept = indexOfHeld(pair.kept)
+      if (duplicate !== undefined && kept !== undefined) live.push({ duplicate, kept })
+    }
+    return live
+  })
+
+  const liveMatches = computed(() => {
+    const indexOfHeld = heldTracks.value
     const live: { duplicate: number; kept: number }[] = []
     for (const match of matches.value) {
       const duplicate = indexOfHeld(match.duplicate)
       const kept = indexOfHeld(match.kept)
-      if (duplicate !== undefined && kept !== undefined) live.push({ duplicate, kept })
+      const isDismissed = dismissed.value.some(
+        (pair) =>
+          isSameTrack(pair.duplicate, match.duplicate) && isSameTrack(pair.kept, match.kept),
+      )
+      if (duplicate !== undefined && kept !== undefined && !isDismissed)
+        live.push({ duplicate, kept })
     }
     return live
   })
@@ -305,7 +342,13 @@ export const useSplitStore = defineStore('split', () => {
         inclusion,
         isLeftOut,
         duplicateOf:
-          keptIndex === undefined ? null : { number: keptIndex + 1, ownName: ownNameAt(keptIndex) },
+          keptIndex === undefined
+            ? null
+            : {
+                number: keptIndex + 1,
+                ownName: ownNameAt(keptIndex),
+                startSplitId: ends[keptIndex]?.startSplit?.id ?? null,
+              },
         exportNumber,
         ownName,
         name:
@@ -434,6 +477,7 @@ export const useSplitStore = defineStore('split', () => {
       addedIds.value.size +
       renamedKeys.value.size +
       inclusionKeys.value.size +
+      liveDismissals.value.length +
       deletedCount.value,
   )
 
@@ -660,6 +704,7 @@ export const useSplitStore = defineStore('split', () => {
   function dropMatches() {
     searchNumber++
     matches.value = []
+    dismissed.value = []
     hasSearched.value = false
     duplicateSearchStatus.value = 'idle'
   }
@@ -691,6 +736,7 @@ export const useSplitStore = defineStore('split', () => {
           endSeconds,
           isLeftOutByHand: stored === 'by-hand',
         })),
+        dismissed: liveDismissals.value.map(({ duplicate, kept }) => ({ duplicate, kept })),
       })
     } catch {
       if (press === searchNumber) duplicateSearchStatus.value = 'idle'
@@ -711,6 +757,29 @@ export const useSplitStore = defineStore('split', () => {
     }))
     hasSearched.value = true
     duplicateSearchStatus.value = 'idle'
+  }
+
+  /*
+  Dismisses the match of the track that starts at `startSplitId` with the track that starts at
+  `keptStartSplitId` (null for the first track): it is one edit for as long as both tracks keep
+  their ends, the next press does not find the pair again, and a duplicate it was is exported
+  again. A pair that is no live match is refused.
+  */
+  function dismissMatch(startSplitId: number | null, keptStartSplitId: number | null) {
+    const match = matches.value.find(
+      (candidate) =>
+        candidate.duplicate.startSplitId === startSplitId &&
+        candidate.kept.startSplitId === keptStartSplitId,
+    )
+    if (match === undefined) return
+    const indexOfHeld = heldTracks.value
+    const isLive =
+      indexOfHeld(match.duplicate) !== undefined && indexOfHeld(match.kept) !== undefined
+    const isDismissed = dismissed.value.some(
+      (pair) => isSameTrack(pair.duplicate, match.duplicate) && isSameTrack(pair.kept, match.kept),
+    )
+    if (!isLive || isDismissed) return
+    dismissed.value = [...dismissed.value, match]
   }
 
   // Selects the split, centres the window on it and shows the Split view, with no question.
@@ -1074,9 +1143,18 @@ export const useSplitStore = defineStore('split', () => {
   /*
   Leaves the track that starts at the split `startSplitId` (null for the first track) out of the
   export, or brings it back. It changes no split and no name. It is one edit for that track, and
-  the second toggle takes the edit away again.
+  the second toggle takes the edit away again. On a duplicate it dismisses the match instead
+  (`dismissMatch`).
   */
   function toggleLeftOut(startSplitId: number | null) {
+    // A duplicate is left out already, so what is asked is to bring it back: its match is dismissed.
+    const track = tracks.value.find(
+      (candidate) => (candidate.startSplit?.id ?? null) === startSplitId,
+    )
+    if (track?.inclusion === 'duplicate' && track.duplicateOf !== null) {
+      dismissMatch(startSplitId, track.duplicateOf.startSplitId)
+      return
+    }
     const point =
       startSplitId === null ? null : splits.value.find((candidate) => candidate.id === startSplitId)
     if (point === undefined) return
@@ -1154,6 +1232,7 @@ export const useSplitStore = defineStore('split', () => {
     open,
     addGapSplits,
     findDuplicates,
+    dismissMatch,
     clearSplits,
     saveAsDefault,
     restoreBuiltIn,

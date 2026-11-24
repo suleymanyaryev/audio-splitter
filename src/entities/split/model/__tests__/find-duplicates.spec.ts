@@ -97,6 +97,13 @@ async function pressedFiveTracks() {
 const A_WITH_DIP = () =>
   A().map((level, window) => (window >= 20 * 20 && window < 23 * 20 ? -45 : level))
 
+// The track's match with the kept copy, as the track list's button names it.
+function dismiss(store: ReturnType<typeof useSplitStore>, number: number) {
+  const track = store.tracks[number - 1]
+  const kept = store.tracks[(track?.duplicateOf?.number ?? 0) - 1]
+  store.dismissMatch(track?.startSplit?.id ?? null, kept?.startSplit?.id ?? null)
+}
+
 describe('Find duplicates', () => {
   beforeEach(() => {
     localStorage.clear()
@@ -234,7 +241,7 @@ describe('Find duplicates', () => {
         inclusion: 'by-hand',
         isLeftOut: true,
         exportNumber: null,
-        duplicateOf: { number: 1, ownName: null },
+        duplicateOf: { number: 1, ownName: null, startSplitId: null },
       })
       expect(store.tracks[3]?.inclusion).toBe('duplicate')
       // The two copies are left out, one by hand and one as a duplicate: 01 and 02 are written.
@@ -657,12 +664,12 @@ describe('Find duplicates', () => {
       const store = openPlaylist(C(), A(), B(), A())
       store.renameTrack(store.tracks[1]?.startSplit?.id ?? null, 'Opening')
       await store.findDuplicates()
-      expect(store.tracks[3]?.duplicateOf).toEqual({ number: 2, ownName: 'Opening' })
+      expect(store.tracks[3]?.duplicateOf).toMatchObject({ number: 2, ownName: 'Opening' })
 
       // Inside 01, which no match holds: every track after it moves one place on.
       store.addSplitAt(20)
 
-      expect(store.tracks[4]?.duplicateOf).toEqual({ number: 3, ownName: 'Opening' })
+      expect(store.tracks[4]?.duplicateOf).toMatchObject({ number: 3, ownName: 'Opening' })
       expect(store.duplicateResult).toEqual({ duplicates: 1 })
     })
 
@@ -671,7 +678,11 @@ describe('Find duplicates', () => {
 
       await store.findDuplicates()
 
-      expect(store.tracks[2]?.duplicateOf).toEqual({ number: 1, ownName: null })
+      expect(store.tracks[2]?.duplicateOf).toMatchObject({
+        number: 1,
+        ownName: null,
+        startSplitId: null,
+      })
     })
   })
 
@@ -724,6 +735,191 @@ describe('Find duplicates', () => {
       await Promise.all([first, second])
 
       expect(duplicatesOf(store)).toEqual([null, null, 1])
+    })
+  })
+
+  describe('dismissing a match', () => {
+    it('exports a dismissed duplicate again, and keeps the other matches', async () => {
+      const store = await pressedFiveTracks()
+
+      dismiss(store, 3)
+
+      expect(duplicatesOf(store)).toEqual([null, null, null, 2, 1])
+      expect(store.tracks.map((track) => track.inclusion)).toEqual([
+        'included',
+        'included',
+        'included',
+        'duplicate',
+        'duplicate',
+      ])
+      expect(store.tracks.map((track) => track.exportNumber)).toEqual([1, 2, 3, null, null])
+      expect(store.exportTrackCount).toBe(3)
+    })
+
+    it('leaves a track left out by hand out, without its words', async () => {
+      const store = openPlaylist(A(), B(), A())
+      leaveOut(store, 3)
+      await store.findDuplicates()
+      expect(duplicatesOf(store)).toEqual([null, null, 1])
+
+      dismiss(store, 3)
+
+      expect(duplicatesOf(store)).toEqual([null, null, null])
+      expect(store.tracks[2]).toMatchObject({ inclusion: 'by-hand', isLeftOut: true })
+    })
+
+    it('drops the match from the counts', async () => {
+      const store = await pressedFiveTracks()
+      expect(store.duplicateResult).toEqual({ duplicates: 3 })
+
+      dismiss(store, 4)
+
+      expect(store.duplicateResult).toEqual({ duplicates: 2 })
+    })
+
+    it('refuses a pair that is no live match', async () => {
+      const store = await pressedFiveTracks()
+
+      // 02 and 04 are no match in this order, and 01 does not repeat 02.
+      store.dismissMatch(
+        store.tracks[1]?.startSplit?.id ?? null,
+        store.tracks[3]?.startSplit?.id ?? null,
+      )
+      store.dismissMatch(
+        store.tracks[0]?.startSplit?.id ?? null,
+        store.tracks[1]?.startSplit?.id ?? null,
+      )
+      store.dismissMatch(999, null)
+
+      expect(duplicatesOf(store)).toEqual([null, null, 1, 2, 1])
+      expect(store.editCount).toBe(0)
+    })
+
+    it('is one edit while both tracks keep their ends, and no edit once one changes', async () => {
+      const store = await pressedFiveTracks()
+      expect(store.editCount).toBe(0)
+
+      dismiss(store, 3)
+      expect(store.editCount).toBe(1)
+      expect(store.hasEdits).toBe(true)
+
+      // 03's start moves: the dismissal is no longer live, so only the move is an edit.
+      const start = store.tracks[2]!.startSplit!
+      store.selectSplit(start.id)
+      store.moveSplit(start.id, start.seconds + 1)
+      expect(duplicatesOf(store)[2]).toBeNull()
+      expect(store.editCount).toBe(1)
+    })
+
+    it('counts two dismissals as two edits', async () => {
+      const store = await pressedFiveTracks()
+
+      dismiss(store, 3)
+      dismiss(store, 4)
+
+      expect(store.editCount).toBe(2)
+    })
+
+    it('is dropped by Clear splits', async () => {
+      const store = await pressedFiveTracks()
+      dismiss(store, 3)
+
+      store.clearSplits()
+
+      expect(store.editCount).toBe(0)
+      expect(store.hasEdits).toBe(false)
+    })
+
+    it('is dropped by a new file, so the same tracks are found again', async () => {
+      const store = await pressedFiveTracks()
+      dismiss(store, 3)
+
+      const curve = playlist(A(), B(), A())
+      store.open(curve, { windowSeconds: 0.05, durationSeconds: curve.length * 0.05 })
+      store.addGapSplits()
+      await store.findDuplicates()
+
+      expect(store.editCount).toBe(0)
+      expect(duplicatesOf(store)).toEqual([null, null, 1])
+    })
+
+    it('stays dismissed on a second press while neither track changed', async () => {
+      const store = await pressedFiveTracks()
+      dismiss(store, 3)
+
+      await store.findDuplicates()
+
+      expect(duplicatesOf(store)).toEqual([null, null, null, 2, 1])
+      expect(store.duplicateResult).toEqual({ duplicates: 2 })
+    })
+
+    it('is found again on a second press once a track of the pair has changed', async () => {
+      const store = await pressedFiveTracks()
+      dismiss(store, 3)
+      const start = store.tracks[2]!.startSplit!
+      store.selectSplit(start.id)
+      store.moveSplit(start.id, start.seconds + 1)
+
+      await store.findDuplicates()
+
+      // The moved split is a second off: 03 is within the 2 s of its ends, so 03 and 05 name 01.
+      expect(duplicatesOf(store)[2]).toBe(1)
+    })
+
+    it('does not let a dismissed pair join its recording through a third copy', async () => {
+      const store = openPlaylist(A(), B(), A(), A())
+      await store.findDuplicates()
+      expect(duplicatesOf(store)).toEqual([null, null, 1, 1])
+
+      dismiss(store, 3)
+      await store.findDuplicates()
+
+      // 03 is not a duplicate of 01 any more; 04 still repeats 01.
+      expect(duplicatesOf(store)).toEqual([null, null, null, 1])
+    })
+
+    it('keeps a dismissed last copy out of a second press', async () => {
+      const store = await pressedFiveTracks()
+      dismiss(store, 5)
+
+      await store.findDuplicates()
+
+      expect(duplicatesOf(store)).toEqual([null, null, 1, 2, null])
+    })
+  })
+
+  describe('bringing a duplicate back', () => {
+    it('dismisses the match instead of leaving the track out by hand', async () => {
+      const store = await pressedFiveTracks()
+
+      leaveOut(store, 3)
+
+      expect(duplicatesOf(store)).toEqual([null, null, null, 2, 1])
+      expect(store.tracks[2]).toMatchObject({ inclusion: 'included', isLeftOut: false })
+      expect(store.editCount).toBe(1)
+    })
+
+    it('leaves a dismissed duplicate out by hand, as any track', async () => {
+      const store = await pressedFiveTracks()
+      leaveOut(store, 3)
+
+      leaveOut(store, 3)
+
+      expect(store.tracks[2]).toMatchObject({ inclusion: 'by-hand', isLeftOut: true })
+      expect(store.editCount).toBe(2)
+    })
+
+    it('brings a duplicate left out by hand back to a duplicate, then dismisses it', async () => {
+      const store = openPlaylist(A(), B(), A())
+      leaveOut(store, 3)
+      await store.findDuplicates()
+      expect(store.tracks[2]?.inclusion).toBe('by-hand')
+
+      leaveOut(store, 3)
+      expect(store.tracks[2]).toMatchObject({ inclusion: 'duplicate', isLeftOut: true })
+
+      leaveOut(store, 3)
+      expect(store.tracks[2]).toMatchObject({ inclusion: 'included', isLeftOut: false })
     })
   })
 

@@ -49,6 +49,10 @@ function nameField(wrapper: ReturnType<typeof mount>, trackNumber: number) {
 const fieldValues = (wrapper: ReturnType<typeof mount>) =>
   [1, 2, 3].map((number) => nameField(wrapper, number).element.value)
 
+// The dismiss button of track 3, the duplicate of these specs.
+const dismissButton = (wrapper: ReturnType<typeof mount>) =>
+  wrapper.find('button[aria-label="Dismiss the match of track 3"]')
+
 function removeButton(wrapper: ReturnType<typeof mount>, trackNumber: number) {
   return wrapper.get(`button[aria-label="Remove track ${trackNumber}"]`)
 }
@@ -188,6 +192,80 @@ describe('TrackList', () => {
 
       expect(split.selectedTrack?.number).toBe(3)
       expect(wrapper.find('button[aria-label="Remove track 3"]').exists()).toBe(true)
+    })
+  })
+
+  describe('dismissing a match', () => {
+    it('has a button beside the words of each match, named for the track, and no other has one', async () => {
+      const { wrapper } = await mountWithDuplicate()
+
+      expect(wrapper.findAll('button[aria-label^="Dismiss"]')).toHaveLength(1)
+      const words = trackRows(wrapper)[2]?.get('p')
+      expect(words?.text()).toBe('duplicate of 01')
+      expect(words?.element.nextElementSibling).toBe(dismissButton(wrapper).element)
+    })
+
+    it('can be reached with Tab', async () => {
+      const { wrapper } = await mountWithDuplicate()
+
+      expect(dismissButton(wrapper).attributes('tabindex')).toBeUndefined()
+      expect(dismissButton(wrapper).element.tagName).toBe('BUTTON')
+    })
+
+    it('exports the track again, takes the words and the button away, and is one edit', async () => {
+      const { split, wrapper } = await mountWithDuplicate()
+      expect(split.editCount).toBe(0)
+
+      await dismissButton(wrapper).trigger('click')
+
+      expect(split.tracks[2]).toMatchObject({ inclusion: 'included', duplicateOf: null })
+      expect(trackRows(wrapper)[2]?.text()).not.toContain('duplicate of')
+      expect(dismissButton(wrapper).exists()).toBe(false)
+      expect(trackRows(wrapper)[2]?.classes()).not.toContain('text-muted')
+      expect(split.editCount).toBe(1)
+    })
+
+    it('stops the row’s click, so the selection stays', async () => {
+      const { split, wrapper } = await mountWithDuplicate()
+      split.selectTrack(split.tracks[0]!)
+
+      await dismissButton(wrapper).trigger('click')
+
+      expect(split.selectedTrack?.number).toBe(1)
+    })
+
+    it('leaves a track left out by hand out, without its words', async () => {
+      const split = useSplitStore()
+      split.open(curveWithThreeLongTracks(), { windowSeconds: 0.05, durationSeconds: 107 })
+      split.addGapSplits()
+      split.toggleLeftOut(split.tracks[2]?.startSplit?.id ?? null)
+      await split.findDuplicates()
+      const wrapper = mount(TrackList)
+      expect(trackRows(wrapper)[2]?.text()).toContain('duplicate of 01')
+
+      await dismissButton(wrapper).trigger('click')
+
+      expect(trackRows(wrapper)[2]?.text()).not.toContain('duplicate of')
+      expect(split.tracks[2]).toMatchObject({ inclusion: 'by-hand', isLeftOut: true })
+      expect(trackRows(wrapper)[2]?.classes()).toContain('text-muted')
+    })
+
+    it('is what the eye button does on a duplicate, which then brings back and leaves out as any track', async () => {
+      const { split, wrapper } = await mountWithDuplicate()
+      const eye = () =>
+        wrapper.get(
+          'button[aria-label$="track 3"]:not([aria-label^="Select"]):not([aria-label^="Remove"]):not([aria-label^="Dismiss"])',
+        )
+
+      expect(eye().attributes('aria-label')).toBe('Bring back track 3')
+      await eye().trigger('click')
+
+      expect(split.tracks[2]).toMatchObject({ inclusion: 'included', duplicateOf: null })
+      expect(eye().attributes('aria-label')).toBe('Leave out track 3')
+
+      await eye().trigger('click')
+      expect(split.tracks[2]).toMatchObject({ inclusion: 'by-hand' })
+      expect(eye().attributes('aria-label')).toBe('Bring back track 3')
     })
   })
 
