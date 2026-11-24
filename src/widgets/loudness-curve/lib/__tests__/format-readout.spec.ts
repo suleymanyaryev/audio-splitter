@@ -48,11 +48,21 @@ describe('formatOffset', () => {
 
 describe('formatDuplicateResult', () => {
   it('counts the duplicates, in the singular for one', () => {
-    expect(formatDuplicateResult(1)).toBe('1 duplicate')
-    expect(formatDuplicateResult(23)).toBe('23 duplicates')
+    expect(formatDuplicateResult(1, 0)).toBe('1 duplicate')
+    expect(formatDuplicateResult(23, 0)).toBe('23 duplicates')
   })
 
-  it('says none were found for none', () => {
-    expect(formatDuplicateResult(0)).toBe('No duplicates found')
+  it('counts the partial matches after the duplicates, in the singular for one', () => {
+    expect(formatDuplicateResult(3, 1)).toBe('3 duplicates, 1 partial match')
+    expect(formatDuplicateResult(1, 2)).toBe('1 duplicate, 2 partial matches')
+  })
+
+  it('leaves out what there is none of', () => {
+    expect(formatDuplicateResult(0, 1)).toBe('1 partial match')
+    expect(formatDuplicateResult(0, 4)).toBe('4 partial matches')
+  })
+
+  it('says none were found for none of either', () => {
+    expect(formatDuplicateResult(0, 0)).toBe('No duplicates found')
   })
 })

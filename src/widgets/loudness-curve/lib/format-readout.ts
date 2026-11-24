@@ -23,10 +23,16 @@ export function formatOffset(offsetDecibels: number): string {
 }
 
 /*
-What Find duplicates found, for the line beside its button: "1 duplicate", "23 duplicates", or "No
-duplicates found" when the search ran and found none.
+What Find duplicates found, for the line beside its button: "3 duplicates, 1 partial match", with
+only the part there is something to say about ("1 duplicate", "2 partial matches"), or "No
+duplicates found" when the search ran and found neither.
 */
-export function formatDuplicateResult(duplicates: number): string {
-  if (duplicates === 0) return 'No duplicates found'
-  return `${duplicates} ${duplicates === 1 ? 'duplicate' : 'duplicates'}`
+export function formatDuplicateResult(duplicates: number, partialMatches: number): string {
+  const parts = [
+    ...(duplicates > 0 ? [`${duplicates} ${duplicates === 1 ? 'duplicate' : 'duplicates'}`] : []),
+    ...(partialMatches > 0
+      ? [`${partialMatches} partial ${partialMatches === 1 ? 'match' : 'matches'}`]
+      : []),
+  ]
+  return parts.length === 0 ? 'No duplicates found' : parts.join(', ')
 }

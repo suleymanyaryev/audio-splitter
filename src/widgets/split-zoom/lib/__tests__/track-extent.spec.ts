@@ -7,7 +7,7 @@ const track = (startSeconds: number, lengthSeconds: number): Track => ({
   number: 2,
   inclusion: 'included',
   isLeftOut: false,
-  duplicateOf: null,
+  matches: [],
   exportNumber: 2,
   ownName: null,
   name: '2',

@@ -82,7 +82,7 @@ function confirmClear() {
           Find gaps ({{ split.gapSplitSeconds.length }})
         </UiButton>
       </UiTooltip>
-      <UiTooltip label="Find tracks that repeat an earlier track from end to end">
+      <UiTooltip label="Find tracks that repeat an earlier track, from end to end or in part">
         <UiButton
           size="sm"
           :disabled="!split.canFindDuplicates"
@@ -99,7 +99,12 @@ function confirmClear() {
         role="status"
         class="text-sm whitespace-nowrap text-muted"
       >
-        {{ formatDuplicateResult(split.duplicateResult.duplicates) }}
+        {{
+          formatDuplicateResult(
+            split.duplicateResult.duplicates,
+            split.duplicateResult.partialMatches,
+          )
+        }}
       </p>
       <UiTooltip label="Delete every split and name, and start over with one track">
         <UiButton size="sm" :disabled="!split.canClearSplits" @click="clearSplits">

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, useTemplateRef } from 'vue'
 
-import { duplicateWords } from '@/entities/split/lib/match-words.ts'
+import { matchWords } from '@/entities/split/lib/match-words.ts'
 import { useSplitStore, type Track } from '@/entities/split/model/split.ts'
 import { releaseFocus } from '@/shared/lib/keyboard/release-focus.ts'
 import { formatDuration } from '@/shared/lib/time/format-duration.ts'
@@ -66,9 +66,10 @@ const blocks = computed(() => {
       track.isLeftOut ? track.placeName : track.name,
       formatDuration(track.lengthSeconds),
       ...(track.isLeftOut ? ['left out'] : []),
-      ...(track.duplicateOf === null
-        ? []
-        : [duplicateWords(track.duplicateOf, split.tracks.length)]),
+      // A partial match changes nothing here: the strip shows what the export skips.
+      ...track.matches
+        .filter((match) => match.kind === 'duplicate')
+        .map((match) => matchWords(match, split.tracks.length)),
     ].join(', '),
     // The split item before this block, where the track starts: none before the first block.
     splitItem:

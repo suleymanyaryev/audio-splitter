@@ -1,6 +1,7 @@
 import { beforeEach, describe, it, expect, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 
+import { matchWords } from '../../lib/match-words.ts'
 import { useSplitStore } from '../split.ts'
 
 /*
@@ -65,9 +66,26 @@ function openPlaylist(...recordings: number[][]) {
   return store
 }
 
+// The track's match that makes it a duplicate, or undefined.
+const duplicateOf = (track: { matches: { kind: string; number: number }[] }) =>
+  track.matches.find((match) => match.kind === 'duplicate')
+
+// What each track's partial matches say, as the track list words them.
+const partialsOf = (store: ReturnType<typeof useSplitStore>) =>
+  store.tracks.map((track) =>
+    track.matches
+      .filter((match) => match.kind !== 'duplicate')
+      .map((match) => matchWords(match, store.tracks.length)),
+  )
+
+// A recording of 80 s, and the first 30 s of one and the rest: what a split placed late divides.
+const LONG = () => recording(2, 80)
+const FIRST_30 = (windows: number[]) => windows.slice(0, 30 * WINDOWS_PER_SECOND)
+const FROM_30 = (windows: number[]) => windows.slice(30 * WINDOWS_PER_SECOND)
+
 // Where each track repeats: the number of the track it is a duplicate of, or null.
 const duplicatesOf = (store: ReturnType<typeof useSplitStore>) =>
-  store.tracks.map((track) => track.duplicateOf?.number ?? null)
+  store.tracks.map((track) => duplicateOf(track)?.number ?? null)
 
 // Leaves track `number` (1-based) out by hand, as the eye button does.
 function leaveOut(store: ReturnType<typeof useSplitStore>, number: number) {
@@ -100,7 +118,7 @@ const A_WITH_DIP = () =>
 // The track's match with the kept copy, as the track list's button names it.
 function dismiss(store: ReturnType<typeof useSplitStore>, number: number) {
   const track = store.tracks[number - 1]
-  const kept = store.tracks[(track?.duplicateOf?.number ?? 0) - 1]
+  const kept = store.tracks[((track && duplicateOf(track))?.number ?? 0) - 1]
   store.dismissMatch(track?.startSplit?.id ?? null, kept?.startSplit?.id ?? null)
 }
 
@@ -212,6 +230,181 @@ describe('Find duplicates', () => {
     })
   })
 
+  describe('partial matches', () => {
+    it('shows both pieces of a track that holds two earlier tracks, where each starts', async () => {
+      // A and B played with no split between them in the second pass, 40 s in.
+      const store = openPlaylist(A(), B(), C(), [...A(), ...B()])
+
+      await store.findDuplicates()
+
+      expect(duplicatesOf(store)).toEqual([null, null, null, null])
+      expect(partialsOf(store)).toEqual([[], [], [], ['01 from 0:02', '02 from 0:42']])
+      expect(store.duplicateResult).toEqual({ duplicates: 0, partialMatches: 2 })
+    })
+
+    it('says where in each track the shared stretch lies, for the tooltip', async () => {
+      const store = openPlaylist(A(), B(), C(), [...A(), ...B()])
+
+      await store.findDuplicates()
+
+      expect(store.tracks[3]?.matches).toMatchObject([
+        { kind: 'holds', number: 1, here: { from: 2, to: 42 }, there: { from: 0, to: 40 } },
+        { kind: 'holds', number: 2, here: { from: 42, to: 92 }, there: { from: 2, to: 52 } },
+      ])
+    })
+
+    it('says both sides of a split placed late', async () => {
+      // 30 s of the second recording sit at the end of the first one's track, and the rest of it
+      // is a track of its own.
+      const store = openPlaylist(A(), LONG(), C(), [...A(), ...FIRST_30(LONG())], FROM_30(LONG()))
+
+      await store.findDuplicates()
+
+      expect(duplicatesOf(store)).toEqual([null, null, null, null, null])
+      expect(partialsOf(store)).toEqual([
+        [],
+        [],
+        [],
+        ['01 from 0:02', '02 from 0:42'],
+        ['part of 02 from 0:32'],
+      ])
+      expect(store.duplicateResult).toEqual({ duplicates: 0, partialMatches: 3 })
+    })
+
+    it('gives no partial match to a duplicate, and none that names one', async () => {
+      // 02 repeats 01, and the last track holds A and B: it holds 01 and 03, never 02.
+      const store = openPlaylist(A(), A(), B(), [...A(), ...B()])
+
+      await store.findDuplicates()
+
+      expect(duplicatesOf(store)).toEqual([null, 1, null, null])
+      expect(partialsOf(store)).toEqual([[], [], [], ['01 from 0:02', '03 from 0:42']])
+      expect(store.tracks[1]?.matches.map((match) => match.kind)).toEqual(['duplicate'])
+    })
+
+    it('gives a duplicate its full match only, though it also holds a stretch of an earlier track', async () => {
+      // 03 repeats 01 end to end, and 02 is 01 and a second recording: 03 is part of nothing.
+      const store = openPlaylist(A(), [...A(), ...B()], A())
+
+      await store.findDuplicates()
+
+      expect(duplicatesOf(store)).toEqual([null, null, 1])
+      expect(partialsOf(store)).toEqual([[], ['01 from 0:02'], []])
+    })
+
+    it('leaves a track with no partial match alone, in the export too', async () => {
+      const store = openPlaylist(A(), B(), C(), [...A(), ...B()])
+
+      await store.findDuplicates()
+
+      expect(store.tracks.map((track) => track.inclusion)).toEqual([
+        'included',
+        'included',
+        'included',
+        'included',
+      ])
+      expect(store.tracks.map((track) => track.exportNumber)).toEqual([1, 2, 3, 4])
+      expect(store.exportTrackCount).toBe(4)
+    })
+
+    it('finds no partial match on a second pass of the same tracks', async () => {
+      const store = openPlaylist(A(), B(), C(), A(), B(), C())
+
+      await store.findDuplicates()
+
+      expect(partialsOf(store)).toEqual([[], [], [], [], [], []])
+      expect(store.duplicateResult).toEqual({ duplicates: 3, partialMatches: 0 })
+    })
+
+    it('needs 30 s of shared stretch', async () => {
+      // The second track holds only 25 s of the first.
+      const store = openPlaylist(A(), [
+        ...recording(9, 40),
+        ...A().slice(0, 25 * WINDOWS_PER_SECOND),
+      ])
+
+      await store.findDuplicates()
+
+      expect(partialsOf(store)).toEqual([[], []])
+    })
+
+    it('says part of a track that is a stretch of an earlier one, from where it starts in it', async () => {
+      const store = openPlaylist(LONG(), FROM_30(LONG()), C())
+
+      await store.findDuplicates()
+
+      expect(partialsOf(store)).toEqual([[], ['part of 01 from 0:30'], []])
+    })
+
+    it('words a stretch to the nearest 0.2 s, and with the kept copy’s name', async () => {
+      const store = openPlaylist(LONG(), LONG().slice(Math.round(30.4 * WINDOWS_PER_SECOND)), C())
+      store.renameTrack(store.tracks[0]?.startSplit?.id ?? null, 'Opening')
+
+      await store.findDuplicates()
+
+      expect(partialsOf(store)).toEqual([[], ['part of 01 Opening from 0:30.4'], []])
+    })
+
+    it('follows the track numbers after a split elsewhere', async () => {
+      const store = openPlaylist(C(), A(), B(), [...A(), ...B()])
+      await store.findDuplicates()
+      expect(partialsOf(store)[3]).toEqual(['02 from 0:02', '03 from 0:42'])
+
+      store.addSplitAt(20)
+
+      expect(partialsOf(store)[4]).toEqual(['03 from 0:02', '04 from 0:42'])
+    })
+
+    it('lasts only while both tracks keep their ends', async () => {
+      const store = openPlaylist(A(), B(), C(), [...A(), ...B()])
+      await store.findDuplicates()
+      const track = store.tracks[3]
+      const split = track?.startSplit
+      expect(split).toBeDefined()
+
+      // The holding track's start moves: both its matches stop holding, the others stay.
+      store.selectSplit(split?.id ?? 0)
+      store.moveSplit(split?.id ?? 0, (split?.seconds ?? 0) - 1)
+
+      expect(partialsOf(store)[3]).toEqual([])
+      expect(store.duplicateResult).toEqual({ duplicates: 0, partialMatches: 0 })
+    })
+
+    it('is dismissed like a match, and one piece at a time', async () => {
+      const store = openPlaylist(A(), B(), C(), [...A(), ...B()])
+      await store.findDuplicates()
+
+      store.dismissMatch(store.tracks[3]?.startSplit?.id ?? null, null)
+
+      expect(partialsOf(store)[3]).toEqual(['02 from 0:42'])
+      expect(store.tracks[3]?.inclusion).toBe('included')
+      expect(store.duplicateResult).toEqual({ duplicates: 0, partialMatches: 1 })
+      expect(store.editCount).toBe(1)
+    })
+
+    it('stays dismissed on a second press, and the other piece is found again', async () => {
+      const store = openPlaylist(A(), B(), C(), [...A(), ...B()])
+      await store.findDuplicates()
+      store.dismissMatch(store.tracks[3]?.startSplit?.id ?? null, null)
+
+      await store.findDuplicates()
+
+      expect(partialsOf(store)[3]).toEqual(['02 from 0:42'])
+    })
+
+    it('lets a track hold a dismissed duplicate, which is a track like any other', async () => {
+      const store = openPlaylist(A(), B(), A(), [...A(), ...B()])
+      await store.findDuplicates()
+      expect(partialsOf(store)[3]).toEqual(['01 from 0:02', '02 from 0:42'])
+      dismiss(store, 3)
+
+      await store.findDuplicates()
+
+      expect(duplicatesOf(store)).toEqual([null, null, null, null])
+      expect(partialsOf(store)[3]).toEqual(['01 from 0:02', '02 from 0:42', '03 from 0:02'])
+    })
+  })
+
   describe('copies left out by hand', () => {
     it('makes the earliest copy not left out by hand the kept copy', async () => {
       const store = openPlaylist(A(), B(), A(), A(), B())
@@ -241,7 +434,14 @@ describe('Find duplicates', () => {
         inclusion: 'by-hand',
         isLeftOut: true,
         exportNumber: null,
-        duplicateOf: { number: 1, ownName: null, startSplitId: null },
+        matches: [
+          expect.objectContaining({
+            kind: 'duplicate',
+            number: 1,
+            ownName: null,
+            startSplitId: null,
+          }),
+        ],
       })
       expect(store.tracks[3]?.inclusion).toBe('duplicate')
       // The two copies are left out, one by hand and one as a duplicate: 01 and 02 are written.
@@ -259,7 +459,7 @@ describe('Find duplicates', () => {
 
       // A has no match at all; B still has one.
       expect(duplicatesOf(store)).toEqual([null, null, null, 2, null])
-      expect(store.duplicateResult).toEqual({ duplicates: 1 })
+      expect(store.duplicateResult).toEqual({ duplicates: 1, partialMatches: 0 })
     })
 
     it('gives no match to a recording left out by hand, and one to the other', async () => {
@@ -270,7 +470,7 @@ describe('Find duplicates', () => {
       await store.findDuplicates()
 
       expect(duplicatesOf(store)).toEqual([null, null, null, 3])
-      expect(store.duplicateResult).toEqual({ duplicates: 1 })
+      expect(store.duplicateResult).toEqual({ duplicates: 1, partialMatches: 0 })
     })
 
     it('lets the kept copy be left out after the press without moving any match', async () => {
@@ -328,7 +528,7 @@ describe('Find duplicates', () => {
 
       await store.findDuplicates()
 
-      expect(store.duplicateResult).toEqual({ duplicates: 2 })
+      expect(store.duplicateResult).toEqual({ duplicates: 2, partialMatches: 0 })
     })
 
     it('says none were found when the search ran and found none', async () => {
@@ -336,7 +536,7 @@ describe('Find duplicates', () => {
 
       await store.findDuplicates()
 
-      expect(store.duplicateResult).toEqual({ duplicates: 0 })
+      expect(store.duplicateResult).toEqual({ duplicates: 0, partialMatches: 0 })
     })
 
     it('counts again after a second press, with the same answer', async () => {
@@ -346,7 +546,7 @@ describe('Find duplicates', () => {
       await store.findDuplicates()
 
       expect(duplicatesOf(store)).toEqual([null, null, 1])
-      expect(store.duplicateResult).toEqual({ duplicates: 1 })
+      expect(store.duplicateResult).toEqual({ duplicates: 1, partialMatches: 0 })
     })
   })
 
@@ -433,7 +633,7 @@ describe('Find duplicates', () => {
 
       await store.findDuplicates()
 
-      expect(store.duplicateResult).toEqual({ duplicates: 1 })
+      expect(store.duplicateResult).toEqual({ duplicates: 1, partialMatches: 0 })
       expect({
         splits: JSON.stringify(store.splits),
         firstName: store.firstTrackName,
@@ -493,7 +693,7 @@ describe('Find duplicates', () => {
     it('drops every match on Clear splits and on a new file', async () => {
       const store = openPlaylist(A(), B(), A())
       await store.findDuplicates()
-      expect(store.duplicateResult).toEqual({ duplicates: 1 })
+      expect(store.duplicateResult).toEqual({ duplicates: 1, partialMatches: 0 })
 
       store.clearSplits()
       expect(store.duplicateResult).toBeNull()
@@ -523,7 +723,7 @@ describe('Find duplicates', () => {
         'included',
         'included',
       ])
-      expect(store.duplicateResult).toEqual({ duplicates: 0 })
+      expect(store.duplicateResult).toEqual({ duplicates: 0, partialMatches: 0 })
     })
 
     it('drops the matches of a track whose start split moves, and exports it again', async () => {
@@ -538,7 +738,7 @@ describe('Find duplicates', () => {
       expect(store.tracks[2]?.inclusion).toBe('included')
       expect(store.tracks[2]?.exportNumber).toBe(3)
       expect(store.tracks[3]?.exportNumber).toBe(4)
-      expect(store.duplicateResult).toEqual({ duplicates: 1 })
+      expect(store.duplicateResult).toEqual({ duplicates: 1, partialMatches: 0 })
     })
 
     it('drops the matches of a track whose end split moves', async () => {
@@ -561,7 +761,7 @@ describe('Find duplicates', () => {
 
       // 01 is the kept copy of 03 and 05, and 02 shares the split: 04 named 02, which changed too.
       expect(duplicatesOf(store)).toEqual([null, null, null, null, null])
-      expect(store.duplicateResult).toEqual({ duplicates: 0 })
+      expect(store.duplicateResult).toEqual({ duplicates: 0, partialMatches: 0 })
     })
 
     it('drops the matches of a track whose split is deleted, and the matches naming it', async () => {
@@ -582,7 +782,7 @@ describe('Find duplicates', () => {
 
       expect(store.tracks).toHaveLength(4)
       expect(duplicatesOf(store)).toEqual([null, null, null, null])
-      expect(store.duplicateResult).toEqual({ duplicates: 0 })
+      expect(store.duplicateResult).toEqual({ duplicates: 0, partialMatches: 0 })
     })
 
     it('makes an included track of a merge that starts with a duplicate', async () => {
@@ -629,7 +829,7 @@ describe('Find duplicates', () => {
 
       expect(store.tracks).toHaveLength(6)
       expect(duplicatesOf(store)).toEqual([null, null, null, null, 3, null])
-      expect(store.duplicateResult).toEqual({ duplicates: 1 })
+      expect(store.duplicateResult).toEqual({ duplicates: 1, partialMatches: 0 })
     })
 
     it('drops the matches of a track that Find gaps cuts, and keeps the others', async () => {
@@ -657,20 +857,20 @@ describe('Find duplicates', () => {
       leaveOut(store, 2)
 
       expect(duplicatesOf(store)).toEqual([null, null, 1, 2, 1])
-      expect(store.duplicateResult).toEqual({ duplicates: 3 })
+      expect(store.duplicateResult).toEqual({ duplicates: 3, partialMatches: 0 })
     })
 
     it('shows the live number and the name of the kept copy after a split elsewhere', async () => {
       const store = openPlaylist(C(), A(), B(), A())
       store.renameTrack(store.tracks[1]?.startSplit?.id ?? null, 'Opening')
       await store.findDuplicates()
-      expect(store.tracks[3]?.duplicateOf).toMatchObject({ number: 2, ownName: 'Opening' })
+      expect(store.tracks[3]?.matches[0]).toMatchObject({ number: 2, ownName: 'Opening' })
 
       // Inside 01, which no match holds: every track after it moves one place on.
       store.addSplitAt(20)
 
-      expect(store.tracks[4]?.duplicateOf).toMatchObject({ number: 3, ownName: 'Opening' })
-      expect(store.duplicateResult).toEqual({ duplicates: 1 })
+      expect(store.tracks[4]?.matches[0]).toMatchObject({ number: 3, ownName: 'Opening' })
+      expect(store.duplicateResult).toEqual({ duplicates: 1, partialMatches: 0 })
     })
 
     it('gives no name while the kept copy has none', async () => {
@@ -678,7 +878,7 @@ describe('Find duplicates', () => {
 
       await store.findDuplicates()
 
-      expect(store.tracks[2]?.duplicateOf).toMatchObject({
+      expect(store.tracks[2]?.matches[0]).toMatchObject({
         number: 1,
         ownName: null,
         startSplitId: null,
@@ -700,7 +900,7 @@ describe('Find duplicates', () => {
 
       // 03 and 02 changed, so the matches of 03 and 04 are dead on arrival; 05 keeps its own.
       expect(duplicatesOf(store)).toEqual([null, null, null, null, 1])
-      expect(store.duplicateResult).toEqual({ duplicates: 1 })
+      expect(store.duplicateResult).toEqual({ duplicates: 1, partialMatches: 0 })
     })
 
     it('leaves dead the matches of a track a split was added inside meanwhile', async () => {
@@ -712,7 +912,7 @@ describe('Find duplicates', () => {
       for (const answer of client.held) answer()
       await search
 
-      expect(store.duplicateResult).toEqual({ duplicates: 0 })
+      expect(store.duplicateResult).toEqual({ duplicates: 0, partialMatches: 0 })
       expect(store.tracks.every((track) => !track.isLeftOut)).toBe(true)
     })
 
@@ -770,11 +970,11 @@ describe('Find duplicates', () => {
 
     it('drops the match from the counts', async () => {
       const store = await pressedFiveTracks()
-      expect(store.duplicateResult).toEqual({ duplicates: 3 })
+      expect(store.duplicateResult).toEqual({ duplicates: 3, partialMatches: 0 })
 
       dismiss(store, 4)
 
-      expect(store.duplicateResult).toEqual({ duplicates: 2 })
+      expect(store.duplicateResult).toEqual({ duplicates: 2, partialMatches: 0 })
     })
 
     it('refuses a pair that is no live match', async () => {
@@ -850,7 +1050,7 @@ describe('Find duplicates', () => {
       await store.findDuplicates()
 
       expect(duplicatesOf(store)).toEqual([null, null, null, 2, 1])
-      expect(store.duplicateResult).toEqual({ duplicates: 2 })
+      expect(store.duplicateResult).toEqual({ duplicates: 2, partialMatches: 0 })
     })
 
     it('is found again on a second press once a track of the pair has changed', async () => {
@@ -938,7 +1138,7 @@ describe('Find duplicates', () => {
 
       // The moved split is a second off now: 03 is within the 2 s of the ends, so it is back.
       expect(duplicatesOf(store)).toEqual([null, null, 1, 2])
-      expect(store.duplicateResult).toEqual({ duplicates: 2 })
+      expect(store.duplicateResult).toEqual({ duplicates: 2, partialMatches: 0 })
     })
   })
 })

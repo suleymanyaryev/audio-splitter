@@ -3,15 +3,16 @@ import { createPinia, setActivePinia } from 'pinia'
 
 import { flushPromises, mount } from '@vue/test-utils'
 import { DEFAULT_MINIMUM_GAP_SECONDS, DEFAULT_OFFSET_DB } from '@/entities/split/config/defaults.ts'
+import type { FoundMatch } from '@/entities/split/lib/find-matches.ts'
 import { useSplitStore } from '@/entities/split/model/split.ts'
 import LoudnessSettings from '../LoudnessSettings.vue'
 
 /*
-The worker is replaced by an answer the spec chooses: which tracks the search says are duplicates.
+The worker is replaced by an answer the spec chooses: which matches the search says there are.
 `isHolding` keeps the answer back, so the busy state can be looked at.
 */
 const search = vi.hoisted(() => ({
-  answer: [] as { duplicate: number; kept: number }[],
+  answer: [] as FoundMatch[],
   isHolding: false,
   release: () => {},
 }))
@@ -25,6 +26,17 @@ vi.mock('@/entities/split/api/find-matches-client.ts', () => ({
       else answer()
     }),
 }))
+
+// A match of the later track with the earlier one, whatever they share.
+function match(later: number, earlier: number, kind: FoundMatch['kind']): FoundMatch {
+  return {
+    later,
+    earlier,
+    kind,
+    laterShared: { from: 0, to: 30 },
+    earlierShared: { from: 0, to: 30 },
+  }
+}
 
 // 20 s at 50 ms per window: loud, a 2 s silence from 10 s, loud again.
 function curveWithOneGap() {
@@ -214,7 +226,7 @@ describe('LoudnessSettings', () => {
     })
 
     it('counts what the search found, and changes no split', async () => {
-      search.answer = [{ duplicate: 2, kept: 0 }]
+      search.answer = [match(2, 0, 'full')]
       const wrapper = mount(LoudnessSettings)
       const split = useSplitStore()
 
@@ -224,6 +236,16 @@ describe('LoudnessSettings', () => {
       expect(wrapper.get('[role="status"]').text()).toBe('1 duplicate')
       expect(split.splits).toHaveLength(2)
       expect(split.editCount).toBe(0)
+    })
+
+    it('counts the partial matches after the duplicates', async () => {
+      search.answer = [match(1, 0, 'full'), match(2, 0, 'holds'), match(2, 1, 'part-of')]
+      const wrapper = mount(LoudnessSettings)
+
+      await findDuplicatesButton(wrapper).trigger('click')
+      await flushPromises()
+
+      expect(wrapper.get('[role="status"]').text()).toBe('1 duplicate, 2 partial matches')
     })
 
     it('says so when the search found none', async () => {

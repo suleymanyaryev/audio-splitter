@@ -9,7 +9,16 @@ import { FakeFolder } from './fake-folder.ts'
 
 // The worker is replaced by an answer: the second track repeats the first, the third is its own.
 vi.mock('@/entities/split/api/find-matches-client.ts', () => ({
-  findMatchesInWorker: () => Promise.resolve([{ duplicate: 1, kept: 0 }]),
+  findMatchesInWorker: () =>
+    Promise.resolve([
+      {
+        later: 1,
+        earlier: 0,
+        kind: 'full',
+        laterShared: { from: 0, to: 30 },
+        earlierShared: { from: 0, to: 30 },
+      },
+    ]),
 }))
 
 // 107 s: three loud stretches of 35 s with a 2 s silence between each two, so three tracks of 30 s or more.
@@ -64,7 +73,7 @@ async function findTheDuplicate(split: ReturnType<typeof useSplitStore>) {
   split.open(curveWithThreeLongTracks(), { windowSeconds: 0.05, durationSeconds: 107 })
   split.addGapSplits()
   await split.findDuplicates()
-  expect(split.tracks.map((track) => track.duplicateOf?.number ?? null)).toEqual([null, 1, null])
+  expect(split.tracks.map((track) => track.matches[0]?.number ?? null)).toEqual([null, 1, null])
 }
 
 // The names of the files the export wrote into its subfolder, in order.

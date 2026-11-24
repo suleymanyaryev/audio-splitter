@@ -2,12 +2,25 @@ import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 
 import { mount } from '@vue/test-utils'
+import type { FoundMatch } from '@/entities/split/lib/find-matches.ts'
 import { useSplitStore } from '@/entities/split/model/split.ts'
 import TrackList from '../TrackList.vue'
 
-// The worker is replaced by an answer: the third track repeats the first.
+/*
+The worker is replaced by an answer the spec chooses: by default the third track repeats the first.
+*/
+const search = vi.hoisted(() => {
+  const copyOfFirst: FoundMatch = {
+    later: 2,
+    earlier: 0,
+    kind: 'full',
+    laterShared: { from: 0, to: 34 },
+    earlierShared: { from: 0, to: 34 },
+  }
+  return { copyOfFirst, answer: [copyOfFirst] }
+})
 vi.mock('@/entities/split/api/find-matches-client.ts', () => ({
-  findMatchesInWorker: () => Promise.resolve([{ duplicate: 2, kept: 0 }]),
+  findMatchesInWorker: () => Promise.resolve(search.answer),
 }))
 
 // 100 s at 50 ms per window: loud, a 2 s silence from 20 s, loud, a 2 s silence from 70.5 s, loud.
@@ -49,9 +62,9 @@ function nameField(wrapper: ReturnType<typeof mount>, trackNumber: number) {
 const fieldValues = (wrapper: ReturnType<typeof mount>) =>
   [1, 2, 3].map((number) => nameField(wrapper, number).element.value)
 
-// The dismiss button of track 3, the duplicate of these specs.
+// The dismiss button of track 3, the duplicate of these specs, with track 1.
 const dismissButton = (wrapper: ReturnType<typeof mount>) =>
-  wrapper.find('button[aria-label="Dismiss the match of track 3"]')
+  wrapper.find('button[aria-label="Dismiss the match of track 3 with track 1"]')
 
 function removeButton(wrapper: ReturnType<typeof mount>, trackNumber: number) {
   return wrapper.get(`button[aria-label="Remove track ${trackNumber}"]`)
@@ -195,6 +208,77 @@ describe('TrackList', () => {
     })
   })
 
+  describe('a partial match', () => {
+    // The third track holds the first from 3 s on, and is the stretch of the second from 12.4 s.
+    beforeEach(() => {
+      search.answer = [
+        {
+          later: 2,
+          earlier: 0,
+          kind: 'holds',
+          laterShared: { from: 3, to: 33 },
+          earlierShared: { from: 0, to: 30 },
+        },
+        {
+          later: 2,
+          earlier: 1,
+          kind: 'part-of',
+          laterShared: { from: 3, to: 34 },
+          earlierShared: { from: 12.4, to: 43.4 },
+        },
+      ]
+    })
+
+    afterEach(() => {
+      search.answer = [search.copyOfFirst]
+    })
+
+    it('says one line for each match, and leaves the track in the export', async () => {
+      const { split, wrapper } = await mountWithDuplicate()
+
+      const words = trackRows(wrapper)[2]?.findAll('p')
+      expect(words?.map((line) => line.text())).toEqual(['01 from 0:03', 'part of 02 from 0:12.4'])
+      expect(split.tracks[2]).toMatchObject({ inclusion: 'included', isLeftOut: false })
+      expect(trackRows(wrapper)[2]?.classes()).not.toContain('text-muted')
+      expect(trackRows(wrapper).map((row) => row.findAll('p').length)).toEqual([0, 0, 2])
+    })
+
+    it('gives the stretch both tracks share in a tooltip on the words', async () => {
+      vi.useFakeTimers()
+      const split = useSplitStore()
+      split.open(curveWithThreeLongTracks(), { windowSeconds: 0.05, durationSeconds: 107 })
+      split.addGapSplits()
+      await split.findDuplicates()
+      const wrapper = mount(TrackList, { attachTo: document.body })
+
+      await wrapper.findAll('tbody tr p')[0]?.trigger('pointermove')
+      await vi.advanceTimersByTimeAsync(1000)
+
+      expect(document.querySelector('[role="tooltip"]')?.textContent).toBe(
+        'Shared: 0:03 to 0:33 here, 0:00 to 0:30 in track 01',
+      )
+      wrapper.unmount()
+      vi.useRealTimers()
+    })
+
+    it('has a dismiss button for each, which takes that match away alone and is one edit', async () => {
+      const { split, wrapper } = await mountWithDuplicate()
+
+      await wrapper
+        .get('button[aria-label="Dismiss the match of track 3 with track 1"]')
+        .trigger('click')
+
+      expect(
+        trackRows(wrapper)[2]
+          ?.findAll('p')
+          .map((line) => line.text()),
+      ).toEqual(['part of 02 from 0:12.4'])
+      expect(wrapper.findAll('button[aria-label^="Dismiss"]')).toHaveLength(1)
+      expect(split.tracks[2]?.inclusion).toBe('included')
+      expect(split.editCount).toBe(1)
+    })
+  })
+
   describe('dismissing a match', () => {
     it('has a button beside the words of each match, named for the track, and no other has one', async () => {
       const { wrapper } = await mountWithDuplicate()
@@ -218,7 +302,7 @@ describe('TrackList', () => {
 
       await dismissButton(wrapper).trigger('click')
 
-      expect(split.tracks[2]).toMatchObject({ inclusion: 'included', duplicateOf: null })
+      expect(split.tracks[2]).toMatchObject({ inclusion: 'included', matches: [] })
       expect(trackRows(wrapper)[2]?.text()).not.toContain('duplicate of')
       expect(dismissButton(wrapper).exists()).toBe(false)
       expect(trackRows(wrapper)[2]?.classes()).not.toContain('text-muted')
@@ -260,7 +344,7 @@ describe('TrackList', () => {
       expect(eye().attributes('aria-label')).toBe('Bring back track 3')
       await eye().trigger('click')
 
-      expect(split.tracks[2]).toMatchObject({ inclusion: 'included', duplicateOf: null })
+      expect(split.tracks[2]).toMatchObject({ inclusion: 'included', matches: [] })
       expect(eye().attributes('aria-label')).toBe('Leave out track 3')
 
       await eye().trigger('click')

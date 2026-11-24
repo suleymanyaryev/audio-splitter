@@ -7,7 +7,7 @@ const track = (overrides: Partial<Track>): Track => ({
   number: 4,
   inclusion: 'included',
   isLeftOut: false,
-  duplicateOf: null,
+  matches: [],
   exportNumber: 4,
   ownName: null,
   name: 'dreamscape-04',

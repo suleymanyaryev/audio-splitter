@@ -19,6 +19,8 @@ import { ZOOM_WINDOW_SECONDS } from '../config/zoom-window.ts'
 import { findMatchesInWorker } from '../api/find-matches-client.ts'
 import { MINIMUM_COMPARED_SECONDS } from '../config/match-thresholds.ts'
 import { findGaps, gapSplitTimes, type Gap } from '../lib/find-gaps.ts'
+import type { FoundMatch, SharedStretch } from '../lib/find-matches.ts'
+import type { TrackMatch } from '../lib/match-words.ts'
 import { defaultTrackName } from '../lib/default-track-name.ts'
 import { rangeBetween, type TimeRange } from '../lib/range-between.ts'
 import { roundToTenth } from '../lib/round-to-tenth.ts'
@@ -67,11 +69,11 @@ export interface Track {
   inclusion: Inclusion
   isLeftOut: boolean
   /*
-  The track this one repeats from end to end (GLOSSARY.md: Duplicate), the kept copy, or null: its
-  live number and the name the user gave it (null while unnamed), the parts of the words that say
-  so, and the split where it starts (null for the first track), which `dismissMatch` names it by.
+  The live matches of this track with earlier tracks (GLOSSARY.md: Match), in track order: the one
+  full match that makes it a duplicate of the kept copy, or one for each earlier track it shares a
+  stretch with, a partial match. Each is the parts of its words.
   */
-  duplicateOf: { number: number; ownName: string | null; startSplitId: number | null } | null
+  matches: TrackMatch[]
   // 1…K among the tracks the export writes, null for a left-out track.
   exportNumber: number | null
   // The name the user typed, null while the track is unnamed.
@@ -112,10 +114,13 @@ interface MatchedTrack {
   endSeconds: number
 }
 
-// A match of the last press (GLOSSARY.md: Match): the duplicate and the kept copy it names.
+// A match of the last press (GLOSSARY.md: Match): a track, an earlier one, and what they share.
 interface StoredMatch {
-  duplicate: MatchedTrack
-  kept: MatchedTrack
+  later: MatchedTrack
+  earlier: MatchedTrack
+  kind: FoundMatch['kind']
+  laterShared: SharedStretch
+  earlierShared: SharedStretch
 }
 
 function isSameTrack(first: MatchedTrack, second: MatchedTrack) {
@@ -124,6 +129,11 @@ function isSameTrack(first: MatchedTrack, second: MatchedTrack) {
     first.startSeconds === second.startSeconds &&
     first.endSeconds === second.endSeconds
   )
+}
+
+// Whether two matches are of the same two tracks, with the ends they had.
+function isSamePair(first: StoredMatch, second: StoredMatch) {
+  return isSameTrack(first.later, second.later) && isSameTrack(first.earlier, second.earlier)
 }
 
 /*
@@ -292,37 +302,38 @@ export const useSplitStore = defineStore('split', () => {
   // The dismissed pairs that still hold, as the indices of their two tracks.
   const liveDismissals = computed(() => {
     const indexOfHeld = heldTracks.value
-    const live: { duplicate: number; kept: number }[] = []
+    const live: { later: number; earlier: number }[] = []
     for (const pair of dismissed.value) {
-      const duplicate = indexOfHeld(pair.duplicate)
-      const kept = indexOfHeld(pair.kept)
-      if (duplicate !== undefined && kept !== undefined) live.push({ duplicate, kept })
+      const later = indexOfHeld(pair.later)
+      const earlier = indexOfHeld(pair.earlier)
+      if (later !== undefined && earlier !== undefined) live.push({ later, earlier })
     }
     return live
   })
 
   const liveMatches = computed(() => {
     const indexOfHeld = heldTracks.value
-    const live: { duplicate: number; kept: number }[] = []
+    const live: (Omit<StoredMatch, 'later' | 'earlier'> & { later: number; earlier: number })[] = []
     for (const match of matches.value) {
-      const duplicate = indexOfHeld(match.duplicate)
-      const kept = indexOfHeld(match.kept)
-      const isDismissed = dismissed.value.some(
-        (pair) =>
-          isSameTrack(pair.duplicate, match.duplicate) && isSameTrack(pair.kept, match.kept),
-      )
-      if (duplicate !== undefined && kept !== undefined && !isDismissed)
-        live.push({ duplicate, kept })
+      const later = indexOfHeld(match.later)
+      const earlier = indexOfHeld(match.earlier)
+      const isDismissed = dismissed.value.some((pair) => isSamePair(pair, match))
+      if (later !== undefined && earlier !== undefined && !isDismissed)
+        live.push({ ...match, later, earlier })
     }
     return live
   })
 
   const tracks = computed<Track[]>(() => {
     const ends = trackEnds.value
-    const keptByDuplicate = new Map(liveMatches.value.map((match) => [match.duplicate, match.kept]))
+    // Each track's live matches, by the track's index, in the order they were found: the earlier tracks first.
+    const matchesByTrack = new Map<number, (typeof liveMatches.value)[number][]>()
+    for (const match of liveMatches.value)
+      matchesByTrack.set(match.later, [...(matchesByTrack.get(match.later) ?? []), match])
+    const matchesOf = (index: number) => matchesByTrack.get(index) ?? []
     const inclusions = ends.map((track, index): Inclusion => {
       if (track.stored === 'by-hand') return 'by-hand'
-      return keptByDuplicate.has(index) ? 'duplicate' : 'included'
+      return matchesOf(index).some((match) => match.kind === 'full') ? 'duplicate' : 'included'
     })
     function ownNameAt(index: number) {
       const startSplit = ends[index]?.startSplit ?? null
@@ -335,20 +346,21 @@ export const useSplitStore = defineStore('split', () => {
       const inclusion = inclusions[index] ?? 'included'
       const isLeftOut = inclusion !== 'included'
       const exportNumber = isLeftOut ? null : ++exportedSoFar
-      const keptIndex = keptByDuplicate.get(index)
       const prefix = trackNamePrefix.value
       return {
         number: index + 1,
         inclusion,
         isLeftOut,
-        duplicateOf:
-          keptIndex === undefined
-            ? null
-            : {
-                number: keptIndex + 1,
-                ownName: ownNameAt(keptIndex),
-                startSplitId: ends[keptIndex]?.startSplit?.id ?? null,
-              },
+        matches: matchesOf(index).map(
+          ({ earlier, kind, laterShared, earlierShared }): TrackMatch => ({
+            kind: kind === 'full' ? 'duplicate' : kind,
+            number: earlier + 1,
+            ownName: ownNameAt(earlier),
+            startSplitId: ends[earlier]?.startSplit?.id ?? null,
+            here: laterShared,
+            there: earlierShared,
+          }),
+        ),
         exportNumber,
         ownName,
         name:
@@ -697,7 +709,12 @@ export const useSplitStore = defineStore('split', () => {
 
   // What the line beside the button says: the counts of the live matches, none before a press.
   const duplicateResult = computed(() =>
-    hasSearched.value ? { duplicates: liveMatches.value.length } : null,
+    hasSearched.value
+      ? {
+          duplicates: liveMatches.value.filter((match) => match.kind === 'full').length,
+          partialMatches: liveMatches.value.filter((match) => match.kind !== 'full').length,
+        }
+      : null,
   )
 
   // Drops every match and stops listening for a running search: its answer is for a file that is gone.
@@ -736,7 +753,7 @@ export const useSplitStore = defineStore('split', () => {
           endSeconds,
           isLeftOutByHand: stored === 'by-hand',
         })),
-        dismissed: liveDismissals.value.map(({ duplicate, kept }) => ({ duplicate, kept })),
+        dismissed: liveDismissals.value.map(({ later, earlier }) => ({ later, earlier })),
       })
     } catch {
       if (press === searchNumber) duplicateSearchStatus.value = 'idle'
@@ -752,32 +769,33 @@ export const useSplitStore = defineStore('split', () => {
       }
     }
     matches.value = found.map((match) => ({
-      duplicate: asPressed(match.duplicate),
-      kept: asPressed(match.kept),
+      later: asPressed(match.later),
+      earlier: asPressed(match.earlier),
+      kind: match.kind,
+      laterShared: match.laterShared,
+      earlierShared: match.earlierShared,
     }))
     hasSearched.value = true
     duplicateSearchStatus.value = 'idle'
   }
 
   /*
-  Dismisses the match of the track that starts at `startSplitId` with the track that starts at
-  `keptStartSplitId` (null for the first track): it is one edit for as long as both tracks keep
-  their ends, the next press does not find the pair again, and a duplicate it was is exported
-  again. A pair that is no live match is refused.
+  Dismisses the match of the track that starts at `startSplitId` with the earlier track that starts
+  at `otherStartSplitId` (null for the first track), a duplicate's or a partial one: it is one edit
+  for as long as both tracks keep their ends, the next press does not find the pair again, and a
+  duplicate it was is exported again. A pair that is no live match is refused.
   */
-  function dismissMatch(startSplitId: number | null, keptStartSplitId: number | null) {
+  function dismissMatch(startSplitId: number | null, otherStartSplitId: number | null) {
     const match = matches.value.find(
       (candidate) =>
-        candidate.duplicate.startSplitId === startSplitId &&
-        candidate.kept.startSplitId === keptStartSplitId,
+        candidate.later.startSplitId === startSplitId &&
+        candidate.earlier.startSplitId === otherStartSplitId,
     )
     if (match === undefined) return
     const indexOfHeld = heldTracks.value
     const isLive =
-      indexOfHeld(match.duplicate) !== undefined && indexOfHeld(match.kept) !== undefined
-    const isDismissed = dismissed.value.some(
-      (pair) => isSameTrack(pair.duplicate, match.duplicate) && isSameTrack(pair.kept, match.kept),
-    )
+      indexOfHeld(match.later) !== undefined && indexOfHeld(match.earlier) !== undefined
+    const isDismissed = dismissed.value.some((pair) => isSamePair(pair, match))
     if (!isLive || isDismissed) return
     dismissed.value = [...dismissed.value, match]
   }
@@ -1151,8 +1169,9 @@ export const useSplitStore = defineStore('split', () => {
     const track = tracks.value.find(
       (candidate) => (candidate.startSplit?.id ?? null) === startSplitId,
     )
-    if (track?.inclusion === 'duplicate' && track.duplicateOf !== null) {
-      dismissMatch(startSplitId, track.duplicateOf.startSplitId)
+    const duplicateMatch = track?.matches.find((match) => match.kind === 'duplicate')
+    if (duplicateMatch !== undefined && track?.inclusion === 'duplicate') {
+      dismissMatch(startSplitId, duplicateMatch.startSplitId)
       return
     }
     const point =

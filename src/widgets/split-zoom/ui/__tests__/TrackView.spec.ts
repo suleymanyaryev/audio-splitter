@@ -13,7 +13,16 @@ enableAutoUnmount(afterEach)
 
 // The worker is replaced by an answer: the third track repeats the first.
 vi.mock('@/entities/split/api/find-matches-client.ts', () => ({
-  findMatchesInWorker: () => Promise.resolve([{ duplicate: 2, kept: 0 }]),
+  findMatchesInWorker: () =>
+    Promise.resolve([
+      {
+        later: 2,
+        earlier: 0,
+        kind: 'full',
+        laterShared: { from: 0, to: 30 },
+        earlierShared: { from: 0, to: 30 },
+      },
+    ]),
 }))
 
 /*
@@ -319,7 +328,7 @@ describe('TrackView', () => {
       await press({ key: 'x' })
 
       expect(split.tracks[2]).toMatchObject({ inclusion: 'included', isLeftOut: false })
-      expect(split.tracks[2]?.duplicateOf).toBeNull()
+      expect(split.tracks[2]?.matches).toEqual([])
       expect(split.editCount).toBe(1)
 
       await press({ key: 'x' })

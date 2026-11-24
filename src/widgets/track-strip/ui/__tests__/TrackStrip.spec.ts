@@ -2,12 +2,25 @@ import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 
 import { flushPromises, mount } from '@vue/test-utils'
+import type { FoundMatch } from '@/entities/split/lib/find-matches.ts'
 import { useSplitStore } from '@/entities/split/model/split.ts'
 import TrackStrip from '../TrackStrip.vue'
 
-// The worker is replaced by an answer: the third track repeats the first.
+/*
+The worker is replaced by an answer the spec chooses: by default the third track repeats the first.
+*/
+const search = vi.hoisted(() => {
+  const copyOfFirst: FoundMatch = {
+    later: 2,
+    earlier: 0,
+    kind: 'full',
+    laterShared: { from: 0, to: 34 },
+    earlierShared: { from: 0, to: 34 },
+  }
+  return { copyOfFirst, answer: [copyOfFirst] }
+})
 vi.mock('@/entities/split/api/find-matches-client.ts', () => ({
-  findMatchesInWorker: () => Promise.resolve([{ duplicate: 2, kept: 0 }]),
+  findMatchesInWorker: () => Promise.resolve(search.answer),
 }))
 
 // 100 s at 50 ms per window: loud, a 2 s silence from 20 s, loud, a 2 s silence from 70.5 s, loud.
@@ -267,6 +280,31 @@ describe('TrackStrip', () => {
 
       expect(blocks(wrapper)[2]?.classes()).toContain('bg-track')
       expect(blocks(wrapper)[2]?.classes()).not.toContain('border-dashed')
+    })
+  })
+
+  describe('a partial match', () => {
+    afterEach(() => {
+      search.answer = [search.copyOfFirst]
+    })
+
+    it('changes nothing in the block, its tooltip or its label', async () => {
+      search.answer = [
+        {
+          later: 2,
+          earlier: 0,
+          kind: 'holds',
+          laterShared: { from: 3, to: 33 },
+          earlierShared: { from: 0, to: 30 },
+        },
+      ]
+      const { wrapper } = await mountWithDuplicate()
+
+      const third = blocks(wrapper)[2]
+      expect(third?.classes()).toContain('bg-track')
+      expect(third?.classes()).not.toContain('border-dashed')
+      expect(third?.attributes('title')).toBe('03, 0:00:34')
+      expect(third?.get('button').attributes('aria-label')).toBe('03, 0:00:34')
     })
   })
 
