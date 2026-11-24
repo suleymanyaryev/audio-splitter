@@ -15,17 +15,17 @@ import TrackNameField from './TrackNameField.vue'
 The file as a table, in time order: a row for each track with a row for each split between two
 tracks. A track row has its number (a button, so the row can be selected from the keyboard), its
 name (edited in place, `TrackNameField`, muted while the track has no name of its own, with the
-words of each of its matches under it, one line each, "duplicate of 01" while it is the same recording
-as an earlier track and "03 from 1:40" or "part of 03 from 0:30" while it shares part of one, a partial match's
-words with a tooltip of the stretch both share, each a link that selects the other track, with a
-button that dismisses the match), its start (hundredths, where a split's position is read) and its length (whole seconds), then two buttons: one
-that leaves the track out of the export or brings it back (a left-out row is muted), and a merge
-button that removes the track and merges it with its neighbours (none when it is the only track). A split
-row reads `Split N` where the name goes, its time in the start column, no length and a trash button
-that deletes the split, which merges the tracks either side of it; it has no name field, because
-naming belongs to tracks. The two buttons carry different icons, so one is not taken for the other.
-The box is as tall as the zoom view's 160 px content area and scrolls inside itself, the heading row
-staying in view.
+words of each of its matches under it, one line each, "duplicate of 01" while it is the same
+recording as an earlier track and "03 from 1:40" or "part of 03 from 0:30" while it shares part of
+one, a partial match's words with a tooltip of the stretch both share, each a link that selects the
+other track, with a button that dismisses the match), its start (hundredths, where a split's
+position is read) and its length (whole seconds), then two buttons: one that leaves the track out of
+the export or brings it back (a left-out row is muted), and a merge button that removes the track
+and merges it with its neighbours (none when it is the only track). A split row reads `Split N`
+where the name goes, its time in the start column, no length and a trash button that deletes the
+split, which merges the tracks either side of it; it has no name field, because naming belongs to
+tracks. The two buttons carry different icons, so one is not taken for the other. The box is as tall
+as the zoom view's 160 px content area and scrolls inside itself, the heading row staying in view.
 
 A click on a row selects what it shows, a track or a split (the first track included), and the
 marked row, whichever kind it is, follows the selection and is kept in view; focusing a name field
@@ -133,7 +133,7 @@ watch(
                 <p class="min-w-0 truncate text-xs">
                   <UiTooltip
                     :label="matchTooltip(match, split.tracks.length)"
-                    :disabled="match.kind === 'duplicate'"
+                    :disabled="match.kind === 'full'"
                   >
                     <button
                       type="button"
@@ -149,9 +149,7 @@ watch(
                   size="sm"
                   :label="`Dismiss the match of track ${row.track.number} with track ${match.number}`"
                   class="-my-1 shrink-0"
-                  @click.stop="
-                    split.dismissMatch(row.track.startSplit?.id ?? null, match.startSplitId)
-                  "
+                  @click.stop="split.dismissMatch(row.track, match)"
                 >
                   <X class="size-4 shrink-0" />
                 </UiIconButton>

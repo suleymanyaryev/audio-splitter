@@ -24,6 +24,7 @@ import type { TrackMatch } from '../lib/match-words.ts'
 import { defaultTrackName } from '../lib/default-track-name.ts'
 import { rangeBetween, type TimeRange } from '../lib/range-between.ts'
 import { roundToTenth } from '../lib/round-to-tenth.ts'
+import { swapMoment, type SwapLink } from '../lib/swap-moment.ts'
 
 const BUILT_IN_SETTINGS: DefaultSettings = {
   offsetDb: DEFAULT_OFFSET_DB,
@@ -123,29 +124,12 @@ interface StoredMatch {
   earlierShared: SharedStretch
 }
 
-// What a track has in common with another through a match, seen from the track `C` is pressed on.
-interface SwapLink {
-  // The index of the other track.
-  other: number
-  // The shared stretch in this track and in the other, in seconds from each one's start.
-  here: SharedStretch
-  there: SharedStretch
-  // Whether this track is the later one of the match, which is the one `C` goes from by itself.
-  isOwn: boolean
-}
-
-// How far a time is from a stretch: 0 inside it.
-function distanceTo(stretch: SharedStretch, time: number) {
-  return Math.max(stretch.from - time, time - stretch.to, 0)
-}
-
-// The link whose stretch is nearest the time, the first found on a tie.
-function nearestLink(links: SwapLink[], time: number) {
-  let nearest: SwapLink | undefined
-  for (const link of links)
-    if (nearest === undefined || distanceTo(link.here, time) < distanceTo(nearest.here, time))
-      nearest = link
-  return nearest
+/*
+A match seen from the track `C` is pressed on, and whether that track is the match's later one:
+away from a way back, `C` goes only by the matches of the later track.
+*/
+interface MatchLink extends SwapLink {
+  isFromLater: boolean
 }
 
 // A track's ends as a match records them.
@@ -197,13 +181,13 @@ nothing else moves it except `moveZoomTo`. A split can only be moved inside the 
 is added at the window's centre, and `editCount` says how many things the user changed since the
 file opened. The splits Find gaps adds are no edit; moving or deleting one is.
 
-`findDuplicates` ("Find duplicates") keeps the matches of the last press (GLOSSARY.md: Match). A match
-lasts while both its tracks keep the ends they had, so an edit drops it by changing a track, and a
-track with a live match with an earlier track is a `duplicate` (`Inclusion`), derived and never
-kept on a split. Finding matches is no edit and changes no split, name or selection; `clearSplits`,
-`open` and `reset` drop every match. `dismissMatch` rejects a match: the pair is remembered with
-both tracks' ends, so it lasts as long as a match does, is one edit meanwhile, and the next press
-leaves it out.
+`findDuplicates` ("Find duplicates") keeps the matches of the last press (GLOSSARY.md: Match). A
+match lasts while both its tracks keep the ends they had, so an edit drops it by changing a track,
+and a track with a live match with an earlier track is a `duplicate` (`Inclusion`), derived and
+never kept on a split. Finding matches is no edit and changes no split, name or selection;
+`clearSplits`, `open` and `reset` drop every match and stop a running search. `dismissMatch` rejects
+a match: the pair is remembered with both tracks' ends, so it lasts as long as a match does, is one
+edit meanwhile, and the next press leaves it out.
 
 The range (GLOSSARY.md) is view state beside the window's centre: a stretch the user dragged out on
 the whole-file view, or none. It belongs to the file, so a setting change and the edits leave it
@@ -265,9 +249,11 @@ export const useSplitStore = defineStore('split', () => {
   The matches of the last "Find duplicates" and what it is doing (GLOSSARY.md: Match). They are
   the answer as it was: whether one still holds is derived (`liveMatches`), so no edit has to find
   and remove them. `hasSearched` is false until the first answer, so the line says nothing before.
+  A failed search says why in `duplicateSearchFailure` until the next press.
   */
   const matches = shallowRef<StoredMatch[]>([])
-  const duplicateSearchStatus = ref<'idle' | 'running'>('idle')
+  const duplicateSearchStatus = ref<'idle' | 'running' | 'failed'>('idle')
+  const duplicateSearchFailure = ref<string | null>(null)
   const hasSearched = ref(false)
   /*
   The pairs the user dismissed, as the match had them: a dismissal lives as long as both tracks keep
@@ -280,8 +266,12 @@ export const useSplitStore = defineStore('split', () => {
   them lives (`liveWayBack`).
   */
   const wayBack = shallowRef<{ from: MatchedTrack; to: MatchedTrack } | null>(null)
-  // Every press takes a number, and the answer of an older press, or of an older file, is dropped.
+  /*
+  Every press takes a number, and the answer of an older press, or of an older file, is dropped.
+  The running search's worker is stopped through `searchAbort` when the file starts over.
+  */
   let searchNumber = 0
+  let searchAbort: AbortController | null = null
   /*
   What the user changed since the file opened, counted as things changed, not actions: a split
   moved ten times is one edit. The sets hold split ids (a rename is keyed by the split where its
@@ -327,10 +317,10 @@ export const useSplitStore = defineStore('split', () => {
   exist with the ends they had. A split moved, deleted or added inside changes a track's ends, so
   its matches, and those naming it, stop holding at once and nothing has to remove them.
   */
-  const heldTracks = computed(() => {
+  const indexOfHeld = computed(() => {
     const ends = trackEnds.value
     const indexByStart = new Map(ends.map((track, index) => [track.startSplit?.id ?? null, index]))
-    return function indexOfHeld(held: MatchedTrack) {
+    return (held: MatchedTrack) => {
       const index = indexByStart.get(held.startSplitId)
       const track = index === undefined ? undefined : ends[index]
       return track?.startSeconds === held.startSeconds && track.endSeconds === held.endSeconds
@@ -339,27 +329,25 @@ export const useSplitStore = defineStore('split', () => {
     }
   })
 
+  // The indices of a match's two tracks while both keep the ends it recorded, else null.
+  function liveIndices(pair: StoredMatch) {
+    const later = indexOfHeld.value(pair.later)
+    const earlier = indexOfHeld.value(pair.earlier)
+    return later === undefined || earlier === undefined ? null : { later, earlier }
+  }
+
+  function isDismissed(match: StoredMatch) {
+    return dismissed.value.some((pair) => isSamePair(pair, match))
+  }
+
   // The dismissed pairs that still hold, as the indices of their two tracks.
-  const liveDismissals = computed(() => {
-    const indexOfHeld = heldTracks.value
-    const live: { later: number; earlier: number }[] = []
-    for (const pair of dismissed.value) {
-      const later = indexOfHeld(pair.later)
-      const earlier = indexOfHeld(pair.earlier)
-      if (later !== undefined && earlier !== undefined) live.push({ later, earlier })
-    }
-    return live
-  })
+  const liveDismissals = computed(() => dismissed.value.flatMap((pair) => liveIndices(pair) ?? []))
 
   const liveMatches = computed(() => {
-    const indexOfHeld = heldTracks.value
     const live: (Omit<StoredMatch, 'later' | 'earlier'> & { later: number; earlier: number })[] = []
     for (const match of matches.value) {
-      const later = indexOfHeld(match.later)
-      const earlier = indexOfHeld(match.earlier)
-      const isDismissed = dismissed.value.some((pair) => isSamePair(pair, match))
-      if (later !== undefined && earlier !== undefined && !isDismissed)
-        live.push({ ...match, later, earlier })
+      const indices = liveIndices(match)
+      if (indices !== null && !isDismissed(match)) live.push({ ...match, ...indices })
     }
     return live
   })
@@ -372,9 +360,8 @@ export const useSplitStore = defineStore('split', () => {
   const liveWayBack = computed(() => {
     const back = wayBack.value
     if (back === null) return null
-    const indexOfHeld = heldTracks.value
-    const from = indexOfHeld(back.from)
-    const to = indexOfHeld(back.to)
+    const from = indexOfHeld.value(back.from)
+    const to = indexOfHeld.value(back.to)
     if (from === undefined || to === undefined) return null
     const isJoined = liveMatches.value.some(
       (match) =>
@@ -420,7 +407,7 @@ export const useSplitStore = defineStore('split', () => {
         isLeftOut,
         matches: matchesOf(index).map(
           ({ earlier, kind, laterShared, earlierShared }): TrackMatch => ({
-            kind: kind === 'full' ? 'duplicate' : kind,
+            kind,
             number: earlier + 1,
             ownName: ownNameAt(earlier),
             startSplitId: ends[earlier]?.startSplit?.id ?? null,
@@ -763,12 +750,12 @@ export const useSplitStore = defineStore('split', () => {
 
   /*
   Whether "Find duplicates" has anything to compare: two tracks of 30 s or more, and no search
-  running.
+  running. After a failed search it can be pressed again.
   */
   const canFindDuplicates = computed(
     () =>
       curve.value !== null &&
-      duplicateSearchStatus.value === 'idle' &&
+      duplicateSearchStatus.value !== 'running' &&
       trackEnds.value.filter(
         (track) => track.endSeconds - track.startSeconds >= MINIMUM_COMPARED_SECONDS,
       ).length >= 2,
@@ -784,14 +771,17 @@ export const useSplitStore = defineStore('split', () => {
       : null,
   )
 
-  // Drops every match and stops listening for a running search: its answer is for a gone file.
+  // Drops every match and stops a running search: its answer is for a gone file.
   function dropMatches() {
     searchNumber++
+    searchAbort?.abort()
+    searchAbort = null
     matches.value = []
     dismissed.value = []
     wayBack.value = null
     hasSearched.value = false
     duplicateSearchStatus.value = 'idle'
+    duplicateSearchFailure.value = null
   }
 
   /*
@@ -799,7 +789,7 @@ export const useSplitStore = defineStore('split', () => {
   keeps the answer as the matches of this press, replacing the last one. It changes no split, name,
   pending split or selection, counts no edit and asks nothing. The press takes a number: an answer
   for another press, or after the file started over, is dropped. A failed search keeps what the
-  last press found.
+  last press found and says why it failed.
   */
   async function findDuplicates() {
     const loudness = curve.value
@@ -809,63 +799,60 @@ export const useSplitStore = defineStore('split', () => {
       return
     const press = ++searchNumber
     const pressed = trackEnds.value
+    const abort = new AbortController()
+    searchAbort = abort
     duplicateSearchStatus.value = 'running'
+    duplicateSearchFailure.value = null
     let found
     try {
-      found = await findMatchesInWorker({
-        curve: loudness,
-        windowSeconds: curveTiming.windowSeconds,
-        silenceThreshold: threshold,
-        tracks: pressed.map(({ startSeconds, endSeconds, stored }) => ({
-          startSeconds,
-          endSeconds,
-          isLeftOutByHand: stored === 'by-hand',
-        })),
-        dismissed: liveDismissals.value.map(({ later, earlier }) => ({ later, earlier })),
-      })
-    } catch {
-      if (press === searchNumber) duplicateSearchStatus.value = 'idle'
+      found = await findMatchesInWorker(
+        {
+          curve: loudness,
+          windowSeconds: curveTiming.windowSeconds,
+          silenceThreshold: threshold,
+          tracks: pressed.map(({ startSeconds, endSeconds, stored }) => ({
+            startSeconds,
+            endSeconds,
+            isLeftOutByHand: stored === 'by-hand',
+          })),
+          dismissed: liveDismissals.value.map(({ later, earlier }) => ({ later, earlier })),
+        },
+        abort.signal,
+      )
+    } catch (error) {
+      if (press !== searchNumber) return
+      duplicateSearchStatus.value = 'failed'
+      duplicateSearchFailure.value = error instanceof Error ? error.message : String(error)
       return
     }
     if (press !== searchNumber) return
-    const asPressed = (index: number): MatchedTrack => {
-      const track = pressed[index]
-      return {
-        startSplitId: track?.startSplit?.id ?? null,
-        startSeconds: track?.startSeconds ?? 0,
-        endSeconds: track?.endSeconds ?? 0,
-      }
+    const held = pressed.map((track) => heldOf(track))
+    const kept: StoredMatch[] = []
+    for (const match of found) {
+      const later = held[match.later]
+      const earlier = held[match.earlier]
+      if (later !== undefined && earlier !== undefined) kept.push({ ...match, later, earlier })
     }
-    matches.value = found.map((match) => ({
-      later: asPressed(match.later),
-      earlier: asPressed(match.earlier),
-      kind: match.kind,
-      laterShared: match.laterShared,
-      earlierShared: match.earlierShared,
-    }))
+    matches.value = kept
     hasSearched.value = true
     duplicateSearchStatus.value = 'idle'
   }
 
   /*
-  Dismisses the match of the track that starts at `startSplitId` with the earlier track that starts
-  at `otherStartSplitId` (null for the first track), a duplicate's or a partial one: it is one edit
-  for as long as both tracks keep their ends, the next press does not find the pair again, and a
-  duplicate it was is exported again. A pair that is no live match is refused.
+  Dismisses the match of `track` with the earlier track `match` names, a duplicate's or a partial
+  one: it is one edit for as long as both tracks keep their ends, the next press does not find the
+  pair again, and a duplicate it was is exported again. A pair that is no live match is refused, so
+  a stale `Track` dismisses nothing.
   */
-  function dismissMatch(startSplitId: number | null, otherStartSplitId: number | null) {
-    const match = matches.value.find(
+  function dismissMatch(track: Track, match: TrackMatch) {
+    const startSplitId = track.startSplit?.id ?? null
+    const stored = matches.value.find(
       (candidate) =>
         candidate.later.startSplitId === startSplitId &&
-        candidate.earlier.startSplitId === otherStartSplitId,
+        candidate.earlier.startSplitId === match.startSplitId,
     )
-    if (match === undefined) return
-    const indexOfHeld = heldTracks.value
-    const isLive =
-      indexOfHeld(match.later) !== undefined && indexOfHeld(match.earlier) !== undefined
-    const isDismissed = dismissed.value.some((pair) => isSamePair(pair, match))
-    if (!isLive || isDismissed) return
-    dismissed.value = [...dismissed.value, match]
+    if (stored === undefined || liveIndices(stored) === null || isDismissed(stored)) return
+    dismissed.value = [...dismissed.value, stored]
   }
 
   /*
@@ -874,50 +861,46 @@ export const useSplitStore = defineStore('split', () => {
 
   - A track that was swapped to, with a live match joining it to the track the swap came from, goes
     back there. Any other track goes by its own matches, with the earlier tracks.
-  - Of the matches, the one whose shared stretch holds the playhead, else the nearest one by
-    distance (the first found on a tie).
-  - Inside the stretch the moment is the same one in the other track; outside it, it is the start
-    of the nearest stretch there.
+  - Of those, the moment is the one `swapMoment` gives: the same moment inside a shared stretch,
+    else the start of the nearest one in the other track.
   */
   function swapTarget(playheadSeconds: number) {
     const track = selectedTrack.value
     if (track === null) return null
     const index = track.number - 1
-    const links: SwapLink[] = []
+    const links: MatchLink[] = []
     for (const match of liveMatches.value) {
       if (match.later === index)
         links.push({
           other: match.earlier,
           here: match.laterShared,
           there: match.earlierShared,
-          isOwn: true,
+          isFromLater: true,
         })
       else if (match.earlier === index)
         links.push({
           other: match.later,
           here: match.earlierShared,
           there: match.laterShared,
-          isOwn: false,
+          isFromLater: false,
         })
     }
     const back = liveWayBack.value
     const wayBackLinks =
       back !== null && back.to === index ? links.filter((link) => link.other === back.from) : []
-    const candidates = wayBackLinks.length > 0 ? wayBackLinks : links.filter((link) => link.isOwn)
-    const time = playheadSeconds - track.startSeconds
-    const nearest = nearestLink(candidates, time)
-    const target = nearest === undefined ? undefined : tracks.value[nearest.other]
-    if (nearest === undefined || target === undefined) return null
-    const isInside = distanceTo(nearest.here, time) === 0
-    const into = nearest.there.from + (isInside ? time - nearest.here.from : 0)
+    const candidates =
+      wayBackLinks.length > 0 ? wayBackLinks : links.filter((link) => link.isFromLater)
+    const moment = swapMoment(candidates, playheadSeconds - track.startSeconds)
+    const target = moment === null ? undefined : tracks.value[moment.other]
+    if (moment === null || target === undefined) return null
     const end = target.startSeconds + target.lengthSeconds
-    return { track: target, seconds: Math.min(target.startSeconds + into, end) }
+    return { track: target, seconds: Math.min(target.startSeconds + moment.seconds, end) }
   }
 
   /*
   `C`: selects the track `swapTarget` gives, which is the way back for the swap that follows, and
-  returns the target for the caller to put the playhead at. Null when there is no target, or when the
-  selection did not move because pending splits would be discarded and the question opened.
+  returns the target for the caller to put the playhead at. Null when there is no target, or when
+  the selection did not move because pending splits would be discarded and the question opened.
   */
   function swapTrack(playheadSeconds: number) {
     const from = trackEnds.value[(selectedTrack.value?.number ?? 0) - 1]
@@ -1292,18 +1275,18 @@ export const useSplitStore = defineStore('split', () => {
   /*
   Leaves the track that starts at the split `startSplitId` (null for the first track) out of the
   export, or brings it back. It changes no split and no name. It is one edit for that track, and
-  the second toggle takes the edit away again. On a duplicate it dismisses the match instead
-  (`dismissMatch`).
+  the second toggle takes the edit away again. A duplicate is left out already, so on one it brings
+  the track back: its match is dismissed (`dismissMatch`), and a duplicate the user also left out by
+  hand is brought back from that too, so one press is enough.
   */
   function toggleLeftOut(startSplitId: number | null) {
-    // A duplicate is left out already, so what is asked is to bring it back: its match is dismissed.
     const track = tracks.value.find(
       (candidate) => (candidate.startSplit?.id ?? null) === startSplitId,
     )
-    const duplicateMatch = track?.matches.find((match) => match.kind === 'duplicate')
-    if (duplicateMatch !== undefined && track?.inclusion === 'duplicate') {
-      dismissMatch(startSplitId, duplicateMatch.startSplitId)
-      return
+    const duplicateMatch = track?.matches.find((match) => match.kind === 'full')
+    if (track !== undefined && duplicateMatch !== undefined) {
+      dismissMatch(track, duplicateMatch)
+      if (track.inclusion === 'duplicate') return
     }
     const point =
       startSplitId === null ? null : splits.value.find((candidate) => candidate.id === startSplitId)
@@ -1378,6 +1361,7 @@ export const useSplitStore = defineStore('split', () => {
     exportTrackCount,
     canFindDuplicates,
     duplicateSearchStatus,
+    duplicateSearchFailure,
     duplicateResult,
     open,
     addGapSplits,

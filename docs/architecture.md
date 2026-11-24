@@ -211,15 +211,20 @@ sequenceDiagram
 
   User->>store: Find duplicates
   store->>store: take a number, running
-  store->>client: curve, threshold, tracks, live dismissals
+  store->>client: curve, threshold, tracks, live dismissals, a stop signal
   client->>worker: the request, copied
-  worker->>worker: findMatches
-  worker-->>client: the matches
-  client-->>store: the matches, worker terminated
-  alt the number is the latest
-    store->>store: keep the matches, idle
-  else another press, or the file started over
-    store->>store: drop the answer
+  alt the worker answers
+    worker->>worker: findMatches
+    worker-->>client: the matches
+    client-->>store: the matches, worker terminated
+    store->>store: keep them if the number is the latest, idle
+  else the file starts over first
+    store->>client: stop
+    client->>worker: terminate
+    client-->>store: rejected, and dropped by the number
+  else the worker fails
+    client-->>store: the reason, worker terminated
+    store->>store: failed, with the reason
   end
 ```
 
@@ -227,10 +232,13 @@ sequenceDiagram
 stateDiagram-v2
   [*] --> idle
   idle --> running: press
-  running --> idle: the matches kept, or the search failed, or the file started over
+  running --> idle: the matches kept, or the file started over
+  running --> failed: the worker failed
+  failed --> running: press again
+  failed --> idle: the file started over
 ```
 
-- **The worker does one job.** It is started per press and terminated with its answer. Its entry only wires: the rules are in `lib/find-matches.ts`, which a store spec runs in the page through a fake client.
+- **The worker does one job.** It is started per press and terminated with its answer, or as soon as the file starts over. Its entry only wires: the rules are in `lib/find-matches.ts`, which a store spec runs in the page through a fake client.
 - **The request holds plain numbers.** A worker refuses a Vue proxy.
 - **The matches drive other stores' views.** The track list, the track strip, the Track view and the export read the live matches from `split`; none of them stores a match.
 

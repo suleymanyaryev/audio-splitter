@@ -7,17 +7,25 @@ import { useSplitStore } from '../split.ts'
 /*
 The worker client is the one thing replaced: the fake answers with the real finding function, in
 this process. `held` keeps the answers back until a spec lets them go, so a press can be overtaken.
+`failure` makes the search fail with that reason, and `signal` is the last press's stop signal.
 */
-const client = vi.hoisted(() => ({ isHolding: false, held: [] as (() => void)[] }))
+const client = vi.hoisted(() => ({
+  isHolding: false,
+  held: [] as (() => void)[],
+  failure: null as string | null,
+  signal: null as AbortSignal | null,
+}))
 vi.mock('../../api/find-matches-client.ts', async () => {
   const { findMatches } = await import('../../lib/find-matches.ts')
   return {
-    findMatchesInWorker: (request: Parameters<typeof findMatches>[0]) =>
-      new Promise((resolve) => {
+    findMatchesInWorker: (request: Parameters<typeof findMatches>[0], signal: AbortSignal) =>
+      new Promise((resolve, reject) => {
+        client.signal = signal
         // As a real worker gets it: a structured copy, which refuses what cannot be cloned.
         const copy = structuredClone(request)
         const answer = () => {
-          resolve(findMatches(copy))
+          if (client.failure === null) resolve(findMatches(copy))
+          else reject(new Error(client.failure))
         }
         if (client.isHolding) client.held.push(answer)
         else answer()
@@ -68,13 +76,13 @@ function openPlaylist(...recordings: number[][]) {
 
 // The track's match that makes it a duplicate, or undefined.
 const duplicateOf = (track: { matches: { kind: string; number: number }[] }) =>
-  track.matches.find((match) => match.kind === 'duplicate')
+  track.matches.find((match) => match.kind === 'full')
 
 // What each track's partial matches say, as the track list words them.
 const partialsOf = (store: ReturnType<typeof useSplitStore>) =>
   store.tracks.map((track) =>
     track.matches
-      .filter((match) => match.kind !== 'duplicate')
+      .filter((match) => match.kind !== 'full')
       .map((match) => matchWords(match, store.tracks.length)),
   )
 
@@ -139,11 +147,18 @@ async function pressedFiveTracks() {
 const A_WITH_DIP = () =>
   A().map((level, window) => (window >= 20 * 20 && window < 23 * 20 ? -45 : level))
 
-// The track's match with the kept copy, as the track list's button names it.
+// Dismisses the match of track `number` with track `other`, as its button in the track list does.
+function dismissWith(store: ReturnType<typeof useSplitStore>, number: number, other: number) {
+  const track = store.tracks[number - 1]!
+  store.dismissMatch(
+    track,
+    track.matches.find((match) => match.number === other)!,
+  )
+}
+
+// Dismisses the track's match with the kept copy.
 function dismiss(store: ReturnType<typeof useSplitStore>, number: number) {
-  const track = store.tracks[number - 1]
-  const kept = store.tracks[((track && duplicateOf(track))?.number ?? 0) - 1]
-  store.dismissMatch(track?.startSplit?.id ?? null, kept?.startSplit?.id ?? null)
+  dismissWith(store, number, duplicateOf(store.tracks[number - 1]!)!.number)
 }
 
 describe('Find duplicates', () => {
@@ -152,6 +167,8 @@ describe('Find duplicates', () => {
     setActivePinia(createPinia())
     client.isHolding = false
     client.held = []
+    client.failure = null
+    client.signal = null
   })
 
   it('makes a duplicate of each track of a second pass, whatever its loudness', async () => {
@@ -303,7 +320,7 @@ describe('Find duplicates', () => {
 
       expect(duplicatesOf(store)).toEqual([null, 1, null, null])
       expect(partialsOf(store)).toEqual([[], [], [], ['01 from 0:02', '03 from 0:42']])
-      expect(store.tracks[1]?.matches.map((match) => match.kind)).toEqual(['duplicate'])
+      expect(store.tracks[1]?.matches.map((match) => match.kind)).toEqual(['full'])
     })
 
     it('gives a duplicate its full match only, though it also holds a stretch of an earlier track', async () => {
@@ -398,7 +415,7 @@ describe('Find duplicates', () => {
       const store = openPlaylist(A(), B(), C(), [...A(), ...B()])
       await store.findDuplicates()
 
-      store.dismissMatch(store.tracks[3]?.startSplit?.id ?? null, null)
+      dismissWith(store, 4, 1)
 
       expect(partialsOf(store)[3]).toEqual(['02 from 0:42'])
       expect(store.tracks[3]?.inclusion).toBe('included')
@@ -409,7 +426,7 @@ describe('Find duplicates', () => {
     it('stays dismissed on a second press, and the other piece is found again', async () => {
       const store = openPlaylist(A(), B(), C(), [...A(), ...B()])
       await store.findDuplicates()
-      store.dismissMatch(store.tracks[3]?.startSplit?.id ?? null, null)
+      dismissWith(store, 4, 1)
 
       await store.findDuplicates()
 
@@ -460,7 +477,7 @@ describe('Find duplicates', () => {
         exportNumber: null,
         matches: [
           expect.objectContaining({
-            kind: 'duplicate',
+            kind: 'full',
             number: 1,
             ownName: null,
             startSplitId: null,
@@ -671,7 +688,73 @@ describe('Find duplicates', () => {
     })
   })
 
+  describe('a search that fails', () => {
+    it("says why, keeps the last press's matches and can be pressed again", async () => {
+      const store = openPlaylist(A(), B(), A())
+      await store.findDuplicates()
+      client.failure = 'Out of memory'
+
+      await store.findDuplicates()
+
+      expect(store.duplicateSearchStatus).toBe('failed')
+      expect(store.duplicateSearchFailure).toBe('Out of memory')
+      expect(store.duplicateResult).toEqual({ duplicates: 1, partialMatches: 0 })
+      expect(store.canFindDuplicates).toBe(true)
+    })
+
+    it('forgets the failure on the next press', async () => {
+      const store = openPlaylist(A(), B(), A())
+      client.failure = 'Out of memory'
+      await store.findDuplicates()
+      client.failure = null
+
+      await store.findDuplicates()
+
+      expect(store.duplicateSearchStatus).toBe('idle')
+      expect(store.duplicateSearchFailure).toBeNull()
+      expect(store.duplicateResult).toEqual({ duplicates: 1, partialMatches: 0 })
+    })
+
+    it('forgets the failure when the file starts over', async () => {
+      const store = openPlaylist(A(), B(), A())
+      client.failure = 'Out of memory'
+      await store.findDuplicates()
+
+      store.clearSplits()
+
+      expect(store.duplicateSearchStatus).toBe('idle')
+      expect(store.duplicateSearchFailure).toBeNull()
+    })
+  })
+
   describe('an answer that is not wanted any more', () => {
+    it('stops the worker when the file starts over', async () => {
+      const store = openPlaylist(A(), B(), A())
+      client.isHolding = true
+
+      const search = store.findDuplicates()
+      expect(client.signal?.aborted).toBe(false)
+      store.clearSplits()
+
+      expect(client.signal?.aborted).toBe(true)
+      for (const answer of client.held) answer()
+      await search
+    })
+
+    it('is dropped, and no failure, when the stopped worker rejects', async () => {
+      const store = openPlaylist(A(), B(), A())
+      client.isHolding = true
+      client.failure = 'The search was stopped'
+
+      const search = store.findDuplicates()
+      store.reset()
+      for (const answer of client.held) answer()
+      await search
+
+      expect(store.duplicateSearchStatus).toBe('idle')
+      expect(store.duplicateSearchFailure).toBeNull()
+    })
+
     it('is dropped when the file was cleared of its splits meanwhile', async () => {
       const store = openPlaylist(A(), B(), A())
       client.isHolding = true
@@ -1004,16 +1087,18 @@ describe('Find duplicates', () => {
     it('refuses a pair that is no live match', async () => {
       const store = await pressedFiveTracks()
 
-      // 02 and 04 are no match in this order, and 01 does not repeat 02.
-      store.dismissMatch(
-        store.tracks[1]?.startSplit?.id ?? null,
-        store.tracks[3]?.startSplit?.id ?? null,
-      )
-      store.dismissMatch(
-        store.tracks[0]?.startSplit?.id ?? null,
-        store.tracks[1]?.startSplit?.id ?? null,
-      )
-      store.dismissMatch(999, null)
+      // 02 and 04 are no match in this order, 01 does not repeat 02, and a stale track is gone.
+      const fourth = store.tracks[3]!
+      const itsMatch = fourth.matches[0]!
+      store.dismissMatch(store.tracks[1]!, {
+        ...itsMatch,
+        startSplitId: fourth.startSplit?.id ?? null,
+      })
+      store.dismissMatch(store.tracks[0]!, {
+        ...itsMatch,
+        startSplitId: store.tracks[1]?.startSplit?.id ?? null,
+      })
+      store.dismissMatch({ ...fourth, startSplit: { ...fourth.startSplit!, id: 999 } }, itsMatch)
 
       expect(duplicatesOf(store)).toEqual([null, null, 1, 2, 1])
       expect(store.editCount).toBe(0)
@@ -1133,17 +1218,18 @@ describe('Find duplicates', () => {
       expect(store.editCount).toBe(2)
     })
 
-    it('brings a duplicate left out by hand back to a duplicate, then dismisses it', async () => {
+    it('brings a duplicate left out by hand back in one press, dismissing its match', async () => {
       const store = openPlaylist(A(), B(), A())
       leaveOut(store, 3)
       await store.findDuplicates()
       expect(store.tracks[2]?.inclusion).toBe('by-hand')
 
       leaveOut(store, 3)
-      expect(store.tracks[2]).toMatchObject({ inclusion: 'duplicate', isLeftOut: true })
 
-      leaveOut(store, 3)
       expect(store.tracks[2]).toMatchObject({ inclusion: 'included', isLeftOut: false })
+      expect(duplicateOf(store.tracks[2]!)).toBeUndefined()
+      // The hand-made leaving out is taken back, and the dismissal is the one edit left.
+      expect(store.editCount).toBe(1)
     })
   })
 
@@ -1301,7 +1387,7 @@ describe('Find duplicates', () => {
       const store = await pressedHolder()
       store.swapTrack(at(store, 4, 10))
 
-      store.dismissMatch(store.tracks[3]?.startSplit?.id ?? null, null)
+      dismissWith(store, 4, 1)
 
       expect(store.selectedTrack?.number).toBe(1)
       expect(store.swapTarget(at(store, 1, 8))).toBeNull()

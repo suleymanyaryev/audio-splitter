@@ -1,18 +1,19 @@
 import { formatTenths } from '@/shared/lib/time/format-tenths.ts'
-import type { SharedStretch } from './find-matches.ts'
+import type { FoundMatch, SharedStretch } from './find-matches.ts'
 import { padTrackNumber } from './pad-track-number.ts'
 
 /*
 A live match of a track with an earlier one, as the track list, the strip and the Track view show
-it (GLOSSARY.md: Match). `kind` is `duplicate` when the track is the same recording as the other from end to end,
-`holds` when it holds the other's shared stretch, and `part-of` when it is a stretch of the other.
+it (GLOSSARY.md: Match). `kind` is `full` when the track is a duplicate, the same recording as the
+other from end to end, `holds` when it holds the other's shared stretch, and `part-of` when it is
+a stretch of the other.
 `number` and `ownName` are the other track's live place in the file and the name the user gave it
 (null while unnamed), and `startSplitId` is the split where it starts (null for the first track),
 which `dismissMatch` names it by. `here` and `there` are the stretch both share, in seconds from
 the start of this track and of the other.
 */
 export interface TrackMatch {
-  kind: 'duplicate' | 'holds' | 'part-of'
+  kind: FoundMatch['kind']
   number: number
   ownName: string | null
   startSplitId: number | null
@@ -34,7 +35,7 @@ Times are to the 0.2 s the search compares at.
 export function matchWords(match: TrackMatch, trackCount: number): string {
   const other = padTrackNumber(match.number, trackCount)
   const name = match.ownName === null ? other : `${other} ${match.ownName}`
-  if (match.kind === 'duplicate') return `duplicate of ${name}`
+  if (match.kind === 'full') return `duplicate of ${name}`
   return match.kind === 'holds'
     ? `${name} from ${formatTenths(match.here.from)}`
     : `part of ${name} from ${formatTenths(match.there.from)}`

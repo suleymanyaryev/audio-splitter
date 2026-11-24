@@ -36,9 +36,9 @@ export interface SharedStretch {
 A match between a track and an earlier one (GLOSSARY.md: Match), both as indices into
 `MatchInput.tracks`. A `full` match is a duplicate: `earlier` is its kept copy. A partial match is
 `holds` when `later` has more before the shared stretch than `earlier` has, or, when both start
-together, goes on longer (it holds `earlier` from where the stretch starts in `later`), and `part-of`
-when `later` is the stretch of `earlier` (from where the stretch starts in `earlier`). `laterShared` and
-`earlierShared` are the stretch both tracks share, in each track.
+together, goes on longer (it holds `earlier` from where the stretch starts in `later`), and
+`part-of` when `later` is the stretch of `earlier` (from where the stretch starts in `earlier`).
+`laterShared` and `earlierShared` are the stretch both tracks share, in each track.
 */
 export interface FoundMatch {
   later: number
@@ -179,7 +179,7 @@ function candidateOf(
   return { later, earlier, laterStretch, earlierStretch, kind, laterRun, earlierRun }
 }
 
-// Every pair that scores as a match, full or not, found once: each pair is slid one along the other.
+// Every pair that scores as a match, full or not, found once: one track is slid along the other.
 function candidatesOf(
   stretches: (Stretch | null)[],
   isDismissed: (later: number, earlier: number) => boolean,

@@ -8,19 +8,21 @@ import { useSplitStore } from '@/entities/split/model/split.ts'
 import LoudnessSettings from '../LoudnessSettings.vue'
 
 /*
-The worker is replaced by an answer the spec chooses: which matches the search says there are.
-`isHolding` keeps the answer back, so the busy state can be looked at.
+The worker is replaced by an answer the spec chooses: which matches the search says there are, or
+the reason it fails with. `isHolding` keeps the answer back, so the busy state can be looked at.
 */
 const search = vi.hoisted(() => ({
   answer: [] as FoundMatch[],
+  failure: null as string | null,
   isHolding: false,
   release: () => {},
 }))
 vi.mock('@/entities/split/api/find-matches-client.ts', () => ({
   findMatchesInWorker: () =>
-    new Promise((resolve) => {
+    new Promise((resolve, reject) => {
       const answer = () => {
-        resolve(search.answer)
+        if (search.failure === null) resolve(search.answer)
+        else reject(new Error(search.failure))
       }
       if (search.isHolding) search.release = answer
       else answer()
@@ -198,6 +200,7 @@ describe('LoudnessSettings', () => {
   describe('Find duplicates', () => {
     beforeEach(() => {
       search.answer = []
+      search.failure = null
       search.isHolding = false
       const split = useSplitStore()
       split.open(curveWithThreeLongTracks(), { windowSeconds: 0.05, durationSeconds: 107 })
@@ -254,6 +257,25 @@ describe('LoudnessSettings', () => {
       await findDuplicatesButton(wrapper).trigger('click')
       await flushPromises()
 
+      expect(wrapper.get('[role="status"]').text()).toBe('No duplicates found')
+    })
+
+    it('says why the search failed, and can be pressed again', async () => {
+      search.failure = 'Out of memory'
+      const wrapper = mount(LoudnessSettings)
+
+      await findDuplicatesButton(wrapper).trigger('click')
+      await flushPromises()
+
+      expect(wrapper.get('[role="alert"]').text()).toBe("Couldn't find duplicates: Out of memory")
+      expect(wrapper.find('[role="status"]').exists()).toBe(false)
+      expect(findDuplicatesButton(wrapper).attributes('disabled')).toBeUndefined()
+
+      search.failure = null
+      await findDuplicatesButton(wrapper).trigger('click')
+      await flushPromises()
+
+      expect(wrapper.find('[role="alert"]').exists()).toBe(false)
       expect(wrapper.get('[role="status"]').text()).toBe('No duplicates found')
     })
 

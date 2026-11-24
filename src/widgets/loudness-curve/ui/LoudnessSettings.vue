@@ -28,9 +28,9 @@ The loudness panel's title row: the two settings of gap finding, and the button 
 gaps they show into splits. The threshold covers the curve's drawn range, −60 to 0 dB, in tenths;
 the minimum gap length runs from a few windows to a long pause. Moving either changes only the
 gaps shown, so there is nothing to ask. "Find gaps" says how many splits a press would add.
-"Find duplicates" looks for tracks that are the same recording as an earlier one and changes nothing of the user's: it
-is off until two tracks are 30 s long, busy while it searches, and the line beside it says what it
-found, nothing before the first press.
+"Find duplicates" looks for tracks that are the same recording as an earlier one and changes
+nothing of the user's: it is off until two tracks are 30 s long, busy while it searches, and the
+line beside it says what it found, nothing before the first press, or why the search failed.
 "Clear splits" starts over: it asks first only when the user has edits or pending splits to lose.
 "Save as default" keeps the two settings for every later file, the threshold as a distance under
 the median, and "Restore built-in" puts the built-in ones back; each is off when it would change
@@ -95,7 +95,14 @@ function confirmClear() {
         </UiButton>
       </UiTooltip>
       <p
-        v-if="split.duplicateResult !== null"
+        v-if="split.duplicateSearchStatus === 'failed'"
+        role="alert"
+        class="max-w-80 text-xs font-semibold break-words text-split"
+      >
+        Couldn't find duplicates: {{ split.duplicateSearchFailure }}
+      </p>
+      <p
+        v-else-if="split.duplicateResult !== null"
         role="status"
         class="text-sm whitespace-nowrap text-muted"
       >

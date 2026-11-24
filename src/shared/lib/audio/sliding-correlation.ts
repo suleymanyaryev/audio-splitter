@@ -1,7 +1,10 @@
 export interface Correlation {
   // Pearson's r over the best overlap, −1 to 1.
   r: number
-  // Where the stretch's first window sits in the other one, in windows: negative when it hangs over the start.
+  /*
+  Where the stretch's first window sits in the other one, in windows: negative when it hangs over
+  the start.
+  */
   offset: number
   // How many windows meet at that offset.
   overlap: number

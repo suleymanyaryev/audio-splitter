@@ -89,7 +89,7 @@ describe('trackTitle', () => {
   it('says a duplicate’s one match', () => {
     const matches: Track['matches'] = [
       {
-        kind: 'duplicate',
+        kind: 'full',
         number: 1,
         ownName: null,
         startSplitId: null,

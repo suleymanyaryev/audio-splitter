@@ -73,11 +73,11 @@ A track that stays in the review, shown and heard like any other, that the expor
 _Avoid_: Excluded track, skipped track, disabled track, muted track
 
 **Match**:
-A stretch where a track is the same recording as an earlier track, found by Find duplicates only when the user asks. It names the kept copy, is full or partial, and lasts until the user dismisses it or a split at either track's ends changes.
+A stretch where a track is the same recording as an earlier track, found by Find duplicates only when the user asks. It names that earlier track, which for a duplicate is the kept copy. It is full or partial, and lasts until the user dismisses it or a split at either track's ends changes.
 _Avoid_: Mark, flag, repeat, copy
 
 **Kept copy**:
-The track a match names: the earliest track in the source file, among those that are the same recording, that was not left out by hand.
+The track a duplicate's match names: the earliest track in the source file, among those that are the same recording, that was not left out by hand.
 _Avoid_: Original, source, master
 
 **Duplicate**:

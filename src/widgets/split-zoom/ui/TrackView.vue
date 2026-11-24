@@ -41,19 +41,20 @@ there, or, within 6 px of one of the track's two end split lines, selects that s
 Split view (`lib/use-range-press.ts` has the order).
 
 The pending splits (GLOSSARY.md) of the track are drawn over the split lines in a look nothing else
-has (`shared/lib/canvas/draw-pending-splits.ts`), the selected one heavier. The view is a slider on the
-playhead and takes the page's keys, wherever the focus is: Left and Right move it 1 s, with Shift 10 s, Space plays or pauses
-the track, as the panel's button does, and Home takes the playhead back to the track's start. Enter
-adds a pending split at the mark and selects it; Shift+Enter adds one where the playhead is, without
-selecting it, so a tap along a playing track is always taken. Delete and Backspace delete the
-selected pending split and Escape deselects it; with none selected those keys are left alone, since
-removing a track deletes splits and has its own button. `[` and `]` select the previous and next
-track, as a click on its row does; a track that is playing or being decoded plays the new one from
-its start, and a paused or stopped one leaves it resting there. `X` leaves the selected track out of
-the export, or brings it back. `C` swaps to the same moment in the track the selected one matches
-(`split.swapTrack`), playing on if it was playing, and back again from there. A held Space, Enter,
-Shift+Enter, `[`, `]`, `X` or `C` is ignored, so it does not start and stop the sound, add pending splits or step over and
-over. A failure to play is said in a line at the bottom of the view.
+has (`shared/lib/canvas/draw-pending-splits.ts`), the selected one heavier. The view is a slider on
+the playhead and takes the page's keys, wherever the focus is: Left and Right move it 1 s, with
+Shift 10 s, Space plays or pauses the track, as the panel's button does, and Home takes the playhead
+back to the track's start. Enter adds a pending split at the mark and selects it; Shift+Enter adds
+one where the playhead is, without selecting it, so a tap along a playing track is always taken.
+Delete and Backspace delete the selected pending split and Escape deselects it; with none selected
+those keys are left alone, since removing a track deletes splits and has its own button. `[` and `]`
+select the previous and next track, as a click on its row does; a track that is playing or being
+decoded plays the new one from its start, and a paused or stopped one leaves it resting there. `X`
+leaves the selected track out of the export, or brings it back. `C` swaps to the same moment in the
+track the selected one matches (`split.swapTrack`), playing on if it was playing, and back again
+from there. A held Space, Enter, Shift+Enter, `[`, `]`, `X` or `C` is ignored, so it does not start
+and stop the sound, add pending splits or step over and over. A failure to play is said in a line at
+the bottom of the view.
 
 The player plays the whole track, however long: a track over 10 min is heard through a window that
 moves along it (`model/audition.ts`), which this view does not see.
@@ -247,13 +248,18 @@ function actOnSelectedPendingSplit(key: string) {
   else split.deleteSelectedPendingSplit()
 }
 
+// Whether the track is heard or about to be: what a step or a swap keeps on in the next track.
+function isSoundOn() {
+  return audition.stretchStatus === 'playing' || audition.stretchStatus === 'loading'
+}
+
 /*
 Whether the key stepped: at the first or last track, or over the discard question, it did not, and
 then nothing starts; the question's answer steps later, from the dialog. Whether sound was on is
 read before the step, which makes the player let go of the old track (`model/audition.ts`).
 */
 function isStepKeyActedOn(step: -1 | 1) {
-  const wasOn = audition.stretchStatus === 'playing' || audition.stretchStatus === 'loading'
+  const wasOn = isSoundOn()
   const hasStepped = split.selectAdjacentTrack(step)
   if (hasStepped && wasOn && extent.value !== null) audition.toggleStretch(extent.value)
   return hasStepped
@@ -278,9 +284,9 @@ function isLeftOutKeyActedOn(event: KeyboardEvent) {
 
 /*
 `C` swaps to the other track of a match: the store selects it, the playhead goes to the same moment
-in it, and a track that was playing (or decoding) plays on from there. With no target the key is left
-alone, as it is for a held key when there is no target. Shift is a modifier like Ctrl, so Shift+C is
-left alone, and a held key swaps once.
+in it, and a track that was playing (or decoding) plays on from there. With no target the key is
+left alone, as it is for a held key when there is no target. Shift is a modifier like Ctrl, so
+Shift+C is left alone, and a held key swaps once.
 */
 function isSwapKeyActedOn(event: KeyboardEvent) {
   const track = extent.value
@@ -288,7 +294,7 @@ function isSwapKeyActedOn(event: KeyboardEvent) {
   const playhead = audition.stretchPlayheadSeconds(track)
   // A held key is taken, so the page does not act on it, only when there is somewhere to swap to.
   if (event.repeat) return split.swapTarget(playhead) !== null
-  const wasOn = audition.stretchStatus === 'playing' || audition.stretchStatus === 'loading'
+  const wasOn = isSoundOn()
   const target = split.swapTrack(playhead)
   // The selection moved, so the extent is the new track's.
   const swapped = extent.value
