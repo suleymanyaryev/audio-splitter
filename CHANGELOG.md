@@ -20,15 +20,14 @@ Versions follow [Semantic Versioning](https://semver.org/) applied to the produc
 
 ### Added
 
-- A "Find gaps (N)" button in the loudness panel's title row. It adds a split in the middle of each gap that has none yet, and says how many it would add, live as you move the sliders. It keeps every split and name, your selection and the view, and asks only when a new split would land inside the selected track while it has pending splits.
-
-- A "Clear splits" button beside "Find gaps" that puts the file back to one track: it deletes every split and track name and clears the edits. It keeps the track name prefix, the range and the settings, and selects track 1 (the Range view stays if it is showing). It asks first, saying what would be lost, only when you have edits or pending splits, and is off while there is no split.
-
-- "Save as default" and "Restore built-in" in the loudness panel's title row. Saving keeps the minimum gap length and how far under the file's median the threshold sits (its tooltip says which, such as "Save 18 dB under the median and 2 s as the default"), so every later file, also after a reload, starts from them and a louder or quieter file still gets a sensible threshold. Restoring puts the built-in 18 dB and 2 s back and moves the sliders there. Each is off while it would change nothing, and neither touches a split.
-
-- Any track can be left out of the export. Each row of the Track list has a "Leave out track N" button beside "Remove track" (it reads "Bring back track N" while the track is left out), and a left-out row is muted. A left-out track stays in the review and can still be played and exported alone, and leaving it out changes no split and no name. It counts as one edit, which bringing it back takes away. A split added inside a left-out track, however you add it, makes two left-out tracks; deleting a split or removing a track gives the merged track the earlier track's state, as it does its name, and removing the first track moves the next track's state to the start of the file.
-- `X` in the Track view leaves the selected track out of the export or brings it back, and the Tracks strip draws a left-out track as a hollow, dashed block. The shortcuts dialog lists both ways.
-- "Export to folder…" writes no file for a left-out track and numbers the files it writes 1 to K with no holes, in the file names, their padding and the `N/K` track tag. An unnamed left-out track's name in the list is the bare prefix, with no number, and "Export to folder…" is off while every track is left out. "Export track…" on an unnamed left-out track offers the prefix and the track's place in the file (`dreamscape-03`).
+- A "Find gaps (N)" button in the loudness panel's title row adds a split in the middle of each gap that has none yet, and its count follows the sliders live. It keeps every split, name, the selection and the view, and asks only when a new split would cut the selected track while it has pending splits.
+- A "Clear splits" button puts the file back to one track: it deletes every split and track name, brings every left-out track back and clears the edits. It keeps the prefix, the range and the settings, and asks first only when you have edits or pending splits.
+- "Save as default" keeps the minimum gap length and how far under the file's median the threshold sits, so every later file starts from them, also after a reload. "Restore built-in" puts back 18 dB under the median and 2 s and moves the sliders there.
+- A "Leave out track N" button on each Track list row leaves that track out of the export, and "Bring back track N" undoes it. A left-out track stays in the review, keeps its splits and name, and its row is muted.
+- A split added inside a left-out track makes two left-out tracks. Deleting a split or removing a track gives the merged track the earlier track's state, as it does its name.
+- `X` in the Track view leaves the selected track out or brings it back, and the Tracks strip draws a left-out track as a hollow, dashed block.
+- "Export to folder…" writes no file for a left-out track and numbers the files it writes 1 to K with no holes. It is off while every track is left out.
+- An unnamed left-out track's name is the bare prefix, with no number, and "Export track…" on it offers the prefix and its place in the file (`dreamscape-03`).
 
 ### Changed
 
