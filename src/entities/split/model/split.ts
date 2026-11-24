@@ -439,7 +439,7 @@ export const useSplitStore = defineStore('split', () => {
     silenceThreshold.value = thresholdUnder(defaultSettings.value.offsetDb)
     minimumGapLength.value = defaultSettings.value.minimumGapSeconds
     findGapsAgain()
-    // The window starts at 0:00, so the Split view shows the file's opening seconds.
+    // One track, no splits: the zoom window starts at 0:00, so the Split view shows the file's opening seconds.
     clearSplits()
     // A new file always lands on its first track, even from the Range view.
     view.value = 'track'
