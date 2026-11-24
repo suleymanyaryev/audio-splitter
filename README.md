@@ -80,6 +80,7 @@ One screen each, with worked numbers from a real 1 h file.
 8. [Listening to a range](docs/concepts/08-listening-to-a-range.md): WAV size, and long tracks through a moving window.
 9. [Volume is gain](docs/concepts/09-volume-is-gain.md): gain and decibels.
 10. [Speed without pitch](docs/concepts/10-speed-without-pitch.md): resampling against time-stretching.
+11. [Finding repeats](docs/concepts/11-finding-repeats.md): sliding one loudness curve along another.
 
 ### Other docs
 
