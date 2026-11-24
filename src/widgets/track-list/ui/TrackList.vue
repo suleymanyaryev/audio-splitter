@@ -128,8 +128,8 @@ watch(
                   :label="`${row.track.isLeftOut ? 'Bring back' : 'Leave out'} track ${row.track.number}`"
                   @click.stop="split.toggleLeftOut(row.track.startSplit?.id ?? null)"
                 >
-                  <Eye v-if="row.track.isLeftOut" class="size-4 shrink-0" />
-                  <EyeOff v-else class="size-4 shrink-0" />
+                  <EyeOff v-if="row.track.isLeftOut" class="size-4 shrink-0" />
+                  <Eye v-else class="size-4 shrink-0" />
                 </UiIconButton>
                 <UiIconButton
                   v-if="split.tracks.length > 1"
