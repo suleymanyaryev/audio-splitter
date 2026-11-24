@@ -168,6 +168,25 @@ function openFile(store: ReturnType<typeof useSplitStore>, curve: Float32Array) 
 const inclusions = (store: ReturnType<typeof useSplitStore>) =>
   store.tracks.map((track) => track.inclusion)
 
+// `loadedStore` is 60 s with splits at 22 s and 42 s: three tracks. Track 2 is left out.
+function withSecondTrackLeftOut() {
+  const store = loadedStore()
+  store.toggleLeftOut(store.splits[0]!.id)
+  expect(inclusions(store)).toEqual(['included', 'by-hand', 'included'])
+  return store
+}
+
+// 80 s with splits at 22 s, 42 s and 62 s: four tracks.
+function fourTracks(states: ('included' | 'by-hand')[]) {
+  const store = threeSplits()
+  for (const [index, state] of states.entries()) {
+    const track = store.tracks[index]!
+    if (track.inclusion !== state) store.toggleLeftOut(track.startSplit?.id ?? null)
+  }
+  expect(inclusions(store)).toEqual(states)
+  return store
+}
+
 /*
 What an open discard question leaves of `pendingTwo`: the question is open, and the held action has
 not run, so the track, the list and the view are as they were. The third track is 42 s to 60 s.
@@ -1053,6 +1072,190 @@ describe('the split store', () => {
 
       expect(store.exportTrackCount).toBe(0)
       expect(store.tracks.map((track) => track.exportNumber)).toEqual([null, null, null])
+    })
+  })
+
+  describe('the left-out state following the splits', () => {
+    describe('a split added inside a left-out track', () => {
+      it('makes two left-out tracks with Add split, at the window’s centre', () => {
+        const store = withSecondTrackLeftOut()
+        store.moveZoomTo(32)
+
+        store.addSplit()
+
+        expect(inclusions(store)).toEqual(['included', 'by-hand', 'by-hand', 'included'])
+      })
+
+      it('makes two left-out tracks at the mark in the Range view', () => {
+        const store = withSecondTrackLeftOut()
+        store.setRange(20, 40)
+        store.placeMark(30)
+
+        store.addSplitAtMark()
+
+        expect(inclusions(store)).toEqual(['included', 'by-hand', 'by-hand', 'included'])
+      })
+
+      it('makes two left-out tracks at the playhead', () => {
+        const store = withSecondTrackLeftOut()
+
+        store.addSplitAt(30.004)
+
+        expect(inclusions(store)).toEqual(['included', 'by-hand', 'by-hand', 'included'])
+      })
+
+      it('makes every track left out for each applied pending split', () => {
+        const store = withSecondTrackLeftOut()
+        store.selectTrack(store.tracks[1]!)
+        store.placeTrackMark(27)
+        store.addPendingSplit(27, false)
+        store.addPendingSplit(36, false)
+
+        store.applyPendingSplits()
+
+        expect(inclusions(store)).toEqual(['included', 'by-hand', 'by-hand', 'by-hand', 'included'])
+      })
+
+      it('makes two left-out tracks when Find gaps cuts a left-out track', () => {
+        const curve = farGaps()
+        const store = useSplitStore()
+        store.open(curve, timing(curve))
+        store.toggleLeftOut(null)
+
+        store.addGapSplits()
+
+        expect(inclusions(store)).toEqual(['by-hand', 'by-hand', 'by-hand'])
+      })
+
+      it('also cuts the first track, which has no split to take the state from', () => {
+        const store = loadedStore()
+        store.toggleLeftOut(null)
+
+        store.addSplitAt(10)
+
+        expect(inclusions(store)).toEqual(['by-hand', 'by-hand', 'included', 'included'])
+      })
+
+      it('leaves an included track included, whatever its neighbours are', () => {
+        const store = withSecondTrackLeftOut()
+
+        store.addSplitAt(50)
+
+        expect(inclusions(store)).toEqual(['included', 'by-hand', 'included', 'included'])
+      })
+
+      it('counts no edit for the state it inherits, only for the split the user added', () => {
+        const store = withSecondTrackLeftOut()
+        expect(store.editCount).toBe(1)
+
+        store.addSplitAt(30)
+        expect(store.editCount).toBe(2)
+
+        store.addGapSplits()
+        expect(store.editCount).toBe(2)
+      })
+
+      it('lets the user bring back one of the two, as one edit', () => {
+        const store = withSecondTrackLeftOut()
+        store.addSplitAt(30)
+        const edits = store.editCount
+
+        store.toggleLeftOut(store.splits[1]!.id)
+        expect(inclusions(store)).toEqual(['included', 'by-hand', 'included', 'included'])
+        expect(store.editCount).toBe(edits + 1)
+
+        store.toggleLeftOut(store.splits[1]!.id)
+        expect(store.editCount).toBe(edits)
+      })
+    })
+
+    describe('deleting the split between two tracks', () => {
+      it('gives the merged track the earlier track’s state: left out', () => {
+        const store = withSecondTrackLeftOut()
+
+        // The split at 42 s ends the left-out track.
+        store.deleteSplit(store.splits[1]!.id)
+
+        expect(inclusions(store)).toEqual(['included', 'by-hand'])
+      })
+
+      it('gives the merged track the earlier track’s state: included', () => {
+        const store = withSecondTrackLeftOut()
+
+        // The split at 22 s starts the left-out track; the earlier track is included.
+        store.deleteSplit(store.splits[0]!.id)
+
+        expect(inclusions(store)).toEqual(['included', 'included'])
+      })
+    })
+
+    describe('removing a track', () => {
+      it('merges a middle track into its neighbours, which keep the earlier track’s state, and leaves the next track alone', () => {
+        const store = fourTracks(['by-hand', 'included', 'included', 'by-hand'])
+
+        store.removeTrack(store.tracks[1]!)
+
+        // Tracks 1 to 3 are one track, left out as track 1 was; track 4 is as it was.
+        expect(inclusions(store)).toEqual(['by-hand', 'by-hand'])
+      })
+
+      it('keeps an included first track’s state too', () => {
+        const store = fourTracks(['included', 'by-hand', 'by-hand', 'included'])
+
+        store.removeTrack(store.tracks[2]!)
+
+        expect(inclusions(store)).toEqual(['included', 'by-hand'])
+      })
+
+      it('removes the last track, leaving the one before it as it was', () => {
+        const store = fourTracks(['included', 'included', 'by-hand', 'by-hand'])
+
+        store.removeTrack(store.tracks[3]!)
+
+        expect(inclusions(store)).toEqual(['included', 'included', 'by-hand'])
+      })
+
+      it('moves the next track’s state to the file’s start when the first track is removed', () => {
+        const store = fourTracks(['included', 'by-hand', 'included', 'included'])
+
+        store.removeTrack(store.tracks[0]!)
+
+        expect(inclusions(store)).toEqual(['by-hand', 'included', 'included'])
+      })
+
+      it('moves an included next track’s state to the file’s start, bringing a left-out first track back', () => {
+        const store = fourTracks(['by-hand', 'included', 'by-hand', 'included'])
+
+        store.removeTrack(store.tracks[0]!)
+
+        expect(inclusions(store)).toEqual(['included', 'by-hand', 'included'])
+      })
+
+      it('moves the next track’s left-out edit with its state, and drops the first track’s own', () => {
+        const store = fourTracks(['included', 'included', 'included', 'included'])
+        store.toggleLeftOut(store.splits[0]!.id)
+        // One edit: track 2 left out.
+        expect(store.editCount).toBe(1)
+
+        // Removing track 1 deletes the detected split at 22 s: one edit for the delete, and the
+        // left-out edit stays one edit, now for the file's start.
+        store.removeTrack(store.tracks[0]!)
+        expect(store.editCount).toBe(2)
+
+        // Bringing the first track back takes that edit away.
+        store.toggleLeftOut(null)
+        expect(store.editCount).toBe(1)
+      })
+
+      it('takes a left-out first track’s edit away when the next track’s state replaces it', () => {
+        const store = fourTracks(['by-hand', 'included', 'included', 'included'])
+        expect(store.editCount).toBe(1)
+
+        store.removeTrack(store.tracks[0]!)
+
+        // Only the delete of the detected split is left: the first track is included, as it opened.
+        expect(store.editCount).toBe(1)
+      })
     })
   })
 

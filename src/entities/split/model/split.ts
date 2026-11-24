@@ -758,13 +758,18 @@ export const useSplitStore = defineStore('split', () => {
   }
 
   /*
-  The new split is unnamed, so its track takes its prefixed number from its place. A split the user
-  adds is one edit; a detected one (`isEdit` false) is none until it is moved or deleted.
+  The new split is unnamed, so its track takes its prefixed number from its place. It takes the
+  inclusion of the track it cuts, whichever way it is added, so cutting a left-out track makes two
+  left-out tracks; that is no edit. A split the user adds is one edit; a detected one (`isEdit`
+  false) is none until it is moved or deleted.
   */
   function insertSplit(seconds: number, isEdit = true) {
-    const index = splits.value.findIndex((candidate) => candidate.seconds > seconds)
-    const split: Split = { id: nextSplitId++, seconds, name: null, inclusion: 'included' }
-    splits.value.splice(index === -1 ? splits.value.length : index, 0, split)
+    const found = splits.value.findIndex((candidate) => candidate.seconds > seconds)
+    const index = found === -1 ? splits.value.length : found
+    // The track it cuts starts at the split before it, or with the file.
+    const inclusion = splits.value[index - 1]?.inclusion ?? firstTrackInclusion.value
+    const split: Split = { id: nextSplitId++, seconds, name: null, inclusion }
+    splits.value.splice(index, 0, split)
     if (isEdit) addedIds.value.add(split.id)
     return split
   }
@@ -846,10 +851,11 @@ export const useSplitStore = defineStore('split', () => {
   exist, so the track and its neighbours become one. It is `deleteSplit` twice, so the edits and the
   selection follow as a delete's do: the end split goes first, so a selected split at either end of
   the track lands on the split after it, or, for the last track, on the split before it.
-  The removed track's name goes with its start split. The next track's name belonged to the end
-  split, so when the first track is removed, which has no start split to keep a name on, it moves to
-  the file's start (`renameTrack` counts the edit). The only track is refused, as is one whose start
-  split is gone, so a stale `Track` removes nothing.
+  The removed track's name and inclusion go with its start split. The next track's belonged to the
+  end split, so when the first track is removed, which has no start split to keep them on, they move
+  to the file's start (`renameTrack` counts the name's edit, and a left-out edit moves with the
+  state). Any other merged track keeps the earlier track's, as a deleted split does. The only track
+  is refused, as is one whose start split is gone, so a stale `Track` removes nothing.
   */
   function removeTrack(track: Track) {
     const startIndex =
@@ -865,9 +871,19 @@ export const useSplitStore = defineStore('split', () => {
     )
     unlessItDiscards(() => {
       const inheritedName = end?.name ?? null
+      const inheritedInclusion = end?.inclusion ?? 'included'
+      const hadInclusionEdit = end !== undefined && inclusionKeys.value.has(end.id)
       if (end !== undefined) removeSplit(end.id)
       if (start !== undefined) removeSplit(start.id)
-      if (start === undefined) renameTrack(null, inheritedName ?? '')
+      if (start !== undefined) {
+        return
+      }
+
+      renameTrack(null, inheritedName ?? '')
+      firstTrackInclusion.value = inheritedInclusion
+      // The edit goes with the state: the file's start has one if the next track's had.
+      inclusionKeys.value.delete(null)
+      if (hadInclusionEdit) inclusionKeys.value.add(null)
     }, isDiscarding)
   }
 
