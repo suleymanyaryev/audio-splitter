@@ -62,7 +62,7 @@ flowchart LR
   reviewPage["ReviewPage"]
 
   sourceFile -- "loudness curve, on mount" --> reviewPage
-  reviewPage -- "detect(curve), prefix" --> split
+  reviewPage -- "open(curve), prefix" --> split
   split -- "selection, range, view" --> audition
   audition -- "clip" --> sourceFile
   split -- "tracks and names" --> exporter
@@ -73,11 +73,11 @@ flowchart LR
   exporterSingle -- "take, release" --> exportLock
 ```
 
-- **`split` can't import `source-file`.** `ReviewPage` hands it the loudness curve and the track name prefix once, on mount.
+- **`split` can't import `source-file`.** `ReviewPage` hands it the loudness curve and the track name prefix once, on mount. The file opens as one track with no splits; "Find gaps" turns the gaps into splits.
 - **Widgets read the entity stores directly.** They never go through another widget.
 - **Tracks are derived from the splits**, never stored. Deleting a split merges the tracks either side of it.
 - **One selection at a time:** a split, a track or nothing.
-- **Changes that drop the user's work ask first.** A setting change or "New file" goes through a replace guard. Any other action that would drop pending splits is held as a question in `split` (see `unlessItDiscards` in `split.ts`).
+- **Changes that drop the user's work ask first.** "New file" asks when there are edits or pending splits; a setting change asks nothing, since it changes only the gaps. Any action that would drop pending splits is held as a question in `split` (see `unlessItDiscards` in `split.ts`).
 - **The two export stores can't import each other**, so `export-lock` sits between them.
 
 ## The theme

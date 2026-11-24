@@ -90,7 +90,7 @@ async function playingTrack() {
 // A file of 1000 s with no split: one track longer than the 10 min the player decodes at a time.
 function setUpLongTrack() {
   const split = useSplitStore()
-  split.detect(curveOf([LOUD, 20_000]), { windowSeconds: 0.05, durationSeconds: 1000 })
+  split.open(curveOf([LOUD, 20_000]), { windowSeconds: 0.05, durationSeconds: 1000 })
   split.selectTrack(split.tracks[0]!)
   return { split, audition: useAuditionStore() }
 }
@@ -123,10 +123,11 @@ function deferred<T>() {
 // A split at 100 s, so the audition is 96 s to 104 s: quiet from 98 s to 102 s in a file of 150 s.
 function setUpAtHundred() {
   const split = useSplitStore()
-  split.detect(curveOf([LOUD, 1960], [QUIET, 80], [LOUD, 960]), {
+  split.open(curveOf([LOUD, 1960], [QUIET, 80], [LOUD, 960]), {
     windowSeconds: 0.05,
     durationSeconds: 150,
   })
+  split.addGapSplits()
   split.selectSplit(split.splits[0]!.id)
   expect(split.selectedSplit?.seconds).toBeCloseTo(100, 6)
   return { split, audition: useAuditionStore() }
@@ -143,7 +144,8 @@ async function setUpAtHundredPlaying() {
 function setUp() {
   const split = useSplitStore()
   const curve = farGaps()
-  split.detect(curve, { windowSeconds: 0.05, durationSeconds: 60 })
+  split.open(curve, { windowSeconds: 0.05, durationSeconds: 60 })
+  split.addGapSplits()
   // Detection opens on track 1; the clip around a split is for the zoom view's selected split.
   split.selectSplit(split.splits[0]!.id)
   return { split, audition: useAuditionStore() }
@@ -246,10 +248,11 @@ describe('the audition store', () => {
   it('holds the audition to the start of the file, so the playhead waits at 0 s', () => {
     // Quiet from 1 s to 5 s, so the only split is at 3 s.
     const split = useSplitStore()
-    split.detect(curveOf([LOUD, 20], [QUIET, 80], [LOUD, 1100]), {
+    split.open(curveOf([LOUD, 20], [QUIET, 80], [LOUD, 1100]), {
       windowSeconds: 0.05,
       durationSeconds: 60,
     })
+    split.addGapSplits()
     split.selectSplit(split.splits[0]!.id)
 
     expect(useAuditionStore().playheadSeconds()).toBe(0)
@@ -283,10 +286,11 @@ describe('the audition store', () => {
   it('asks for less than 8 s when the split is under 4 s from the start of the file', () => {
     // Quiet from 1 s to 5 s, so the only split is at 3 s.
     const split = useSplitStore()
-    split.detect(curveOf([LOUD, 20], [QUIET, 80], [LOUD, 1100]), {
+    split.open(curveOf([LOUD, 20], [QUIET, 80], [LOUD, 1100]), {
       windowSeconds: 0.05,
       durationSeconds: 60,
     })
+    split.addGapSplits()
     split.selectSplit(split.splits[0]!.id)
     const audition = useAuditionStore()
 
@@ -299,10 +303,11 @@ describe('the audition store', () => {
   it('still asks for 8 s when the split is under 4 s from the end of the file, which ffmpeg then cuts short', () => {
     // Quiet from 55 s to 59 s, so the only split is at 57 s, in a file of 60 s.
     const split = useSplitStore()
-    split.detect(curveOf([LOUD, 1100], [QUIET, 80], [LOUD, 20]), {
+    split.open(curveOf([LOUD, 1100], [QUIET, 80], [LOUD, 20]), {
       windowSeconds: 0.05,
       durationSeconds: 60,
     })
+    split.addGapSplits()
     split.selectSplit(split.splits[0]!.id)
     const audition = useAuditionStore()
 
@@ -816,10 +821,11 @@ describe('the audition store', () => {
     it('holds the playhead to the start of the file, where the 8 s are shorter', () => {
       // Quiet from 1 s to 5 s, so the only split is at 3 s and the 8 s start at 0 s.
       const split = useSplitStore()
-      split.detect(curveOf([LOUD, 20], [QUIET, 80], [LOUD, 1100]), {
+      split.open(curveOf([LOUD, 20], [QUIET, 80], [LOUD, 1100]), {
         windowSeconds: 0.05,
         durationSeconds: 60,
       })
+      split.addGapSplits()
       split.selectSplit(split.splits[0]!.id)
       const audition = useAuditionStore()
 
@@ -831,10 +837,11 @@ describe('the audition store', () => {
     it('holds the playhead to the end of the file, where the 8 s are shorter', () => {
       // Quiet from 55 s to 59 s, so the only split is at 57 s and the 8 s end at 60 s.
       const split = useSplitStore()
-      split.detect(curveOf([LOUD, 1100], [QUIET, 80], [LOUD, 20]), {
+      split.open(curveOf([LOUD, 1100], [QUIET, 80], [LOUD, 20]), {
         windowSeconds: 0.05,
         durationSeconds: 60,
       })
+      split.addGapSplits()
       split.selectSplit(split.splits[0]!.id)
       const audition = useAuditionStore()
 
@@ -1065,13 +1072,13 @@ describe('the audition store', () => {
       expect(audition.status).toBe('idle')
     })
 
-    it('stops when a setting change re-selects split 1 at another time', async () => {
+    it('keeps playing when a setting changes, since it changes no split', async () => {
       const { split, audition } = await playing()
 
       split.setMinimumGapLength(3)
       split.setSilenceThreshold(-30)
 
-      expect(audition.status).toBe('idle')
+      expect(audition.status).toBe('playing')
     })
 
     it('keeps playing when a split other than the selected one moves', async () => {
@@ -1992,7 +1999,7 @@ describe('the audition store', () => {
 
         it('is asked for in turn: the window after it is decoded ahead of the hand-over', async () => {
           const longer = setUpLongTrack()
-          longer.split.detect(curveOf([LOUD, 40_000]), {
+          longer.split.open(curveOf([LOUD, 40_000]), {
             windowSeconds: 0.05,
             durationSeconds: 2000,
           })

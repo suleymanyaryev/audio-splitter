@@ -45,7 +45,7 @@ describe('ShortcutsDialog', () => {
   })
 
   it('puts the view on show first: the Range view when a range is shown', async () => {
-    useSplitStore().detect(new Float32Array(2000).fill(-10), {
+    useSplitStore().open(new Float32Array(2000).fill(-10), {
       windowSeconds: 0.05,
       durationSeconds: 100,
     })

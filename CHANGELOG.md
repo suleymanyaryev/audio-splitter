@@ -18,6 +18,16 @@ Versions follow [Semantic Versioning](https://semver.org/) applied to the produc
 
 ## [Unreleased]
 
+### Added
+
+- A "Find gaps (N)" button in the loudness panel's title row. It adds a split in the middle of each gap that has none yet, and says how many it would add, live as you move the sliders. It keeps every split and name, your selection and the view, and asks only when a new split would land inside the selected track while it has pending splits.
+
+### Changed
+
+- A source file opens as one track with no splits, on track 1 in the Track view. The gaps for the settings show at once on the whole-file view, the loudness curve and the zoom panel's views, and "Find gaps" turns them into splits when you decide.
+- Moving the silence threshold or the minimum gap length, by slider or by dragging the line on the loudness curve, changes only the gaps shown. It no longer replaces your splits and names, so it asks nothing.
+- Edits now count from when the file opened. The splits "Find gaps" adds are no edit until you move or delete one, so "New file" asks only when you have done something by hand.
+
 ## [1.4.0] - 2026-11-22
 
 ### Added

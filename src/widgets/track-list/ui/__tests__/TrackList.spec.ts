@@ -50,7 +50,8 @@ function removeButton(wrapper: ReturnType<typeof mount>, trackNumber: number) {
 
 function mountWithTwoGaps() {
   const split = useSplitStore()
-  split.detect(curveWithTwoGaps(), { windowSeconds: 0.05, durationSeconds: 100 })
+  split.open(curveWithTwoGaps(), { windowSeconds: 0.05, durationSeconds: 100 })
+  split.addGapSplits()
   return { split, wrapper: mount(TrackList) }
 }
 
@@ -80,7 +81,8 @@ describe('TrackList', () => {
   })
 
   it('lists each track, with a split row between every two, in time order', () => {
-    useSplitStore().detect(curveWithTwoGaps(), { windowSeconds: 0.05, durationSeconds: 100 })
+    useSplitStore().open(curveWithTwoGaps(), { windowSeconds: 0.05, durationSeconds: 100 })
+    useSplitStore().addGapSplits()
 
     const wrapper = mount(TrackList)
 
@@ -101,7 +103,7 @@ describe('TrackList', () => {
   })
 
   it('shows one track over the whole file when there are no splits', () => {
-    useSplitStore().detect(new Float32Array(400).fill(-10), {
+    useSplitStore().open(new Float32Array(400).fill(-10), {
       windowSeconds: 0.05,
       durationSeconds: 20,
     })
@@ -109,9 +111,10 @@ describe('TrackList', () => {
     expect(rows(mount(TrackList))).toEqual([['1', '01', '0:00:00.00', '0:00:20']])
   })
 
-  it('follows the minimum gap length: fewer gaps, fewer rows', async () => {
+  it('keeps its rows when the minimum gap length changes, since that changes only the gaps', async () => {
     const split = useSplitStore()
-    split.detect(curveWithTwoGaps(), { windowSeconds: 0.05, durationSeconds: 100 })
+    split.open(curveWithTwoGaps(), { windowSeconds: 0.05, durationSeconds: 100 })
+    split.addGapSplits()
     const wrapper = mount(TrackList)
     expect(wrapper.findAll('tbody tr')).toHaveLength(5)
 
@@ -119,11 +122,12 @@ describe('TrackList', () => {
 
     await wrapper.vm.$nextTick()
 
-    expect(wrapper.findAll('tbody tr')).toHaveLength(1)
+    expect(wrapper.findAll('tbody tr')).toHaveLength(5)
   })
 
   it('scrolls inside a box as tall as the zoom view', () => {
-    useSplitStore().detect(curveWithTwoGaps(), { windowSeconds: 0.05, durationSeconds: 100 })
+    useSplitStore().open(curveWithTwoGaps(), { windowSeconds: 0.05, durationSeconds: 100 })
+    useSplitStore().addGapSplits()
 
     const wrapper = mount(TrackList)
 
@@ -224,7 +228,7 @@ describe('TrackList', () => {
     })
 
     it('offers none when there is only one track', () => {
-      useSplitStore().detect(new Float32Array(400).fill(-10), {
+      useSplitStore().open(new Float32Array(400).fill(-10), {
         windowSeconds: 0.05,
         durationSeconds: 20,
       })

@@ -67,10 +67,10 @@ Each was agreed with the user on 2026-11-24 unless marked _assumed_.
 | 7   | Spectrum view                             | Frequency              | No                        |
 | 8   | Changes of content, for crossfaded tracks | Comparing spectra      | Yes                       |
 
-The order is the agent's proposal and the user has not objected. Two things can move it:
+The order is the agent's proposal; the user confirmed milestone 1 goes first. Two things can move the rest:
 
 - A poor result in milestone 2's measurement moves duplicates after milestone 7.
-- The README says v2 starts with "help for playlists that repeat". Milestone 1 is placed first here because it is small and reshapes the review flow that the duplicates button sits in. Swap 1 and 2 if the README's order should hold; otherwise that README line needs updating when v2 starts.
+- The README says v2 starts with "help for playlists that repeat". The user confirmed milestone 1 goes first (2026-11-24), so that README line is updated with it.
 
 ---
 
@@ -86,7 +86,6 @@ The order is the agent's proposal and the user has not objected. Two things can 
 - The two settings preview the gaps on the loudness curve. A "Find gaps" button turns the gaps into splits. The confirm dialog on a setting change goes away.
 - The user's own defaults for both settings are saved and used for every later source file.
 - A track can be left out of the export (the three-state decision above).
-- Minimum track length, as a third setting. _Assumed._
 
 **Facts from the code.**
 
@@ -97,16 +96,13 @@ The order is the agent's proposal and the user has not objected. Two things can 
 - "Removing a track" today merges it into its neighbours. That is a different act from leaving it out, and both stay.
 - `localStorage` already holds the volume, the mute flag, the play speed and the theme choice.
 
-**Open questions.**
+**Status.** Grilled on 2026-11-24; spec at [`.scratch/cutting-tool-base/spec.md`](../cutting-tool-base/spec.md), ready for tickets. Every open question is settled there:
 
-- What "Find gaps" does when splits already exist: replace all behind the existing guard, or only fill the range.
-- Whether the saved threshold default is the offset from the median (it carries across files of different loudness) or an absolute level in dB.
-- How defaults are saved: a "Save as my defaults" action beside the sliders, or a settings page. The user said "some global settings".
-- What minimum track length does to a short track: which of its two splits goes.
-- Whether an export with tracks left out renumbers the rest, in file names and in the `N/TOTAL` tag.
-- How a left-out track looks in the track list and the track strip.
-- Whether to remember the export folder across source files (left out of the v1.1 spec).
-- The glossary's "Edit" says a setting change replaces all edits. That stops being true.
+- Find gaps adds only, into gaps that hold no split; "Clear splits" starts over, asking when edits would be lost.
+- The default settings keep the threshold as a distance under the median, saved and restored beside the sliders.
+- Left-out tracks inherit their state on a split and on a merge, as names do; the export renumbers the tracks it writes, and "track N" stays the place in the file.
+- Minimum track length and remembering the export folder are out.
+- This milestone ships first, as 2.0.0, and the README's order line is updated.
 
 ## Milestone 2: Duplicate tracks
 

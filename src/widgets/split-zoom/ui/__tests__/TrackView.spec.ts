@@ -26,7 +26,8 @@ function curveWithTwoGaps() {
 function setup() {
   useSourceFileStore().durationSeconds = 100
   const split = useSplitStore()
-  split.detect(curveWithTwoGaps(), { windowSeconds: 0.05, durationSeconds: 100 })
+  split.open(curveWithTwoGaps(), { windowSeconds: 0.05, durationSeconds: 100 })
+  split.addGapSplits()
   split.selectTrack(split.tracks[1]!)
   const audition = useAuditionStore()
   const toggleStretch = vi.spyOn(audition, 'toggleStretch').mockImplementation(() => {})
@@ -141,7 +142,7 @@ describe('TrackView', () => {
     it('ends at the end of a track longer than 10 min, which the player plays in full', () => {
       useSourceFileStore().durationSeconds = 1000
       const split = useSplitStore()
-      split.detect(new Float32Array(20_000).fill(-10), {
+      split.open(new Float32Array(20_000).fill(-10), {
         windowSeconds: 0.05,
         durationSeconds: 1000,
       })

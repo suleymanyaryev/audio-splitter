@@ -3,18 +3,13 @@ import { defineStore } from 'pinia'
 
 import { median } from '@/shared/lib/audio/median.ts'
 import { DEFAULT_MINIMUM_GAP_SECONDS, DEFAULT_OFFSET_DB } from '../config/defaults.ts'
+import { LIMIT_TOLERANCE, MINIMUM_DISTANCE_SECONDS } from '../config/split-room.ts'
 import { MAX_TRACK_NAME_LENGTH } from '../config/track-name.ts'
 import { ZOOM_WINDOW_SECONDS } from '../config/zoom-window.ts'
-import { findGaps, splitsOf, type Gap } from '../lib/find-gaps.ts'
+import { findGaps, gapSplitTimes, type Gap } from '../lib/find-gaps.ts'
 import { defaultTrackName } from '../lib/default-track-name.ts'
 import { rangeBetween, type TimeRange } from '../lib/range-between.ts'
 
-/*
-A split stays at least this far from its neighbours and from the file's start and end. Moves are
-compared with a hair of tolerance, because a split a step away from its limit can sit an ulp off it.
-*/
-const MINIMUM_DISTANCE_SECONDS = 1
-const LIMIT_TOLERANCE = 1e-9
 // Splits sit on the same 10 ms grid the arrow keys and a drag step in.
 const GRID_STEPS_PER_SECOND = 100
 
@@ -59,30 +54,33 @@ export interface CurveTiming {
 }
 
 /*
-The splits proposed for the source file and the tracks between them. This slice cannot import
-`entities/source-file`, so `detect` receives the loudness curve as data and keeps a reference to it
+The splits of the source file and the tracks between them. This slice cannot import
+`entities/source-file`, so `open` receives the loudness curve as data and keeps a reference to it
 (the page's source-file store owns the array; it is never written to), to find the gaps again when
 one of the two settings moves.
+
+A file opens as one track with no splits. The gaps are separate state, shown on every view and
+found again whenever a setting moves, which changes nothing else. `addGapSplits` ("Find gaps")
+turns the gaps into splits, only where no split is yet, and `gapSplitSeconds` is what it would add.
 
 A track name belongs to the split where the track starts, and the first track's to the file's
 start, so moving or deleting a split keeps the right name with it, and an unnamed track shows the
 track name prefix followed by its padded number, from its position. Removing a track deletes the
-splits at both its ends, which is two deletes with the names and edits of a delete. Every change of
-a setting replaces all splits and all names.
+splits at both its ends, which is two deletes with the names and edits of a delete.
 
 One selection (`Selection`) holds what is under review: a split, a track or nothing. The selected
 split, its index and the selected track are derived from it, so they follow the splits as they move
-(the track is kept by the split where it starts, so only deleting that split moves the key). Every
-detection selects the first track and puts the window at the file's start, so a file opens on
+(the track is kept by the split where it starts, so only deleting that split moves the key). Opening
+a file selects the first track and puts the window at the file's start, so a file opens on
 track 1, ready to play. The zoom window is
 `ZOOM_WINDOW_SECONDS` wide around `zoomCentreSeconds`: selecting a split centres it there and
 nothing else moves it except `moveZoomTo`. A split can only be moved inside the window, which never follows the move. A split
 is added at the window's centre, and `editCount` says how many things the user changed since the
-last detection.
+file opened. The splits Find gaps adds are no edit; moving or deleting one is.
 
 The range (GLOSSARY.md) is view state beside the window's centre: a stretch the user dragged out on
-the whole-file view, or none. It belongs to the file, not to the detection, so a setting change and
-the edits leave it alone; `reset` clears it. The panel shows the range's view after a new range and
+the whole-file view, or none. It belongs to the file, so a setting change and the edits leave it
+alone; `reset` clears it. The panel shows the range's view after a new range and
 the zoom view again as soon as the user selects a split or moves the window, since both are about
 the zoom view; the range stays while the zoom view is shown. The mark is a spot inside the range,
 placed by the user, cleared by a new range and kept otherwise; `addSplitAtMark` adds a split there,
@@ -91,7 +89,7 @@ and `addSplitAt` at any time (the playhead), without selecting it, so the user s
 export const useSplitStore = defineStore('split', () => {
   const curve = shallowRef<Float32Array | null>(null)
   const timing = ref<CurveTiming | null>(null)
-  // Null until the first detection; from then on a plain value the user moves (ticket 16).
+  // Null until the file opens; from then on a plain value the user moves.
   const silenceThreshold = ref<number | null>(null)
   const minimumGapLength = ref(DEFAULT_MINIMUM_GAP_SECONDS)
   const gaps = ref<Gap[]>([])
@@ -99,7 +97,7 @@ export const useSplitStore = defineStore('split', () => {
   const firstTrackName = ref<string | null>(null)
   /*
   The track name prefix (GLOSSARY.md): file-level state, so no edit, no setting change and no
-  detection touches it. The page sets it once per file; `reset` clears it.
+  open touches it. The page sets it once per file; `reset` clears it.
   */
   const trackNamePrefix = ref('')
   const selection = ref<Selection>(null)
@@ -126,10 +124,11 @@ export const useSplitStore = defineStore('split', () => {
   const view = ref<PanelView>('split')
   let nextSplitId = 0
   /*
-  What the user changed since the last detection, counted as things changed, not actions: a split
+  What the user changed since the file opened, counted as things changed, not actions: a split
   moved ten times is one edit. The sets hold split ids (a rename is keyed by the split where its
   track starts, null for the file's start); `deletedCount` counts detected splits only, because
-  deleting an added split just takes its "added" edit back.
+  deleting an added split just takes its "added" edit back. A detected split (one Find gaps added)
+  is no edit until it is moved or deleted.
   */
   const movedIds = ref(new Set<number>())
   const addedIds = ref(new Set<number>())
@@ -336,55 +335,78 @@ export const useSplitStore = defineStore('split', () => {
       hasRoomForPending(snapToGrid(trackMarkSeconds.value)),
   )
 
-  // Finds the gaps again and replaces all splits and all track names with the proposed ones.
-  function findAgain() {
+  // Finds the gaps again from the two settings. Nothing but the gaps changes.
+  function findGapsAgain() {
     if (curve.value === null || timing.value === null || silenceThreshold.value === null) return
     gaps.value = findGaps(curve.value, {
       ...timing.value,
       silenceThreshold: silenceThreshold.value,
       minimumGapLength: minimumGapLength.value,
     })
-    splits.value = splitsOf(gaps.value).map((seconds) => ({
-      id: nextSplitId++,
-      seconds,
-      name: null,
-    }))
+  }
+
+  /*
+  Once per file, when its analysis ends: the file is one track with no splits, on track 1 in the
+  Track view. Both settings start at their defaults, the threshold relative to this file's median
+  and rounded to the Slider's 0.1 dB step, so the readout, the thumb and the gaps agree.
+  */
+  function open(loudness: Float32Array, curveTiming: CurveTiming) {
+    curve.value = loudness
+    timing.value = curveTiming
+    silenceThreshold.value = Math.round((median(loudness) - DEFAULT_OFFSET_DB) * 10) / 10
+    minimumGapLength.value = DEFAULT_MINIMUM_GAP_SECONDS
+    findGapsAgain()
+    splits.value = []
     firstTrackName.value = null
     clearEdits()
-    // A detection starts over, even when the first track is still the same stretch.
     trackMarkSeconds.value = null
     clearPending()
     // The first track starts with the file, so it is keyed by no split and exists with no gap too.
     selection.value = { kind: 'track', startSplitId: null }
     // The window starts at 0:00, so the Split view shows the file's opening seconds.
     zoomCentreSeconds.value = ZOOM_WINDOW_SECONDS / 2
-    // The Range view keeps the stretch the user is listening to; any other view shows the track.
-    if (view.value !== 'range') view.value = 'track'
-  }
-
-  /*
-  Once per file, when its analysis ends: both settings start at their defaults, the threshold
-  relative to this file's median and rounded to the Slider's 0.1 dB step, so the readout, the thumb
-  and the detection agree.
-  */
-  function detect(loudness: Float32Array, curveTiming: CurveTiming) {
-    curve.value = loudness
-    timing.value = curveTiming
-    silenceThreshold.value = Math.round((median(loudness) - DEFAULT_OFFSET_DB) * 10) / 10
-    minimumGapLength.value = DEFAULT_MINIMUM_GAP_SECONDS
-    findAgain()
-    // The first detection of a file always lands on its first track.
     view.value = 'track'
   }
 
   function setSilenceThreshold(decibels: number) {
     silenceThreshold.value = decibels
-    findAgain()
+    findGapsAgain()
   }
 
   function setMinimumGapLength(seconds: number) {
     minimumGapLength.value = seconds
-    findAgain()
+    findGapsAgain()
+  }
+
+  // The times "Find gaps" would add now (see `gapSplitTimes`); its length is the button's count.
+  const gapSplitSeconds = computed(() =>
+    timing.value === null
+      ? []
+      : gapSplitTimes(
+          gaps.value,
+          splits.value.map((split) => split.seconds),
+          timing.value.durationSeconds,
+        ),
+  )
+
+  /*
+  "Find gaps": a detected split at each time in `gapSplitSeconds`, keeping every split and name and
+  leaving the selection, the window and the view where they are. A split inside the selected track
+  ends its pending splits, so with some it asks first; the times are taken again when it runs, since
+  "Apply first" adds splits in between.
+  */
+  function addGapSplits() {
+    const times = gapSplitSeconds.value
+    const track = selectedTrack.value
+    const isInside =
+      track !== null &&
+      times.some(
+        (seconds) =>
+          seconds > track.startSeconds && seconds < track.startSeconds + track.lengthSeconds,
+      )
+    unlessItDiscards(() => {
+      for (const seconds of gapSplitSeconds.value) insertSplit(seconds, false)
+    }, isInside)
   }
 
   // Selects the split, centres the window on it and shows the Split view, with no question.
@@ -404,7 +426,7 @@ export const useSplitStore = defineStore('split', () => {
   /*
   Selects the track, keyed by the split where it starts (none for the first), and shows the Track
   view. The zoom window stays where it is: the track is no split to centre on. A stale `Track`, whose
-  start split is gone, or one before any detection, selects nothing.
+  start split is gone, or one before the file opens, selects nothing.
   */
   function selectTrack(track: Track) {
     if (timing.value === null) return
@@ -595,12 +617,15 @@ export const useSplitStore = defineStore('split', () => {
     if (!addedIds.value.has(id)) movedIds.value.add(id)
   }
 
-  // The new split is unnamed, so its track takes its prefixed number from its place.
-  function insertSplit(seconds: number) {
+  /*
+  The new split is unnamed, so its track takes its prefixed number from its place. A split the user
+  adds is one edit; a detected one (`isEdit` false) is none until it is moved or deleted.
+  */
+  function insertSplit(seconds: number, isEdit = true) {
     const index = splits.value.findIndex((candidate) => candidate.seconds > seconds)
     const split: Split = { id: nextSplitId++, seconds, name: null }
     splits.value.splice(index === -1 ? splits.value.length : index, 0, split)
-    addedIds.value.add(split.id)
+    if (isEdit) addedIds.value.add(split.id)
     return split
   }
 
@@ -718,7 +743,7 @@ export const useSplitStore = defineStore('split', () => {
     if (stored === current) return
     if (split === null) firstTrackName.value = stored
     else split.name = stored
-    // Detection leaves every track unnamed, so a track named back to its default is no edit.
+    // A file opens with every track unnamed, so a track named back to its default is no edit.
     if (stored === null) renamedKeys.value.delete(startSplitId)
     else renamedKeys.value.add(startSplitId)
   }
@@ -753,6 +778,7 @@ export const useSplitStore = defineStore('split', () => {
     silenceThreshold,
     minimumGapLength,
     gaps,
+    gapSplitSeconds,
     splits,
     firstTrackName,
     trackNamePrefix,
@@ -775,7 +801,8 @@ export const useSplitStore = defineStore('split', () => {
     editCount,
     hasEdits,
     tracks,
-    detect,
+    open,
+    addGapSplits,
     setSilenceThreshold,
     setMinimumGapLength,
     selectSplit,

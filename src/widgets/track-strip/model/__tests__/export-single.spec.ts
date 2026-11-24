@@ -52,7 +52,8 @@ describe('the single export store', () => {
     sourceFile.format = 'm4a'
     sourceFile.status = 'ready'
     const split = useSplitStore()
-    split.detect(curveWithTwoGaps(), { windowSeconds: 0.05, durationSeconds: 100 })
+    split.open(curveWithTwoGaps(), { windowSeconds: 0.05, durationSeconds: 100 })
+    split.addGapSplits()
     return { sourceFile, split, exporter: useExportSingleStore() }
   }
 

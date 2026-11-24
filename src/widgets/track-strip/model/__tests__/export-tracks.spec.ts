@@ -63,10 +63,11 @@ describe('the export store', () => {
     sourceFile.format = 'm4a'
     sourceFile.status = 'ready'
     const split = useSplitStore()
-    split.detect(withSplits ? curveWithTwoGaps() : new Float32Array(2000).fill(-10), {
+    split.open(withSplits ? curveWithTwoGaps() : new Float32Array(2000).fill(-10), {
       windowSeconds: 0.05,
       durationSeconds: 100,
     })
+    if (withSplits) split.addGapSplits()
     return { split, exporter: useExportTracksStore() }
   }
 

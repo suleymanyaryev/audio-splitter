@@ -22,9 +22,7 @@ import {
   handleTop,
   labelPlateTop,
 } from '../lib/threshold-line.ts'
-import { useReplaceGuard } from '../lib/use-replace-guard.ts'
 import { useThresholdDrag } from '../lib/use-threshold-drag.ts'
-import ReplaceEditsDialog from './ReplaceEditsDialog.vue'
 
 // DESIGN.md: the area under the curve is filled at 14 % alpha.
 const FILL_ALPHA = 0.14
@@ -39,14 +37,10 @@ const sourceFile = useSourceFileStore()
 const split = useSplitStore()
 const canvas = useTemplateRef('canvas')
 
-// With edits to lose, the drag's first move asks instead of moving the line, and the drag ends.
-const { asking, editCount, pendingCount, change, replace } = useReplaceGuard()
+// Dragging the line is the slider's move: it changes the gaps shown and nothing else.
 const { overLine, onPointerDown, onPointerMove, onPointerEnd } = useThresholdDrag({
   threshold: () => split.silenceThreshold,
-  set: (decibels) => {
-    change(() => split.setSilenceThreshold(decibels))
-    return !asking.value
-  },
+  set: split.setSilenceThreshold,
 })
 
 // The same five times as the whole-file view, so the two panels read on one time axis.
@@ -184,11 +178,5 @@ watch(
     <div class="mt-1 flex justify-between text-xs text-muted">
       <span v-for="(time, index) in axisTimes" :key="index">{{ time }}</span>
     </div>
-    <ReplaceEditsDialog
-      v-model:open="asking"
-      :edit-count="editCount"
-      :pending-count="pendingCount"
-      @replace="replace"
-    />
   </div>
 </template>

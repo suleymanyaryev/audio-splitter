@@ -16,7 +16,7 @@ The project has a second, equal reason: I wanted to learn how digital audio work
 
 1. **Load** an `.m4a` (AAC), `.mp3` or `.opus` file. Any other file gets a message saying what it is.
 2. **Analyse.** The file is decoded in slices into a waveform and a loudness curve. A 1 h file takes a few seconds.
-3. **Propose splits** in the middle of each quiet gap. Two settings, the silence threshold and the minimum gap length, tune what counts as a gap.
+3. **Find gaps.** The file opens as one track. Two settings, the silence threshold and the minimum gap length, tune which quiet gaps show, and one button turns them into splits.
 4. **Review.** Listen across a split, to a whole track, or to a range you drag out. Move, add and delete splits, and name the tracks.
 5. **Export** every track into a new folder, or one track or range as a single file. Tracks keep the source's format and are tagged; nothing is re-encoded.
 
@@ -91,7 +91,7 @@ One screen each, with worked numbers from a real 1 h file.
 
 ## What's next
 
-v1 is complete. v2 will be planned the same way, one audio concept per milestone, starting with help for playlists that repeat.
+v1 is complete. v2 will be planned the same way, one audio concept per milestone, starting with the app as a general cutting tool (gaps on request, saved default settings, tracks left out of the export), then help for playlists that repeat.
 
 ## Licence
 
