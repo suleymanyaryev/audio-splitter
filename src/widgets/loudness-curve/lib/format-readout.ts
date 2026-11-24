@@ -17,7 +17,7 @@ export function formatSettingSeconds(seconds: number): string {
 }
 
 // The threshold's distance from the median in words: "18 dB under the median".
-export function formatOffset(offsetDatabase: number): string {
-  const tenths = roundToTenth(offsetDatabase)
+export function formatOffset(offsetDecibels: number): string {
+  const tenths = roundToTenth(offsetDecibels)
   return `${Math.abs(tenths)} dB ${tenths < 0 ? 'over' : 'under'} the median`
 }

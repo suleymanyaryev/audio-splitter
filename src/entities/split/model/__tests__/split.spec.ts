@@ -1256,6 +1256,28 @@ describe('the split store', () => {
         // Only the delete of the detected split is left: the first track is included, as it opened.
         expect(store.editCount).toBe(1)
       })
+
+      it('counts a left-out file start as an edit when the next track took its state from a cut', () => {
+        const store = fourTracks(['by-hand', 'included', 'included', 'included'])
+        // A split added inside the left-out track 1 makes two left-out tracks, the new one no edit.
+        store.addSplitAt(10)
+        expect(inclusions(store)).toEqual([
+          'by-hand',
+          'by-hand',
+          'included',
+          'included',
+          'included',
+        ])
+
+        store.removeTrack(store.tracks[0]!)
+
+        // The file's start is left out, which the file did not open with: that stays an edit, and
+        // bringing it back takes it away.
+        expect(inclusions(store)).toEqual(['by-hand', 'included', 'included', 'included'])
+        const edits = store.editCount
+        store.toggleLeftOut(null)
+        expect(store.editCount).toBe(edits - 1)
+      })
     })
   })
 

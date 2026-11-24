@@ -131,7 +131,7 @@ export const useSplitStore = defineStore('split', () => {
   const silenceThreshold = ref<number | null>(null)
   const minimumGapLength = ref(DEFAULT_MINIMUM_GAP_SECONDS)
   // This file's median loudness, which the threshold's distance under it is measured from.
-  const medianDatabase = ref<number | null>(null)
+  const medianDecibels = ref<number | null>(null)
   /*
   The default settings (GLOSSARY.md) every file opens with: the user's saved ones, or the built-in
   ones. They outlive the file: `reset` leaves them, and a fresh store reads what an earlier one saved.
@@ -421,8 +421,8 @@ export const useSplitStore = defineStore('split', () => {
   }
 
   // The threshold that sits this far under this file's median, on the slider's grid and range.
-  function thresholdUnder(offsetDatabase: number) {
-    const level = roundToTenth((medianDatabase.value ?? 0) - offsetDatabase)
+  function thresholdUnder(offsetDecibels: number) {
+    const level = roundToTenth((medianDecibels.value ?? 0) - offsetDecibels)
     return Math.min(Math.max(level, THRESHOLD_MIN_DB), THRESHOLD_MAX_DB)
   }
 
@@ -435,7 +435,7 @@ export const useSplitStore = defineStore('split', () => {
   function open(loudness: Float32Array, curveTiming: CurveTiming) {
     curve.value = loudness
     timing.value = curveTiming
-    medianDatabase.value = median(loudness)
+    medianDecibels.value = median(loudness)
     silenceThreshold.value = thresholdUnder(defaultSettings.value.offsetDb)
     minimumGapLength.value = defaultSettings.value.minimumGapSeconds
     findGapsAgain()
@@ -475,10 +475,10 @@ export const useSplitStore = defineStore('split', () => {
   }
 
   // The threshold's distance under this file's median now, rounded to 0.1 dB: what "Save as default" saves.
-  const currentOffsetDatabase = computed(() =>
-    medianDatabase.value === null || silenceThreshold.value === null
+  const currentOffsetDecibels = computed(() =>
+    medianDecibels.value === null || silenceThreshold.value === null
       ? null
-      : roundToTenth(medianDatabase.value - silenceThreshold.value),
+      : roundToTenth(medianDecibels.value - silenceThreshold.value),
   )
 
   // Whether the two settings are what the default settings would give this file.
@@ -497,9 +497,9 @@ export const useSplitStore = defineStore('split', () => {
 
   // "Save as default": the current minimum gap length and threshold distance, kept across visits.
   function saveAsDefault() {
-    if (currentOffsetDatabase.value === null) return
+    if (currentOffsetDecibels.value === null) return
     defaultSettings.value = {
-      offsetDb: currentOffsetDatabase.value,
+      offsetDb: currentOffsetDecibels.value,
       minimumGapSeconds: roundToTenth(minimumGapLength.value),
     }
     saveDefaultSettings(defaultSettings.value)
@@ -509,7 +509,7 @@ export const useSplitStore = defineStore('split', () => {
   function restoreBuiltIn() {
     defaultSettings.value = { ...BUILT_IN_SETTINGS }
     saveDefaultSettings(defaultSettings.value)
-    if (medianDatabase.value === null) return
+    if (medianDecibels.value === null) return
     silenceThreshold.value = thresholdUnder(BUILT_IN_SETTINGS.offsetDb)
     minimumGapLength.value = BUILT_IN_SETTINGS.minimumGapSeconds
     findGapsAgain()
@@ -853,8 +853,7 @@ export const useSplitStore = defineStore('split', () => {
   the track lands on the split after it, or, for the last track, on the split before it.
   The removed track's name and inclusion go with its start split. The next track's belonged to the
   end split, so when the first track is removed, which has no start split to keep them on, they move
-  to the file's start (`renameTrack` counts the name's edit, and a left-out edit moves with the
-  state). Any other merged track keeps the earlier track's, as a deleted split does. The only track
+  to the file's start (`renameTrack` counts the name's edit, and a left-out start is one edit). Any other merged track keeps the earlier track's, as a deleted split does. The only track
   is refused, as is one whose start split is gone, so a stale `Track` removes nothing.
   */
   function removeTrack(track: Track) {
@@ -872,7 +871,6 @@ export const useSplitStore = defineStore('split', () => {
     unlessItDiscards(() => {
       const inheritedName = end?.name ?? null
       const inheritedInclusion = end?.inclusion ?? 'included'
-      const hadInclusionEdit = end !== undefined && inclusionKeys.value.has(end.id)
       if (end !== undefined) removeSplit(end.id)
       if (start !== undefined) removeSplit(start.id)
       if (start !== undefined) {
@@ -881,9 +879,13 @@ export const useSplitStore = defineStore('split', () => {
 
       renameTrack(null, inheritedName ?? '')
       firstTrackInclusion.value = inheritedInclusion
-      // The edit goes with the state: the file's start has one if the next track's had.
+      /*
+      A file opens with its first track included, so the file's start is an edit exactly while it
+      is left out, as a name is while it is set. Carrying the next track's edit flag instead would
+      miss a state it took from a cut, which has no edit of its own.
+      */
       inclusionKeys.value.delete(null)
-      if (hadInclusionEdit) inclusionKeys.value.add(null)
+      if (inheritedInclusion === 'by-hand') inclusionKeys.value.add(null)
     }, isDiscarding)
   }
 
@@ -931,7 +933,7 @@ export const useSplitStore = defineStore('split', () => {
     timing.value = null
     silenceThreshold.value = null
     minimumGapLength.value = DEFAULT_MINIMUM_GAP_SECONDS
-    medianDatabase.value = null
+    medianDecibels.value = null
     gaps.value = []
     splits.value = []
     firstTrackName.value = null
@@ -955,7 +957,7 @@ export const useSplitStore = defineStore('split', () => {
     gaps,
     gapSplitSeconds,
     canClearSplits,
-    currentOffsetDb: currentOffsetDatabase,
+    currentOffsetDb: currentOffsetDecibels,
     matchesDefaultSettings,
     areDefaultSettingsBuiltIn,
     splits,
