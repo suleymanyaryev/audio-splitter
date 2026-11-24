@@ -1,14 +1,14 @@
 import { expect, test, type Page } from '@playwright/test'
 
 /*
-Milestone 7, one flow per format: load a 30 s fixture (three tone bursts, two 2 s silences, so two
-splits and three tracks), export, and read the files back. `showDirectoryPicker` is replaced by
+Milestone 7, one flow per format: load a 30 s fixture (three tone bursts, two 2 s silences), press
+"Find gaps" for two splits and three tracks, export, and read the files back. `showDirectoryPicker` is replaced by
 the browser's origin-private file system, a real directory the real File System Access writes go
 into, so no picker dialog opens.
 */
 const FORMATS = ['m4a', 'mp3', 'opus'] as const
 
-// What detection gives on the fixtures: splits in the silences' middles, 9.5 s and 20.5 s.
+// What "Find gaps" adds on the fixtures: splits in the silences' middles, 9.5 s and 20.5 s.
 const EXPECTED_SECONDS = [9.5, 11, 9.5]
 // A compressed frame is 1024 samples (AAC) or 1152 (MP3) and the cut lands on frame edges.
 const TOLERANCE_SECONDS = 0.15
@@ -103,6 +103,9 @@ async function openReviewPage(page: Page, format: string) {
   await expect(page.getByRole('button', { name: 'Export to folder…' })).toBeEnabled({
     timeout: 20_000,
   })
+  // The file opens as one track; the two gaps become splits on request.
+  await page.getByRole('button', { name: 'Find gaps (2)' }).click()
+  await expect(page.getByRole('button', { name: /^Select track 3/ })).toBeVisible()
 }
 
 async function exportToFolder(page: Page, summary: string) {
@@ -186,6 +189,8 @@ for (const format of FORMATS) {
 
     // A quarter to a half of the 30 s file: about 7.5 s to 15 s.
     const waveform = page.getByRole('region', { name: 'Whole file' }).locator('canvas')
+    // Selecting track 2 in the list scrolls the page, and the mouse only reaches what is in view.
+    await waveform.scrollIntoViewIfNeeded()
     const box = (await waveform.boundingBox())!
     await page.mouse.move(box.x + box.width * 0.25, box.y + box.height / 2)
     await page.mouse.down()
