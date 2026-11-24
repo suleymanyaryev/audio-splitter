@@ -54,6 +54,7 @@ const textPairs = [
   ['ink', 'surface'],
   ['muted', 'ground'],
   ['muted', 'surface'],
+  ['ink', 'land'], // a left-out block's text in the strip
   ['on-track', 'track'],
   ['on-split', 'split'],
   ['on-fill', 'fill'],

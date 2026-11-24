@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, useTemplateRef } from 'vue'
 
-import { useSplitStore } from '@/entities/split/model/split.ts'
+import { useSplitStore, type Track } from '@/entities/split/model/split.ts'
 import { releaseFocus } from '@/shared/lib/keyboard/release-focus.ts'
 import { formatDuration } from '@/shared/lib/time/format-duration.ts'
 import { formatHundredths } from '@/shared/lib/time/format-hundredths.ts'
@@ -16,7 +16,9 @@ tooltip and the accessible label give the full name as the track list shows it. 
 wide enough for its name and length, and keeps room for the 8 px split items.
 
 Every block is a button that selects its track, the first included, and the block of the selected
-track is marked with a 2 px `on-track` border (DESIGN.md's "Selected" bullet). A split item is a
+track is marked with a 2 px `on-track` border (DESIGN.md's "Selected" bullet). A left-out block is
+hollow: the land shows through, with a dashed `track` border and ink text, and its description ends
+with "left out"; it stays a button that selects its track. A split item is a
 button that selects the split where the next block starts, which shows the zoom view centred on it.
 It is the land between the blocks at rest, and rust, the colour of a split, when it is hovered,
 focused or selected; focus also draws the ink ring, so a focused item never reads as a selected
@@ -41,6 +43,12 @@ onBeforeUnmount(() => {
   observer.disconnect()
 })
 
+// The 2 px border: the selected block's is solid in its text colour, a left-out block's rest one is dashed.
+function blockBorder(track: Track) {
+  if (split.isTrackSelected(track)) return track.isLeftOut ? 'border-ink' : 'border-on-track'
+  return track.isLeftOut ? 'border-track' : 'border-transparent'
+}
+
 const blocks = computed(() => {
   const layout = layoutTrackBlocks(
     split.tracks.map((track) => track.lengthSeconds),
@@ -50,6 +58,9 @@ const blocks = computed(() => {
     track,
     length: formatDuration(track.lengthSeconds),
     label: track.ownName ?? String(track.number),
+    // What a screen reader and the tooltip say: the track's name (its place for a left-out one,
+    // which has no number to write), its length, and that the export skips it.
+    description: `${track.isLeftOut ? track.placeName : track.name}, ${formatDuration(track.lengthSeconds)}${track.isLeftOut ? ', left out' : ''}`,
     // The split item before this block, where the track starts: none before the first block.
     splitItem:
       track.startSplit === null
@@ -85,12 +96,15 @@ const blocks = computed(() => {
         />
       </li>
       <li
-        :title="`${block.track.name}, ${block.length}`"
+        :title="block.description"
         :aria-current="split.isTrackSelected(block.track) ? 'true' : undefined"
-        class="min-w-0 flex-none rounded-control border-2 bg-track text-on-track tint-transition"
+        class="min-w-0 flex-none rounded-control border-2 tint-transition"
         :class="[
           block.showLength ? 'px-2.5' : block.showName ? 'px-1' : '',
-          split.isTrackSelected(block.track) ? 'border-on-track' : 'border-transparent',
+          block.track.isLeftOut
+            ? 'border-dashed bg-transparent text-ink'
+            : 'bg-track text-on-track',
+          blockBorder(block.track),
         ]"
         :style="{ width: `${block.widthPx}px` }"
       >
@@ -99,8 +113,11 @@ const blocks = computed(() => {
       text is still one to click. -->
         <button
           type="button"
-          :aria-label="`${block.track.name}, ${block.length}`"
-          class="flex size-full min-w-0 cursor-pointer flex-col justify-center gap-0.5 text-left focus-visible:outline-2 focus-visible:-outline-offset-4 focus-visible:outline-on-track"
+          :aria-label="block.description"
+          class="flex size-full min-w-0 cursor-pointer flex-col justify-center gap-0.5 text-left focus-visible:outline-2 focus-visible:-outline-offset-4"
+          :class="
+            block.track.isLeftOut ? 'focus-visible:outline-ink' : 'focus-visible:outline-on-track'
+          "
           @mousedown="releaseFocus"
           @click="split.selectTrack(block.track)"
         >

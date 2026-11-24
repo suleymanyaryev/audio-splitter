@@ -149,6 +149,63 @@ describe('TrackStrip', () => {
     expect(blocks(wrapper)).toHaveLength(3)
   })
 
+  describe('a left-out track', () => {
+    it('is a hollow block with a dashed border, where the land shows through', async () => {
+      const { split, wrapper } = await mountWithTwoGaps()
+
+      split.toggleLeftOut(split.splits[0]!.id)
+      await flushPromises()
+
+      const [first, left, last] = blocks(wrapper)
+      expect(left?.classes()).toEqual(
+        expect.arrayContaining(['border-dashed', 'border-track', 'bg-transparent', 'text-ink']),
+      )
+      expect(left?.classes()).not.toContain('bg-track')
+      expect(first?.classes()).toContain('bg-track')
+      expect(last?.classes()).toContain('bg-track')
+    })
+
+    it('says "left out" in its tooltip and accessible label, with its place as the name when unnamed', async () => {
+      const { split, wrapper } = await mountWithTwoGaps()
+      split.setTrackNamePrefix('dreamscape-')
+
+      split.toggleLeftOut(split.splits[0]!.id)
+      await flushPromises()
+
+      expect(blocks(wrapper)[1]?.attributes('title')).toBe('dreamscape-02, 0:00:50, left out')
+      expect(blocks(wrapper)[1]?.get('button').attributes('aria-label')).toBe(
+        'dreamscape-02, 0:00:50, left out',
+      )
+      // Its visible label is still its number: the track's place in the file.
+      expect(blocks(wrapper)[1]?.text()).toContain('2')
+    })
+
+    it('stays a button that selects its track, marked by an ink border while selected', async () => {
+      const { split, wrapper } = await mountWithTwoGaps()
+      split.toggleLeftOut(split.splits[0]!.id)
+      await flushPromises()
+
+      await blocks(wrapper)[1]?.get('button').trigger('click')
+
+      expect(split.selectedTrack?.number).toBe(2)
+      expect(blocks(wrapper)[1]?.classes()).toContain('border-ink')
+      expect(blocks(wrapper)[1]?.classes()).not.toContain('border-on-track')
+    })
+
+    it('is a solid block again once it is brought back', async () => {
+      const { split, wrapper } = await mountWithTwoGaps()
+      split.toggleLeftOut(split.splits[0]!.id)
+      await flushPromises()
+
+      split.toggleLeftOut(split.splits[0]!.id)
+      await flushPromises()
+
+      expect(blocks(wrapper)[1]?.classes()).toContain('bg-track')
+      expect(blocks(wrapper)[1]?.classes()).not.toContain('border-dashed')
+      expect(blocks(wrapper)[1]?.attributes('title')).toBe('02, 0:00:50')
+    })
+  })
+
   describe('selecting a track', () => {
     it('selects the track when its block is clicked', async () => {
       const { split, wrapper } = await mountWithTwoGaps()

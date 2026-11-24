@@ -47,7 +47,7 @@ function confirmClear() {
 </script>
 
 <template>
-  <div class="flex items-center gap-6">
+  <div class="flex items-center gap-5">
     <UiSlider
       :model-value="split.silenceThreshold ?? 0"
       label="Silence threshold"
@@ -55,7 +55,7 @@ function confirmClear() {
       :min="THRESHOLD_MIN_DB"
       :max="THRESHOLD_MAX_DB"
       :step="SETTING_STEP"
-      class="w-96"
+      class="w-80"
       @update:model-value="split.setSilenceThreshold"
     />
     <UiSlider
@@ -65,7 +65,7 @@ function confirmClear() {
       :min="MINIMUM_GAP_MIN_SECONDS"
       :max="MINIMUM_GAP_MAX_SECONDS"
       :step="SETTING_STEP"
-      class="w-96"
+      class="w-80"
       @update:model-value="split.setMinimumGapLength"
     />
     <div class="flex items-center gap-2">

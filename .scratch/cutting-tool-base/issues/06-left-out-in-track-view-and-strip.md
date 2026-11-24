@@ -13,3 +13,8 @@ Spec: `.scratch/cutting-tool-base/spec.md` (stories 46, 48 and 57; Implementatio
 - [ ] The shortcuts dialog has a Track view row for `X` and a Track list row for the leave-out button.
 - [ ] Stop: the user confirms the milestone in the browser.
 - [ ] `CHANGELOG.md` has its lines under Unreleased.
+
+## Comments
+
+- Built and waiting for the user's look in the browser: `X` in the Track view (`TrackView.vue`), a hollow dashed block for a left-out track in the strip (`TrackStrip.vue`, `DESIGN.md`), and the two shortcut rows. Status stays open until the user confirms the look and the milestone.
+- The loudness panel's title row overflowed at 1440 px with four new buttons, so the two sliders went from `w-96` to `w-80`.

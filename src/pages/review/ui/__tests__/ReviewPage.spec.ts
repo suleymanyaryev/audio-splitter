@@ -423,6 +423,29 @@ describe('ReviewPage', () => {
       expect(exportButton(wrapper).attributes('disabled')).toBeUndefined()
     })
 
+    it('leaves the selected track out with X in the Track view, and brings it back', async () => {
+      const wrapper = await mountPageWithTrack(2)
+      const split = useSplitStore()
+
+      pressKey('x')
+      await wrapper.vm.$nextTick()
+      expect(split.tracks.map((track) => track.isLeftOut)).toEqual([false, true, false])
+      expect(wrapper.find('button[aria-label="Bring back track 2"]').exists()).toBe(true)
+
+      pressKey('x')
+      await wrapper.vm.$nextTick()
+      expect(split.tracks.map((track) => track.isLeftOut)).toEqual([false, false, false])
+    })
+
+    it('leaves X alone in the Split view, which has no track to leave out', async () => {
+      const wrapper = await mountPageOnSplit()
+
+      pressKey('x')
+      await wrapper.vm.$nextTick()
+
+      expect(useSplitStore().tracks.some((track) => track.isLeftOut)).toBe(false)
+    })
+
     it('titles the Track view by the track’s place in the file, not by its export number', async () => {
       const wrapper = await mountPageWithTrack(2)
       useSplitStore().toggleLeftOut(null)
@@ -1472,7 +1495,7 @@ describe('ReviewPage', () => {
         const wrapper = await exportTrack2()
 
         pressKey('Tab')
-        pressKey('x')
+        pressKey('q')
         await wrapper.vm.$nextTick()
 
         expect(savedLine(wrapper).exists()).toBe(true)

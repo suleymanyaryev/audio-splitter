@@ -159,7 +159,7 @@ describe('TrackView', () => {
       const { wrapper } = setup()
 
       await press({ key: 'ArrowRight' })
-      await press({ key: 'x' })
+      await press({ key: 'q' })
       await press({ key: 'Escape' })
 
       expect(wrapper.emitted('acted')).toHaveLength(1)
@@ -279,6 +279,98 @@ describe('TrackView', () => {
 
       expect(backToStretchStart).toHaveBeenCalledExactlyOnceWith(stretch)
       expect(event.defaultPrevented).toBe(true)
+    })
+  })
+
+  describe('X', () => {
+    it('leaves the selected track out, and brings it back, and is not a page action', async () => {
+      const { split } = setup()
+      const event = new KeyboardEvent('keydown', { key: 'x', bubbles: true, cancelable: true })
+
+      document.dispatchEvent(event)
+      await nextTick()
+
+      expect(split.tracks.map((track) => track.isLeftOut)).toEqual([false, true, false])
+      expect(event.defaultPrevented).toBe(true)
+
+      await press({ key: 'X' })
+      expect(split.tracks.map((track) => track.isLeftOut)).toEqual([false, false, false])
+    })
+
+    it('is reported to the page, and leaves the splits, the selection and the sound alone', async () => {
+      const { split, wrapper, toggleStretch } = setup()
+      const before = split.splits.map((point) => point.seconds)
+
+      await press({ key: 'x' })
+
+      expect(wrapper.emitted('acted')).toHaveLength(1)
+      expect(split.splits.map((point) => point.seconds)).toEqual(before)
+      expect(split.selectedTrack?.number).toBe(2)
+      expect(toggleStretch).not.toHaveBeenCalled()
+    })
+
+    it('ignores the auto-repeat of a held key, so one press toggles once', async () => {
+      const { split } = setup()
+
+      await press({ key: 'x' })
+      await press({ key: 'x', repeat: true })
+      await press({ key: 'x', repeat: true })
+
+      expect(split.selectedTrack?.isLeftOut).toBe(true)
+    })
+
+    it('is left to the browser with Shift, Ctrl, Cmd or Alt held', () => {
+      const { split } = setup()
+
+      for (const modifier of ['shiftKey', 'ctrlKey', 'metaKey', 'altKey']) {
+        const event = new KeyboardEvent('keydown', {
+          key: 'x',
+          [modifier]: true,
+          bubbles: true,
+          cancelable: true,
+        })
+        document.dispatchEvent(event)
+        expect(event.defaultPrevented).toBe(false)
+      }
+
+      expect(split.selectedTrack?.isLeftOut).toBe(false)
+    })
+
+    it('does nothing while the focus is in a text field', () => {
+      const { split } = setup()
+      const field = document.createElement('input')
+      document.body.append(field)
+      field.focus()
+
+      field.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'x', bubbles: true, cancelable: true }),
+      )
+
+      expect(split.selectedTrack?.isLeftOut).toBe(false)
+      field.remove()
+    })
+
+    it('does nothing while a dialog is open', () => {
+      const { split } = setup()
+      const dialog = document.createElement('div')
+      dialog.setAttribute('role', 'dialog')
+      document.body.append(dialog)
+
+      document.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'x', bubbles: true, cancelable: true }),
+      )
+
+      expect(split.selectedTrack?.isLeftOut).toBe(false)
+      dialog.remove()
+    })
+
+    it('leaves the first track out too, which starts with the file', async () => {
+      const { split } = setup()
+      split.selectTrack(split.tracks[0]!)
+
+      await press({ key: 'x' })
+
+      expect(split.tracks[0]?.isLeftOut).toBe(true)
     })
   })
 
