@@ -7,6 +7,19 @@ import { useExportSingleStore } from '../export-single.ts'
 import { useExportTracksStore } from '../export-tracks.ts'
 import { FakeFolder } from './fake-folder.ts'
 
+// The worker is replaced by an answer: the second track repeats the first, the third is its own.
+vi.mock('@/entities/split/api/find-matches-client.ts', () => ({
+  findMatchesInWorker: () => Promise.resolve([{ duplicate: 1, kept: 0 }]),
+}))
+
+// 107 s: three loud stretches of 35 s with a 2 s silence between each two, so three tracks of 30 s or more.
+function curveWithThreeLongTracks() {
+  const curve = new Float32Array(2140).fill(-10)
+  curve.fill(-70, 700, 740)
+  curve.fill(-70, 1440, 1480)
+  return curve
+}
+
 /*
 100 s at 50 ms per window: loud, a 2 s silence from 20 s, loud, a 2 s silence from 70.5 s, loud.
 The splits are at 21 s and 71.5 s, so three tracks.
@@ -238,6 +251,29 @@ describe('the single export store', () => {
       expect(exporter.status).toBe('naming')
       expect(picker).not.toHaveBeenCalled()
       expect(cutTrack).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('a duplicate', () => {
+    it('is written alone like any left-out track, tagged with its place in the file', async () => {
+      const { split, exporter } = setUp()
+      split.open(curveWithThreeLongTracks(), { windowSeconds: 0.05, durationSeconds: 107 })
+      split.addGapSplits()
+      await split.findDuplicates()
+      split.setTrackNamePrefix('dreamscape-')
+      expect(trackOf(split, 2).inclusion).toBe('duplicate')
+      exporter.openTrack(trackOf(split, 2))
+
+      await exporter.confirm(exporter.defaultName)
+
+      expect(exporter.status).toBe('saved')
+      expect(filesOf(folder)).toEqual(['dreamscape-02.m4a'])
+      expect(cutTrack.mock.calls[0]?.[0].tags).toEqual({
+        title: 'dreamscape-02',
+        track: '2/3',
+        album: 'Evening Set',
+      })
+      expect(trackOf(split, 2).inclusion).toBe('duplicate')
     })
   })
 

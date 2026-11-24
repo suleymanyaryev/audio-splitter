@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, useTemplateRef } from 'vue'
 
+import { duplicateWords } from '@/entities/split/lib/match-words.ts'
 import { useSplitStore, type Track } from '@/entities/split/model/split.ts'
 import { releaseFocus } from '@/shared/lib/keyboard/release-focus.ts'
 import { formatDuration } from '@/shared/lib/time/format-duration.ts'
@@ -18,7 +19,8 @@ wide enough for its name and length, and keeps room for the 8 px split items.
 Every block is a button that selects its track, the first included, and the block of the selected
 track is marked with a 2 px `on-track` border (DESIGN.md's "Selected" bullet). A left-out block is
 hollow: the land shows through, with a dashed `track` border and ink text, and its description ends
-with "left out"; it stays a button that selects its track. A split item is a
+with "left out", and a duplicate's with its words, "duplicate of 01"; it stays a button that selects
+its track. A split item is a
 button that selects the split where the next block starts, which shows the zoom view centred on it.
 It is the land between the blocks at rest, and rust, the colour of a split, when it is hovered,
 focused or selected; focus also draws the ink ring, so a focused item never reads as a selected
@@ -60,7 +62,14 @@ const blocks = computed(() => {
     label: track.ownName ?? String(track.number),
     // What a screen reader and the tooltip say: the track's name (its place for a left-out one,
     // which has no number to write), its length, and that the export skips it.
-    description: `${track.isLeftOut ? track.placeName : track.name}, ${formatDuration(track.lengthSeconds)}${track.isLeftOut ? ', left out' : ''}`,
+    description: [
+      track.isLeftOut ? track.placeName : track.name,
+      formatDuration(track.lengthSeconds),
+      ...(track.isLeftOut ? ['left out'] : []),
+      ...(track.duplicateOf === null
+        ? []
+        : [duplicateWords(track.duplicateOf, split.tracks.length)]),
+    ].join(', '),
     // The split item before this block, where the track starts: none before the first block.
     splitItem:
       track.startSplit === null

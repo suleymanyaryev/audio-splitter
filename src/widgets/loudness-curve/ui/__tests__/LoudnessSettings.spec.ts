@@ -1,10 +1,30 @@
-import { afterEach, beforeEach, describe, it, expect } from 'vitest'
+import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 
 import { flushPromises, mount } from '@vue/test-utils'
 import { DEFAULT_MINIMUM_GAP_SECONDS, DEFAULT_OFFSET_DB } from '@/entities/split/config/defaults.ts'
 import { useSplitStore } from '@/entities/split/model/split.ts'
 import LoudnessSettings from '../LoudnessSettings.vue'
+
+/*
+The worker is replaced by an answer the spec chooses: which tracks the search says are duplicates.
+`isHolding` keeps the answer back, so the busy state can be looked at.
+*/
+const search = vi.hoisted(() => ({
+  answer: [] as { duplicate: number; kept: number }[],
+  isHolding: false,
+  release: () => {},
+}))
+vi.mock('@/entities/split/api/find-matches-client.ts', () => ({
+  findMatchesInWorker: () =>
+    new Promise((resolve) => {
+      const answer = () => {
+        resolve(search.answer)
+      }
+      if (search.isHolding) search.release = answer
+      else answer()
+    }),
+}))
 
 // 20 s at 50 ms per window: loud, a 2 s silence from 10 s, loud again.
 function curveWithOneGap() {
@@ -53,6 +73,25 @@ async function tooltipOf(button: { trigger: (event: string) => Promise<void> }) 
   const text = document.querySelector('[role="tooltip"]')?.textContent
   await button.trigger('blur')
   return text
+}
+
+// Three loud stretches of 35 s with a 2 s silence between each two: three tracks of 30 s or more.
+function curveWithThreeLongTracks() {
+  const curve = new Float32Array(2140).fill(-10)
+  curve.fill(-70, 700, 740)
+  curve.fill(-70, 1440, 1480)
+  return curve
+}
+
+function findDuplicatesButton(wrapper: ReturnType<typeof mount>) {
+  const button = wrapper
+    .findAll('button')
+    .find(
+      (candidate) =>
+        candidate.text().includes('duplicates') && !candidate.text().includes('Find gaps'),
+    )
+  if (!button) throw new Error('no Find duplicates button')
+  return button
 }
 
 function findGapsButton(wrapper: ReturnType<typeof mount>) {
@@ -141,6 +180,77 @@ describe('LoudnessSettings', () => {
 
       expect(findGapsButton(wrapper).text()).toBe('Find gaps (0)')
       wrapper.unmount()
+    })
+  })
+
+  describe('Find duplicates', () => {
+    beforeEach(() => {
+      search.answer = []
+      search.isHolding = false
+      const split = useSplitStore()
+      split.open(curveWithThreeLongTracks(), { windowSeconds: 0.05, durationSeconds: 107 })
+      split.addGapSplits()
+    })
+
+    it('sits beside "Find gaps" and says nothing before the first press', () => {
+      const wrapper = mount(LoudnessSettings)
+
+      expect(
+        wrapper
+          .findAll('button')
+          .map((button) => button.text())
+          .slice(0, 2),
+      ).toEqual(['Find gaps (0)', 'Find duplicates'])
+      expect(findDuplicatesButton(wrapper).attributes('disabled')).toBeUndefined()
+      expect(wrapper.find('[role="status"]').exists()).toBe(false)
+    })
+
+    it('is disabled while fewer than two tracks are 30 s or longer', () => {
+      useSplitStore().open(curveWithOneGap(), { windowSeconds: 0.05, durationSeconds: 20 })
+
+      const wrapper = mount(LoudnessSettings)
+
+      expect(findDuplicatesButton(wrapper).attributes('disabled')).toBeDefined()
+    })
+
+    it('counts what the search found, and changes no split', async () => {
+      search.answer = [{ duplicate: 2, kept: 0 }]
+      const wrapper = mount(LoudnessSettings)
+      const split = useSplitStore()
+
+      await findDuplicatesButton(wrapper).trigger('click')
+      await flushPromises()
+
+      expect(wrapper.get('[role="status"]').text()).toBe('1 duplicate')
+      expect(split.splits).toHaveLength(2)
+      expect(split.editCount).toBe(0)
+    })
+
+    it('says so when the search found none', async () => {
+      const wrapper = mount(LoudnessSettings)
+
+      await findDuplicatesButton(wrapper).trigger('click')
+      await flushPromises()
+
+      expect(wrapper.get('[role="status"]').text()).toBe('No duplicates found')
+    })
+
+    it('is busy and disabled while the search runs, and ready again after', async () => {
+      search.isHolding = true
+      const wrapper = mount(LoudnessSettings)
+
+      await findDuplicatesButton(wrapper).trigger('click')
+
+      expect(findDuplicatesButton(wrapper).text()).toBe('Finding duplicates…')
+      expect(findDuplicatesButton(wrapper).attributes('aria-busy')).toBe('true')
+      expect(findDuplicatesButton(wrapper).attributes('disabled')).toBeDefined()
+
+      search.release()
+      await flushPromises()
+
+      expect(findDuplicatesButton(wrapper).text()).toBe('Find duplicates')
+      expect(findDuplicatesButton(wrapper).attributes('aria-busy')).toBe('false')
+      expect(findDuplicatesButton(wrapper).attributes('disabled')).toBeUndefined()
     })
   })
 

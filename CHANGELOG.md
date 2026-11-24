@@ -20,6 +20,7 @@ Versions follow [Semantic Versioning](https://semver.org/) applied to the produc
 
 ### Added
 
+- A "Find duplicates" button beside "Find gaps" compares every track of 30 s or more with every earlier one, in about a second on a 3 h file and without freezing the page, and says how many duplicates it found. A track that is the same recording as an earlier track from end to end, at any loudness, says "duplicate of 01" in the track list, is drawn as left out in the strip, and is left out of "Export to folder…", which numbers its files without holes; "Export track…" still writes it. It changes no split and no name, and counts as no edit.
 - A "Find gaps (N)" button in the loudness panel's title row adds a split in the middle of each gap that has none yet, and its count follows the sliders live. It keeps every split, name, the selection and the view, and asks only when a new split would cut the selected track while it has pending splits.
 - A "Clear splits" button puts the file back to one track: it deletes every split and track name, brings every left-out track back and clears the edits. It keeps the prefix, the range and the settings, and asks first only when you have edits or pending splits.
 - "Save as default" keeps the minimum gap length and how far under the file's median the threshold sits, so every later file starts from them, also after a reload. "Restore built-in" puts back 18 dB under the median and 2 s and moves the sliders there.

@@ -5,6 +5,11 @@ import { mount } from '@vue/test-utils'
 import { useSplitStore } from '@/entities/split/model/split.ts'
 import TrackList from '../TrackList.vue'
 
+// The worker is replaced by an answer: the third track repeats the first.
+vi.mock('@/entities/split/api/find-matches-client.ts', () => ({
+  findMatchesInWorker: () => Promise.resolve([{ duplicate: 2, kept: 0 }]),
+}))
+
 // 100 s at 50 ms per window: loud, a 2 s silence from 20 s, loud, a 2 s silence from 70.5 s, loud.
 function curveWithTwoGaps() {
   const curve = new Float32Array(2000).fill(-10)
@@ -46,6 +51,22 @@ const fieldValues = (wrapper: ReturnType<typeof mount>) =>
 
 function removeButton(wrapper: ReturnType<typeof mount>, trackNumber: number) {
   return wrapper.get(`button[aria-label="Remove track ${trackNumber}"]`)
+}
+
+// 107 s: three loud stretches of 35 s with a 2 s silence between each two.
+function curveWithThreeLongTracks() {
+  const curve = new Float32Array(2140).fill(-10)
+  curve.fill(-70, 700, 740)
+  curve.fill(-70, 1440, 1480)
+  return curve
+}
+
+async function mountWithDuplicate() {
+  const split = useSplitStore()
+  split.open(curveWithThreeLongTracks(), { windowSeconds: 0.05, durationSeconds: 107 })
+  split.addGapSplits()
+  await split.findDuplicates()
+  return { split, wrapper: mount(TrackList) }
 }
 
 function mountWithTwoGaps() {
@@ -123,6 +144,42 @@ describe('TrackList', () => {
     await wrapper.vm.$nextTick()
 
     expect(wrapper.findAll('tbody tr')).toHaveLength(5)
+  })
+
+  describe('a duplicate', () => {
+    it('says "duplicate of 01" on its row, and the kept copy and the others say nothing', async () => {
+      const { wrapper } = await mountWithDuplicate()
+
+      expect(trackRows(wrapper).map((row) => row.text().includes('duplicate of'))).toEqual([
+        false,
+        false,
+        true,
+      ])
+      expect(trackRows(wrapper)[2]?.text()).toContain('duplicate of 01')
+    })
+
+    it('says nothing before the search', () => {
+      const { wrapper } = mountWithTwoGaps()
+
+      expect(wrapper.text()).not.toContain('duplicate of')
+    })
+
+    it('looks left out, as a track left out by hand does', async () => {
+      const { wrapper } = await mountWithDuplicate()
+
+      expect(trackRows(wrapper)[2]?.classes()).toContain('text-muted')
+      expect(trackRows(wrapper)[0]?.classes()).not.toContain('text-muted')
+      expect(fieldValues(wrapper)).toEqual(['01', '02', ''])
+    })
+
+    it('keeps its row selectable and its buttons as they are', async () => {
+      const { split, wrapper } = await mountWithDuplicate()
+
+      await trackRows(wrapper)[2]?.trigger('click')
+
+      expect(split.selectedTrack?.number).toBe(3)
+      expect(wrapper.find('button[aria-label="Remove track 3"]').exists()).toBe(true)
+    })
   })
 
   describe('leaving a track out', () => {

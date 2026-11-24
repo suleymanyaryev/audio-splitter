@@ -333,6 +333,7 @@ describe('the split store', () => {
         number: 1,
         inclusion: 'included',
         isLeftOut: false,
+        duplicateOf: null,
         exportNumber: 1,
         ownName: null,
         name: '01',

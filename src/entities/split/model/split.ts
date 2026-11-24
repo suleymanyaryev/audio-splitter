@@ -16,6 +16,8 @@ import {
 import { LIMIT_TOLERANCE, MINIMUM_DISTANCE_SECONDS } from '../config/split-room.ts'
 import { MAX_TRACK_NAME_LENGTH } from '../config/track-name.ts'
 import { ZOOM_WINDOW_SECONDS } from '../config/zoom-window.ts'
+import { findMatchesInWorker } from '../api/find-matches-client.ts'
+import { MINIMUM_COMPARED_SECONDS } from '../config/match-thresholds.ts'
 import { findGaps, gapSplitTimes, type Gap } from '../lib/find-gaps.ts'
 import { defaultTrackName } from '../lib/default-track-name.ts'
 import { rangeBetween, type TimeRange } from '../lib/range-between.ts'
@@ -34,10 +36,18 @@ function snapToGrid(seconds: number) {
 }
 
 /*
-Whether the export writes a track (GLOSSARY.md: Left-out track): `included`, or left out for a
-reason. It is a reason, not a flag, so a later reason (a duplicate) needs no migration.
+What a split keeps of whether the export writes the track that starts there (GLOSSARY.md:
+Left-out track): `included`, or left out `by-hand`. The other reason, a duplicate, is never kept:
+it lasts while a match does, so it is derived (`Inclusion`).
 */
-export type Inclusion = 'included' | 'by-hand'
+type StoredInclusion = 'included' | 'by-hand'
+
+/*
+Whether the export writes a track: `included`, or left out for a reason. It is a reason, not a
+flag. A track is `by-hand` when its split says so, a `duplicate` while it has a live match with an
+earlier track, and `included` otherwise.
+*/
+export type Inclusion = StoredInclusion | 'duplicate'
 
 /*
 `id` is stable for the split's life, so a selection and a count of edits can hold it.
@@ -48,7 +58,7 @@ export interface Split {
   id: number
   seconds: number
   name: string | null
-  inclusion: Inclusion
+  inclusion: StoredInclusion
 }
 
 export interface Track {
@@ -56,6 +66,11 @@ export interface Track {
   number: number
   inclusion: Inclusion
   isLeftOut: boolean
+  /*
+  The live number of the track this one repeats from end to end (GLOSSARY.md: Duplicate), the kept
+  copy, or null.
+  */
+  duplicateOf: number | null
   // 1…K among the tracks the export writes, null for a left-out track.
   exportNumber: number | null
   // The name the user typed, null while the track is unnamed.
@@ -89,6 +104,19 @@ export interface CurveTiming {
   durationSeconds: number
 }
 
+// A track as a match recorded it: where it starts and ends, so a match can tell it has changed.
+interface MatchedTrack {
+  startSplitId: number | null
+  startSeconds: number
+  endSeconds: number
+}
+
+// A match of the last press (GLOSSARY.md: Match): the duplicate and the kept copy it names.
+interface StoredMatch {
+  duplicate: MatchedTrack
+  kept: MatchedTrack
+}
+
 /*
 The splits of the source file and the tracks between them. This slice cannot import
 `entities/source-file`, so `open` receives the loudness curve as data and keeps a reference to it
@@ -115,6 +143,12 @@ track 1, ready to play. The zoom window is
 nothing else moves it except `moveZoomTo`. A split can only be moved inside the window, which never follows the move. A split
 is added at the window's centre, and `editCount` says how many things the user changed since the
 file opened. The splits Find gaps adds are no edit; moving or deleting one is.
+
+`findDuplicates` ("Find duplicates") keeps the matches of the last press (GLOSSARY.md: Match). A match
+lasts while both its tracks keep the ends they had, so an edit drops it by changing a track, and a
+track with a live match with an earlier track is a `duplicate` (`Inclusion`), derived and never
+kept on a split. Finding matches is no edit and changes no split, name or selection; `clearSplits`,
+`open` and `reset` drop every match.
 
 The range (GLOSSARY.md) is view state beside the window's centre: a stretch the user dragged out on
 the whole-file view, or none. It belongs to the file, so a setting change and the edits leave it
@@ -143,7 +177,7 @@ export const useSplitStore = defineStore('split', () => {
   const splits = ref<Split[]>([])
   const firstTrackName = ref<string | null>(null)
   // The first track's inclusion lives beside its name, as it has no split to sit on.
-  const firstTrackInclusion = ref<Inclusion>('included')
+  const firstTrackInclusion = ref<StoredInclusion>('included')
   /*
   The track name prefix (GLOSSARY.md): file-level state, so no edit, no setting change and no
   open touches it. The page sets it once per file; `reset` clears it.
@@ -173,6 +207,16 @@ export const useSplitStore = defineStore('split', () => {
   const view = ref<PanelView>('split')
   let nextSplitId = 0
   /*
+  The matches of the last "Find duplicates" and what it is doing (GLOSSARY.md: Match). They are
+  the answer as it was: whether one still holds is derived (`liveMatches`), so no edit has to find
+  and remove them. `hasSearched` is false until the first answer, so the line says nothing before.
+  */
+  const matches = shallowRef<StoredMatch[]>([])
+  const duplicateSearchStatus = ref<'idle' | 'running'>('idle')
+  const hasSearched = ref(false)
+  // Every press takes a number, and the answer of an older press, or of an older file, is dropped.
+  let searchNumber = 0
+  /*
   What the user changed since the file opened, counted as things changed, not actions: a split
   moved ten times is one edit. The sets hold split ids (a rename is keyed by the split where its
   track starts, null for the file's start); `deletedCount` counts detected splits only, because
@@ -199,16 +243,53 @@ export const useSplitStore = defineStore('split', () => {
   )
 
   // N splits make N + 1 tracks; with no splits, one track over the whole file.
-  const tracks = computed<Track[]>(() => {
+  const trackEnds = computed(() => {
     if (timing.value === null) return []
     const { durationSeconds } = timing.value
     const starts = [0, ...splits.value.map((split) => split.seconds)]
-    const inclusions = [firstTrackInclusion.value, ...splits.value.map((split) => split.inclusion)]
+    const stored = [firstTrackInclusion.value, ...splits.value.map((split) => split.inclusion)]
+    return starts.map((startSeconds, index) => ({
+      startSplit: splits.value[index - 1] ?? null,
+      startSeconds,
+      endSeconds: starts[index + 1] ?? durationSeconds,
+      stored: stored[index] ?? 'included',
+    }))
+  })
+
+  /*
+  The matches of the last press that still hold, as the indices of their two tracks: both tracks
+  exist with the ends they had. A split moved, deleted or added inside changes a track's ends, so
+  its matches, and those naming it, stop holding at once and nothing has to remove them.
+  */
+  const liveMatches = computed(() => {
+    const ends = trackEnds.value
+    const indexByStart = new Map(ends.map((track, index) => [track.startSplit?.id ?? null, index]))
+    function indexOfHeld(held: MatchedTrack) {
+      const index = indexByStart.get(held.startSplitId)
+      const track = index === undefined ? undefined : ends[index]
+      return track?.startSeconds === held.startSeconds && track.endSeconds === held.endSeconds
+        ? index
+        : undefined
+    }
+    const live: { duplicate: number; kept: number }[] = []
+    for (const match of matches.value) {
+      const duplicate = indexOfHeld(match.duplicate)
+      const kept = indexOfHeld(match.kept)
+      if (duplicate !== undefined && kept !== undefined) live.push({ duplicate, kept })
+    }
+    return live
+  })
+
+  const tracks = computed<Track[]>(() => {
+    const ends = trackEnds.value
+    const keptNumbers = new Map(liveMatches.value.map((match) => [match.duplicate, match.kept + 1]))
+    const inclusions = ends.map((track, index): Inclusion => {
+      if (track.stored === 'by-hand') return 'by-hand'
+      return keptNumbers.has(index) ? 'duplicate' : 'included'
+    })
     const exportCount = inclusions.filter((inclusion) => inclusion === 'included').length
     let exportedSoFar = 0
-    return starts.map((startSeconds, index) => {
-      const startSplit = splits.value[index - 1] ?? null
-      const endSeconds = starts[index + 1] ?? durationSeconds
+    return ends.map(({ startSplit, startSeconds, endSeconds }, index) => {
       const ownName = startSplit === null ? firstTrackName.value : startSplit.name
       const inclusion = inclusions[index] ?? 'included'
       const isLeftOut = inclusion !== 'included'
@@ -218,6 +299,7 @@ export const useSplitStore = defineStore('split', () => {
         number: index + 1,
         inclusion,
         isLeftOut,
+        duplicateOf: keptNumbers.get(index) ?? null,
         exportNumber,
         ownName,
         name:
@@ -225,7 +307,7 @@ export const useSplitStore = defineStore('split', () => {
           (exportNumber === null
             ? prefix.slice(0, MAX_TRACK_NAME_LENGTH)
             : defaultTrackName(prefix, exportNumber, exportCount)),
-        placeName: ownName ?? defaultTrackName(prefix, index + 1, starts.length),
+        placeName: ownName ?? defaultTrackName(prefix, index + 1, ends.length),
         startSeconds,
         lengthSeconds: endSeconds - startSeconds,
         startSplit,
@@ -456,6 +538,7 @@ export const useSplitStore = defineStore('split', () => {
     firstTrackName.value = null
     firstTrackInclusion.value = 'included'
     clearEdits()
+    dropMatches()
     trackMarkSeconds.value = null
     clearPending()
     // The first track starts with the file, so it is keyed by no split and exists with none.
@@ -547,6 +630,77 @@ export const useSplitStore = defineStore('split', () => {
     unlessItDiscards(() => {
       for (const seconds of gapSplitSeconds.value) insertSplit(seconds, false)
     }, isInside)
+  }
+
+  /*
+  Whether "Find duplicates" has anything to compare: two tracks of 30 s or more, and no search
+  running.
+  */
+  const canFindDuplicates = computed(
+    () =>
+      curve.value !== null &&
+      duplicateSearchStatus.value === 'idle' &&
+      trackEnds.value.filter(
+        (track) => track.endSeconds - track.startSeconds >= MINIMUM_COMPARED_SECONDS,
+      ).length >= 2,
+  )
+
+  // What the line beside the button says: the counts of the live matches, none before a press.
+  const duplicateResult = computed(() =>
+    hasSearched.value ? { duplicates: liveMatches.value.length } : null,
+  )
+
+  // Drops every match and stops listening for a running search: its answer is for a file that is gone.
+  function dropMatches() {
+    searchNumber++
+    matches.value = []
+    hasSearched.value = false
+    duplicateSearchStatus.value = 'idle'
+  }
+
+  /*
+  "Find duplicates" (GLOSSARY.md: Duplicate): compares the tracks as they are now in a worker, and
+  keeps the answer as the matches of this press, replacing the last one. It changes no split, name,
+  pending split or selection, counts no edit and asks nothing. The press takes a number: an answer
+  for another press, or after the file started over, is dropped. A failed search keeps what the
+  last press found.
+  */
+  async function findDuplicates() {
+    const loudness = curve.value
+    const curveTiming = timing.value
+    const threshold = silenceThreshold.value
+    if (loudness === null || curveTiming === null || threshold === null || !canFindDuplicates.value)
+      return
+    const press = ++searchNumber
+    const pressed = trackEnds.value
+    duplicateSearchStatus.value = 'running'
+    let found
+    try {
+      found = await findMatchesInWorker({
+        curve: loudness,
+        windowSeconds: curveTiming.windowSeconds,
+        silenceThreshold: threshold,
+        tracks: pressed.map(({ startSeconds, endSeconds }) => ({ startSeconds, endSeconds })),
+      })
+    } catch {
+      if (press === searchNumber) duplicateSearchStatus.value = 'idle'
+      return
+    }
+    if (press !== searchNumber) return
+    const asPressed = (index: number): MatchedTrack => {
+      const track = pressed[index]
+      return {
+        startSplitId: track?.startSplit?.id ?? null,
+        startSeconds: track?.startSeconds ?? 0,
+        endSeconds: track?.endSeconds ?? 0,
+      }
+    }
+    matches.value = found.map((match) => ({
+      duplicate: asPressed(match.duplicate),
+      kept: asPressed(match.kept),
+    }))
+    hasSearched.value = true
+    duplicateSearchStatus.value = 'idle'
   }
 
   // Selects the split, centres the window on it and shows the Split view, with no question.
@@ -917,7 +1071,7 @@ export const useSplitStore = defineStore('split', () => {
       startSplitId === null ? null : splits.value.find((candidate) => candidate.id === startSplitId)
     if (point === undefined) return
     const current = point === null ? firstTrackInclusion.value : point.inclusion
-    const next: Inclusion = current === 'included' ? 'by-hand' : 'included'
+    const next: StoredInclusion = current === 'included' ? 'by-hand' : 'included'
     if (point === null) firstTrackInclusion.value = next
     else point.inclusion = next
     if (!inclusionKeys.value.delete(startSplitId)) inclusionKeys.value.add(startSplitId)
@@ -940,6 +1094,7 @@ export const useSplitStore = defineStore('split', () => {
     firstTrackInclusion.value = 'included'
     trackNamePrefix.value = ''
     clearEdits()
+    dropMatches()
     selection.value = null
     zoomCentreSeconds.value = ZOOM_WINDOW_SECONDS / 2
     range.value = null
@@ -983,8 +1138,12 @@ export const useSplitStore = defineStore('split', () => {
     hasEdits,
     tracks,
     exportTrackCount,
+    canFindDuplicates,
+    duplicateSearchStatus,
+    duplicateResult,
     open,
     addGapSplits,
+    findDuplicates,
     clearSplits,
     saveAsDefault,
     restoreBuiltIn,

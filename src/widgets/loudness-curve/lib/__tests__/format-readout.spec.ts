@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 
 import {
   formatDecibels,
+  formatDuplicateResult,
   formatOffset,
   formatSeconds,
   formatSettingSeconds,
@@ -42,5 +43,16 @@ describe('formatOffset', () => {
 
   it('says over the median for a threshold above it', () => {
     expect(formatOffset(-3.2)).toBe('3.2 dB over the median')
+  })
+})
+
+describe('formatDuplicateResult', () => {
+  it('counts the duplicates, in the singular for one', () => {
+    expect(formatDuplicateResult(1)).toBe('1 duplicate')
+    expect(formatDuplicateResult(23)).toBe('23 duplicates')
+  })
+
+  it('says none were found for none', () => {
+    expect(formatDuplicateResult(0)).toBe('No duplicates found')
   })
 })

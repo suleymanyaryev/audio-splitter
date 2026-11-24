@@ -5,6 +5,11 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { useSplitStore } from '@/entities/split/model/split.ts'
 import TrackStrip from '../TrackStrip.vue'
 
+// The worker is replaced by an answer: the third track repeats the first.
+vi.mock('@/entities/split/api/find-matches-client.ts', () => ({
+  findMatchesInWorker: () => Promise.resolve([{ duplicate: 2, kept: 0 }]),
+}))
+
 // 100 s at 50 ms per window: loud, a 2 s silence from 20 s, loud, a 2 s silence from 70.5 s, loud.
 function curveWithTwoGaps() {
   const curve = new Float32Array(2000).fill(-10)
@@ -30,6 +35,22 @@ function blocks(wrapper: ReturnType<typeof mount>) {
 // The split items between them, as the buttons that select a split.
 function splitItems(wrapper: ReturnType<typeof mount>) {
   return wrapper.findAll('button[aria-label^="Split "]')
+}
+
+// 107 s: three loud stretches of 35 s with a 2 s silence between each two.
+function curveWithThreeLongTracks() {
+  const curve = new Float32Array(2140).fill(-10)
+  curve.fill(-70, 700, 740)
+  curve.fill(-70, 1440, 1480)
+  return curve
+}
+
+async function mountWithDuplicate() {
+  const split = useSplitStore()
+  split.open(curveWithThreeLongTracks(), { windowSeconds: 0.05, durationSeconds: 107 })
+  split.addGapSplits()
+  await split.findDuplicates()
+  return { split, wrapper: await mountStrip() }
 }
 
 async function mountWithTwoGaps() {
@@ -203,6 +224,39 @@ describe('TrackStrip', () => {
       expect(blocks(wrapper)[1]?.classes()).toContain('bg-track')
       expect(blocks(wrapper)[1]?.classes()).not.toContain('border-dashed')
       expect(blocks(wrapper)[1]?.attributes('title')).toBe('02, 0:00:50')
+    })
+  })
+
+  describe('a duplicate', () => {
+    it('is drawn as a left-out block, and the kept copy as any other', async () => {
+      const { wrapper } = await mountWithDuplicate()
+
+      const [first, second, third] = blocks(wrapper)
+      expect(third?.classes()).toEqual(
+        expect.arrayContaining(['border-dashed', 'border-track', 'bg-transparent', 'text-ink']),
+      )
+      expect(first?.classes()).toContain('bg-track')
+      expect(second?.classes()).toContain('bg-track')
+    })
+
+    it('gives its words in its tooltip and accessible label', async () => {
+      const { wrapper } = await mountWithDuplicate()
+
+      expect(blocks(wrapper)[2]?.attributes('title')).toBe('03, 0:00:34, left out, duplicate of 01')
+      expect(blocks(wrapper)[2]?.get('button').attributes('aria-label')).toBe(
+        '03, 0:00:34, left out, duplicate of 01',
+      )
+      expect(blocks(wrapper)[0]?.attributes('title')).toBe('01, 0:00:36')
+    })
+
+    it('is a solid block again once an edit drops its match', async () => {
+      const { split, wrapper } = await mountWithDuplicate()
+
+      split.addSplitAt(90)
+      await flushPromises()
+
+      expect(blocks(wrapper)[2]?.classes()).toContain('bg-track')
+      expect(blocks(wrapper)[2]?.classes()).not.toContain('border-dashed')
     })
   })
 

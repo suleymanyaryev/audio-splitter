@@ -21,3 +21,12 @@ export function formatOffset(offsetDecibels: number): string {
   const tenths = roundToTenth(offsetDecibels)
   return `${Math.abs(tenths)} dB ${tenths < 0 ? 'over' : 'under'} the median`
 }
+
+/*
+What Find duplicates found, for the line beside its button: "1 duplicate", "23 duplicates", or "No
+duplicates found" when the search ran and found none.
+*/
+export function formatDuplicateResult(duplicates: number): string {
+  if (duplicates === 0) return 'No duplicates found'
+  return `${duplicates} ${duplicates === 1 ? 'duplicate' : 'duplicates'}`
+}
