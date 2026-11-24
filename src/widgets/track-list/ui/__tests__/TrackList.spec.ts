@@ -125,6 +125,84 @@ describe('TrackList', () => {
     expect(wrapper.findAll('tbody tr')).toHaveLength(5)
   })
 
+  describe('leaving a track out', () => {
+    it('has a button on each track row beside "Remove track", named for the track and what it does', () => {
+      const { wrapper } = mountWithTwoGaps()
+
+      for (const number of [1, 2, 3]) {
+        expect(wrapper.find(`button[aria-label="Leave out track ${number}"]`).exists()).toBe(true)
+      }
+      expect(wrapper.findAll('button[aria-label^="Bring back"]')).toHaveLength(0)
+      expect(
+        trackRows(wrapper)[1]
+          ?.findAll('button')
+          .map((button) => button.attributes('aria-label')),
+      ).toEqual(['Select track 2, starts at 0:00:21.00', 'Leave out track 2', 'Remove track 2'])
+    })
+
+    it('is there with one track too, where there is nothing to remove', () => {
+      useSplitStore().open(new Float32Array(400).fill(-10), {
+        windowSeconds: 0.05,
+        durationSeconds: 20,
+      })
+
+      const wrapper = mount(TrackList)
+
+      expect(wrapper.find('button[aria-label="Leave out track 1"]').exists()).toBe(true)
+      expect(wrapper.find('button[aria-label="Remove track 1"]').exists()).toBe(false)
+    })
+
+    it('leaves the track out, reads "Bring back track N" then, and brings it back', async () => {
+      const { split, wrapper } = mountWithTwoGaps()
+
+      await wrapper.get('button[aria-label="Leave out track 2"]').trigger('click')
+
+      expect(split.tracks[1]?.isLeftOut).toBe(true)
+      expect(wrapper.find('button[aria-label="Leave out track 2"]').exists()).toBe(false)
+
+      await wrapper.get('button[aria-label="Bring back track 2"]').trigger('click')
+
+      expect(split.tracks[1]?.isLeftOut).toBe(false)
+      expect(wrapper.find('button[aria-label="Leave out track 2"]').exists()).toBe(true)
+    })
+
+    it('changes no split and no name, and does only what it says, without selecting the row', async () => {
+      const { split, wrapper } = mountWithTwoGaps()
+      const before = split.selection
+
+      await wrapper.get('button[aria-label="Leave out track 3"]').trigger('click')
+
+      expect(split.splits).toHaveLength(2)
+      expect(split.selection).toEqual(before)
+    })
+
+    it('mutes the left-out row, and shows its default name with no number', async () => {
+      const { split, wrapper } = mountWithTwoGaps()
+      split.setTrackNamePrefix('set-')
+
+      await wrapper.get('button[aria-label="Leave out track 2"]').trigger('click')
+
+      expect(trackRows(wrapper)[1]?.classes()).toContain('text-muted')
+      expect(trackRows(wrapper)[0]?.classes()).not.toContain('text-muted')
+      expect(fieldValues(wrapper)).toEqual(['set-01', 'set-', 'set-02'])
+      // The number column keeps the place in the file.
+      expect(
+        rows(wrapper)
+          .map((row) => row[0])
+          .filter(Boolean),
+      ).toEqual(['1', '2', '3'])
+    })
+
+    it('keeps the screen reader’s labels at the track’s place in the file', async () => {
+      const { wrapper } = mountWithTwoGaps()
+
+      await wrapper.get('button[aria-label="Leave out track 1"]').trigger('click')
+
+      expect(wrapper.find('input[aria-label="Name of track 2"]').exists()).toBe(true)
+      expect(wrapper.find('button[aria-label^="Select track 3"]').exists()).toBe(true)
+    })
+  })
+
   it('scrolls inside a box as tall as the zoom view', () => {
     useSplitStore().open(curveWithTwoGaps(), { windowSeconds: 0.05, durationSeconds: 100 })
     useSplitStore().addGapSplits()

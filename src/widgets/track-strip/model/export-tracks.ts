@@ -25,7 +25,7 @@ interface PlannedTrack {
 }
 
 /*
-Export (GLOSSARY.md): every track as its own file, in a new subfolder of the folder the user picks
+Export (GLOSSARY.md): every track that is not left out as its own file, in a new subfolder of the folder the user picks
 (ticket 08). The picker opens on every export; the subfolder is named after the source file and
 never overwrites anything (`name (2)`). Tracks are cut one at a time, each written and dropped
 before the next is cut, so one track is in memory at most.
@@ -64,17 +64,26 @@ export const useExportTracksStore = defineStore('export-tracks', () => {
     status.value = 'failed'
   }
 
-  // The tracks as they are when the export starts; an edit made later cannot change a run.
+  /*
+  The tracks as they are when the export starts; an edit made later cannot change a run. A left-out
+  track is not planned, and the ones that are take the numbers 1 to K, so nothing in a file name or a
+  tag has a hole. A track still ends where the next one starts, left out or not.
+  */
   function planTracks(): PlannedTrack[] {
     const tracks = splitStore.tracks
-    return tracks.map((track, index) => ({
-      number: track.number,
-      // The user's own name: `track.name` falls back to the prefixed number, which is none.
-      name: track.ownName,
-      prefix: splitStore.trackNamePrefix,
-      startSeconds: track.startSeconds,
-      endSeconds: tracks[index + 1]?.startSeconds,
-    }))
+    const planned: PlannedTrack[] = []
+    for (const [index, track] of tracks.entries()) {
+      if (track.exportNumber === null) continue
+      planned.push({
+        number: track.exportNumber,
+        // The user's own name: `track.name` falls back to the prefixed number, which is none.
+        name: track.ownName,
+        prefix: splitStore.trackNamePrefix,
+        startSeconds: track.startSeconds,
+        endSeconds: tracks[index + 1]?.startSeconds,
+      })
+    }
+    return planned
   }
 
   async function createSubfolder(parent: ExportFolder, stem: string) {
@@ -126,6 +135,8 @@ export const useExportTracksStore = defineStore('export-tracks', () => {
   async function start() {
     const { file, format } = sourceFile
     if (file === null || format === null || sourceFile.status !== 'ready') return
+    // With every track left out there is nothing to write, so no folder is asked for.
+    if (splitStore.exportTrackCount === 0) return
     // Held from here, the picker included, when the status is still idle; a single export has it
     // while it runs.
     if (lock.isHeld) return

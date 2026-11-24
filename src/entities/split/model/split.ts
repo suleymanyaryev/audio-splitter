@@ -33,20 +33,40 @@ function snapToGrid(seconds: number) {
   return Math.round(seconds * GRID_STEPS_PER_SECOND) / GRID_STEPS_PER_SECOND
 }
 
-// `id` is stable for the split's life, so a selection and a count of edits can hold it.
-// `name` is the name of the track that starts at this split, null while it is unnamed.
+/*
+Whether the export writes a track (GLOSSARY.md: Left-out track): `included`, or left out for a
+reason. It is a reason, not a flag, so a later reason (a duplicate) needs no migration.
+*/
+export type Inclusion = 'included' | 'by-hand'
+
+/*
+`id` is stable for the split's life, so a selection and a count of edits can hold it.
+`name` and `inclusion` are those of the track that starts at this split: the name is null while the
+track is unnamed.
+*/
 export interface Split {
   id: number
   seconds: number
   name: string | null
+  inclusion: Inclusion
 }
 
 export interface Track {
+  // The track's place in the file, counting every track, left out or not.
   number: number
+  inclusion: Inclusion
+  isLeftOut: boolean
+  // 1…K among the tracks the export writes, null for a left-out track.
+  exportNumber: number | null
   // The name the user typed, null while the track is unnamed.
   ownName: string | null
-  // The name shown: the own name, or the prefixed number while the track has none.
+  /*
+  The name shown and exported: the own name, or the prefix and the export number while the track has
+  none. A left-out unnamed track has no number, so its name is the bare prefix.
+  */
   name: string
+  // The own name, or the prefix and the track's place in the file: what the Track view's title says.
+  placeName: string
   startSeconds: number
   lengthSeconds: number
   // The split where the track starts: none for the first track, which starts with the file.
@@ -122,6 +142,8 @@ export const useSplitStore = defineStore('split', () => {
   const gaps = ref<Gap[]>([])
   const splits = ref<Split[]>([])
   const firstTrackName = ref<string | null>(null)
+  // The first track's inclusion lives beside its name, as it has no split to sit on.
+  const firstTrackInclusion = ref<Inclusion>('included')
   /*
   The track name prefix (GLOSSARY.md): file-level state, so no edit, no setting change and no
   open touches it. The page sets it once per file; `reset` clears it.
@@ -160,6 +182,8 @@ export const useSplitStore = defineStore('split', () => {
   const movedIds = ref(new Set<number>())
   const addedIds = ref(new Set<number>())
   const renamedKeys = ref(new Set<number | null>())
+  // The tracks the user left out or brought back, keyed like a rename; a second toggle takes it back.
+  const inclusionKeys = ref(new Set<number | null>())
   const deletedCount = ref(0)
 
   // The index in `splits` of the selected split, or null when no split is selected.
@@ -179,14 +203,29 @@ export const useSplitStore = defineStore('split', () => {
     if (timing.value === null) return []
     const { durationSeconds } = timing.value
     const starts = [0, ...splits.value.map((split) => split.seconds)]
+    const inclusions = [firstTrackInclusion.value, ...splits.value.map((split) => split.inclusion)]
+    const exportCount = inclusions.filter((inclusion) => inclusion === 'included').length
+    let exportedSoFar = 0
     return starts.map((startSeconds, index) => {
       const startSplit = splits.value[index - 1] ?? null
       const endSeconds = starts[index + 1] ?? durationSeconds
       const ownName = startSplit === null ? firstTrackName.value : startSplit.name
+      const inclusion = inclusions[index] ?? 'included'
+      const isLeftOut = inclusion !== 'included'
+      const exportNumber = isLeftOut ? null : ++exportedSoFar
+      const prefix = trackNamePrefix.value
       return {
         number: index + 1,
+        inclusion,
+        isLeftOut,
+        exportNumber,
         ownName,
-        name: ownName ?? defaultTrackName(trackNamePrefix.value, index + 1, starts.length),
+        name:
+          ownName ??
+          (exportNumber === null
+            ? prefix.slice(0, MAX_TRACK_NAME_LENGTH)
+            : defaultTrackName(prefix, exportNumber, exportCount)),
+        placeName: ownName ?? defaultTrackName(prefix, index + 1, starts.length),
         startSeconds,
         lengthSeconds: endSeconds - startSeconds,
         startSplit,
@@ -297,12 +336,21 @@ export const useSplitStore = defineStore('split', () => {
     movedIds.value.clear()
     addedIds.value.clear()
     renamedKeys.value.clear()
+    inclusionKeys.value.clear()
     deletedCount.value = 0
   }
 
   const editCount = computed(
-    () => movedIds.value.size + addedIds.value.size + renamedKeys.value.size + deletedCount.value,
+    () =>
+      movedIds.value.size +
+      addedIds.value.size +
+      renamedKeys.value.size +
+      inclusionKeys.value.size +
+      deletedCount.value,
   )
+
+  // How many tracks the export writes: the ones not left out. With none, the export refuses.
+  const exportTrackCount = computed(() => tracks.value.filter((track) => !track.isLeftOut).length)
   const hasEdits = computed(() => editCount.value > 0)
 
   /*
@@ -406,6 +454,7 @@ export const useSplitStore = defineStore('split', () => {
   function clearSplits() {
     splits.value = []
     firstTrackName.value = null
+    firstTrackInclusion.value = 'included'
     clearEdits()
     trackMarkSeconds.value = null
     clearPending()
@@ -714,7 +763,7 @@ export const useSplitStore = defineStore('split', () => {
   */
   function insertSplit(seconds: number, isEdit = true) {
     const index = splits.value.findIndex((candidate) => candidate.seconds > seconds)
-    const split: Split = { id: nextSplitId++, seconds, name: null }
+    const split: Split = { id: nextSplitId++, seconds, name: null, inclusion: 'included' }
     splits.value.splice(index === -1 ? splits.value.length : index, 0, split)
     if (isEdit) addedIds.value.add(split.id)
     return split
@@ -778,6 +827,7 @@ export const useSplitStore = defineStore('split', () => {
     if (!addedIds.value.delete(id)) deletedCount.value++
     movedIds.value.delete(id)
     renamedKeys.value.delete(id)
+    inclusionKeys.value.delete(id)
     // The selected track starts at the deleted split: the merged track starts at the one before it.
     if (wasTrackStart) {
       selection.value = { kind: 'track', startSplitId: splits.value[index - 1]?.id ?? null }
@@ -839,6 +889,22 @@ export const useSplitStore = defineStore('split', () => {
     else renamedKeys.value.add(startSplitId)
   }
 
+  /*
+  Leaves the track that starts at the split `startSplitId` (null for the first track) out of the
+  export, or brings it back. It changes no split and no name. It is one edit for that track, and
+  the second toggle takes the edit away again.
+  */
+  function toggleLeftOut(startSplitId: number | null) {
+    const point =
+      startSplitId === null ? null : splits.value.find((candidate) => candidate.id === startSplitId)
+    if (point === undefined) return
+    const current = point === null ? firstTrackInclusion.value : point.inclusion
+    const next: Inclusion = current === 'included' ? 'by-hand' : 'included'
+    if (point === null) firstTrackInclusion.value = next
+    else point.inclusion = next
+    if (!inclusionKeys.value.delete(startSplitId)) inclusionKeys.value.add(startSplitId)
+  }
+
   // Kept as typed, a separator or a space at its end included, up to a track name's length.
   function setTrackNamePrefix(prefix: string) {
     trackNamePrefix.value = prefix.slice(0, MAX_TRACK_NAME_LENGTH)
@@ -853,6 +919,7 @@ export const useSplitStore = defineStore('split', () => {
     gaps.value = []
     splits.value = []
     firstTrackName.value = null
+    firstTrackInclusion.value = 'included'
     trackNamePrefix.value = ''
     clearEdits()
     selection.value = null
@@ -897,6 +964,7 @@ export const useSplitStore = defineStore('split', () => {
     editCount,
     hasEdits,
     tracks,
+    exportTrackCount,
     open,
     addGapSplits,
     clearSplits,
@@ -930,6 +998,7 @@ export const useSplitStore = defineStore('split', () => {
     deleteSplit,
     removeTrack,
     renameTrack,
+    toggleLeftOut,
     setTrackNamePrefix,
     reset,
   }

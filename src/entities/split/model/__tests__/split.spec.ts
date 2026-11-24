@@ -165,6 +165,9 @@ function openFile(store: ReturnType<typeof useSplitStore>, curve: Float32Array) 
   store.open(curve, timing(curve))
 }
 
+const inclusions = (store: ReturnType<typeof useSplitStore>) =>
+  store.tracks.map((track) => track.inclusion)
+
 /*
 What an open discard question leaves of `pendingTwo`: the question is open, and the held action has
 not run, so the track, the list and the view are as they were. The third track is 42 s to 60 s.
@@ -309,8 +312,12 @@ describe('the split store', () => {
     expect(store.tracks).toEqual([
       {
         number: 1,
+        inclusion: 'included',
+        isLeftOut: false,
+        exportNumber: 1,
         ownName: null,
         name: '01',
+        placeName: '01',
         startSeconds: 0,
         lengthSeconds: 5,
         startSplit: null,
@@ -886,6 +893,166 @@ describe('the split store', () => {
       store.reset()
 
       expect(store.areDefaultSettingsBuiltIn).toBe(false)
+    })
+  })
+
+  describe('leaving a track out', () => {
+    // `loadedStore` has three tracks: 0–22 s, 22–42 s and 42–60 s.
+    it('starts with every track included, each with its place as its export number', () => {
+      const store = loadedStore()
+
+      expect(inclusions(store)).toEqual(['included', 'included', 'included'])
+      expect(store.tracks.map((track) => track.isLeftOut)).toEqual([false, false, false])
+      expect(store.tracks.map((track) => track.exportNumber)).toEqual([1, 2, 3])
+      expect(store.exportTrackCount).toBe(3)
+    })
+
+    it('leaves out the track that starts at a split, and brings it back, changing no split or name', () => {
+      const store = loadedStore()
+      store.renameTrack(store.splits[0]!.id, 'Middle')
+      const before = store.splits.map((point) => ({ ...point, inclusion: 'included' }))
+
+      store.toggleLeftOut(store.splits[0]!.id)
+
+      expect(inclusions(store)).toEqual(['included', 'by-hand', 'included'])
+      expect(store.tracks[1]).toMatchObject({ isLeftOut: true, ownName: 'Middle' })
+      expect(store.splits.map((point) => ({ ...point, inclusion: 'included' }))).toEqual(before)
+
+      store.toggleLeftOut(store.splits[0]!.id)
+      expect(inclusions(store)).toEqual(['included', 'included', 'included'])
+    })
+
+    it('leaves the first track out too, which has no split to sit on', () => {
+      const store = loadedStore()
+
+      store.toggleLeftOut(null)
+
+      expect(inclusions(store)).toEqual(['by-hand', 'included', 'included'])
+      expect(store.exportTrackCount).toBe(2)
+    })
+
+    it('does nothing for a split that is gone', () => {
+      const store = loadedStore()
+
+      store.toggleLeftOut(999)
+
+      expect(inclusions(store)).toEqual(['included', 'included', 'included'])
+      expect(store.editCount).toBe(0)
+    })
+
+    it('numbers the tracks written 1 to K, padded to K, and the left-out track gets none', () => {
+      const store = loadedStore()
+      store.setTrackNamePrefix('set-')
+
+      store.toggleLeftOut(store.splits[0]!.id)
+
+      expect(store.tracks.map((track) => track.exportNumber)).toEqual([1, null, 2])
+      expect(store.tracks.map((track) => track.name)).toEqual(['set-01', 'set-', 'set-02'])
+      // The place in the file stays: `number` and the name the Track view titles by.
+      expect(store.tracks.map((track) => track.number)).toEqual([1, 2, 3])
+      expect(store.tracks.map((track) => track.placeName)).toEqual(['set-01', 'set-02', 'set-03'])
+    })
+
+    it('pads the export numbers to the count written, not to the count of tracks', () => {
+      // A 0.3 s gap in every second: 119 inner gaps, so 120 tracks.
+      const curve = Float32Array.from({ length: 2400 }, (_, index) =>
+        index % 20 < 6 ? QUIET : LOUD,
+      )
+      const store = useSplitStore()
+      store.open(curve, timing(curve))
+      store.setMinimumGapLength(0.2)
+      store.addGapSplits()
+      expect(store.tracks.length).toBeGreaterThan(99)
+
+      // Leave out all but the first two: two files are written, so their numbers have two digits.
+      for (const track of store.tracks.slice(2)) store.toggleLeftOut(track.startSplit?.id ?? null)
+
+      expect(store.tracks.slice(0, 2).map((track) => track.name)).toEqual(['01', '02'])
+    })
+
+    it('keeps the own name of a left-out track as it is', () => {
+      const store = loadedStore()
+      store.renameTrack(store.splits[0]!.id, 'Interlude')
+
+      store.toggleLeftOut(store.splits[0]!.id)
+
+      expect(store.tracks[1]?.name).toBe('Interlude')
+      expect(store.tracks[1]?.placeName).toBe('Interlude')
+    })
+
+    it('counts as one edit for the track, and bringing it back takes the edit away', () => {
+      const store = loadedStore()
+
+      store.toggleLeftOut(store.splits[0]!.id)
+      expect(store.editCount).toBe(1)
+      expect(store.hasEdits).toBe(true)
+
+      store.toggleLeftOut(null)
+      expect(store.editCount).toBe(2)
+
+      store.toggleLeftOut(store.splits[0]!.id)
+      expect(store.editCount).toBe(1)
+      store.toggleLeftOut(null)
+      expect(store.editCount).toBe(0)
+    })
+
+    it('keeps its state with the track when a split moves', () => {
+      const store = loadedStore()
+      store.toggleLeftOut(store.splits[0]!.id)
+      store.selectSplit(store.splits[0]!.id)
+
+      store.moveSplit(store.splits[0]!.id, 23)
+
+      expect(inclusions(store)).toEqual(['included', 'by-hand', 'included'])
+      expect(store.tracks[1]?.startSeconds).toBe(23)
+    })
+
+    it('takes the state with a deleted split, and its edit with it', () => {
+      const store = loadedStore()
+      store.toggleLeftOut(store.splits[0]!.id)
+      expect(store.editCount).toBe(1)
+
+      store.deleteSplit(store.splits[0]!.id)
+
+      expect(inclusions(store)).toEqual(['included', 'included'])
+      // The split was detected, so its delete is one edit; the left-out edit went with it.
+      expect(store.editCount).toBe(1)
+    })
+
+    it('leaves "Remove track" merging the track into its neighbours, as it does', () => {
+      const store = loadedStore()
+      store.toggleLeftOut(null)
+
+      store.removeTrack(store.tracks[1]!)
+
+      // Both splits go, so the merged track is the first one, with its state.
+      expect(store.tracks).toHaveLength(1)
+      expect(store.tracks[0]?.isLeftOut).toBe(true)
+    })
+
+    it('is brought back by Clear splits, and forgotten by a new file', () => {
+      const store = loadedStore()
+      store.toggleLeftOut(null)
+      store.toggleLeftOut(store.splits[1]!.id)
+
+      store.clearSplits()
+      expect(inclusions(store)).toEqual(['included'])
+      expect(store.editCount).toBe(0)
+
+      store.toggleLeftOut(null)
+      store.reset()
+      const curve = farGaps()
+      store.open(curve, timing(curve))
+      expect(inclusions(store)).toEqual(['included'])
+    })
+
+    it('says no track is written when every track is left out', () => {
+      const store = loadedStore()
+
+      for (const track of store.tracks) store.toggleLeftOut(track.startSplit?.id ?? null)
+
+      expect(store.exportTrackCount).toBe(0)
+      expect(store.tracks.map((track) => track.exportNumber)).toEqual([null, null, null])
     })
   })
 

@@ -26,6 +26,9 @@ Versions follow [Semantic Versioning](https://semver.org/) applied to the produc
 
 - "Save as default" and "Restore built-in" in the loudness panel's title row. Saving keeps the minimum gap length and how far under the file's median the threshold sits (its tooltip says which, such as "Save 18 dB under the median and 2 s as the default"), so every later file, also after a reload, starts from them and a louder or quieter file still gets a sensible threshold. Restoring puts the built-in 18 dB and 2 s back and moves the sliders there. Each is off while it would change nothing, and neither touches a split.
 
+- Any track can be left out of the export. Each row of the Track list has a "Leave out track N" button beside "Remove track" (it reads "Bring back track N" while the track is left out), and a left-out row is muted. A left-out track stays in the review and can still be played and exported alone, and leaving it out changes no split and no name. It counts as one edit, which bringing it back takes away.
+- "Export to folder…" writes no file for a left-out track and numbers the files it writes 1 to K with no holes, in the file names, their padding and the `N/K` track tag. An unnamed left-out track's name in the list is the bare prefix, with no number, and "Export to folder…" is off while every track is left out. "Export track…" on an unnamed left-out track offers the prefix and the track's place in the file (`dreamscape-03`).
+
 ### Changed
 
 - A source file opens as one track with no splits, on track 1 in the Track view. The gaps for the settings show at once on the whole-file view, the loudness curve and the zoom panel's views, and "Find gaps" turns them into splits when you decide.

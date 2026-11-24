@@ -420,7 +420,7 @@ watch(
         <UiButton
           variant="primary"
           size="lg"
-          :disabled="sourceFile.status !== 'ready' || isExporting"
+          :disabled="sourceFile.status !== 'ready' || isExporting || split.exportTrackCount === 0"
           @click="exportTracks"
         >
           <Download class="size-4 shrink-0" />

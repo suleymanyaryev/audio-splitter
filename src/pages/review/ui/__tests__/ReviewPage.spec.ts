@@ -408,6 +408,30 @@ describe('ReviewPage', () => {
     })
   })
 
+  describe('leaving tracks out', () => {
+    it('disables "Export to folder…" only while every track is left out', async () => {
+      const wrapper = mountPage()
+      const split = useSplitStore()
+      expect(exportButton(wrapper).attributes('disabled')).toBeUndefined()
+
+      for (const track of split.tracks) split.toggleLeftOut(track.startSplit?.id ?? null)
+      await wrapper.vm.$nextTick()
+      expect(exportButton(wrapper).attributes('disabled')).toBeDefined()
+
+      split.toggleLeftOut(null)
+      await wrapper.vm.$nextTick()
+      expect(exportButton(wrapper).attributes('disabled')).toBeUndefined()
+    })
+
+    it('titles the Track view by the track’s place in the file, not by its export number', async () => {
+      const wrapper = await mountPageWithTrack(2)
+      useSplitStore().toggleLeftOut(null)
+      await wrapper.vm.$nextTick()
+
+      expect(panelTitle(wrapper)).toMatch(/^02 · /)
+    })
+  })
+
   describe('the track name prefix', () => {
     it('starts as the source file’s name without its extension, followed by "-"', () => {
       const wrapper = mountPageForFile('dreamscape.m4a')

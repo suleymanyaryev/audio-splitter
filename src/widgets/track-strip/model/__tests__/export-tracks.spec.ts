@@ -158,6 +158,76 @@ describe('the export store', () => {
     ])
   })
 
+  describe('left-out tracks', () => {
+    it('writes no file for a left-out track, but cuts its neighbours to where the next one starts', async () => {
+      const { exporter, split } = setUp()
+      split.toggleLeftOut(split.splits[0]!.id)
+
+      await exporter.start()
+
+      expect(cutTrack.mock.calls.map(([cut]) => [cut.startSeconds, cut.endSeconds])).toEqual([
+        [0, 21],
+        [71.5, undefined],
+      ])
+      expect(fileNames(picked)).toEqual(['01.m4a', '02.m4a'])
+      expect(exporter.savedCount).toBe(2)
+      expect(exporter.trackCount).toBe(2)
+    })
+
+    it('numbers the files and the N/K tags 1 to K among the tracks written', async () => {
+      const { exporter, split } = setUp()
+      split.setTrackNamePrefix('set-')
+      split.toggleLeftOut(null)
+
+      await exporter.start()
+
+      expect(fileNames(picked)).toEqual(['set-01.m4a', 'set-02.m4a'])
+      expect(cutTrack.mock.calls.map(([cut]) => cut.tags)).toEqual([
+        { title: 'set-01', track: '1/2', album: 'Evening Set' },
+        { title: 'set-02', track: '2/2', album: 'Evening Set' },
+      ])
+    })
+
+    it('writes a named left-in track under its name, and counts it among the K', async () => {
+      const { exporter, split } = setUp()
+      split.renameTrack(split.splits[1]!.id, 'Closer')
+      split.toggleLeftOut(split.splits[0]!.id)
+
+      await exporter.start()
+
+      expect(fileNames(picked)).toEqual(['01.m4a', 'Closer.m4a'])
+      expect(cutTrack.mock.calls.map(([cut]) => cut.tags.track)).toEqual(['1/2', '2/2'])
+    })
+
+    it('refuses to start when every track is left out, with no picker and no folder', async () => {
+      const { exporter, split } = setUp()
+      for (const track of split.tracks) split.toggleLeftOut(track.startSplit?.id ?? null)
+
+      await exporter.start()
+
+      expect(exporter.status).toBe('idle')
+      expect(picker).not.toHaveBeenCalled()
+      expect(cutTrack).not.toHaveBeenCalled()
+    })
+
+    it('says the tracks written in the summary, so it matches the files in the folder', async () => {
+      const { exporter, split } = setUp()
+      split.toggleLeftOut(split.splits[0]!.id)
+
+      await exporter.start()
+
+      expect(
+        exportSummary({
+          status: 'done',
+          savedCount: exporter.savedCount,
+          trackCount: exporter.trackCount,
+          folderName: exporter.folderName,
+          failure: exporter.failure,
+        }),
+      ).toBe('2 tracks saved to Evening Set/')
+    })
+  })
+
   describe('names that clash', () => {
     it('writes a renamed track under its name as typed, with no number', async () => {
       const { exporter, split } = setUp()
