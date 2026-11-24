@@ -1211,6 +1211,16 @@ describe('Find duplicates', () => {
       expect(landing(store, at(store, 3, 10))).toEqual([1, 8])
     })
 
+    it('takes a duplicate cut a second short to the moment it lined up at, not the start of the stretch', async () => {
+      // The copy lacks the first second of the music, within the 2 s a full match may fall short by.
+      const store = openPlaylist(A(), B(), A().slice(WINDOWS_PER_SECOND))
+      await store.findDuplicates()
+      store.selectTrack(store.tracks[2]!)
+
+      // 10 s into the copy is 8 s into its music (after the 2 s lead), which is 9 s into the first.
+      expect(landing(store, at(store, 3, 10))).toEqual([1, 9])
+    })
+
     it('selects the target track and gives it back, and the kept copy goes back to where it came from', async () => {
       const store = await pressedHolder()
 

@@ -393,7 +393,7 @@ export const useSplitStore = defineStore('split', () => {
 
   const tracks = computed<Track[]>(() => {
     const ends = trackEnds.value
-    // Each track's live matches, by the track's index, in the order they were found: the earlier tracks first.
+    // Each track's live matches, by the track's index, in the order found: the earlier tracks first.
     const matchesByTrack = new Map<number, (typeof liveMatches.value)[number][]>()
     for (const match of liveMatches.value)
       matchesByTrack.set(match.later, [...(matchesByTrack.get(match.later) ?? []), match])
@@ -784,7 +784,7 @@ export const useSplitStore = defineStore('split', () => {
       : null,
   )
 
-  // Drops every match and stops listening for a running search: its answer is for a file that is gone.
+  // Drops every match and stops listening for a running search: its answer is for a gone file.
   function dropMatches() {
     searchNumber++
     matches.value = []

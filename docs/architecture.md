@@ -1,6 +1,6 @@
 # Architecture
 
-How the code is put together: the layers, the stores and how they connect, the one ffmpeg session, and the load, player and export flows. The folder map is in [AGENTS.md](../AGENTS.md#code-layout), the words in [GLOSSARY.md](../GLOSSARY.md). What each feature does is in the code and its specs.
+How the code is put together: the layers, the stores and how they connect, the ffmpeg session and the search worker, and the load, player, search and export flows. The folder map is in [AGENTS.md](../AGENTS.md#code-layout), the words in [GLOSSARY.md](../GLOSSARY.md). What each feature does is in the code and its specs.
 
 ## Layers
 
@@ -41,15 +41,15 @@ An arrow means "may import from". Two slices of one layer never import each othe
 
 All state lives in Pinia setup stores, in memory, except the theme ([below](#the-theme)). Only the volume, the mute flag, the play speed, the default settings and the theme choice are also saved, in `localStorage`.
 
-| Store              | Slice                      | Holds                                                         |
-| ------------------ | -------------------------- | ------------------------------------------------------------- |
-| `source-file`      | `entities/source-file`     | The file, its analysis, load progress and the ffmpeg session  |
-| `split`            | `entities/split`           | Settings, splits, track names and states, selection, edits    |
-| `audition`         | `widgets/split-zoom`       | The one player: what plays, its status, volume and play speed |
-| `export-tracks`    | `widgets/track-strip`      | The export of every track not left out into a folder          |
-| `export-single`    | `widgets/track-strip`      | The export of one track or range as a single file             |
-| `export-lock`      | `widgets/track-strip`      | Which export is running, so the two never overlap             |
-| `shortcuts-dialog` | `widgets/shortcuts-dialog` | Whether the shortcuts dialog is open                          |
+| Store              | Slice                      | Holds                                                               |
+| ------------------ | -------------------------- | ------------------------------------------------------------------- |
+| `source-file`      | `entities/source-file`     | The file, its analysis, load progress and the ffmpeg session        |
+| `split`            | `entities/split`           | Settings, splits, track names and states, matches, selection, edits |
+| `audition`         | `widgets/split-zoom`       | The one player: what plays, its status, volume and play speed       |
+| `export-tracks`    | `widgets/track-strip`      | The export of every track not left out into a folder                |
+| `export-single`    | `widgets/track-strip`      | The export of one track or range as a single file                   |
+| `export-lock`      | `widgets/track-strip`      | Which export is running, so the two never overlap                   |
+| `shortcuts-dialog` | `widgets/shortcuts-dialog` | Whether the shortcuts dialog is open                                |
 
 ```mermaid
 flowchart LR
@@ -76,6 +76,7 @@ flowchart LR
 - **`split` can't import `source-file`.** `ReviewPage` hands it the loudness curve and the track name prefix once, on mount. The file opens as one track with no splits; "Find gaps" turns the gaps into splits.
 - **Widgets read the entity stores directly.** They never go through another widget.
 - **Tracks are derived from the splits**, never stored. Deleting a split merges the tracks either side of it.
+- **Matches are stored as found, and whether one holds is derived.** A match keeps both tracks' ends, so an edit never has to find it: it is live while both tracks still have them.
 - **One selection at a time:** a split, a track or nothing.
 - **Changes that drop the user's work ask first.** "New file" and "Clear splits" ask when there are edits or pending splits; a setting change asks nothing, since it changes only the gaps. Any action that would drop pending splits is held as a question in `split` (see `unlessItDiscards` in `split.ts`).
 - **The two export stores can't import each other**, so `export-lock` sits between them.
@@ -196,6 +197,42 @@ stateDiagram-v2
 - **Watchers on the `split` store stop the sound at once** when the split, range or track it belongs to changes. A view change or the export only pauses a stretch, so its playhead stays.
 - **Every press takes a number.** A clip that arrives for an older press is dropped, so stale sound never starts.
 - **The volume and the play speed apply to the element only**, so they never reach an exported file ([note 09](concepts/09-volume-is-gain.md), [note 10](concepts/10-speed-without-pitch.md), [ADR 0004](adr/0004-time-stretching-by-the-browser.md)).
+
+## Find duplicates
+
+"Find duplicates" compares the tracks in a second worker, beside ffmpeg's. The idea is in [note 11](concepts/11-finding-repeats.md).
+
+```mermaid
+sequenceDiagram
+  actor User
+  participant store as split store
+  participant client as find-matches-client
+  participant worker as find-matches worker
+
+  User->>store: Find duplicates
+  store->>store: take a number, running
+  store->>client: curve, threshold, tracks, live dismissals
+  client->>worker: the request, copied
+  worker->>worker: findMatches
+  worker-->>client: the matches
+  client-->>store: the matches, worker terminated
+  alt the number is the latest
+    store->>store: keep the matches, idle
+  else another press, or the file started over
+    store->>store: drop the answer
+  end
+```
+
+```mermaid
+stateDiagram-v2
+  [*] --> idle
+  idle --> running: press
+  running --> idle: the matches kept, or the search failed, or the file started over
+```
+
+- **The worker does one job.** It is started per press and terminated with its answer. Its entry only wires: the rules are in `lib/find-matches.ts`, which a store spec runs in the page through a fake client.
+- **The request holds plain numbers.** A worker refuses a Vue proxy.
+- **The matches drive other stores' views.** The track list, the track strip, the Track view and the export read the live matches from `split`; none of them stores a match.
 
 ## Export
 

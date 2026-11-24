@@ -20,8 +20,7 @@ Every block is a button that selects its track, the first included, and the bloc
 track is marked with a 2 px `on-track` border (DESIGN.md's "Selected" bullet). A left-out block is
 hollow: the land shows through, with a dashed `track` border and ink text, and its description ends
 with "left out", and a duplicate's with its words, "duplicate of 01"; it stays a button that selects
-its track. A split item is a
-button that selects the split where the next block starts, which shows the zoom view centred on it.
+its track. A split item is a button that selects the split where the next block starts, which shows the zoom view centred on it.
 It is the land between the blocks at rest, and rust, the colour of a split, when it is hovered,
 focused or selected; focus also draws the ink ring, so a focused item never reads as a selected
 one. A mouse press on either takes no focus, so the next key goes to the view on

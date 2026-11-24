@@ -139,6 +139,157 @@ interface Candidate {
   earlierRun: Run
 }
 
+// The steps the comparison is made in, in windows of the compared curve.
+interface Scale {
+  stepSeconds: number
+  // The shortest stretch compared, and the shortest overlap scored.
+  minimumLength: number
+  // How far a shared stretch may fall short of a track's ends and still be full.
+  tolerance: number
+}
+
+/*
+Scores one pair (the shorter stretch slid along the longer) and says which match it makes, or null
+when it is no match: a stretch missing, the pair dismissed, or r under 0.95.
+*/
+function candidateOf(
+  later: number,
+  earlier: number,
+  laterStretch: Stretch | null,
+  earlierStretch: Stretch | null,
+  scale: Scale,
+): Candidate | null {
+  if (laterStretch === null || earlierStretch === null) return null
+  const isLaterShorter = laterStretch.values.length < earlierStretch.values.length
+  const [shorter, longer] = isLaterShorter
+    ? [laterStretch, earlierStretch]
+    : [earlierStretch, laterStretch]
+  const best = slidingCorrelation(shorter.values, longer.values, scale.minimumLength)
+  if (best === null || best.r < MATCH_MINIMUM_R) return null
+  const runs = sharedRuns(shorter.values.length, longer.values.length, best.offset)
+  const laterRun = isLaterShorter ? runs.shorterRun : runs.longerRun
+  const earlierRun = isLaterShorter ? runs.longerRun : runs.shorterRun
+  const kind = kindOf(
+    laterRun,
+    laterStretch.values.length,
+    earlierRun,
+    earlierStretch.values.length,
+    scale.tolerance,
+  )
+  return { later, earlier, laterStretch, earlierStretch, kind, laterRun, earlierRun }
+}
+
+// Every pair that scores as a match, full or not, found once: each pair is slid one along the other.
+function candidatesOf(
+  stretches: (Stretch | null)[],
+  isDismissed: (later: number, earlier: number) => boolean,
+  scale: Scale,
+): Candidate[] {
+  const candidates: Candidate[] = []
+  for (const [later, stretch] of stretches.entries()) {
+    for (const [earlier, other] of stretches.slice(0, later).entries()) {
+      if (isDismissed(later, earlier)) continue
+      const candidate = candidateOf(later, earlier, stretch, other, scale)
+      if (candidate !== null) candidates.push(candidate)
+    }
+  }
+  return candidates
+}
+
+/*
+Union-find over the tracks, left out by hand or not: each full match joins two tracks into one
+recording, and the earlier root wins, so a recording's root is its earliest track. Returns the
+root of a track's recording.
+*/
+function recordingRoots(trackCount: number, candidates: Candidate[]): (index: number) => number {
+  const parent = Array.from({ length: trackCount }, (_unused, index) => index)
+  function root(index: number): number {
+    let current = index
+    while (parent[current] !== current) current = parent[current] ?? current
+    return current
+  }
+  for (const { later, earlier, kind } of candidates) {
+    if (kind !== 'full') continue
+    const earlierRoot = root(earlier)
+    const laterRoot = root(later)
+    parent[Math.max(earlierRoot, laterRoot)] = Math.min(earlierRoot, laterRoot)
+  }
+  return root
+}
+
+// The kept copy of each recording, by its root: its earliest track not left out by hand.
+function keptCopies(tracks: MatchInput['tracks'], root: (index: number) => number) {
+  const keptOf = new Map<number, number>()
+  for (const [index, track] of tracks.entries()) {
+    const recording = root(index)
+    if (!track.isLeftOutByHand && !keptOf.has(recording)) keptOf.set(recording, index)
+  }
+  return keptOf
+}
+
+/*
+The duplicates, by track: a track after its recording's kept copy names it. A duplicate has its
+full match and no other. What the two share is where the pair lined up when it was scored, so a
+track cut a second late still maps to the right moment; a pair that was never scored (it was joined
+to the kept copy through another track) shares the whole of both stretches.
+*/
+function duplicatesOf(
+  stretches: (Stretch | null)[],
+  candidates: Candidate[],
+  root: (index: number) => number,
+  keptOf: Map<number, number>,
+  isDismissed: (later: number, earlier: number) => boolean,
+  scale: Scale,
+): Map<number, FoundMatch> {
+  const duplicates = new Map<number, FoundMatch>()
+  for (const [index, stretch] of stretches.entries()) {
+    const kept = keptOf.get(root(index))
+    if (kept === undefined || stretch === null || kept >= index || isDismissed(index, kept))
+      continue
+    const keptStretch = stretches[kept]
+    if (keptStretch === null || keptStretch === undefined) continue
+    const scored = candidates.find((pair) => pair.later === index && pair.earlier === kept)
+    duplicates.set(index, {
+      later: index,
+      earlier: kept,
+      kind: 'full',
+      laterShared:
+        scored === undefined
+          ? wholeSeconds(stretch, scale.stepSeconds)
+          : sharedSeconds(stretch, scored.laterRun, scale.stepSeconds),
+      earlierShared:
+        scored === undefined
+          ? wholeSeconds(keptStretch, scale.stepSeconds)
+          : sharedSeconds(keptStretch, scored.earlierRun, scale.stepSeconds),
+    })
+  }
+  return duplicates
+}
+
+// The rest: a pair that shares part of its stretches, if neither track is a duplicate.
+function partialMatchesOf(
+  candidates: Candidate[],
+  duplicates: Map<number, FoundMatch>,
+  scale: Scale,
+): Map<number, FoundMatch[]> {
+  const partials = new Map<number, FoundMatch[]>()
+  for (const candidate of candidates) {
+    const { later, earlier, kind, laterRun, earlierRun } = candidate
+    if (kind === 'full' || duplicates.has(later) || duplicates.has(earlier)) continue
+    partials.set(later, [
+      ...(partials.get(later) ?? []),
+      {
+        later,
+        earlier,
+        kind,
+        laterShared: sharedSeconds(candidate.laterStretch, laterRun, scale.stepSeconds),
+        earlierShared: sharedSeconds(candidate.earlierStretch, earlierRun, scale.stepSeconds),
+      },
+    ])
+  }
+  return partials
+}
+
 /*
 Find duplicates (GLOSSARY.md: Match, Kept copy, Duplicate, Partial match): compares every track of
 30 s or more with every earlier one, and returns a match for each track that is the same recording
@@ -170,105 +321,22 @@ export function findMatches(input: MatchInput): FoundMatch[] {
   const factor = Math.max(1, Math.round(COMPARED_STEP_SECONDS / windowSeconds))
   const stepSeconds = factor * windowSeconds
   const curve = coarseCurve(input.curve, factor, COMPARED_FLOOR_DB)
-  const minimumLength = Math.round(MINIMUM_COMPARED_SECONDS / stepSeconds)
-  const tolerance = Math.round(FULL_MATCH_TOLERANCE_SECONDS / stepSeconds)
-  const stretches = stretchesOf(curve, tracks, stepSeconds, silenceThreshold, minimumLength)
+  const scale: Scale = {
+    stepSeconds,
+    minimumLength: Math.round(MINIMUM_COMPARED_SECONDS / stepSeconds),
+    tolerance: Math.round(FULL_MATCH_TOLERANCE_SECONDS / stepSeconds),
+  }
+  const stretches = stretchesOf(curve, tracks, stepSeconds, silenceThreshold, scale.minimumLength)
 
-  // Every pair that scores as a match, full or not, found once: each pair is slid one along the other.
-  const candidates: Candidate[] = []
-  for (const [later, stretch] of stretches.entries()) {
-    for (const [earlier, other] of stretches.slice(0, later).entries()) {
-      if (stretch === null || other === null || isDismissed(later, earlier)) continue
-      const isLaterShorter = stretch.values.length < other.values.length
-      const [shorter, longer] = isLaterShorter ? [stretch, other] : [other, stretch]
-      const best = slidingCorrelation(shorter.values, longer.values, minimumLength)
-      if (best === null || best.r < MATCH_MINIMUM_R) continue
-      const runs = sharedRuns(shorter.values.length, longer.values.length, best.offset)
-      const laterRun = isLaterShorter ? runs.shorterRun : runs.longerRun
-      const earlierRun = isLaterShorter ? runs.longerRun : runs.shorterRun
-      const kind = kindOf(
-        laterRun,
-        stretch.values.length,
-        earlierRun,
-        other.values.length,
-        tolerance,
-      )
-      candidates.push({
-        later,
-        earlier,
-        laterStretch: stretch,
-        earlierStretch: other,
-        kind,
-        laterRun,
-        earlierRun,
-      })
-    }
-  }
-
-  // Union-find over the tracks, left out by hand or not: each full match joins two tracks into one
-  // recording, and the earlier root wins, so a recording's root is its earliest track.
-  const parent = tracks.map((_track, index) => index)
-  function root(index: number): number {
-    let current = index
-    while (parent[current] !== current) current = parent[current] ?? current
-    return current
-  }
-  for (const { later, earlier, kind } of candidates) {
-    if (kind !== 'full') continue
-    const earlierRoot = root(earlier)
-    const laterRoot = root(later)
-    parent[Math.max(earlierRoot, laterRoot)] = Math.min(earlierRoot, laterRoot)
-  }
-
-  // The kept copy of each recording, by its root: its earliest track not left out by hand.
-  const keptOf = new Map<number, number>()
-  for (const [index, track] of tracks.entries()) {
-    const recording = root(index)
-    if (!track.isLeftOutByHand && !keptOf.has(recording)) keptOf.set(recording, index)
-  }
-
-  // A duplicate has its full match and no other. Each track has at most one duplicate match.
-  const duplicateMatches = new Map<number, FoundMatch>()
-  for (const [index, stretch] of stretches.entries()) {
-    const kept = keptOf.get(root(index))
-    const keptStretch = kept === undefined ? null : (stretches[kept] ?? null)
-    if (
-      kept === undefined ||
-      stretch === null ||
-      keptStretch === null ||
-      kept >= index ||
-      isDismissed(index, kept)
-    )
-      continue
-    duplicateMatches.set(index, {
-      later: index,
-      earlier: kept,
-      kind: 'full',
-      laterShared: wholeSeconds(stretch, stepSeconds),
-      earlierShared: wholeSeconds(keptStretch, stepSeconds),
-    })
-  }
-
-  // The rest: a pair that shares part of its stretches, if neither track is a duplicate.
-  const partialMatches = new Map<number, FoundMatch[]>()
-  for (const candidate of candidates) {
-    const { later, earlier, kind, laterRun, earlierRun } = candidate
-    if (kind === 'full' || duplicateMatches.has(later) || duplicateMatches.has(earlier)) continue
-    partialMatches.set(later, [
-      ...(partialMatches.get(later) ?? []),
-      {
-        later,
-        earlier,
-        kind,
-        laterShared: sharedSeconds(candidate.laterStretch, laterRun, stepSeconds),
-        earlierShared: sharedSeconds(candidate.earlierStretch, earlierRun, stepSeconds),
-      },
-    ])
-  }
+  const candidates = candidatesOf(stretches, isDismissed, scale)
+  const root = recordingRoots(tracks.length, candidates)
+  const keptOf = keptCopies(tracks, root)
+  const duplicates = duplicatesOf(stretches, candidates, root, keptOf, isDismissed, scale)
+  const partials = partialMatchesOf(candidates, duplicates, scale)
 
   // In track order, a track's own matches by the earlier track.
   return tracks.flatMap((_track, index) => {
-    const duplicate = duplicateMatches.get(index)
-    return duplicate === undefined ? (partialMatches.get(index) ?? []) : [duplicate]
+    const duplicate = duplicates.get(index)
+    return duplicate === undefined ? (partials.get(index) ?? []) : [duplicate]
   })
 }

@@ -17,7 +17,7 @@ The project has a second, equal reason: I wanted to learn how digital audio work
 1. **Load** an `.m4a` (AAC), `.mp3` or `.opus` file. Any other file gets a message saying what it is.
 2. **Analyse.** The file is decoded in slices into a waveform and a loudness curve. A 1 h file takes a few seconds.
 3. **Find gaps.** The file opens as one track. Two settings, the silence threshold and the minimum gap length, tune which quiet gaps show, and one button turns them into splits.
-4. **Review.** Listen across a split, to a whole track, or to a range you drag out. Move, add and delete splits, name the tracks, and leave out the ones you don't want.
+4. **Review.** Listen across a split, to a whole track, or to a range you drag out. Move, add and delete splits, name the tracks, and leave out the ones you don't want. "Find duplicates" leaves out a track that is the same recording as an earlier one, and points at a split that may be missing.
 5. **Export** every track you kept into a new folder, or one track or range as a single file. Tracks keep the source's format and are tagged; nothing is re-encoded.
 
 **Requirements:** desktop Chrome, because the export writes through the File System Access API. Everything is kept in memory, so a reload starts over; only the volume, the mute, the play speed, the theme and your default settings are remembered.

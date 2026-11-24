@@ -4,7 +4,7 @@ import { padTrackNumber } from './pad-track-number.ts'
 
 /*
 A live match of a track with an earlier one, as the track list, the strip and the Track view show
-it (GLOSSARY.md: Match). `kind` is `duplicate` when the track repeats the other from end to end,
+it (GLOSSARY.md: Match). `kind` is `duplicate` when the track is the same recording as the other from end to end,
 `holds` when it holds the other's shared stretch, and `part-of` when it is a stretch of the other.
 `number` and `ownName` are the other track's live place in the file and the name the user gave it
 (null while unnamed), and `startSplitId` is the split where it starts (null for the first track),

@@ -8,7 +8,7 @@ A playlist played two or three times gives every track two or three times. This 
 - **Offset**: how far one stretch is slid against the other. At offset 0 their first windows meet; at offset 12.0 s the first window of the shorter meets the window 12.0 s into the longer.
 - **Overlap**: the windows that meet at an offset. Slid by an offset, two stretches only overlap on part of their length, and the score uses only that part.
 - **Pearson's r**: one number for how much two lists of numbers rise and fall together. 1 means they move in step, 0 means nothing in common, −1 means one rises exactly when the other falls. It is explained below.
-- **Cross-correlation**: scoring two signals at every offset. The best offset says where they line up, and its score says how well. This note's version, Pearson's r at each offset, is the plain loop; the FFT is a faster way of getting the same table (see "Time").
+- **Cross-correlation**: scoring two signals at every offset. The best offset says where they line up, and its score says how well. This note's version, Pearson's r at each offset, is a loop over the offsets; the FFT is a faster way of getting the same table (see "Time").
 - **Match, kept copy, duplicate, partial match** (GLOSSARY.md): what the app calls the result. A **duplicate** is a track whose match with the **kept copy** covers the whole of both. A **partial match** covers only part, at least 30 s.
 
 ## Pearson's r
@@ -65,7 +65,7 @@ The curve is not used as it is. Three changes, each for a reason:
 
 ## Worked example: `samples/sample1.m4a`
 
-Measured on 2026-11-24 with the app's own `downmix.ts`, `loudness-builder.ts` and `find-gaps.ts` at the default settings (18 dB, 2 s): 73,725 windows and 33 splits, so 34 tracks. The slide is a plain loop over the curve at 50 ms, floored at −60 dB, quiet ends left off, with a 30 s minimum overlap. (The table of pairs is the same at a 20 s minimum.)
+Measured on 2026-11-24 with the app's own `downmix.ts`, `loudness-builder.ts` and `find-gaps.ts` at the default settings (18 dB, 2 s): 73,725 windows and 33 splits, so 34 tracks. The slide is a loop over the offsets of the curve at 50 ms, floored at −60 dB, quiet ends left off, with a 30 s minimum overlap. (The table of pairs is the same at a 20 s minimum.)
 
 **It is a loop.** The whole curve slid against itself scores best at **1182.3 s (19:42.3)**, r = 0.957. The file is three passes of 11 tracks, and a fourth begun: track 34 is track 01 again, and the second pass plays the tracks in the same order. (Slid by two loops, 2364.15 s, it scores 0.959, on an overlap one loop shorter: two loops is the loop again.) `samples/sample3h.m4a` is the same file three times over: its best shift is 3686.25 s, r = 0.998.
 
@@ -116,7 +116,7 @@ Three fixed numbers, in a config file with no slider: **r ≥ 0.95** for a match
 
 ## Time
 
-Every track is slid against every earlier one, and each slide tries every offset, over an overlap that is about as long as the track. Two things grow together: the pairs (the square of the number of tracks) and the work per pair (about the square of a track's length). Measured with a plain loop in Node 24 on one core:
+Every track is slid against every earlier one, and each slide tries every offset, over an overlap that is about as long as the track. Two things grow together: the pairs (the square of the number of tracks) and the work per pair (about the square of a track's length). Measured in the spike, with a plain loop, in Node 24 on one core:
 
 | Curve                      | `sample1.m4a`: 34 tracks, 561 pairs | `sample3h.m4a`: 102 tracks, 5,151 pairs |
 | -------------------------- | ----------------------------------- | --------------------------------------- |
@@ -127,9 +127,11 @@ Every track is slid against every earlier one, and each slide tries every offset
 - **A quarter of the windows is a sixteenth of the time.** A pair's work is offsets times overlap, and both shrink by 4: 1.6 s becomes 0.10 s, and 15 s becomes 0.95 s.
 - **At 200 ms the answer is the same.** The same 11 groups, with duplicates at 0.98 and up and different tracks at 0.87 and down. Both 50 ms and 200 ms hold several cycles of a bass note, and what r reads, the shape of a track's loudness, plays out over seconds.
 
+**As built, the loop is shorter still.** The score at an offset needs five sums over the overlap: Σa, Σb, Σa², Σb² and Σab. With n windows meeting, the top of the formula under "Pearson's r" is Σab − Σa·Σb / n, and each spread is Σa² − (Σa)² / n, and likewise for b. The first four are totals of a run of windows, so the app keeps running totals of each stretch, once, and takes any run's total as one subtraction. Only Σab needs both stretches together, so the inner loop does that one multiplication per window. On `sample3h.m4a` the search takes 0.84 s; the same function with all five sums in the inner loop took 2.7 s.
+
 A second is still long enough to freeze the page, so the search runs in a Web Worker.
 
-**Why not the FFT.** Slide, multiply, add: this is a convolution, and an FFT gets the score at every offset in a number of steps that grows only a little faster than the length instead of its square. That is the fast way. But the FFT is a lesson of its own, the spectrum milestone teaches it, and one second on a 3 h file does not need it. So here the plain loop is the point, and the FFT comes later as a speed-up of the same table.
+**Why not the FFT.** Slide, multiply, add: this is a convolution, and an FFT gets the score at every offset in a number of steps that grows only a little faster than the length instead of its square. That is the fast way. But the FFT is a lesson of its own, the spectrum milestone teaches it, and one second on a 3 h file does not need it. So here the loop is the point, and the FFT comes later as a speed-up of the same table.
 
 ## What it does not find
 
@@ -139,4 +141,11 @@ It does not tell a piece from its remix or a re-recording either, and it does no
 
 ## Where it lives in the code
 
-Filled in when the milestone is built.
+- [`src/shared/lib/audio/sliding-correlation.ts`](../../src/shared/lib/audio/sliding-correlation.ts): the slide, hand-written. It takes the running totals, scores Pearson's r at each offset whose overlap is at least the minimum, skips a flat side, and returns the best r with its offset and overlap. A tie goes to the earliest offset.
+- [`src/entities/split/lib/coarse-curve.ts`](../../src/entities/split/lib/coarse-curve.ts): the 200 ms copy: every value floored at −60 dB, then four windows averaged in dB (so a louder copy is still the same curve plus a constant).
+- [`src/entities/split/lib/find-matches.ts`](../../src/entities/split/lib/find-matches.ts): the rules, as small steps: each track's stretch without its quiet ends, every pair slid, a pair's kind from where the shared stretch falls (full, holds, part of), the recordings joined through full matches, the kept copy of each, the duplicates, then the partial matches between tracks that are not duplicates. Pure, so the store and the worker share it.
+- [`src/entities/split/config/match-thresholds.ts`](../../src/entities/split/config/match-thresholds.ts): 0.95, 30 s, 2 s, 200 ms and −60 dB.
+- [`src/entities/split/api/find-matches.worker.ts`](../../src/entities/split/api/find-matches.worker.ts) and [`find-matches-client.ts`](../../src/entities/split/api/find-matches-client.ts): the worker entry, which only wires, and the client that starts it for one request and terminates it with the answer.
+- [`src/entities/split/model/split.ts`](../../src/entities/split/model/split.ts): the store keeps the matches of the last press and the dismissed pairs, and derives which still hold (both tracks keep their ends). `findDuplicates` sends the request and drops a late answer; `dismissMatch` rejects a pair; `swapTarget` and `swapTrack` are what `C` uses.
+- [`src/entities/split/lib/match-words.ts`](../../src/entities/split/lib/match-words.ts) and [`src/shared/lib/time/format-tenths.ts`](../../src/shared/lib/time/format-tenths.ts): the words ("duplicate of 01", "03 from 1:40.5", "part of 03 from 0:30") and the tooltip's shared stretch.
+- [`LoudnessSettings.vue`](../../src/widgets/loudness-curve/ui/LoudnessSettings.vue): the "Find duplicates" button and its result line. [`TrackList.vue`](../../src/widgets/track-list/ui/TrackList.vue): the words as a link, with a dismiss button. [`TrackStrip.vue`](../../src/widgets/track-strip/ui/TrackStrip.vue): a duplicate drawn as left out. [`TrackView.vue`](../../src/widgets/split-zoom/ui/TrackView.vue) and [`track-title.ts`](../../src/widgets/split-zoom/lib/track-title.ts): `C`, and the words in the title.

@@ -1,7 +1,7 @@
 /*
 The loudness curve at a coarser step, for comparing tracks (docs/concepts/11-finding-repeats.md,
 "Time"): every value under `floor` counts as `floor`, then each `factor` windows are averaged into
-one. The mean is taken in dB, so a louder copy is still the same curve plus a constant. The last
+one. The mean is taken in dB, so the same track louder is still the same curve plus a constant. The last
 value averages what is left, when the curve does not divide evenly.
 */
 export function coarseCurve(curve: Float32Array, factor: number, floor: number): Float32Array {

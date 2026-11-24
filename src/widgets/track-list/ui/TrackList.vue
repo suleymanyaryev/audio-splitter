@@ -15,10 +15,10 @@ import TrackNameField from './TrackNameField.vue'
 The file as a table, in time order: a row for each track with a row for each split between two
 tracks. A track row has its number (a button, so the row can be selected from the keyboard), its
 name (edited in place, `TrackNameField`, muted while the track has no name of its own, with the
-words of each of its matches under it, one line each, "duplicate of 01" while it repeats an earlier
-track and "03 from 1:40" or "part of 03 from 0:30" while it shares part of one, a partial match's
-words with a tooltip of the stretch both share, each a link that selects the other track, with a button that dismisses the match), its start
-(hundredths, where a split's position is read) and its length (whole seconds), then two buttons: one
+words of each of its matches under it, one line each, "duplicate of 01" while it is the same recording
+as an earlier track and "03 from 1:40" or "part of 03 from 0:30" while it shares part of one, a partial match's
+words with a tooltip of the stretch both share, each a link that selects the other track, with a
+button that dismisses the match), its start (hundredths, where a split's position is read) and its length (whole seconds), then two buttons: one
 that leaves the track out of the export or brings it back (a left-out row is muted), and a merge
 button that removes the track and merges it with its neighbours (none when it is the only track). A split
 row reads `Split N` where the name goes, its time in the start column, no length and a trash button

@@ -373,6 +373,16 @@ describe('TrackView', () => {
       expect(wrapper.emitted('acted')).toBeUndefined()
     })
 
+    it('is left alone when held on a track with no match', async () => {
+      const { split, wrapper } = await setupDuplicate()
+      split.selectTrack(split.tracks[1]!)
+
+      await press({ key: 'c', repeat: true })
+
+      expect(split.selectedTrack?.number).toBe(2)
+      expect(wrapper.emitted('acted')).toBeUndefined()
+    })
+
     it('is reported to the page once, and a held key swaps once', async () => {
       const { split, wrapper } = await setupDuplicate()
 

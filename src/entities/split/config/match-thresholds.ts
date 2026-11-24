@@ -4,7 +4,7 @@ the table behind it and the caveat (one soundtrack, one master) are in
 docs/concepts/11-finding-repeats.md.
 */
 
-// Pearson's r at or above this is a match: copies scored 0.987 and up, different tracks 0.831 down.
+// Pearson's r at or above this is a match: duplicates scored 0.987 and up, different tracks 0.831 down.
 export const MATCH_MINIMUM_R = 0.95
 
 // A track under this is never compared, and no overlap under it is scored.

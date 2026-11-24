@@ -28,7 +28,7 @@ The loudness panel's title row: the two settings of gap finding, and the button 
 gaps they show into splits. The threshold covers the curve's drawn range, −60 to 0 dB, in tenths;
 the minimum gap length runs from a few windows to a long pause. Moving either changes only the
 gaps shown, so there is nothing to ask. "Find gaps" says how many splits a press would add.
-"Find duplicates" looks for tracks that repeat an earlier one and changes nothing of the user's: it
+"Find duplicates" looks for tracks that are the same recording as an earlier one and changes nothing of the user's: it
 is off until two tracks are 30 s long, busy while it searches, and the line beside it says what it
 found, nothing before the first press.
 "Clear splits" starts over: it asks first only when the user has edits or pending splits to lose.
@@ -82,7 +82,7 @@ function confirmClear() {
           Find gaps ({{ split.gapSplitSeconds.length }})
         </UiButton>
       </UiTooltip>
-      <UiTooltip label="Find tracks that repeat an earlier track, from end to end or in part">
+      <UiTooltip label="Find tracks that match an earlier track, from end to end or in part">
         <UiButton
           size="sm"
           :disabled="!split.canFindDuplicates"
