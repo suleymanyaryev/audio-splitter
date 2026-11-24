@@ -4,17 +4,18 @@
 
 **Blocked by:** 04 (Leaving a track out)
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 Spec: `.scratch/cutting-tool-base/spec.md` (stories 46, 48 and 57; Implementation Decisions, "Track list, track strip and review page").
 
-- [ ] `X` in the Track view toggles the selected track, following ADR 0002: it does nothing while focus is in a text field, while a dialog is open or while a modifier is held.
-- [ ] A left-out block in the track strip looks different, and stays a button that selects its track. The look is settled with the user in the browser, through `DESIGN.md`.
-- [ ] The shortcuts dialog has a Track view row for `X` and a Track list row for the leave-out button.
-- [ ] Stop: the user confirms the milestone in the browser.
-- [ ] `CHANGELOG.md` has its lines under Unreleased.
+- [x] `X` in the Track view toggles the selected track, following ADR 0002: it does nothing while focus is in a text field, while a dialog is open or while a modifier is held.
+- [x] A left-out block in the track strip looks different, and stays a button that selects its track. The look is settled with the user in the browser, through `DESIGN.md`.
+- [x] The shortcuts dialog has a Track view row for `X` and a Track list row for the leave-out button.
+- [x] Stop: the user confirms the milestone in the browser.
+- [x] `CHANGELOG.md` has its lines under Unreleased.
 
 ## Comments
 
-- Built and waiting for the user's look in the browser: `X` in the Track view (`TrackView.vue`), a hollow dashed block for a left-out track in the strip (`TrackStrip.vue`, `DESIGN.md`), and the two shortcut rows. Status stays open until the user confirms the look and the milestone.
+- Built: `X` in the Track view (`TrackView.vue`), a hollow dashed block for a left-out track in the strip (`TrackStrip.vue`, `DESIGN.md`), and the two shortcut rows. The user looked at it in the browser and confirmed the look and the milestone. The user's first remark was that the leave-out button's eye icon was inverted: it now shows the track's state (open eye = in the export, crossed-out = left out), and its name says what a click does.
+- Ticket 05's reading stands, since the user did not object to it: removing a track merges it with its neighbours, and the merged track keeps the earlier track's state.
 - The loudness panel's title row overflowed at 1440 px with four new buttons, so the two sliders went from `w-96` to `w-80`.
