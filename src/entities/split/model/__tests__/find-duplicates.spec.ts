@@ -67,7 +67,7 @@ function openPlaylist(...recordings: number[][]) {
 
 // Where each track repeats: the number of the track it is a duplicate of, or null.
 const duplicatesOf = (store: ReturnType<typeof useSplitStore>) =>
-  store.tracks.map((track) => track.duplicateOf)
+  store.tracks.map((track) => track.duplicateOf?.number ?? null)
 
 // Leaves track `number` (1-based) out by hand, as the eye button does.
 function leaveOut(store: ReturnType<typeof useSplitStore>, number: number) {
@@ -78,6 +78,24 @@ function leaveOut(store: ReturnType<typeof useSplitStore>, number: number) {
 const A = () => recording(1, 40)
 const B = () => recording(2, 50)
 const C = () => recording(3, 60)
+
+// Where track `number` (1-based) starts and ends, as the splits at its ends hold them.
+const startOf = (store: ReturnType<typeof useSplitStore>, number: number) =>
+  store.tracks[number - 1]?.startSplit
+const endOf = (store: ReturnType<typeof useSplitStore>, number: number) =>
+  store.tracks[number]?.startSplit
+
+// A, B, A, B, A and the press: 03 and 05 name 01, 04 names 02.
+async function pressedFiveTracks() {
+  const store = openPlaylist(A(), B(), A(), B(), A())
+  await store.findDuplicates()
+  expect(duplicatesOf(store)).toEqual([null, null, 1, 2, 1])
+  return store
+}
+
+// A, with a 3 s dip (-45 dB) at 20 s that a threshold of -48 dB does not call a gap.
+const A_WITH_DIP = () =>
+  A().map((level, window) => (window >= 20 * 20 && window < 23 * 20 ? -45 : level))
 
 describe('Find duplicates', () => {
   beforeEach(() => {
@@ -216,7 +234,7 @@ describe('Find duplicates', () => {
         inclusion: 'by-hand',
         isLeftOut: true,
         exportNumber: null,
-        duplicateOf: 1,
+        duplicateOf: { number: 1, ownName: null },
       })
       expect(store.tracks[3]?.inclusion).toBe('duplicate')
       // The two copies are left out, one by hand and one as a duplicate: 01 and 02 are written.
@@ -499,6 +517,232 @@ describe('Find duplicates', () => {
         'included',
       ])
       expect(store.duplicateResult).toEqual({ duplicates: 0 })
+    })
+
+    it('drops the matches of a track whose start split moves, and exports it again', async () => {
+      const store = await pressedFiveTracks()
+      const start = startOf(store, 3)!
+      store.selectSplit(start.id)
+
+      store.moveSplit(start.id, start.seconds + 1)
+
+      // 03 and 02 changed: 03 lost its match, and 04 its kept copy 02. 05 keeps its own.
+      expect(duplicatesOf(store)).toEqual([null, null, null, null, 1])
+      expect(store.tracks[2]?.inclusion).toBe('included')
+      expect(store.tracks[2]?.exportNumber).toBe(3)
+      expect(store.tracks[3]?.exportNumber).toBe(4)
+      expect(store.duplicateResult).toEqual({ duplicates: 1 })
+    })
+
+    it('drops the matches of a track whose end split moves', async () => {
+      const store = await pressedFiveTracks()
+      const end = endOf(store, 4)!
+      store.selectSplit(end.id)
+
+      store.moveSplit(end.id, end.seconds - 1)
+
+      // 04 is the duplicate of 02 and 05 the next track: both changed, 05 loses its match too.
+      expect(duplicatesOf(store)).toEqual([null, null, 1, null, null])
+    })
+
+    it('drops the matches that name a track whose end moves', async () => {
+      const store = await pressedFiveTracks()
+      const end = endOf(store, 1)!
+      store.selectSplit(end.id)
+
+      store.moveSplit(end.id, end.seconds - 1)
+
+      // 01 is the kept copy of 03 and 05, and 02 shares the split: 04 named 02, which changed too.
+      expect(duplicatesOf(store)).toEqual([null, null, null, null, null])
+      expect(store.duplicateResult).toEqual({ duplicates: 0 })
+    })
+
+    it('drops the matches of a track whose split is deleted, and the matches naming it', async () => {
+      const store = await pressedFiveTracks()
+
+      // The split between 04 and 05: 04 and 05 become one track.
+      store.deleteSplit(endOf(store, 4)!.id)
+
+      expect(store.tracks).toHaveLength(4)
+      expect(duplicatesOf(store)).toEqual([null, null, 1, null])
+    })
+
+    it('drops the matches naming a track that is merged into its neighbour', async () => {
+      const store = await pressedFiveTracks()
+
+      // 01 and 02 become one track: 03 and 05 named 01, 04 named 02.
+      store.deleteSplit(endOf(store, 1)!.id)
+
+      expect(store.tracks).toHaveLength(4)
+      expect(duplicatesOf(store)).toEqual([null, null, null, null])
+      expect(store.duplicateResult).toEqual({ duplicates: 0 })
+    })
+
+    it('makes an included track of a merge that starts with a duplicate', async () => {
+      const store = await pressedFiveTracks()
+
+      store.deleteSplit(endOf(store, 3)!.id)
+
+      // 03 and 04 are one track now, and nothing leaves it out.
+      expect(store.tracks).toHaveLength(4)
+      expect(store.tracks[2]?.inclusion).toBe('included')
+      expect(store.tracks[2]?.isLeftOut).toBe(false)
+    })
+
+    it('drops the matches of the tracks a removed track merges, and keeps the others', async () => {
+      const store = await pressedFiveTracks()
+
+      // 02, 03 and 04 become one track; 05 still names 01.
+      store.removeTrack(store.tracks[2]!)
+
+      expect(store.tracks).toHaveLength(3)
+      expect(duplicatesOf(store)).toEqual([null, null, 1])
+      expect(store.tracks[1]?.inclusion).toBe('included')
+    })
+
+    it('makes two included tracks of a split added inside a duplicate', async () => {
+      const store = await pressedFiveTracks()
+      const duplicate = store.tracks[2]!
+
+      store.addSplitAt(duplicate.startSeconds + 20)
+
+      expect(store.tracks.slice(2, 4).map((track) => track.inclusion)).toEqual([
+        'included',
+        'included',
+      ])
+      // 04 and 05 hold their matches, now as tracks 05 and 06.
+      expect(duplicatesOf(store)).toEqual([null, null, null, null, 2, 1])
+    })
+
+    it('drops the matches that name a track a split is added inside', async () => {
+      const store = await pressedFiveTracks()
+
+      // Inside 01, the kept copy of 03 and 05: they are not copies of a half.
+      store.addSplitAt(20)
+
+      expect(store.tracks).toHaveLength(6)
+      expect(duplicatesOf(store)).toEqual([null, null, null, null, 3, null])
+      expect(store.duplicateResult).toEqual({ duplicates: 1 })
+    })
+
+    it('drops the matches of a track that Find gaps cuts, and keeps the others', async () => {
+      const curve = playlist(A_WITH_DIP(), B(), A_WITH_DIP(), B())
+      const store = useSplitStore()
+      store.open(curve, { windowSeconds: 0.05, durationSeconds: curve.length * 0.05 })
+      store.setSilenceThreshold(-48)
+      store.addGapSplits()
+      expect(store.tracks).toHaveLength(4)
+      await store.findDuplicates()
+      expect(duplicatesOf(store)).toEqual([null, null, 1, 2])
+
+      store.setSilenceThreshold(-40)
+      store.setMinimumGapLength(2)
+      store.addGapSplits()
+
+      // The dips are gaps now, in 01 and in 03: both are cut. 04 still names 02, now 03.
+      expect(store.tracks).toHaveLength(6)
+      expect(duplicatesOf(store)).toEqual([null, null, null, null, null, 3])
+    })
+
+    it('keeps the matches when an edit touches no track of them', async () => {
+      const store = await pressedFiveTracks()
+      store.renameTrack(store.tracks[0]?.startSplit?.id ?? null, 'Opening')
+      leaveOut(store, 2)
+
+      expect(duplicatesOf(store)).toEqual([null, null, 1, 2, 1])
+      expect(store.duplicateResult).toEqual({ duplicates: 3 })
+    })
+
+    it('shows the live number and the name of the kept copy after a split elsewhere', async () => {
+      const store = openPlaylist(C(), A(), B(), A())
+      store.renameTrack(store.tracks[1]?.startSplit?.id ?? null, 'Opening')
+      await store.findDuplicates()
+      expect(store.tracks[3]?.duplicateOf).toEqual({ number: 2, ownName: 'Opening' })
+
+      // Inside 01, which no match holds: every track after it moves one place on.
+      store.addSplitAt(20)
+
+      expect(store.tracks[4]?.duplicateOf).toEqual({ number: 3, ownName: 'Opening' })
+      expect(store.duplicateResult).toEqual({ duplicates: 1 })
+    })
+
+    it('gives no name while the kept copy has none', async () => {
+      const store = openPlaylist(A(), B(), A())
+
+      await store.findDuplicates()
+
+      expect(store.tracks[2]?.duplicateOf).toEqual({ number: 1, ownName: null })
+    })
+  })
+
+  describe('a search that an edit overtakes', () => {
+    it('leaves dead the matches of a track a split moved meanwhile', async () => {
+      const store = openPlaylist(A(), B(), A(), B(), A())
+      client.isHolding = true
+      const search = store.findDuplicates()
+      const start = store.tracks[2]!.startSplit!
+      store.selectSplit(start.id)
+      store.moveSplit(start.id, start.seconds + 1)
+
+      for (const answer of client.held) answer()
+      await search
+
+      // 03 and 02 changed, so the matches of 03 and 04 are dead on arrival; 05 keeps its own.
+      expect(duplicatesOf(store)).toEqual([null, null, null, null, 1])
+      expect(store.duplicateResult).toEqual({ duplicates: 1 })
+    })
+
+    it('leaves dead the matches of a track a split was added inside meanwhile', async () => {
+      const store = openPlaylist(A(), B(), A())
+      client.isHolding = true
+      const search = store.findDuplicates()
+      store.addSplitAt(100)
+
+      for (const answer of client.held) answer()
+      await search
+
+      expect(store.duplicateResult).toEqual({ duplicates: 0 })
+      expect(store.tracks.every((track) => !track.isLeftOut)).toBe(true)
+    })
+
+    it('drops the answer of an older press when a newer one has gone out', async () => {
+      const store = openPlaylist(A(), B(), A())
+      client.isHolding = true
+      const first = store.findDuplicates()
+      store.addSplitAt(100)
+      store.clearSplits()
+      store.open(playlist(A(), B(), A()), {
+        windowSeconds: 0.05,
+        durationSeconds: playlist(A(), B(), A()).length * 0.05,
+      })
+      store.addGapSplits()
+      const second = store.findDuplicates()
+
+      // The older answer arrives last: it must not replace the newer one.
+      client.held.reverse()
+      for (const answer of client.held) answer()
+      await Promise.all([first, second])
+
+      expect(duplicatesOf(store)).toEqual([null, null, 1])
+    })
+  })
+
+  describe('a second press', () => {
+    it('replaces every match with a fresh result', async () => {
+      const store = openPlaylist(A(), B(), A(), B())
+      await store.findDuplicates()
+      expect(duplicatesOf(store)).toEqual([null, null, 1, 2])
+      // 03 and 04 stop being matches by an edit: 02 and 03 changed.
+      const start = store.tracks[2]!.startSplit!
+      store.selectSplit(start.id)
+      store.moveSplit(start.id, start.seconds + 1)
+      expect(duplicatesOf(store)).toEqual([null, null, null, null])
+
+      await store.findDuplicates()
+
+      // The moved split is a second off now: 03 is within the 2 s of the ends, so it is back.
+      expect(duplicatesOf(store)).toEqual([null, null, 1, 2])
+      expect(store.duplicateResult).toEqual({ duplicates: 2 })
     })
   })
 })

@@ -64,7 +64,7 @@ async function findTheDuplicate(split: ReturnType<typeof useSplitStore>) {
   split.open(curveWithThreeLongTracks(), { windowSeconds: 0.05, durationSeconds: 107 })
   split.addGapSplits()
   await split.findDuplicates()
-  expect(split.tracks.map((track) => track.duplicateOf)).toEqual([null, 1, null])
+  expect(split.tracks.map((track) => track.duplicateOf?.number ?? null)).toEqual([null, 1, null])
 }
 
 // The names of the files the export wrote into its subfolder, in order.

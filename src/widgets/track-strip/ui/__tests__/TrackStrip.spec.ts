@@ -249,6 +249,16 @@ describe('TrackStrip', () => {
       expect(blocks(wrapper)[0]?.attributes('title')).toBe('01, 0:00:36')
     })
 
+    it('adds the name of the kept copy to its words', async () => {
+      const { split, wrapper } = await mountWithDuplicate()
+      split.renameTrack(null, 'Opening')
+      await flushPromises()
+
+      expect(blocks(wrapper)[2]?.attributes('title')).toBe(
+        '03, 0:00:34, left out, duplicate of 01 Opening',
+      )
+    })
+
     it('is a solid block again once an edit drops its match', async () => {
       const { split, wrapper } = await mountWithDuplicate()
 

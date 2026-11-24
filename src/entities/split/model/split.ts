@@ -67,10 +67,10 @@ export interface Track {
   inclusion: Inclusion
   isLeftOut: boolean
   /*
-  The live number of the track this one repeats from end to end (GLOSSARY.md: Duplicate), the kept
-  copy, or null.
+  The track this one repeats from end to end (GLOSSARY.md: Duplicate), the kept copy, or null: its
+  live number and the name the user gave it (null while unnamed), the parts of the words that say so.
   */
-  duplicateOf: number | null
+  duplicateOf: { number: number; ownName: string | null } | null
   // 1…K among the tracks the export writes, null for a left-out track.
   exportNumber: number | null
   // The name the user typed, null while the track is unnamed.
@@ -282,24 +282,30 @@ export const useSplitStore = defineStore('split', () => {
 
   const tracks = computed<Track[]>(() => {
     const ends = trackEnds.value
-    const keptNumbers = new Map(liveMatches.value.map((match) => [match.duplicate, match.kept + 1]))
+    const keptByDuplicate = new Map(liveMatches.value.map((match) => [match.duplicate, match.kept]))
     const inclusions = ends.map((track, index): Inclusion => {
       if (track.stored === 'by-hand') return 'by-hand'
-      return keptNumbers.has(index) ? 'duplicate' : 'included'
+      return keptByDuplicate.has(index) ? 'duplicate' : 'included'
     })
+    function ownNameAt(index: number) {
+      const startSplit = ends[index]?.startSplit ?? null
+      return startSplit === null ? firstTrackName.value : startSplit.name
+    }
     const exportCount = inclusions.filter((inclusion) => inclusion === 'included').length
     let exportedSoFar = 0
     return ends.map(({ startSplit, startSeconds, endSeconds }, index) => {
-      const ownName = startSplit === null ? firstTrackName.value : startSplit.name
+      const ownName = ownNameAt(index)
       const inclusion = inclusions[index] ?? 'included'
       const isLeftOut = inclusion !== 'included'
       const exportNumber = isLeftOut ? null : ++exportedSoFar
+      const keptIndex = keptByDuplicate.get(index)
       const prefix = trackNamePrefix.value
       return {
         number: index + 1,
         inclusion,
         isLeftOut,
-        duplicateOf: keptNumbers.get(index) ?? null,
+        duplicateOf:
+          keptIndex === undefined ? null : { number: keptIndex + 1, ownName: ownNameAt(keptIndex) },
         exportNumber,
         ownName,
         name:

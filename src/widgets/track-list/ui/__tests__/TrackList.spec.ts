@@ -158,6 +158,15 @@ describe('TrackList', () => {
       expect(trackRows(wrapper)[2]?.text()).toContain('duplicate of 01')
     })
 
+    it('adds the name of the kept copy to its words', async () => {
+      const { split, wrapper } = await mountWithDuplicate()
+
+      split.renameTrack(null, 'Opening')
+      await wrapper.vm.$nextTick()
+
+      expect(trackRows(wrapper)[2]?.text()).toContain('duplicate of 01 Opening')
+    })
+
     it('says nothing before the search', () => {
       const { wrapper } = mountWithTwoGaps()
 
