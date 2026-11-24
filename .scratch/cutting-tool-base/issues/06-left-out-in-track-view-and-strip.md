@@ -17,5 +17,5 @@ Spec: `.scratch/cutting-tool-base/spec.md` (stories 46, 48 and 57; Implementatio
 ## Comments
 
 - Built: `X` in the Track view (`TrackView.vue`), a hollow dashed block for a left-out track in the strip (`TrackStrip.vue`, `DESIGN.md`), and the two shortcut rows. The user looked at it in the browser and confirmed the look and the milestone. The user's first remark was that the leave-out button's eye icon was inverted: it now shows the track's state (open eye = in the export, crossed-out = left out), and its name says what a click does.
-- Ticket 05's reading stands, since the user did not object to it: removing a track merges it with its neighbours, and the merged track keeps the earlier track's state.
+- Ticket 05's reading is still unconfirmed: the user was asked about it and did not answer. Removing a track merges it with its neighbours, and the merged track keeps the earlier track's state, so in A|B|C with C left out, removing B exports C again.
 - The loudness panel's title row overflowed at 1440 px with four new buttons, so the two sliders went from `w-96` to `w-80`.
