@@ -2,13 +2,29 @@ import { computed, ref, shallowRef, watch } from 'vue'
 import { defineStore } from 'pinia'
 
 import { median } from '@/shared/lib/audio/median.ts'
-import { DEFAULT_MINIMUM_GAP_SECONDS, DEFAULT_OFFSET_DB } from '../config/defaults.ts'
+import {
+  readSavedDefaultSettings,
+  saveDefaultSettings,
+  type DefaultSettings,
+} from '../api/saved-default-settings.ts'
+import {
+  DEFAULT_MINIMUM_GAP_SECONDS,
+  DEFAULT_OFFSET_DB,
+  THRESHOLD_MAX_DB,
+  THRESHOLD_MIN_DB,
+} from '../config/defaults.ts'
 import { LIMIT_TOLERANCE, MINIMUM_DISTANCE_SECONDS } from '../config/split-room.ts'
 import { MAX_TRACK_NAME_LENGTH } from '../config/track-name.ts'
 import { ZOOM_WINDOW_SECONDS } from '../config/zoom-window.ts'
 import { findGaps, gapSplitTimes, type Gap } from '../lib/find-gaps.ts'
 import { defaultTrackName } from '../lib/default-track-name.ts'
 import { rangeBetween, type TimeRange } from '../lib/range-between.ts'
+import { roundToTenth } from '../lib/round-to-tenth.ts'
+
+const BUILT_IN_SETTINGS: DefaultSettings = {
+  offsetDb: DEFAULT_OFFSET_DB,
+  minimumGapSeconds: DEFAULT_MINIMUM_GAP_SECONDS,
+}
 
 // Splits sit on the same 10 ms grid the arrow keys and a drag step in.
 const GRID_STEPS_PER_SECOND = 100
@@ -62,6 +78,8 @@ one of the two settings moves.
 A file opens as one track with no splits, and `clearSplits` brings it back to that. The gaps are separate state, shown on every view and
 found again whenever a setting moves, which changes nothing else. `addGapSplits` ("Find gaps")
 turns the gaps into splits, only where no split is yet, and `gapSplitSeconds` is what it would add.
+A file opens with the default settings: the user's saved ones (`saveAsDefault`, kept in
+`localStorage`) or the built-in ones, with the threshold saved as a distance under the median.
 
 A track name belongs to the split where the track starts, and the first track's to the file's
 start, so moving or deleting a split keeps the right name with it, and an unnamed track shows the
@@ -92,6 +110,15 @@ export const useSplitStore = defineStore('split', () => {
   // Null until the file opens; from then on a plain value the user moves.
   const silenceThreshold = ref<number | null>(null)
   const minimumGapLength = ref(DEFAULT_MINIMUM_GAP_SECONDS)
+  // This file's median loudness, which the threshold's distance under it is measured from.
+  const medianDatabase = ref<number | null>(null)
+  /*
+  The default settings (GLOSSARY.md) every file opens with: the user's saved ones, or the built-in
+  ones. They outlive the file: `reset` leaves them, and a fresh store reads what an earlier one saved.
+  */
+  const defaultSettings = ref<DefaultSettings>(
+    readSavedDefaultSettings() ?? { ...BUILT_IN_SETTINGS },
+  )
   const gaps = ref<Gap[]>([])
   const splits = ref<Split[]>([])
   const firstTrackName = ref<string | null>(null)
@@ -345,16 +372,24 @@ export const useSplitStore = defineStore('split', () => {
     })
   }
 
+  // The threshold that sits this far under this file's median, on the slider's grid and range.
+  function thresholdUnder(offsetDatabase: number) {
+    const level = roundToTenth((medianDatabase.value ?? 0) - offsetDatabase)
+    return Math.min(Math.max(level, THRESHOLD_MIN_DB), THRESHOLD_MAX_DB)
+  }
+
   /*
   Once per file, when its analysis ends: the file is one track with no splits, on track 1 in the
-  Track view. Both settings start at their defaults, the threshold relative to this file's median
-  and rounded to the Slider's 0.1 dB step, so the readout, the thumb and the gaps agree.
+  Track view. Both settings start at the default settings, the threshold relative to this file's
+  median, rounded to the Slider's 0.1 dB step and held to its range (`thresholdUnder`), so the
+  readout, the thumb and the gaps agree.
   */
   function open(loudness: Float32Array, curveTiming: CurveTiming) {
     curve.value = loudness
     timing.value = curveTiming
-    silenceThreshold.value = Math.round((median(loudness) - DEFAULT_OFFSET_DB) * 10) / 10
-    minimumGapLength.value = DEFAULT_MINIMUM_GAP_SECONDS
+    medianDatabase.value = median(loudness)
+    silenceThreshold.value = thresholdUnder(defaultSettings.value.offsetDb)
+    minimumGapLength.value = defaultSettings.value.minimumGapSeconds
     findGapsAgain()
     // The window starts at 0:00, so the Split view shows the file's opening seconds.
     clearSplits()
@@ -387,6 +422,47 @@ export const useSplitStore = defineStore('split', () => {
 
   function setMinimumGapLength(seconds: number) {
     minimumGapLength.value = seconds
+    findGapsAgain()
+  }
+
+  // The threshold's distance under this file's median now, rounded to 0.1 dB: what "Save as default" saves.
+  const currentOffsetDatabase = computed(() =>
+    medianDatabase.value === null || silenceThreshold.value === null
+      ? null
+      : roundToTenth(medianDatabase.value - silenceThreshold.value),
+  )
+
+  // Whether the two settings are what the default settings would give this file.
+  const matchesDefaultSettings = computed(
+    () =>
+      silenceThreshold.value !== null &&
+      roundToTenth(silenceThreshold.value) === thresholdUnder(defaultSettings.value.offsetDb) &&
+      roundToTenth(minimumGapLength.value) === defaultSettings.value.minimumGapSeconds,
+  )
+
+  const areDefaultSettingsBuiltIn = computed(
+    () =>
+      defaultSettings.value.offsetDb === BUILT_IN_SETTINGS.offsetDb &&
+      defaultSettings.value.minimumGapSeconds === BUILT_IN_SETTINGS.minimumGapSeconds,
+  )
+
+  // "Save as default": the current minimum gap length and threshold distance, kept across visits.
+  function saveAsDefault() {
+    if (currentOffsetDatabase.value === null) return
+    defaultSettings.value = {
+      offsetDb: currentOffsetDatabase.value,
+      minimumGapSeconds: roundToTenth(minimumGapLength.value),
+    }
+    saveDefaultSettings(defaultSettings.value)
+  }
+
+  // "Restore built-in": the default settings go back to the built-in ones, and this file's sliders too.
+  function restoreBuiltIn() {
+    defaultSettings.value = { ...BUILT_IN_SETTINGS }
+    saveDefaultSettings(defaultSettings.value)
+    if (medianDatabase.value === null) return
+    silenceThreshold.value = thresholdUnder(BUILT_IN_SETTINGS.offsetDb)
+    minimumGapLength.value = BUILT_IN_SETTINGS.minimumGapSeconds
     findGapsAgain()
   }
 
@@ -773,6 +849,7 @@ export const useSplitStore = defineStore('split', () => {
     timing.value = null
     silenceThreshold.value = null
     minimumGapLength.value = DEFAULT_MINIMUM_GAP_SECONDS
+    medianDatabase.value = null
     gaps.value = []
     splits.value = []
     firstTrackName.value = null
@@ -795,6 +872,9 @@ export const useSplitStore = defineStore('split', () => {
     gaps,
     gapSplitSeconds,
     canClearSplits,
+    currentOffsetDb: currentOffsetDatabase,
+    matchesDefaultSettings,
+    areDefaultSettingsBuiltIn,
     splits,
     firstTrackName,
     trackNamePrefix,
@@ -820,6 +900,8 @@ export const useSplitStore = defineStore('split', () => {
     open,
     addGapSplits,
     clearSplits,
+    saveAsDefault,
+    restoreBuiltIn,
     setSilenceThreshold,
     setMinimumGapLength,
     selectSplit,

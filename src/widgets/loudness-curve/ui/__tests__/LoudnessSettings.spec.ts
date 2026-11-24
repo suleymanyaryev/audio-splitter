@@ -41,6 +41,20 @@ function clearButton(wrapper: ReturnType<typeof mount>) {
   return button
 }
 
+function buttonNamed(wrapper: ReturnType<typeof mount>, text: string) {
+  const button = wrapper.findAll('button').find((candidate) => candidate.text() === text)
+  if (!button) throw new Error(`no ${text} button`)
+  return button
+}
+
+// What the tooltip around the button says once it takes the keyboard.
+async function tooltipOf(button: { trigger: (event: string) => Promise<void> }) {
+  await button.trigger('focus')
+  const text = document.querySelector('[role="tooltip"]')?.textContent
+  await button.trigger('blur')
+  return text
+}
+
 function findGapsButton(wrapper: ReturnType<typeof mount>) {
   const button = wrapper
     .findAll('button')
@@ -51,6 +65,8 @@ function findGapsButton(wrapper: ReturnType<typeof mount>) {
 
 describe('LoudnessSettings', () => {
   beforeEach(() => {
+    // The default settings are kept in localStorage, which a spec must not inherit from another.
+    localStorage.clear()
     setActivePinia(createPinia())
     useSplitStore().open(curveWithOneGap(), { windowSeconds: 0.05, durationSeconds: 20 })
   })
@@ -205,6 +221,66 @@ describe('LoudnessSettings', () => {
       expect(dialog()).toBeNull()
       expect(split.splits).toHaveLength(1)
       expect(split.editCount).toBe(2)
+      wrapper.unmount()
+    })
+  })
+
+  describe('the default settings', () => {
+    afterEach(() => {
+      document.body.replaceChildren()
+    })
+
+    it('disables both actions while the sliders match built-in default settings', () => {
+      const wrapper = mount(LoudnessSettings)
+
+      expect(buttonNamed(wrapper, 'Save as default').attributes('disabled')).toBeDefined()
+      expect(buttonNamed(wrapper, 'Restore built-in').attributes('disabled')).toBeDefined()
+    })
+
+    it('enables "Save as default" once a slider moves, and says what it would save', async () => {
+      const wrapper = mount(LoudnessSettings, { attachTo: document.body })
+      await flushPromises()
+
+      await wrapper.get('[aria-label="Silence threshold"]').trigger('keydown', { key: 'ArrowLeft' })
+
+      const save = buttonNamed(wrapper, 'Save as default')
+      expect(save.attributes('disabled')).toBeUndefined()
+      // The median is -10 dB, so one step down is 18.1 dB under it.
+      expect(await tooltipOf(save)).toBe('Save 18.1 dB under the median and 2 s as the default')
+      wrapper.unmount()
+    })
+
+    it('saves, which disables the button and enables "Restore built-in"', async () => {
+      const wrapper = mount(LoudnessSettings, { attachTo: document.body })
+      await flushPromises()
+      await wrapper
+        .get('[aria-label="Minimum gap length"]')
+        .trigger('keydown', { key: 'ArrowLeft' })
+
+      await buttonNamed(wrapper, 'Save as default').trigger('click')
+
+      expect(buttonNamed(wrapper, 'Save as default').attributes('disabled')).toBeDefined()
+      expect(buttonNamed(wrapper, 'Restore built-in').attributes('disabled')).toBeUndefined()
+      expect(await tooltipOf(buttonNamed(wrapper, 'Restore built-in'))).toBe(
+        'Put the default settings back to 18 dB under the median and 2 s',
+      )
+      wrapper.unmount()
+    })
+
+    it('restores the built-in ones, and moves this file’s sliders there', async () => {
+      const wrapper = mount(LoudnessSettings, { attachTo: document.body })
+      await flushPromises()
+      const split = useSplitStore()
+      await wrapper
+        .get('[aria-label="Minimum gap length"]')
+        .trigger('keydown', { key: 'ArrowLeft' })
+      await buttonNamed(wrapper, 'Save as default').trigger('click')
+
+      await buttonNamed(wrapper, 'Restore built-in').trigger('click')
+
+      expect(split.minimumGapLength).toBe(DEFAULT_MINIMUM_GAP_SECONDS)
+      expect(wrapper.text()).toContain(`${DEFAULT_MINIMUM_GAP_SECONDS.toFixed(1)} s`)
+      expect(buttonNamed(wrapper, 'Restore built-in').attributes('disabled')).toBeDefined()
       wrapper.unmount()
     })
   })

@@ -24,6 +24,8 @@ Versions follow [Semantic Versioning](https://semver.org/) applied to the produc
 
 - A "Clear splits" button beside "Find gaps" that puts the file back to one track: it deletes every split and track name and clears the edits. It keeps the track name prefix, the range and the settings, and selects track 1 (the Range view stays if it is showing). It asks first, saying what would be lost, only when you have edits or pending splits, and is off while there is no split.
 
+- "Save as default" and "Restore built-in" in the loudness panel's title row. Saving keeps the minimum gap length and how far under the file's median the threshold sits (its tooltip says which, such as "Save 18 dB under the median and 2 s as the default"), so every later file, also after a reload, starts from them and a louder or quieter file still gets a sensible threshold. Restoring puts the built-in 18 dB and 2 s back and moves the sliders there. Each is off while it would change nothing, and neither touches a split.
+
 ### Changed
 
 - A source file opens as one track with no splits, on track 1 in the Track view. The gaps for the settings show at once on the whole-file view, the loudness curve and the zoom panel's views, and "Find gaps" turns them into splits when you decide.

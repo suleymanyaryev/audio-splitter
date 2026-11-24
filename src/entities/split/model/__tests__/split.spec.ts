@@ -1,8 +1,12 @@
-import { beforeEach, describe, it, expect } from 'vitest'
+import { beforeEach, describe, it, expect, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 import { watch } from 'vue'
 
-import { DEFAULT_MINIMUM_GAP_SECONDS, DEFAULT_OFFSET_DB } from '../../config/defaults.ts'
+import {
+  DEFAULT_MINIMUM_GAP_SECONDS,
+  DEFAULT_OFFSET_DB,
+  DEFAULT_SETTINGS_STORAGE_KEY,
+} from '../../config/defaults.ts'
 import { MAX_TRACK_NAME_LENGTH } from '../../config/track-name.ts'
 import { ZOOM_WINDOW_SECONDS } from '../../config/zoom-window.ts'
 import { useSplitStore } from '../split.ts'
@@ -148,6 +152,19 @@ function openWithPending() {
   return store
 }
 
+// What localStorage does when the browser blocks it: every read and write throws.
+function throwBlocked(): never {
+  throw new DOMException('The operation is insecure.', 'SecurityError')
+}
+
+// The default settings' files: median -10 dB, so the built-in threshold is -28 dB, and median -20 dB.
+const loudFile = () => curveOf([LOUD, 100])
+const quietFile = () => curveOf([-20, 100])
+
+function openFile(store: ReturnType<typeof useSplitStore>, curve: Float32Array) {
+  store.open(curve, timing(curve))
+}
+
 /*
 What an open discard question leaves of `pendingTwo`: the question is open, and the held action has
 not run, so the track, the list and the view are as they were. The third track is 42 s to 60 s.
@@ -172,6 +189,9 @@ const selectedTracks = (store: ReturnType<typeof useSplitStore>) =>
 
 describe('the split store', () => {
   beforeEach(() => {
+    // The default settings are kept in localStorage, which a spec must not inherit from another.
+    localStorage.clear()
+    vi.restoreAllMocks()
     setActivePinia(createPinia())
   })
 
@@ -702,6 +722,170 @@ describe('the split store', () => {
       store.clearSplits()
 
       expect(store.gapSplitSeconds).toHaveLength(2)
+    })
+  })
+
+  describe('the default settings', () => {
+    it('are the built-in ones at first: 18 dB under the median and 2 s', () => {
+      const store = useSplitStore()
+      openFile(store, loudFile())
+
+      expect(store.silenceThreshold).toBe(-28)
+      expect(store.minimumGapLength).toBe(2)
+      expect(store.currentOffsetDb).toBe(18)
+      expect(store.matchesDefaultSettings).toBe(true)
+      expect(store.areDefaultSettingsBuiltIn).toBe(true)
+    })
+
+    it('are saved as a distance under the median, so a quieter file gets a quieter threshold', () => {
+      const store = useSplitStore()
+      openFile(store, loudFile())
+      store.setSilenceThreshold(-25.5)
+      store.setMinimumGapLength(1.4)
+
+      store.saveAsDefault()
+      openFile(store, quietFile())
+
+      // 15.5 dB under the quieter file's median of -20 dB.
+      expect(store.silenceThreshold).toBe(-35.5)
+      expect(store.minimumGapLength).toBeCloseTo(1.4, 9)
+      expect(store.matchesDefaultSettings).toBe(true)
+    })
+
+    it('are kept for a fresh store, as after a reload', () => {
+      const first = useSplitStore()
+      openFile(first, loudFile())
+      first.setSilenceThreshold(-30)
+      first.saveAsDefault()
+
+      setActivePinia(createPinia())
+      const second = useSplitStore()
+      openFile(second, loudFile())
+
+      expect(second.silenceThreshold).toBe(-30)
+      expect(second.areDefaultSettingsBuiltIn).toBe(false)
+    })
+
+    it('say what a save would keep, and whether the sliders already match them', () => {
+      const store = useSplitStore()
+      openFile(store, loudFile())
+      expect(store.matchesDefaultSettings).toBe(true)
+
+      store.setSilenceThreshold(-31.2)
+      expect(store.currentOffsetDb).toBeCloseTo(21.2, 9)
+      expect(store.matchesDefaultSettings).toBe(false)
+
+      store.setSilenceThreshold(-28)
+      store.setMinimumGapLength(2.1)
+      expect(store.matchesDefaultSettings).toBe(false)
+
+      store.saveAsDefault()
+      expect(store.matchesDefaultSettings).toBe(true)
+    })
+
+    it('are the built-in ones again after "Restore built-in", which moves this file’s sliders too', () => {
+      const store = useSplitStore()
+      openFile(store, loudFile())
+      store.setSilenceThreshold(-40)
+      store.setMinimumGapLength(3)
+      store.saveAsDefault()
+      expect(store.areDefaultSettingsBuiltIn).toBe(false)
+      store.setSilenceThreshold(-20)
+
+      store.restoreBuiltIn()
+
+      expect(store.silenceThreshold).toBe(-28)
+      expect(store.minimumGapLength).toBe(2)
+      expect(store.areDefaultSettingsBuiltIn).toBe(true)
+      expect(store.matchesDefaultSettings).toBe(true)
+      // A later file starts from the built-in ones, and so does a fresh store.
+      setActivePinia(createPinia())
+      const fresh = useSplitStore()
+      openFile(fresh, loudFile())
+      expect(fresh.silenceThreshold).toBe(-28)
+    })
+
+    it('find the gaps again when restored, and change no split, name or edit when saved or restored', () => {
+      const curve = twoGaps()
+      const store = useSplitStore()
+      store.open(curve, timing(curve))
+      store.addGapSplits()
+      store.renameTrack(null, 'Opening')
+      store.setSilenceThreshold(-60)
+      expect(store.gaps).toEqual([])
+
+      store.saveAsDefault()
+      store.restoreBuiltIn()
+
+      expect(store.gaps).toHaveLength(2)
+      expect(store.splits).toHaveLength(2)
+      expect(store.firstTrackName).toBe('Opening')
+      expect(store.editCount).toBe(1)
+    })
+
+    it('hold a saved threshold to the slider’s range for a file of another loudness', () => {
+      localStorage.setItem(
+        DEFAULT_SETTINGS_STORAGE_KEY,
+        '{"version":1,"offsetDb":60,"minimumGapSeconds":2}',
+      )
+
+      const store = useSplitStore()
+      openFile(store, loudFile())
+      expect(store.silenceThreshold).toBe(-60)
+
+      localStorage.setItem(
+        DEFAULT_SETTINGS_STORAGE_KEY,
+        '{"version":1,"offsetDb":-30,"minimumGapSeconds":2}',
+      )
+      setActivePinia(createPinia())
+      const raised = useSplitStore()
+      openFile(raised, loudFile())
+      expect(raised.silenceThreshold).toBe(0)
+    })
+
+    it.each([
+      ['nothing saved', null],
+      ['text that is no JSON', 'loud'],
+      ['an offset off the 0.1 grid', '{"version":1,"offsetDb":18.25,"minimumGapSeconds":2}'],
+      ['a minimum gap length out of range', '{"version":1,"offsetDb":12,"minimumGapSeconds":9}'],
+      ['another version', '{"version":2,"offsetDb":12,"minimumGapSeconds":3}'],
+    ])('are the built-in ones for %s', (_, saved) => {
+      if (saved !== null) localStorage.setItem(DEFAULT_SETTINGS_STORAGE_KEY, saved)
+
+      const store = useSplitStore()
+      openFile(store, loudFile())
+
+      expect(store.silenceThreshold).toBe(-28)
+      expect(store.minimumGapLength).toBe(DEFAULT_MINIMUM_GAP_SECONDS)
+    })
+
+    it('work with blocked storage: the built-in ones, and a save that lasts for the visit', () => {
+      vi.spyOn(Storage.prototype, 'getItem').mockImplementation(throwBlocked)
+      vi.spyOn(Storage.prototype, 'setItem').mockImplementation(throwBlocked)
+      const store = useSplitStore()
+      openFile(store, loudFile())
+      expect(store.silenceThreshold).toBe(-28)
+
+      store.setSilenceThreshold(-35)
+      store.saveAsDefault()
+      openFile(store, quietFile())
+
+      // 25 dB under the quieter file's median of -20 dB.
+      expect(store.silenceThreshold).toBe(-45)
+      expect(store.areDefaultSettingsBuiltIn).toBe(false)
+    })
+
+    it('stay when the store is reset, and are not saved before a file opens', () => {
+      const store = useSplitStore()
+      store.saveAsDefault()
+      expect(localStorage.getItem(DEFAULT_SETTINGS_STORAGE_KEY)).toBeNull()
+
+      openFile(store, loudFile())
+      store.setSilenceThreshold(-30)
+      store.saveAsDefault()
+      store.reset()
+
+      expect(store.areDefaultSettingsBuiltIn).toBe(false)
     })
   })
 

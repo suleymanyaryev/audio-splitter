@@ -1,6 +1,8 @@
-// The curve spans 0 dB at the top edge to this level at the bottom; the −100 dB floor and
-// anything else quieter sit on the bottom edge.
-export const BOTTOM_DECIBELS = -60
+import { THRESHOLD_MIN_DB } from '@/entities/split/config/defaults.ts'
+
+// The curve spans 0 dB at the top edge to this level at the bottom (the threshold slider's range);
+// the −100 dB floor and anything else quieter sit on the bottom edge.
+export const BOTTOM_DECIBELS = THRESHOLD_MIN_DB
 
 // Linear in dB, in canvas pixels measured down from the top.
 export function decibelsToY(decibels: number, height: number): number {
