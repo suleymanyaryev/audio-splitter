@@ -22,6 +22,8 @@ Versions follow [Semantic Versioning](https://semver.org/) applied to the produc
 
 - A "Find gaps (N)" button in the loudness panel's title row. It adds a split in the middle of each gap that has none yet, and says how many it would add, live as you move the sliders. It keeps every split and name, your selection and the view, and asks only when a new split would land inside the selected track while it has pending splits.
 
+- A "Clear splits" button beside "Find gaps" that puts the file back to one track: it deletes every split and track name and clears the edits. It keeps the track name prefix, the range and the settings, and selects track 1 (the Range view stays if it is showing). It asks first, saying what would be lost, only when you have edits or pending splits, and is off while there is no split.
+
 ### Changed
 
 - A source file opens as one track with no splits, on track 1 in the Track view. The gaps for the settings show at once on the whole-file view, the loudness curve and the zoom panel's views, and "Find gaps" turns them into splits when you decide.

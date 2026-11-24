@@ -59,7 +59,7 @@ The splits of the source file and the tracks between them. This slice cannot imp
 (the page's source-file store owns the array; it is never written to), to find the gaps again when
 one of the two settings moves.
 
-A file opens as one track with no splits. The gaps are separate state, shown on every view and
+A file opens as one track with no splits, and `clearSplits` brings it back to that. The gaps are separate state, shown on every view and
 found again whenever a setting moves, which changes nothing else. `addGapSplits` ("Find gaps")
 turns the gaps into splits, only where no split is yet, and `gapSplitSeconds` is what it would add.
 
@@ -356,16 +356,28 @@ export const useSplitStore = defineStore('split', () => {
     silenceThreshold.value = Math.round((median(loudness) - DEFAULT_OFFSET_DB) * 10) / 10
     minimumGapLength.value = DEFAULT_MINIMUM_GAP_SECONDS
     findGapsAgain()
+    // The window starts at 0:00, so the Split view shows the file's opening seconds.
+    clearSplits()
+    // A new file always lands on its first track, even from the Range view.
+    view.value = 'track'
+  }
+
+  /*
+  "Clear splits": the file is one track again, as when it opened. Every split, every track name and
+  every edit and pending split go; the prefix, the range and the settings stay. It selects the first
+  track and shows the Track view, unless the Range view is on show. Asking first, when there is
+  something of the user's to lose, is the caller's job (`hasEdits`, `pendingSplits`).
+  */
+  function clearSplits() {
     splits.value = []
     firstTrackName.value = null
     clearEdits()
     trackMarkSeconds.value = null
     clearPending()
-    // The first track starts with the file, so it is keyed by no split and exists with no gap too.
+    // The first track starts with the file, so it is keyed by no split and exists with none.
     selection.value = { kind: 'track', startSplitId: null }
-    // The window starts at 0:00, so the Split view shows the file's opening seconds.
     zoomCentreSeconds.value = ZOOM_WINDOW_SECONDS / 2
-    view.value = 'track'
+    if (view.value !== 'range') view.value = 'track'
   }
 
   function setSilenceThreshold(decibels: number) {
@@ -377,6 +389,9 @@ export const useSplitStore = defineStore('split', () => {
     minimumGapLength.value = seconds
     findGapsAgain()
   }
+
+  // "Clear splits" has something to clear while there is a split.
+  const canClearSplits = computed(() => splits.value.length > 0)
 
   // The times "Find gaps" would add now (see `gapSplitTimes`); its length is the button's count.
   const gapSplitSeconds = computed(() =>
@@ -779,6 +794,7 @@ export const useSplitStore = defineStore('split', () => {
     minimumGapLength,
     gaps,
     gapSplitSeconds,
+    canClearSplits,
     splits,
     firstTrackName,
     trackNamePrefix,
@@ -803,6 +819,7 @@ export const useSplitStore = defineStore('split', () => {
     tracks,
     open,
     addGapSplits,
+    clearSplits,
     setSilenceThreshold,
     setMinimumGapLength,
     selectSplit,

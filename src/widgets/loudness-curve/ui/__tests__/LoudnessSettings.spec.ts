@@ -23,6 +23,24 @@ function mountEdited() {
   return { split, wrapper }
 }
 
+function dialog() {
+  return document.querySelector('[role="alertdialog"]')
+}
+
+function dialogButton(text: string) {
+  const button = [...(dialog()?.querySelectorAll('button') ?? [])].find(
+    (candidate) => candidate.textContent === text,
+  )
+  if (!button) throw new Error(`no "${text}" button`)
+  return button
+}
+
+function clearButton(wrapper: ReturnType<typeof mount>) {
+  const button = wrapper.findAll('button').find((candidate) => candidate.text() === 'Clear splits')
+  if (!button) throw new Error('no Clear splits button')
+  return button
+}
+
 function findGapsButton(wrapper: ReturnType<typeof mount>) {
   const button = wrapper
     .findAll('button')
@@ -106,6 +124,87 @@ describe('LoudnessSettings', () => {
         .trigger('keydown', { key: 'ArrowRight' })
 
       expect(findGapsButton(wrapper).text()).toBe('Find gaps (0)')
+      wrapper.unmount()
+    })
+  })
+
+  describe('Clear splits', () => {
+    afterEach(() => {
+      document.body.replaceChildren()
+    })
+
+    it('is disabled while there is no split', () => {
+      const wrapper = mount(LoudnessSettings)
+
+      expect(clearButton(wrapper).attributes('disabled')).toBeDefined()
+    })
+
+    it('runs at once, with no question, when there is nothing of the user’s to lose', async () => {
+      const split = useSplitStore()
+      split.addGapSplits()
+      const wrapper = mount(LoudnessSettings, { attachTo: document.body })
+
+      await clearButton(wrapper).trigger('click')
+      await flushPromises()
+
+      expect(dialog()).toBeNull()
+      expect(split.splits).toEqual([])
+      wrapper.unmount()
+    })
+
+    it('asks first after an edit, counting it, and clears on "Clear splits"', async () => {
+      const { split, wrapper } = mountEdited()
+
+      await clearButton(wrapper).trigger('click')
+      await flushPromises()
+
+      expect(dialog()?.textContent).toContain('Clear splits?')
+      expect(dialog()?.textContent).toContain(
+        'This deletes every split and name, and discards your 2 edits.',
+      )
+      expect(split.splits).toHaveLength(1)
+
+      dialogButton('Clear splits').dispatchEvent(new MouseEvent('click', { bubbles: true }))
+      await flushPromises()
+
+      expect(dialog()).toBeNull()
+      expect(split.splits).toEqual([])
+      expect(split.hasEdits).toBe(false)
+      wrapper.unmount()
+    })
+
+    it('asks for pending splits alone, and counts them with the edits when there are both', async () => {
+      const split = useSplitStore()
+      split.addGapSplits()
+      split.addPendingSplit(4, false)
+      split.addPendingSplit(7, false)
+      const wrapper = mount(LoudnessSettings, { attachTo: document.body })
+
+      await clearButton(wrapper).trigger('click')
+      await flushPromises()
+      expect(dialog()?.textContent).toContain('discards your 2 pending splits.')
+      dialogButton('Keep splits').dispatchEvent(new MouseEvent('click', { bubbles: true }))
+      await flushPromises()
+
+      split.renameTrack(null, 'Opener')
+      await clearButton(wrapper).trigger('click')
+      await flushPromises()
+      expect(dialog()?.textContent).toContain('discards your 1 edit and 2 pending splits.')
+      wrapper.unmount()
+    })
+
+    it('puts focus on "Keep splits", which closes the question and keeps everything', async () => {
+      const { split, wrapper } = mountEdited()
+      await clearButton(wrapper).trigger('click')
+      await flushPromises()
+      expect(document.activeElement).toBe(dialogButton('Keep splits'))
+
+      dialogButton('Keep splits').dispatchEvent(new MouseEvent('click', { bubbles: true }))
+      await flushPromises()
+
+      expect(dialog()).toBeNull()
+      expect(split.splits).toHaveLength(1)
+      expect(split.editCount).toBe(2)
       wrapper.unmount()
     })
   })

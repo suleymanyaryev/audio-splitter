@@ -77,7 +77,7 @@ flowchart LR
 - **Widgets read the entity stores directly.** They never go through another widget.
 - **Tracks are derived from the splits**, never stored. Deleting a split merges the tracks either side of it.
 - **One selection at a time:** a split, a track or nothing.
-- **Changes that drop the user's work ask first.** "New file" asks when there are edits or pending splits; a setting change asks nothing, since it changes only the gaps. Any action that would drop pending splits is held as a question in `split` (see `unlessItDiscards` in `split.ts`).
+- **Changes that drop the user's work ask first.** "New file" and "Clear splits" ask when there are edits or pending splits; a setting change asks nothing, since it changes only the gaps. Any action that would drop pending splits is held as a question in `split` (see `unlessItDiscards` in `split.ts`).
 - **The two export stores can't import each other**, so `export-lock` sits between them.
 
 ## The theme

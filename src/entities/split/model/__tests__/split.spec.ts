@@ -624,6 +624,87 @@ describe('the split store', () => {
     })
   })
 
+  describe('Clear splits', () => {
+    it('is disabled with no split, and enabled with one', () => {
+      const store = openTwoGaps()
+      expect(store.canClearSplits).toBe(false)
+
+      store.addGapSplits()
+      expect(store.canClearSplits).toBe(true)
+
+      store.clearSplits()
+      expect(store.canClearSplits).toBe(false)
+    })
+
+    it('deletes every split and name, and clears the edits and the pending splits', () => {
+      const store = editedStore()
+      store.selectTrack(store.tracks[1]!)
+      store.placeTrackMark(store.tracks[1]!.startSeconds + 5)
+      store.addPendingSplit(store.tracks[1]!.startSeconds + 5, true)
+
+      store.clearSplits()
+
+      expect(store.splits).toEqual([])
+      expect(store.tracks).toHaveLength(1)
+      expect(store.tracks[0]?.ownName).toBeNull()
+      expect(store.editCount).toBe(0)
+      expect(store.hasEdits).toBe(false)
+      expect(store.pendingSplits).toEqual([])
+      expect(store.selectedPendingSplit).toBeNull()
+      expect(store.trackMarkSeconds).toBeNull()
+    })
+
+    it('keeps the prefix, the range and the settings, and the gaps with them', () => {
+      const store = editedStore()
+      store.setTrackNamePrefix('set-')
+      store.setRange(10, 30)
+      store.setSilenceThreshold(-30)
+      store.setMinimumGapLength(1.5)
+      const gaps = store.gaps
+
+      store.clearSplits()
+
+      expect(store.trackNamePrefix).toBe('set-')
+      expect(store.range).toEqual({ startSeconds: 10, endSeconds: 30 })
+      expect(store.silenceThreshold).toBe(-30)
+      expect(store.minimumGapLength).toBe(1.5)
+      expect(store.gaps).toBe(gaps)
+      expect(store.tracks[0]?.name).toBe('set-01')
+    })
+
+    it('selects track 1 and shows the Track view, with the window at the start', () => {
+      const store = loadedStore()
+      store.selectSplit(store.splits[1]!.id)
+
+      store.clearSplits()
+
+      expect(store.selectedTrack).toBe(store.tracks[0])
+      expect(store.selectedSplit).toBeNull()
+      expect(store.view).toBe('track')
+      expect(store.zoomCentreSeconds).toBe(ZOOM_WINDOW_SECONDS / 2)
+    })
+
+    it('keeps the Range view when it is on show, with track 1 selected behind it', () => {
+      const store = loadedStore()
+      store.setRange(10, 20)
+      store.showView('range')
+
+      store.clearSplits()
+
+      expect(store.view).toBe('range')
+      expect(store.selectedTrack).toBe(store.tracks[0])
+    })
+
+    it('leaves Find gaps able to add the splits again', () => {
+      const store = openTwoGaps()
+      store.addGapSplits()
+
+      store.clearSplits()
+
+      expect(store.gapSplitSeconds).toHaveLength(2)
+    })
+  })
+
   describe('selection and the zoom window', () => {
     it('selects track 1 and starts the window at the file’s start when detection ends', () => {
       const curve = farGaps()
