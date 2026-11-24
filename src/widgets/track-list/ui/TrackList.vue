@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, useTemplateRef, watch } from 'vue'
-import { Merge, Trash2 } from 'lucide-vue-next'
+import { Eye, EyeOff, Merge, Trash2 } from 'lucide-vue-next'
 
 import { useSplitStore, type Split, type Track } from '@/entities/split/model/split.ts'
 import { releaseFocus } from '@/shared/lib/keyboard/release-focus.ts'
@@ -13,8 +13,9 @@ import TrackNameField from './TrackNameField.vue'
 The file as a table, in time order: a row for each track with a row for each split between two
 tracks. A track row has its number (a button, so the row can be selected from the keyboard), its
 name (edited in place, `TrackNameField`, muted while the track has no name of its own), its start
-(hundredths, where a split's position is read) and its length (whole seconds), then a merge button
-that removes the track and merges it with its neighbours (none when it is the only track). A split
+(hundredths, where a split's position is read) and its length (whole seconds), then two buttons: one
+that leaves the track out of the export or brings it back (a left-out row is muted), and a merge
+button that removes the track and merges it with its neighbours (none when it is the only track). A split
 row reads `Split N` where the name goes, its time in the start column, no length and a trash button
 that deletes the split, which merges the tracks either side of it; it has no name field, because
 naming belongs to tracks. The two buttons carry different icons, so one is not taken for the other.
@@ -88,7 +89,10 @@ watch(
             v-if="row.kind === 'track'"
             :aria-current="split.isTrackSelected(row.track) ? 'true' : undefined"
             class="cursor-pointer scroll-mt-7 tint-transition hover:bg-land/40"
-            :class="split.isTrackSelected(row.track) ? 'bg-land/50 font-semibold' : ''"
+            :class="[
+              split.isTrackSelected(row.track) ? 'bg-land/50 font-semibold' : '',
+              row.track.isLeftOut ? 'text-muted' : '',
+            ]"
             @click="split.selectTrack(row.track)"
           >
             <td class="border-b border-hairline py-1.5 pr-2">
@@ -105,6 +109,7 @@ watch(
               <TrackNameField
                 :name="row.track.name"
                 :is-own="row.track.ownName !== null"
+                :dimmed="row.track.isLeftOut"
                 :label="`Name of track ${row.track.number}`"
                 @start="split.selectTrack(row.track)"
                 @save="split.renameTrack(row.track.startSplit?.id ?? null, $event)"
@@ -117,14 +122,24 @@ watch(
               {{ formatDuration(row.track.lengthSeconds) }}
             </td>
             <td class="border-b border-hairline py-0.5">
-              <UiIconButton
-                v-if="split.tracks.length > 1"
-                size="sm"
-                :label="`Remove track ${row.track.number}`"
-                @click.stop="split.removeTrack(row.track)"
-              >
-                <Merge class="size-4 shrink-0" />
-              </UiIconButton>
+              <div class="flex gap-1">
+                <UiIconButton
+                  size="sm"
+                  :label="`${row.track.isLeftOut ? 'Bring back' : 'Leave out'} track ${row.track.number}`"
+                  @click.stop="split.toggleLeftOut(row.track.startSplit?.id ?? null)"
+                >
+                  <EyeOff v-if="row.track.isLeftOut" class="size-4 shrink-0" />
+                  <Eye v-else class="size-4 shrink-0" />
+                </UiIconButton>
+                <UiIconButton
+                  v-if="split.tracks.length > 1"
+                  size="sm"
+                  :label="`Remove track ${row.track.number}`"
+                  @click.stop="split.removeTrack(row.track)"
+                >
+                  <Merge class="size-4 shrink-0" />
+                </UiIconButton>
+              </div>
             </td>
           </tr>
           <tr

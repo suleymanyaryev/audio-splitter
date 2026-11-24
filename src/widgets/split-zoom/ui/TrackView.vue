@@ -49,8 +49,8 @@ selecting it, so a tap along a playing track is always taken. Delete and Backspa
 selected pending split and Escape deselects it; with none selected those keys are left alone, since
 removing a track deletes splits and has its own button. `[` and `]` select the previous and next
 track, as a click on its row does; a track that is playing or being decoded plays the new one from
-its start, and a paused or stopped one leaves it resting there. A held Space, Enter, Shift+Enter,
-`[` or `]` is ignored, so it does not start and stop the sound, add pending splits or step over and
+its start, and a paused or stopped one leaves it resting there. `X` leaves the selected track out of the export, or brings it back. A held Space, Enter,
+Shift+Enter, `[`, `]` or `X` is ignored, so it does not start and stop the sound, add pending splits or step over and
 over. A failure to play is said in a line at the bottom of the view.
 
 The player plays the whole track, however long: a track over 10 min is heard through a window that
@@ -263,7 +263,18 @@ function isKeyActedOn(event: KeyboardEvent) {
   return step === null ? isOtherKeyActedOn(event) : isStepKeyActedOn(step)
 }
 
-// The view's other keys: Space, Enter, Delete, Escape, Home and the arrows.
+/*
+`X` leaves the selected track out of the export, or brings it back. Shift is a modifier like Ctrl, so
+Shift+X is left alone, and a held key toggles once.
+*/
+function isLeftOutKeyActedOn(event: KeyboardEvent) {
+  if (event.shiftKey) return false
+  const track = split.selectedTrack
+  if (track !== null && !event.repeat) split.toggleLeftOut(track.startSplit?.id ?? null)
+  return true
+}
+
+// The view's other keys: Space, Enter, Delete, Escape, Home, X and the arrows.
 function isOtherKeyActedOn(event: KeyboardEvent) {
   switch (event.key) {
     case ' ': {
@@ -288,6 +299,10 @@ function isOtherKeyActedOn(event: KeyboardEvent) {
     case 'Home': {
       if (extent.value !== null) audition.backToStretchStart(extent.value)
       return true
+    }
+    case 'x':
+    case 'X': {
+      return isLeftOutKeyActedOn(event)
     }
     case 'ArrowLeft':
     case 'ArrowRight': {

@@ -29,7 +29,8 @@ function curveWithGapNearTheStart() {
 function setup() {
   useSourceFileStore().durationSeconds = 100
   const split = useSplitStore()
-  split.detect(curveWithTwoGaps(), { windowSeconds: 0.05, durationSeconds: 100 })
+  split.open(curveWithTwoGaps(), { windowSeconds: 0.05, durationSeconds: 100 })
+  split.addGapSplits()
   // Detection opens on track 1; this spec is about the zoom view, on split 1.
   split.selectSplit(split.splits[0]!.id)
   return { split, wrapper: mount(SplitZoom, { attachTo: document.body }) }
@@ -80,7 +81,7 @@ async function pointer(
 
 function mountWithoutSplits() {
   setActivePinia(createPinia())
-  useSplitStore().detect(new Float32Array(400).fill(-10), {
+  useSplitStore().open(new Float32Array(400).fill(-10), {
     windowSeconds: 0.05,
     durationSeconds: 20,
   })
@@ -854,7 +855,8 @@ describe('SplitZoom', () => {
       useSourceFileStore().peaks = new Float32Array(2000)
       useSourceFileStore().durationSeconds = 100
       const split = useSplitStore()
-      split.detect(curveWithGapNearTheStart(), { windowSeconds: 0.05, durationSeconds: 100 })
+      split.open(curveWithGapNearTheStart(), { windowSeconds: 0.05, durationSeconds: 100 })
+      split.addGapSplits()
       split.selectSplit(split.splits[0]!.id)
       mount(SplitZoom, { attachTo: document.body })
 
@@ -878,7 +880,8 @@ describe('SplitZoom', () => {
     it('are not drawn while no split is selected', () => {
       useSourceFileStore().peaks = new Float32Array(2000)
       useSourceFileStore().durationSeconds = 100
-      useSplitStore().detect(curveWithTwoGaps(), { windowSeconds: 0.05, durationSeconds: 100 })
+      useSplitStore().open(curveWithTwoGaps(), { windowSeconds: 0.05, durationSeconds: 100 })
+      useSplitStore().addGapSplits()
       mount(SplitZoom, { attachTo: document.body })
 
       expect(stemsAt()).toEqual([])

@@ -18,6 +18,23 @@ Versions follow [Semantic Versioning](https://semver.org/) applied to the produc
 
 ## [Unreleased]
 
+### Added
+
+- A "Find gaps (N)" button in the loudness panel's title row adds a split in the middle of each gap that has none yet, and its count follows the sliders live. It keeps every split, name, the selection and the view, and asks only when a new split would cut the selected track while it has pending splits.
+- A "Clear splits" button puts the file back to one track: it deletes every split and track name, brings every left-out track back and clears the edits. It keeps the prefix, the range and the settings, and asks first only when you have edits or pending splits.
+- "Save as default" keeps the minimum gap length and how far under the file's median the threshold sits, so every later file starts from them, also after a reload. "Restore built-in" puts back 18 dB under the median and 2 s and moves the sliders there.
+- A "Leave out track N" button on each Track list row leaves that track out of the export, and "Bring back track N" undoes it. A left-out track stays in the review, keeps its splits and name, and its row is muted.
+- A split added inside a left-out track makes two left-out tracks. Deleting a split or removing a track gives the merged track the earlier track's state, as it does its name.
+- `X` in the Track view leaves the selected track out or brings it back, and the Tracks strip draws a left-out track as a hollow, dashed block.
+- "Export to folder…" writes no file for a left-out track and numbers the files it writes 1 to K with no holes. It is off while every track is left out.
+- An unnamed left-out track's name is the bare prefix, with no number, and "Export track…" on it offers the prefix and its place in the file (`dreamscape-03`).
+
+### Changed
+
+- A source file opens as one track with no splits, on track 1 in the Track view. The gaps for the settings show at once on the whole-file view, the loudness curve and the zoom panel's views, and "Find gaps" turns them into splits when you decide.
+- Moving the silence threshold or the minimum gap length, by slider or by dragging the line on the loudness curve, changes only the gaps shown. It no longer replaces your splits and names, so it asks nothing.
+- Edits now count from when the file opened. The splits "Find gaps" adds are no edit until you move or delete one, so "New file" asks only when you have done something by hand.
+
 ## [1.4.0] - 2026-11-22
 
 ### Added

@@ -5,8 +5,12 @@ import { trackTitle } from '../track-title.ts'
 
 const track = (overrides: Partial<Track>): Track => ({
   number: 4,
+  inclusion: 'included',
+  isLeftOut: false,
+  exportNumber: 4,
   ownName: null,
   name: 'dreamscape-04',
+  placeName: 'dreamscape-04',
   startSeconds: 180.93,
   lengthSeconds: 109.09,
   startSplit: null,
@@ -19,12 +23,33 @@ describe('trackTitle', () => {
   })
 
   it('shows the name the user gave the track', () => {
-    expect(trackTitle(track({ name: 'Intro' }))).toBe('Intro · 0:03:00.93 – 0:04:50.02')
+    expect(trackTitle(track({ name: 'Intro', placeName: 'Intro' }))).toBe(
+      'Intro · 0:03:00.93 – 0:04:50.02',
+    )
+  })
+
+  it('shows the track’s place in the file, not its export number, while it is unnamed', () => {
+    const leftOut = track({
+      inclusion: 'by-hand',
+      isLeftOut: true,
+      exportNumber: null,
+      name: 'dreamscape-',
+    })
+
+    expect(trackTitle(leftOut)).toBe('dreamscape-04 · 0:03:00.93 – 0:04:50.02')
   })
 
   it('ends the first track where its length does, from the file’s start', () => {
     expect(
-      trackTitle(track({ number: 1, name: 'dreamscape-01', startSeconds: 0, lengthSeconds: 42 })),
+      trackTitle(
+        track({
+          number: 1,
+          name: 'dreamscape-01',
+          placeName: 'dreamscape-01',
+          startSeconds: 0,
+          lengthSeconds: 42,
+        }),
+      ),
     ).toBe('dreamscape-01 · 0:00:00.00 – 0:00:42.00')
   })
 

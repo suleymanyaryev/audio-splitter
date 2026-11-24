@@ -34,7 +34,8 @@ function splitItems(wrapper: ReturnType<typeof mount>) {
 
 async function mountWithTwoGaps() {
   const split = useSplitStore()
-  split.detect(curveWithTwoGaps(), { windowSeconds: 0.05, durationSeconds: 100 })
+  split.open(curveWithTwoGaps(), { windowSeconds: 0.05, durationSeconds: 100 })
+  split.addGapSplits()
   return { split, wrapper: await mountStrip() }
 }
 
@@ -50,7 +51,8 @@ describe('TrackStrip', () => {
   })
 
   it('draws one block per track, wide in proportion to its length, with name and length', async () => {
-    useSplitStore().detect(curveWithTwoGaps(), { windowSeconds: 0.05, durationSeconds: 100 })
+    useSplitStore().open(curveWithTwoGaps(), { windowSeconds: 0.05, durationSeconds: 100 })
+    useSplitStore().addGapSplits()
 
     const wrapper = await mountStrip()
 
@@ -100,7 +102,7 @@ describe('TrackStrip', () => {
   })
 
   it('is one block over the whole file when there are no splits', async () => {
-    useSplitStore().detect(new Float32Array(400).fill(-10), {
+    useSplitStore().open(new Float32Array(400).fill(-10), {
       windowSeconds: 0.05,
       durationSeconds: 20,
     })
@@ -113,7 +115,8 @@ describe('TrackStrip', () => {
   })
 
   it('drops the length, then the name, of blocks too narrow for them, keeping both in the title', async () => {
-    useSplitStore().detect(curveWithTwoGaps(), { windowSeconds: 0.05, durationSeconds: 100 })
+    useSplitStore().open(curveWithTwoGaps(), { windowSeconds: 0.05, durationSeconds: 100 })
+    useSplitStore().addGapSplits()
     // 116 px leaves 100 px for the three tracks: 21, 50.5 and 28.5 px.
     vi.spyOn(Element.prototype, 'clientWidth', 'get').mockReturnValue(116)
 
@@ -133,16 +136,74 @@ describe('TrackStrip', () => {
     ])
   })
 
-  it('follows the minimum gap length: fewer gaps, fewer blocks', async () => {
+  it('keeps its blocks when the minimum gap length changes, since that changes only the gaps', async () => {
     const split = useSplitStore()
-    split.detect(curveWithTwoGaps(), { windowSeconds: 0.05, durationSeconds: 100 })
+    split.open(curveWithTwoGaps(), { windowSeconds: 0.05, durationSeconds: 100 })
+    split.addGapSplits()
     const wrapper = await mountStrip()
     expect(blocks(wrapper)).toHaveLength(3)
 
     split.setMinimumGapLength(3)
     await wrapper.vm.$nextTick()
 
-    expect(blocks(wrapper)).toHaveLength(1)
+    expect(blocks(wrapper)).toHaveLength(3)
+  })
+
+  describe('a left-out track', () => {
+    it('is a hollow block with a dashed border, where the land shows through', async () => {
+      const { split, wrapper } = await mountWithTwoGaps()
+
+      split.toggleLeftOut(split.splits[0]!.id)
+      await flushPromises()
+
+      const [first, left, last] = blocks(wrapper)
+      expect(left?.classes()).toEqual(
+        expect.arrayContaining(['border-dashed', 'border-track', 'bg-transparent', 'text-ink']),
+      )
+      expect(left?.classes()).not.toContain('bg-track')
+      expect(first?.classes()).toContain('bg-track')
+      expect(last?.classes()).toContain('bg-track')
+    })
+
+    it('says "left out" in its tooltip and accessible label, with its place as the name when unnamed', async () => {
+      const { split, wrapper } = await mountWithTwoGaps()
+      split.setTrackNamePrefix('dreamscape-')
+
+      split.toggleLeftOut(split.splits[0]!.id)
+      await flushPromises()
+
+      expect(blocks(wrapper)[1]?.attributes('title')).toBe('dreamscape-02, 0:00:50, left out')
+      expect(blocks(wrapper)[1]?.get('button').attributes('aria-label')).toBe(
+        'dreamscape-02, 0:00:50, left out',
+      )
+      // Its visible label is still its number: the track's place in the file.
+      expect(blocks(wrapper)[1]?.text()).toContain('2')
+    })
+
+    it('stays a button that selects its track, marked by an ink border while selected', async () => {
+      const { split, wrapper } = await mountWithTwoGaps()
+      split.toggleLeftOut(split.splits[0]!.id)
+      await flushPromises()
+
+      await blocks(wrapper)[1]?.get('button').trigger('click')
+
+      expect(split.selectedTrack?.number).toBe(2)
+      expect(blocks(wrapper)[1]?.classes()).toContain('border-ink')
+      expect(blocks(wrapper)[1]?.classes()).not.toContain('border-on-track')
+    })
+
+    it('is a solid block again once it is brought back', async () => {
+      const { split, wrapper } = await mountWithTwoGaps()
+      split.toggleLeftOut(split.splits[0]!.id)
+      await flushPromises()
+
+      split.toggleLeftOut(split.splits[0]!.id)
+      await flushPromises()
+
+      expect(blocks(wrapper)[1]?.classes()).toContain('bg-track')
+      expect(blocks(wrapper)[1]?.classes()).not.toContain('border-dashed')
+      expect(blocks(wrapper)[1]?.attributes('title')).toBe('02, 0:00:50')
+    })
   })
 
   describe('selecting a track', () => {
@@ -226,7 +287,7 @@ describe('TrackStrip', () => {
     })
 
     it('has none for a single track', async () => {
-      useSplitStore().detect(new Float32Array(400).fill(-10), {
+      useSplitStore().open(new Float32Array(400).fill(-10), {
         windowSeconds: 0.05,
         durationSeconds: 20,
       })

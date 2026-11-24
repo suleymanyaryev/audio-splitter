@@ -14,7 +14,7 @@ enableAutoUnmount(afterEach)
 function setup(prepare: (split: ReturnType<typeof useSplitStore>) => void = () => {}) {
   useSourceFileStore().durationSeconds = 100
   const split = useSplitStore()
-  split.detect(new Float32Array(2000).fill(-10), { windowSeconds: 0.05, durationSeconds: 100 })
+  split.open(new Float32Array(2000).fill(-10), { windowSeconds: 0.05, durationSeconds: 100 })
   split.setRange(10, 20)
   prepare(split)
   const audition = useAuditionStore()

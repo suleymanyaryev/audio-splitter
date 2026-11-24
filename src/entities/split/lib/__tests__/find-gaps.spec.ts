@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 
-import { findGaps, splitsOf } from '../find-gaps.ts'
+import { findGaps, gapSplitTimes } from '../find-gaps.ts'
 
 const LOUD = -10
 const QUIET = -50
@@ -124,17 +124,43 @@ describe('findGaps', () => {
   })
 })
 
-describe('splitsOf', () => {
-  it('proposes one split in the middle of each gap that is not an edge gap', () => {
-    const gaps = gapsIn(curveOf([QUIET, 30], [LOUD, 40], [QUIET, 24], [LOUD, 40], [QUIET, 30]))
+// A 1.2 s gap from 3.5 s to 4.7 s, middle 4.1 s, in a 10.5 s file.
+function oneGap() {
+  return gapsIn(curveOf([QUIET, 30], [LOUD, 40], [QUIET, 24], [LOUD, 40], [QUIET, 30]))
+}
 
-    // The gap between 3.5 s and 4.7 s: its middle is 4.1 s.
-    expect(splitsOf(gaps)).toEqual([expect.closeTo(4.1, 9)])
+describe('gapSplitTimes', () => {
+  it('takes the middle of each gap that is not an edge gap', () => {
+    expect(gapSplitTimes(oneGap(), [], 10.5)).toEqual([expect.closeTo(4.1, 9)])
   })
 
-  it('proposes nothing when every gap is an edge gap', () => {
+  it('takes nothing when every gap is an edge gap', () => {
     const gaps = gapsIn(curveOf([QUIET, 30], [LOUD, 40], [QUIET, 30]))
 
-    expect(splitsOf(gaps)).toEqual([])
+    expect(gapSplitTimes(gaps, [], 5)).toEqual([])
+  })
+
+  it('skips a gap that already holds a split, wherever in it', () => {
+    expect(gapSplitTimes(oneGap(), [3.6], 10.5)).toEqual([])
+    expect(gapSplitTimes(oneGap(), [4.7], 10.5)).toEqual([])
+  })
+
+  it('skips a middle less than 1 s from a split', () => {
+    expect(gapSplitTimes(oneGap(), [5], 10.5)).toEqual([])
+    expect(gapSplitTimes(oneGap(), [5.1], 10.5)).toEqual([expect.closeTo(4.1, 9)])
+  })
+
+  it('skips a middle less than 1 s from the end of the file', () => {
+    expect(gapSplitTimes(oneGap(), [], 4.9)).toEqual([])
+  })
+
+  it('skips a middle less than 1 s from a middle it took before', () => {
+    // Two overlapping gaps whose middles, 5.5 s and 6.1 s, are 0.6 s apart.
+    const gaps = [
+      { startSeconds: 5, endSeconds: 6, edge: null },
+      { startSeconds: 5.6, endSeconds: 6.6, edge: null },
+    ] as const
+
+    expect(gapSplitTimes([...gaps], [], 20)).toEqual([5.5])
   })
 })

@@ -25,13 +25,26 @@ function curveWithTwoGaps() {
   return curve
 }
 
-function mountPage() {
+// The page as a file opens it: one track, no splits, the gaps shown.
+function mountOpenedPage() {
   const sourceFile = useSourceFileStore()
   sourceFile.status = 'ready'
   sourceFile.durationSeconds = 100
   sourceFile.loudnessWindowSeconds = 0.05
   sourceFile.loudness = curveWithTwoGaps()
   return mount(ReviewPage, { attachTo: document.body })
+}
+
+/*
+The page after "Find gaps", which most specs start from: splits at 21 s and 71.5 s. Find gaps runs
+right after the page opens the file, before its first render.
+*/
+function mountPage() {
+  const split = useSplitStore()
+  split.$onAction(({ name, after }) => {
+    if (name === 'open') after(() => split.addGapSplits())
+  })
+  return mountOpenedPage()
 }
 
 // The page for a source file of that name, which sets the track name prefix the page starts with.
@@ -84,6 +97,7 @@ function nameOf(button: { attributes: (name: string) => string | undefined; text
   return button.attributes('aria-label') ?? button.text()
 }
 
+const alertDialogText = () => document.querySelector('[role="alertdialog"]')?.textContent ?? ''
 const shortcutsDialog = () => document.querySelector('[role="dialog"]')
 const firstSection = () => shortcutsDialog()?.querySelector('h3')?.textContent
 
@@ -345,6 +359,100 @@ describe('ReviewPage', () => {
     // The volume is kept in localStorage, which a spec must not inherit from another.
     localStorage.clear()
     setActivePinia(createPinia())
+  })
+
+  describe('opening a file', () => {
+    it('shows one track and no splits, on track 1 in the Track view, with the gaps shown', () => {
+      const wrapper = mountOpenedPage()
+      const split = useSplitStore()
+
+      expect(split.splits).toEqual([])
+      expect(split.tracks).toHaveLength(1)
+      expect(split.selectedTrack?.number).toBe(1)
+      expect(split.view).toBe('track')
+      expect(split.gaps).toHaveLength(2)
+      expect(wrapper.text()).toContain('Tracks (1)')
+    })
+
+    it('adds a split in each gap when Find gaps is pressed, and keeps the view', async () => {
+      const wrapper = mountOpenedPage()
+      const split = useSplitStore()
+      const button = wrapper
+        .findAll('button')
+        .find((candidate) => candidate.text().startsWith('Find gaps'))
+
+      expect(button?.text()).toBe('Find gaps (2)')
+      await button?.trigger('click')
+
+      expect(split.splits.map((point) => point.seconds)).toEqual([
+        expect.closeTo(21, 9),
+        expect.closeTo(71.5, 9),
+      ])
+      expect(split.selectedTrack?.number).toBe(1)
+      expect(split.view).toBe('track')
+      expect(button?.text()).toBe('Find gaps (0)')
+    })
+
+    it('asks "Discard 1 pending split?" when a split would land inside the selected track', async () => {
+      const wrapper = mountOpenedPage()
+      const split = useSplitStore()
+      split.addPendingSplit(10, true)
+      const button = wrapper
+        .findAll('button')
+        .find((candidate) => candidate.text().startsWith('Find gaps'))
+
+      await button?.trigger('click')
+
+      expect(alertDialogText()).toContain('Discard 1 pending split?')
+      expect(split.splits).toEqual([])
+    })
+  })
+
+  describe('leaving tracks out', () => {
+    it('disables "Export to folder…" only while every track is left out', async () => {
+      const wrapper = mountPage()
+      const split = useSplitStore()
+      expect(exportButton(wrapper).attributes('disabled')).toBeUndefined()
+
+      for (const track of split.tracks) split.toggleLeftOut(track.startSplit?.id ?? null)
+      await wrapper.vm.$nextTick()
+      expect(exportButton(wrapper).attributes('disabled')).toBeDefined()
+
+      split.toggleLeftOut(null)
+      await wrapper.vm.$nextTick()
+      expect(exportButton(wrapper).attributes('disabled')).toBeUndefined()
+    })
+
+    it('leaves the selected track out with X in the Track view, and brings it back', async () => {
+      const wrapper = await mountPageWithTrack(2)
+      const split = useSplitStore()
+
+      pressKey('x')
+      await wrapper.vm.$nextTick()
+      expect(split.tracks.map((track) => track.isLeftOut)).toEqual([false, true, false])
+      expect(wrapper.find('button[aria-label="Bring back track 2"]').exists()).toBe(true)
+
+      pressKey('x')
+      await wrapper.vm.$nextTick()
+      expect(split.tracks.map((track) => track.isLeftOut)).toEqual([false, false, false])
+    })
+
+    it('leaves X alone in the Split view, which has no track to leave out', async () => {
+      const wrapper = await mountPageOnSplit()
+
+      pressKey('x')
+      await wrapper.vm.$nextTick()
+
+      expect(useSplitStore().tracks.some((track) => track.isLeftOut)).toBe(false)
+    })
+
+    it('titles the Track view by the track’s place in the file, not by its export number', async () => {
+      const wrapper = await mountPageWithTrack(2)
+      useSplitStore().toggleLeftOut(null)
+      await wrapper.vm.$nextTick()
+
+      expect(panelTitle(wrapper)).toMatch(/^02 · /)
+    })
   })
 
   describe('the track name prefix', () => {
@@ -917,14 +1025,14 @@ describe('ReviewPage', () => {
         expect(panelTitle(wrapper)).toBe('02 · 0:00:21.00 – 0:01:11.50')
       })
 
-      it('shows track 1 again when a setting change finds the splits again', async () => {
+      it('keeps the track when a setting changes, since that changes only the gaps', async () => {
         const wrapper = await mountPageWithTrack(2)
 
         useSplitStore().setMinimumGapLength(2.5)
         await wrapper.vm.$nextTick()
 
         expect(viewOption(wrapper, 'Track').attributes('aria-checked')).toBe('true')
-        expect(panelTitle(wrapper)).toMatch(/^01 · /)
+        expect(panelTitle(wrapper)).toMatch(/^02 · /)
       })
 
       it('plays the track as a stretch when Play is clicked', async () => {
@@ -1387,7 +1495,7 @@ describe('ReviewPage', () => {
         const wrapper = await exportTrack2()
 
         pressKey('Tab')
-        pressKey('x')
+        pressKey('q')
         await wrapper.vm.$nextTick()
 
         expect(savedLine(wrapper).exists()).toBe(true)

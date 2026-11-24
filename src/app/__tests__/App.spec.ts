@@ -104,12 +104,12 @@ describe('App', () => {
     expect(wrapper.text()).toMatch(/0:00:00\s*0:00:07\s*0:00:15\s*0:00:22\s*0:00:30/)
   })
 
-  it('finds the gaps of the loudness curve once the file is ready, and forgets them on New file', async () => {
+  it('opens the file as one track with its gaps shown once it is ready, and forgets them on New file', async () => {
     const wrapper = mount(App)
 
     await chooseFile(wrapper, file)
 
-    // 15 s of tone, then 15 s of silence: one run-out gap, which proposes no split.
+    // 15 s of tone, then 15 s of silence: one run-out gap, which Find gaps would add no split for.
     const split = useSplitStore()
     expect(split.gaps).toEqual([{ startSeconds: 15, endSeconds: 30, edge: 'run-out' }])
     expect(split.tracks).toHaveLength(1)
@@ -324,6 +324,45 @@ describe('App', () => {
       await flushPromises()
       expect(wrapper.text()).toContain('Choose file…')
       expect(split.pendingSplits).toEqual([])
+      wrapper.unmount()
+    })
+
+    it('asks once the user moves a split that Find gaps added', async () => {
+      const wrapper = mount(App, { attachTo: document.body })
+      await chooseFile(wrapper, file)
+      // 20 s of tone, a 2 s silence, 20 s of tone: one inner gap.
+      const curve = new Float32Array(440).fill(-10)
+      curve.fill(-70, 200, 240)
+      const split = useSplitStore()
+      split.open(curve, { windowSeconds: 0.05, durationSeconds: 22 })
+      split.addGapSplits()
+      expect(split.splits).toHaveLength(1)
+
+      expect(split.hasEdits).toBe(false)
+      split.selectSplit(split.splits[0]!.id)
+      split.moveSplit(split.splits[0]!.id, split.splits[0]!.seconds + 0.5)
+      await newFileButton(wrapper).trigger('click')
+      await flushPromises()
+
+      expect(dialog()?.textContent).toContain('Loading a new file discards your 1 edit.')
+      wrapper.unmount()
+    })
+
+    it('does not ask after Find gaps alone', async () => {
+      const wrapper = mount(App, { attachTo: document.body })
+      await chooseFile(wrapper, file)
+      const curve = new Float32Array(440).fill(-10)
+      curve.fill(-70, 200, 240)
+      const split = useSplitStore()
+      split.open(curve, { windowSeconds: 0.05, durationSeconds: 22 })
+      split.addGapSplits()
+      expect(split.splits).toHaveLength(1)
+
+      await newFileButton(wrapper).trigger('click')
+      await flushPromises()
+
+      expect(dialog()).toBeNull()
+      expect(wrapper.text()).toContain('Choose file…')
       wrapper.unmount()
     })
 

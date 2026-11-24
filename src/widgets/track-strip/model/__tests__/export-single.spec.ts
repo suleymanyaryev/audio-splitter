@@ -52,7 +52,8 @@ describe('the single export store', () => {
     sourceFile.format = 'm4a'
     sourceFile.status = 'ready'
     const split = useSplitStore()
-    split.detect(curveWithTwoGaps(), { windowSeconds: 0.05, durationSeconds: 100 })
+    split.open(curveWithTwoGaps(), { windowSeconds: 0.05, durationSeconds: 100 })
+    split.addGapSplits()
     return { sourceFile, split, exporter: useExportSingleStore() }
   }
 
@@ -105,6 +106,31 @@ describe('the single export store', () => {
 
       exporter.openTrack(trackOf(split, 2))
       expect(exporter.defaultName).toBe('Chorus')
+    })
+
+    it('opens an unnamed left-out track with the prefix and its place in the file', () => {
+      const { split, exporter } = setUp()
+      split.setTrackNamePrefix('dreamscape-')
+      split.toggleLeftOut(split.splits[1]!.id)
+
+      exporter.openTrack(trackOf(split, 3))
+
+      expect(exporter.defaultName).toBe('dreamscape-03')
+    })
+
+    it('opens a named left-out track with its name, and an included track after one with its export number', () => {
+      const { split, exporter } = setUp()
+      split.setTrackNamePrefix('dreamscape-')
+      split.renameTrack(split.splits[0]!.id, 'Interlude')
+      split.toggleLeftOut(null)
+      split.toggleLeftOut(split.splits[0]!.id)
+
+      exporter.openTrack(trackOf(split, 2))
+      expect(exporter.defaultName).toBe('Interlude')
+
+      // Track 3 is the only one written, so its file would be number 1 of 1.
+      exporter.openTrack(trackOf(split, 3))
+      expect(exporter.defaultName).toBe('dreamscape-01')
     })
 
     it('opens a range with the source stem and its times, dots in place of colons', () => {
@@ -212,6 +238,39 @@ describe('the single export store', () => {
       expect(exporter.status).toBe('naming')
       expect(picker).not.toHaveBeenCalled()
       expect(cutTrack).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('a left-out track', () => {
+    it('is written alone, under the name offered, tagged with its place in the file', async () => {
+      const { split, exporter } = setUp()
+      split.setTrackNamePrefix('dreamscape-')
+      split.toggleLeftOut(split.splits[1]!.id)
+      exporter.openTrack(trackOf(split, 3))
+
+      await exporter.confirm(exporter.defaultName)
+
+      expect(exporter.status).toBe('saved')
+      expect(filesOf(folder)).toEqual(['dreamscape-03.m4a'])
+      expect(cutTrack.mock.calls[0]?.[0].tags).toEqual({
+        title: 'dreamscape-03',
+        track: '3/3',
+        album: 'Evening Set',
+      })
+      // Confirming the offered name names nothing: the track stays unnamed, and left out.
+      expect(trackOf(split, 3).ownName).toBeNull()
+      expect(trackOf(split, 3).isLeftOut).toBe(true)
+    })
+
+    it('is renamed when another name is confirmed, like any track', async () => {
+      const { split, exporter } = setUp()
+      split.toggleLeftOut(split.splits[1]!.id)
+      exporter.openTrack(trackOf(split, 3))
+
+      await exporter.confirm('Hidden track')
+
+      expect(filesOf(folder)).toEqual(['Hidden track.m4a'])
+      expect(trackOf(split, 3).ownName).toBe('Hidden track')
     })
   })
 

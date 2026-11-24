@@ -3,10 +3,9 @@ import { ref } from 'vue'
 import { curveY, isOnThresholdLine, thresholdFromPointer } from './threshold-line.ts'
 
 export interface ThresholdDragSource {
-  // The current threshold in dB, null before the first detection.
+  // The current threshold in dB, null before the file opens.
   threshold: () => number | null
-  // Returns false when the change was held back (to ask about it first), which ends the drag.
-  set: (decibels: number) => boolean
+  set: (decibels: number) => void
 }
 
 // The pointer's vertical position and the canvas height, in the canvas's own pixels.
@@ -19,8 +18,7 @@ function pointerPosition(event: PointerEvent) {
 The pointer handlers that let the dashed threshold line be dragged up and down on its canvas.
 A press within reach of the line takes hold of it (remembering how far under it the pointer was, so
 the line does not jump), the canvas keeps the pointer while the drag lasts, and every move sets the
-threshold in tenths of a dB through `set`; a `set` that holds the change back lets the pointer
-go, so one press asks once. With no drag on, a move only says whether the pointer
+threshold in tenths of a dB through `set`. With no drag on, a move only says whether the pointer
 is over the line, for the cursor.
 */
 export function useThresholdDrag({ threshold, set }: ThresholdDragSource) {
@@ -50,9 +48,7 @@ export function useThresholdDrag({ threshold, set }: ThresholdDragSource) {
       return
     }
     const decibels = thresholdFromPointer(y, grabOffset.value, height)
-    if (decibels === threshold() || set(decibels)) return
-    grabOffset.value = null
-    ;(event.currentTarget as HTMLCanvasElement).releasePointerCapture(event.pointerId)
+    if (decibels !== threshold()) set(decibels)
   }
 
   function onPointerEnd() {

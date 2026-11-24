@@ -13,6 +13,16 @@ function curveWithOneGap() {
   return curve
 }
 
+// Find gaps pressed, then the first track and the second named: two hand-made edits.
+function mountEdited() {
+  const split = useSplitStore()
+  split.addGapSplits()
+  split.renameTrack(null, 'Opener')
+  split.renameTrack(split.splits[0]!.id, 'Closer')
+  const wrapper = mount(LoudnessSettings, { attachTo: document.body })
+  return { split, wrapper }
+}
+
 function dialog() {
   return document.querySelector('[role="alertdialog"]')
 }
@@ -25,22 +35,40 @@ function dialogButton(text: string) {
   return button
 }
 
-// A track named for each of the first `edits` entries: the first track, then the split's.
-async function mountEdited(edits: number) {
-  const split = useSplitStore()
-  const names = ['Opener', 'Closer']
-  for (const [index, name] of names.slice(0, edits).entries()) {
-    split.renameTrack(split.splits[index - 1]?.id ?? null, name)
-  }
-  const wrapper = mount(LoudnessSettings, { attachTo: document.body })
-  await flushPromises()
-  return { split, wrapper }
+function clearButton(wrapper: ReturnType<typeof mount>) {
+  const button = wrapper.findAll('button').find((candidate) => candidate.text() === 'Clear splits')
+  if (!button) throw new Error('no Clear splits button')
+  return button
+}
+
+function buttonNamed(wrapper: ReturnType<typeof mount>, text: string) {
+  const button = wrapper.findAll('button').find((candidate) => candidate.text() === text)
+  if (!button) throw new Error(`no ${text} button`)
+  return button
+}
+
+// What the tooltip around the button says once it takes the keyboard.
+async function tooltipOf(button: { trigger: (event: string) => Promise<void> }) {
+  await button.trigger('focus')
+  const text = document.querySelector('[role="tooltip"]')?.textContent
+  await button.trigger('blur')
+  return text
+}
+
+function findGapsButton(wrapper: ReturnType<typeof mount>) {
+  const button = wrapper
+    .findAll('button')
+    .find((candidate) => candidate.text().startsWith('Find gaps'))
+  if (!button) throw new Error('no Find gaps button')
+  return button
 }
 
 describe('LoudnessSettings', () => {
   beforeEach(() => {
+    // The default settings are kept in localStorage, which a spec must not inherit from another.
+    localStorage.clear()
     setActivePinia(createPinia())
-    useSplitStore().detect(curveWithOneGap(), { windowSeconds: 0.05, durationSeconds: 20 })
+    useSplitStore().open(curveWithOneGap(), { windowSeconds: 0.05, durationSeconds: 20 })
   })
 
   it('reads out both settings of the split store, with a real minus sign', () => {
@@ -66,148 +94,231 @@ describe('LoudnessSettings', () => {
     wrapper.unmount()
   })
 
-  it('finds the gaps again when the minimum gap length moves above the gap', async () => {
+  it('moves the minimum gap length above the gap, which drops the gap and no split', async () => {
     const wrapper = mount(LoudnessSettings, { attachTo: document.body })
     await flushPromises()
     const split = useSplitStore()
-    expect(split.splits).toHaveLength(1)
+    split.addGapSplits()
+    expect(split.gaps).toHaveLength(1)
 
     // The gap is 2 s long, the default minimum: one step up (0.1 s) puts the minimum above it.
     const thumb = wrapper.get('[aria-label="Minimum gap length"]')
     await thumb.trigger('keydown', { key: 'ArrowRight' })
 
     expect(split.minimumGapLength).toBeCloseTo(DEFAULT_MINIMUM_GAP_SECONDS + 0.1, 9)
-    expect(split.splits).toHaveLength(0)
+    expect(split.gaps).toHaveLength(0)
+    expect(split.splits).toHaveLength(1)
     wrapper.unmount()
   })
 
-  describe('with edits to protect', () => {
+  describe('Find gaps', () => {
+    it('says how many splits a press would add', () => {
+      const wrapper = mount(LoudnessSettings)
+
+      expect(findGapsButton(wrapper).text()).toBe('Find gaps (1)')
+      expect(findGapsButton(wrapper).attributes('disabled')).toBeUndefined()
+    })
+
+    it('adds the splits, and is disabled at 0 once they are there', async () => {
+      const wrapper = mount(LoudnessSettings)
+
+      await findGapsButton(wrapper).trigger('click')
+
+      const split = useSplitStore()
+      expect(split.splits.map((point) => point.seconds)).toEqual([expect.closeTo(11, 9)])
+      expect(findGapsButton(wrapper).text()).toBe('Find gaps (0)')
+      expect(findGapsButton(wrapper).attributes('disabled')).toBeDefined()
+    })
+
+    it('follows the sliders live', async () => {
+      const wrapper = mount(LoudnessSettings, { attachTo: document.body })
+      await flushPromises()
+
+      // One step above the 2 s gap: no gap is left to find.
+      await wrapper
+        .get('[aria-label="Minimum gap length"]')
+        .trigger('keydown', { key: 'ArrowRight' })
+
+      expect(findGapsButton(wrapper).text()).toBe('Find gaps (0)')
+      wrapper.unmount()
+    })
+  })
+
+  describe('Clear splits', () => {
     afterEach(() => {
       document.body.replaceChildren()
     })
 
-    it('asks first, counting the edits, and leaves the value where it was', async () => {
-      const { split, wrapper } = await mountEdited(2)
-      const before = split.silenceThreshold
+    it('is disabled while there is no split', () => {
+      const wrapper = mount(LoudnessSettings)
 
-      await wrapper
-        .get('[aria-label="Silence threshold"]')
-        .trigger('keydown', { key: 'ArrowRight' })
+      expect(clearButton(wrapper).attributes('disabled')).toBeDefined()
+    })
+
+    it('runs at once, with no question, when there is nothing of the user’s to lose', async () => {
+      const split = useSplitStore()
+      split.addGapSplits()
+      const wrapper = mount(LoudnessSettings, { attachTo: document.body })
+
+      await clearButton(wrapper).trigger('click')
       await flushPromises()
 
-      expect(dialog()?.textContent).toContain('Replace your edits?')
-      expect(dialog()?.textContent).toContain(
-        'This replaces your 2 edits with freshly detected splits.',
-      )
-      expect(split.silenceThreshold).toBe(before)
-      expect(split.hasEdits).toBe(true)
+      expect(dialog()).toBeNull()
+      expect(split.splits).toEqual([])
       wrapper.unmount()
     })
 
-    it('asks with pending splits and no edits, counting them, and keeps the buttons it has', async () => {
-      const { split, wrapper } = await mountEdited(0)
+    it('asks first after an edit, counting it, and clears on "Clear splits"', async () => {
+      const { split, wrapper } = mountEdited()
+
+      await clearButton(wrapper).trigger('click')
+      await flushPromises()
+
+      expect(dialog()?.textContent).toContain('Clear splits?')
+      expect(dialog()?.textContent).toContain(
+        'This deletes every split and name, and discards your 2 edits.',
+      )
+      expect(split.splits).toHaveLength(1)
+
+      dialogButton('Clear splits').dispatchEvent(new MouseEvent('click', { bubbles: true }))
+      await flushPromises()
+
+      expect(dialog()).toBeNull()
+      expect(split.splits).toEqual([])
+      expect(split.hasEdits).toBe(false)
+      wrapper.unmount()
+    })
+
+    it('asks for pending splits alone, and counts them with the edits when there are both', async () => {
+      const split = useSplitStore()
+      split.addGapSplits()
       split.addPendingSplit(4, false)
       split.addPendingSplit(7, false)
-      expect(split.hasEdits).toBe(false)
+      const wrapper = mount(LoudnessSettings, { attachTo: document.body })
 
-      await wrapper
-        .get('[aria-label="Silence threshold"]')
-        .trigger('keydown', { key: 'ArrowRight' })
+      await clearButton(wrapper).trigger('click')
+      await flushPromises()
+      expect(dialog()?.textContent).toContain('discards your 2 pending splits.')
+      dialogButton('Keep splits').dispatchEvent(new MouseEvent('click', { bubbles: true }))
       await flushPromises()
 
-      expect(dialog()?.textContent).toContain('Replace your edits?')
-      expect(dialog()?.textContent).toContain(
-        'This replaces your 2 pending splits with freshly detected splits.',
-      )
-      expect(
-        [...(dialog()?.querySelectorAll('button') ?? [])].map((button) => button.textContent),
-      ).toEqual(['Keep edits', 'Replace'])
+      split.renameTrack(null, 'Opener')
+      await clearButton(wrapper).trigger('click')
+      await flushPromises()
+      expect(dialog()?.textContent).toContain('discards your 1 edit and 2 pending splits.')
       wrapper.unmount()
     })
 
-    it('counts the edits and the pending splits together, and "Replace" drops both', async () => {
-      const { split, wrapper } = await mountEdited(1)
-      split.addPendingSplit(4, false)
-      await wrapper
-        .get('[aria-label="Silence threshold"]')
-        .trigger('keydown', { key: 'ArrowRight' })
+    it('puts focus on "Keep splits", which closes the question and keeps everything', async () => {
+      const { split, wrapper } = mountEdited()
+      await clearButton(wrapper).trigger('click')
       await flushPromises()
-      expect(dialog()?.textContent).toContain(
-        'This replaces your 1 edit and 1 pending split with freshly detected splits.',
-      )
+      expect(document.activeElement).toBe(dialogButton('Keep splits'))
 
-      dialogButton('Replace').dispatchEvent(new MouseEvent('click', { bubbles: true }))
-      await flushPromises()
-
-      expect(split.hasEdits).toBe(false)
-      expect(split.pendingSplits).toEqual([])
-      wrapper.unmount()
-    })
-
-    it('says "1 edit" for a single edit', async () => {
-      const { wrapper } = await mountEdited(1)
-
-      await wrapper
-        .get('[aria-label="Silence threshold"]')
-        .trigger('keydown', { key: 'ArrowRight' })
-      await flushPromises()
-
-      expect(dialog()?.textContent).toContain(
-        'This replaces your 1 edit with freshly detected splits.',
-      )
-      wrapper.unmount()
-    })
-
-    it('puts focus on "Keep edits", which closes the question and keeps the value and the edits', async () => {
-      const { split, wrapper } = await mountEdited(2)
-      const before = split.silenceThreshold
-      await wrapper
-        .get('[aria-label="Silence threshold"]')
-        .trigger('keydown', { key: 'ArrowRight' })
-      await flushPromises()
-      expect(document.activeElement).toBe(dialogButton('Keep edits'))
-
-      dialogButton('Keep edits').dispatchEvent(new MouseEvent('click', { bubbles: true }))
+      dialogButton('Keep splits').dispatchEvent(new MouseEvent('click', { bubbles: true }))
       await flushPromises()
 
       expect(dialog()).toBeNull()
-      expect(split.silenceThreshold).toBe(before)
-      expect(split.hasEdits).toBe(true)
+      expect(split.splits).toHaveLength(1)
+      expect(split.editCount).toBe(2)
+      wrapper.unmount()
+    })
+  })
+
+  describe('the default settings', () => {
+    afterEach(() => {
+      document.body.replaceChildren()
+    })
+
+    it('disables both actions while the sliders match built-in default settings', () => {
+      const wrapper = mount(LoudnessSettings)
+
+      expect(buttonNamed(wrapper, 'Save as default').attributes('disabled')).toBeDefined()
+      expect(buttonNamed(wrapper, 'Restore built-in').attributes('disabled')).toBeDefined()
+    })
+
+    it('enables "Save as default" once a slider moves, and says what it would save', async () => {
+      const wrapper = mount(LoudnessSettings, { attachTo: document.body })
+      await flushPromises()
+
+      await wrapper.get('[aria-label="Silence threshold"]').trigger('keydown', { key: 'ArrowLeft' })
+
+      const save = buttonNamed(wrapper, 'Save as default')
+      expect(save.attributes('disabled')).toBeUndefined()
+      // The median is -10 dB, so one step down is 18.1 dB under it.
+      expect(await tooltipOf(save)).toBe('Save 18.1 dB under the median and 2 s as the default')
       wrapper.unmount()
     })
 
-    it('applies the value asked about, with fresh splits and no edits, on "Replace"', async () => {
-      const { split, wrapper } = await mountEdited(2)
-      const before = split.silenceThreshold ?? 0
+    it('saves, which disables the button and enables "Restore built-in"', async () => {
+      const wrapper = mount(LoudnessSettings, { attachTo: document.body })
+      await flushPromises()
       await wrapper
-        .get('[aria-label="Silence threshold"]')
-        .trigger('keydown', { key: 'ArrowRight' })
-      await flushPromises()
+        .get('[aria-label="Minimum gap length"]')
+        .trigger('keydown', { key: 'ArrowLeft' })
 
-      dialogButton('Replace').dispatchEvent(new MouseEvent('click', { bubbles: true }))
-      await flushPromises()
+      await buttonNamed(wrapper, 'Save as default').trigger('click')
 
-      expect(dialog()).toBeNull()
-      expect(split.silenceThreshold).toBeCloseTo(before + 0.1, 9)
-      expect(split.hasEdits).toBe(false)
-      expect(split.tracks[0]?.name).toBe('01')
+      expect(buttonNamed(wrapper, 'Save as default').attributes('disabled')).toBeDefined()
+      expect(buttonNamed(wrapper, 'Restore built-in').attributes('disabled')).toBeUndefined()
+      expect(await tooltipOf(buttonNamed(wrapper, 'Restore built-in'))).toBe(
+        'Put the default settings back to 18 dB under the median and 2 s',
+      )
       wrapper.unmount()
     })
 
-    it('guards the minimum gap length the same way, and asks no more once the edits are gone', async () => {
-      const { split, wrapper } = await mountEdited(2)
-      const thumb = wrapper.get('[aria-label="Minimum gap length"]')
-
-      await thumb.trigger('keydown', { key: 'ArrowRight' })
+    it('restores the built-in ones, and moves this file’s sliders there', async () => {
+      const wrapper = mount(LoudnessSettings, { attachTo: document.body })
       await flushPromises()
+      const split = useSplitStore()
+      await wrapper
+        .get('[aria-label="Minimum gap length"]')
+        .trigger('keydown', { key: 'ArrowLeft' })
+      await buttonNamed(wrapper, 'Save as default').trigger('click')
+
+      await buttonNamed(wrapper, 'Restore built-in').trigger('click')
+
       expect(split.minimumGapLength).toBe(DEFAULT_MINIMUM_GAP_SECONDS)
-      dialogButton('Replace').dispatchEvent(new MouseEvent('click', { bubbles: true }))
-      await flushPromises()
-      await thumb.trigger('keydown', { key: 'ArrowRight' })
+      expect(wrapper.text()).toContain(`${DEFAULT_MINIMUM_GAP_SECONDS.toFixed(1)} s`)
+      expect(buttonNamed(wrapper, 'Restore built-in').attributes('disabled')).toBeDefined()
+      wrapper.unmount()
+    })
+  })
+
+  describe('with work to protect', () => {
+    afterEach(() => {
+      document.body.replaceChildren()
+    })
+
+    it('moves a setting with no question, keeping the edits, the splits and the pending splits', async () => {
+      const { split, wrapper } = mountEdited()
+      split.addPendingSplit(4, false)
+      const before = split.silenceThreshold ?? 0
+
+      await wrapper
+        .get('[aria-label="Silence threshold"]')
+        .trigger('keydown', { key: 'ArrowRight' })
       await flushPromises()
 
-      expect(dialog()).toBeNull()
-      expect(split.minimumGapLength).toBeCloseTo(DEFAULT_MINIMUM_GAP_SECONDS + 0.2, 9)
+      expect(document.querySelector('[role="alertdialog"]')).toBeNull()
+      expect(split.silenceThreshold).toBeCloseTo(before + 0.1, 9)
+      expect(split.editCount).toBe(2)
+      expect(split.pendingSplits).toEqual([4])
+      expect(split.splits).toHaveLength(1)
+      wrapper.unmount()
+    })
+
+    it('moves the minimum gap length the same way', async () => {
+      const { split, wrapper } = mountEdited()
+
+      await wrapper
+        .get('[aria-label="Minimum gap length"]')
+        .trigger('keydown', { key: 'ArrowRight' })
+      await flushPromises()
+
+      expect(document.querySelector('[role="alertdialog"]')).toBeNull()
+      expect(split.minimumGapLength).toBeCloseTo(DEFAULT_MINIMUM_GAP_SECONDS + 0.1, 9)
+      expect(split.tracks.map((track) => track.name)).toEqual(['Opener', 'Closer'])
       wrapper.unmount()
     })
   })

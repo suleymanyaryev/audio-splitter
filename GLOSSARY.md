@@ -17,11 +17,11 @@ The audio toolkit the splitter downloads once and keeps in the browser; probing,
 _Avoid_: Engine, codec library, wasm
 
 **Track**:
-A stretch of the source file between two neighbouring splits (or between a split and the start or end of the file), exported as one audio file.
+A stretch of the source file between two neighbouring splits (or between a split and the start or end of the file), exported as one audio file unless it is left out. Its number is its place in the source file, counting every track, left out or not.
 _Avoid_: Segment, part, chunk, song
 
 **Track name**:
-The name a track is exported under: the track name prefix followed by the track's number until the user renames it, then the name as typed. It belongs to the split where the track starts (or to the start of the source file for the first track), so it follows that split when it moves and disappears when that split is deleted.
+The name a track is exported under: the track name prefix followed by the track's number among the tracks the export writes until the user renames it, then the name as typed. It belongs to the split where the track starts (or to the start of the source file for the first track), so it follows that split when it moves and disappears when that split is deleted.
 _Avoid_: Title, label
 
 **Track name prefix**:
@@ -29,7 +29,7 @@ The text put before the number of every unnamed track, any separator included. E
 _Avoid_: Base name, stem
 
 **Export**:
-Writing every track as its own audio file, in the source file's format, into a new folder named after the source file, made inside a folder the user picks (a second export of the same file makes `name (2)`).
+Writing every track that is not left out as its own audio file, in the source file's format, into a new folder named after the source file, made inside a folder the user picks (a second export of the same file makes `name (2)`).
 _Avoid_: Download, save, split (as a verb)
 
 **Single export**:
@@ -41,7 +41,7 @@ A stretch of the source file whose loudness stays under the silence threshold fo
 _Avoid_: Silence, pause, quiet region
 
 **Split**:
-A single point in time where the source file is cut. A split is either detected (proposed at the middle of a gap) or manual (added by the user); once it exists the two are treated the same.
+A single point in time where the source file is cut. A split is either detected (added by Find gaps at the middle of a gap, only when the user asks) or manual (added by the user); once it exists the two are treated the same.
 _Avoid_: Candidate, cut point, marker, split point
 
 **Selected split**:
@@ -67,6 +67,10 @@ _Avoid_: Candidate, draft split, ghost split
 **Removing a track**:
 Merging a track into its neighbours by deleting the splits at both its ends. Its name goes with it: the merged track keeps the previous track's name, or the next track's when the first track is removed.
 _Avoid_: Deleting a track, excluding a track
+
+**Left-out track**:
+A track that stays in the review, shown and heard like any other, that the export skips; the user leaves it out and brings it back. A split added inside it makes two left-out tracks, and a merged track is left out when the earlier of the two was.
+_Avoid_: Excluded track, skipped track, disabled track, muted track
 
 **Zoom window**:
 The 20 second stretch of the source file around a centre time that the Split view shows, outlined on the whole-file view.
@@ -104,10 +108,14 @@ _Avoid_: Energy curve, RMS curve, volume graph
 The loudness, in decibels, under which the source file counts as quiet.
 _Avoid_: Noise floor, cutoff
 
+**Default settings**:
+The silence threshold, as a distance under the source file's median loudness, and the minimum gap length that every source file starts with: the ones the user saved, or the built-in ones.
+_Avoid_: Preferences, presets, starting values, my defaults
+
 **Minimum gap length**:
 The shortest time the loudness must stay under the silence threshold for the stretch to count as a gap.
 _Avoid_: Minimum duration, minimum silence
 
 **Edit**:
-A thing the user changed since the last detection: a split moved, added or deleted, or a track renamed. It is counted once per thing changed, however often it was changed, and changing a setting replaces all edits with freshly detected splits.
+A thing the user changed by hand since the source file opened: a split moved, added or deleted, a track renamed, or a track left out or brought back. It is counted once per thing changed, however often it was changed; the splits Find gaps adds are no edit until the user changes one.
 _Avoid_: Change, modification, revision

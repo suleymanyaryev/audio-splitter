@@ -97,18 +97,23 @@ export const useExportSingleStore = defineStore('export-single', () => {
     if (file === null) return
     const tracks = splitStore.tracks
     const { ownName } = track
+    /*
+    An unnamed track is written under the name it is offered, so its number and count are the ones
+    that name was made from: its export number among the tracks written, or, for a left-out track
+    that no export numbers, its place in the file.
+    */
     open(
       {
         kind: 'track',
-        number: track.number,
-        count: tracks.length,
+        number: track.exportNumber ?? track.number,
+        count: track.exportNumber === null ? tracks.length : splitStore.exportTrackCount,
         ownName,
         prefix: splitStore.trackNamePrefix,
         startSplitId: track.startSplit?.id ?? null,
         startSeconds: track.startSeconds,
         endSeconds: tracks[track.number]?.startSeconds,
       },
-      track.name,
+      track.isLeftOut ? track.placeName : track.name,
     )
   }
 

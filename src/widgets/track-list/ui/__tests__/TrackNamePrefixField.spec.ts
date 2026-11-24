@@ -15,7 +15,8 @@ function curveWithTwoGaps() {
 
 function mountField() {
   const split = useSplitStore()
-  split.detect(curveWithTwoGaps(), { windowSeconds: 0.05, durationSeconds: 100 })
+  split.open(curveWithTwoGaps(), { windowSeconds: 0.05, durationSeconds: 100 })
+  split.addGapSplits()
   split.setTrackNamePrefix('dreamscape-')
   const wrapper = mount(TrackNamePrefixField, { attachTo: document.body })
   const field = wrapper.get<HTMLInputElement>('input')
