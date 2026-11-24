@@ -1,6 +1,6 @@
 # Cutting-tool base: gaps on request, default settings and left-out tracks
 
-Status: ready-for-agent
+Status: resolved
 
 From GitHub issue #11, milestone 1 of the [v2 milestones](../audio-splitter-v2/milestones.md#milestone-1-cutting-tool-base). Vocabulary is in the glossary. While this was grilled, **Left-out track** and **Default settings** were added, and **Track**, **Track name**, **Export**, **Split** and **Edit** changed. No ADR: each decision is cheap to reverse, and the glossary says what would otherwise surprise.
 
