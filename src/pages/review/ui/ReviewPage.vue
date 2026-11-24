@@ -189,7 +189,8 @@ const canAddSplit = computed(() =>
 // The panel's title is its largest type: the selected split's time, the selected track's name, start
 // and end, or the range's start, end and length.
 const title = computed(() => {
-  if (split.view === 'track' && split.selectedTrack !== null) return trackTitle(split.selectedTrack)
+  if (split.view === 'track' && split.selectedTrack !== null)
+    return trackTitle(split.selectedTrack, split.tracks.length)
   const range = split.view === 'range' ? split.range : null
   return range === null
     ? zoomTitle(split.selectedSplit?.seconds ?? null, split.splits.length)

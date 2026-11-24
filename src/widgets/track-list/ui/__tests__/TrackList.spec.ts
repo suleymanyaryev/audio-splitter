@@ -251,7 +251,7 @@ describe('TrackList', () => {
       await split.findDuplicates()
       const wrapper = mount(TrackList, { attachTo: document.body })
 
-      await wrapper.findAll('tbody tr p')[0]?.trigger('pointermove')
+      await wrapper.findAll('tbody tr p button')[0]?.trigger('pointermove')
       await vi.advanceTimersByTimeAsync(1000)
 
       expect(document.querySelector('[role="tooltip"]')?.textContent).toBe(
@@ -276,6 +276,67 @@ describe('TrackList', () => {
       expect(wrapper.findAll('button[aria-label^="Dismiss"]')).toHaveLength(1)
       expect(split.tracks[2]?.inclusion).toBe('included')
       expect(split.editCount).toBe(1)
+    })
+  })
+
+  describe('the link of a match', () => {
+    it('is the words, and selects the other track in the Track view', async () => {
+      const { split, wrapper } = await mountWithDuplicate()
+      split.selectSplit(split.splits[0]!.id)
+      expect(split.view).toBe('split')
+
+      const link = trackRows(wrapper)[2]?.get('button:not([aria-label])')
+      expect(link?.text()).toBe('duplicate of 01')
+      await link?.trigger('click')
+
+      expect(split.selectedTrack?.number).toBe(1)
+      expect(split.view).toBe('track')
+    })
+
+    it('stops the row’s click, so the row does not select its own track after', async () => {
+      const { split, wrapper } = await mountWithDuplicate()
+
+      await trackRows(wrapper)[2]?.get('button:not([aria-label])').trigger('click')
+
+      expect(split.selectedTrack?.number).toBe(1)
+    })
+
+    it('goes to the track of its own match, one for each of several', async () => {
+      search.answer = [
+        {
+          later: 2,
+          earlier: 0,
+          kind: 'holds',
+          laterShared: { from: 3, to: 33 },
+          earlierShared: { from: 0, to: 30 },
+        },
+        {
+          later: 2,
+          earlier: 1,
+          kind: 'part-of',
+          laterShared: { from: 3, to: 34 },
+          earlierShared: { from: 12.4, to: 43.4 },
+        },
+      ]
+      const { split, wrapper } = await mountWithDuplicate()
+      const links = trackRows(wrapper)[2]?.findAll('button:not([aria-label])')
+
+      await links?.[1]?.trigger('click')
+
+      expect(links?.map((link) => link.text())).toEqual(['01 from 0:03', 'part of 02 from 0:12.4'])
+      expect(split.selectedTrack?.number).toBe(2)
+      search.answer = [search.copyOfFirst]
+    })
+
+    it('asks before it discards the pending splits of the track it leaves', async () => {
+      const { split, wrapper } = await mountWithDuplicate()
+      split.selectTrack(split.tracks[2]!)
+      split.addPendingSplit(80, false)
+
+      await trackRows(wrapper)[2]?.get('button:not([aria-label])').trigger('click')
+
+      expect(split.selectedTrack?.number).toBe(3)
+      expect(split.discardQuestion).toEqual({ pendingCount: 1 })
     })
   })
 

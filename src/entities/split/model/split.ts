@@ -123,6 +123,40 @@ interface StoredMatch {
   earlierShared: SharedStretch
 }
 
+// What a track has in common with another through a match, seen from the track `C` is pressed on.
+interface SwapLink {
+  // The index of the other track.
+  other: number
+  // The shared stretch in this track and in the other, in seconds from each one's start.
+  here: SharedStretch
+  there: SharedStretch
+  // Whether this track is the later one of the match, which is the one `C` goes from by itself.
+  isOwn: boolean
+}
+
+// How far a time is from a stretch: 0 inside it.
+function distanceTo(stretch: SharedStretch, time: number) {
+  return Math.max(stretch.from - time, time - stretch.to, 0)
+}
+
+// The link whose stretch is nearest the time, the first found on a tie.
+function nearestLink(links: SwapLink[], time: number) {
+  let nearest: SwapLink | undefined
+  for (const link of links)
+    if (nearest === undefined || distanceTo(link.here, time) < distanceTo(nearest.here, time))
+      nearest = link
+  return nearest
+}
+
+// A track's ends as a match records them.
+function heldOf(track: { startSplit: Split | null; startSeconds: number; endSeconds: number }) {
+  return {
+    startSplitId: track.startSplit?.id ?? null,
+    startSeconds: track.startSeconds,
+    endSeconds: track.endSeconds,
+  } satisfies MatchedTrack
+}
+
 function isSameTrack(first: MatchedTrack, second: MatchedTrack) {
   return (
     first.startSplitId === second.startSplitId &&
@@ -240,6 +274,12 @@ export const useSplitStore = defineStore('split', () => {
   those ends, as a match does, and counts as an edit while it lives.
   */
   const dismissed = shallowRef<StoredMatch[]>([])
+  /*
+  The last swap (`swapTrack`): the track it left and the track it went to, as they were. It is the
+  way back for the track it went to, and holds while both keep their ends and the match between
+  them lives (`liveWayBack`).
+  */
+  const wayBack = shallowRef<{ from: MatchedTrack; to: MatchedTrack } | null>(null)
   // Every press takes a number, and the answer of an older press, or of an older file, is dropped.
   let searchNumber = 0
   /*
@@ -323,6 +363,33 @@ export const useSplitStore = defineStore('split', () => {
     }
     return live
   })
+
+  /*
+  The way back of the last swap, as the indices of the two tracks, while both keep their ends and a
+  live match joins them; null once either fails, and then `wayBack` is let go for good, so a match
+  that comes back with its ends does not bring the way back with it.
+  */
+  const liveWayBack = computed(() => {
+    const back = wayBack.value
+    if (back === null) return null
+    const indexOfHeld = heldTracks.value
+    const from = indexOfHeld(back.from)
+    const to = indexOfHeld(back.to)
+    if (from === undefined || to === undefined) return null
+    const isJoined = liveMatches.value.some(
+      (match) =>
+        (match.later === from && match.earlier === to) ||
+        (match.later === to && match.earlier === from),
+    )
+    return isJoined ? { from, to } : null
+  })
+  watch(
+    liveWayBack,
+    (live) => {
+      if (live === null) wayBack.value = null
+    },
+    { flush: 'sync' },
+  )
 
   const tracks = computed<Track[]>(() => {
     const ends = trackEnds.value
@@ -722,6 +789,7 @@ export const useSplitStore = defineStore('split', () => {
     searchNumber++
     matches.value = []
     dismissed.value = []
+    wayBack.value = null
     hasSearched.value = false
     duplicateSearchStatus.value = 'idle'
   }
@@ -798,6 +866,69 @@ export const useSplitStore = defineStore('split', () => {
     const isDismissed = dismissed.value.some((pair) => isSamePair(pair, match))
     if (!isLive || isDismissed) return
     dismissed.value = [...dismissed.value, match]
+  }
+
+  /*
+  Where `C` goes from the selected track at `playheadSeconds` (a time in the file): the other track
+  of a live match and the same moment in it (GLOSSARY.md: Match), or null.
+
+  - A track that was swapped to, with a live match joining it to the track the swap came from, goes
+    back there. Any other track goes by its own matches, with the earlier tracks.
+  - Of the matches, the one whose shared stretch holds the playhead, else the nearest one by
+    distance (the first found on a tie).
+  - Inside the stretch the moment is the same one in the other track; outside it, it is the start
+    of the nearest stretch there.
+  */
+  function swapTarget(playheadSeconds: number) {
+    const track = selectedTrack.value
+    if (track === null) return null
+    const index = track.number - 1
+    const links: SwapLink[] = []
+    for (const match of liveMatches.value) {
+      if (match.later === index)
+        links.push({
+          other: match.earlier,
+          here: match.laterShared,
+          there: match.earlierShared,
+          isOwn: true,
+        })
+      else if (match.earlier === index)
+        links.push({
+          other: match.later,
+          here: match.earlierShared,
+          there: match.laterShared,
+          isOwn: false,
+        })
+    }
+    const back = liveWayBack.value
+    const wayBackLinks =
+      back !== null && back.to === index ? links.filter((link) => link.other === back.from) : []
+    const candidates = wayBackLinks.length > 0 ? wayBackLinks : links.filter((link) => link.isOwn)
+    const time = playheadSeconds - track.startSeconds
+    const nearest = nearestLink(candidates, time)
+    const target = nearest === undefined ? undefined : tracks.value[nearest.other]
+    if (nearest === undefined || target === undefined) return null
+    const isInside = distanceTo(nearest.here, time) === 0
+    const into = nearest.there.from + (isInside ? time - nearest.here.from : 0)
+    const end = target.startSeconds + target.lengthSeconds
+    return { track: target, seconds: Math.min(target.startSeconds + into, end) }
+  }
+
+  /*
+  `C`: selects the track `swapTarget` gives, which is the way back for the swap that follows, and
+  returns the target for the caller to put the playhead at. Null when there is no target, or when the
+  selection did not move because pending splits would be discarded and the question opened.
+  */
+  function swapTrack(playheadSeconds: number) {
+    const from = trackEnds.value[(selectedTrack.value?.number ?? 0) - 1]
+    const target = swapTarget(playheadSeconds)
+    if (from === undefined || target === null) return null
+    selectTrack(target.track)
+    if (!isTrackSelected(target.track)) return null
+    const to = trackEnds.value[target.track.number - 1]
+    if (to === undefined) return null
+    wayBack.value = { from: heldOf(from), to: heldOf(to) }
+    return target
   }
 
   // Selects the split, centres the window on it and shows the Split view, with no question.
@@ -1252,6 +1383,8 @@ export const useSplitStore = defineStore('split', () => {
     addGapSplits,
     findDuplicates,
     dismissMatch,
+    swapTarget,
+    swapTrack,
     clearSplits,
     saveAsDefault,
     restoreBuiltIn,

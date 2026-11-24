@@ -72,6 +72,10 @@ export const SHORTCUT_SECTIONS: ShortcutSection[] = [
       { input: 'Space', does: 'Play or pause the track' },
       { input: 'Home', does: 'Go back to the track’s start' },
       { input: 'X', does: 'Leave the track out of the export, or bring it back' },
+      {
+        input: 'C',
+        does: 'Swap to the same moment in the track it matches, playing on if it was playing; again on that track, back',
+      },
     ],
   },
   {
@@ -115,6 +119,7 @@ export const SHORTCUT_SECTIONS: ShortcutSection[] = [
     title: 'Track list',
     rows: [
       { input: 'Click a row', does: 'Select that track or split' },
+      { input: 'Click a match’s words', does: 'Select the track it names, in the Track view' },
       { input: 'Type in a name', does: 'Name the track' },
       { input: 'Enter in a name', does: 'Save the name' },
       { input: 'Escape in a name', does: 'Put the old name back' },

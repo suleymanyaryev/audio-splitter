@@ -2,7 +2,7 @@
 import { computed, useTemplateRef, watch } from 'vue'
 import { Eye, EyeOff, Merge, Trash2, X } from 'lucide-vue-next'
 
-import { matchTooltip, matchWords } from '@/entities/split/lib/match-words.ts'
+import { matchTooltip, matchWords, type TrackMatch } from '@/entities/split/lib/match-words.ts'
 import { useSplitStore, type Split, type Track } from '@/entities/split/model/split.ts'
 import { releaseFocus } from '@/shared/lib/keyboard/release-focus.ts'
 import { formatDuration } from '@/shared/lib/time/format-duration.ts'
@@ -17,7 +17,7 @@ tracks. A track row has its number (a button, so the row can be selected from th
 name (edited in place, `TrackNameField`, muted while the track has no name of its own, with the
 words of each of its matches under it, one line each, "duplicate of 01" while it repeats an earlier
 track and "03 from 1:40" or "part of 03 from 0:30" while it shares part of one, a partial match's
-words with a tooltip of the stretch both share, each with a button that dismisses the match), its start
+words with a tooltip of the stretch both share, each a link that selects the other track, with a button that dismisses the match), its start
 (hundredths, where a split's position is read) and its length (whole seconds), then two buttons: one
 that leaves the track out of the export or brings it back (a left-out row is muted), and a merge
 button that removes the track and merges it with its neighbours (none when it is the only track). A split
@@ -40,6 +40,12 @@ const list = useTemplateRef('list')
 type Row =
   | { key: string; kind: 'track'; track: Track }
   | { key: string; kind: 'split'; point: Split; number: number }
+
+// The words of a match are a link: it selects the other track and shows the Track view.
+function selectMatched(match: TrackMatch) {
+  const other = split.tracks[match.number - 1]
+  if (other !== undefined) split.selectTrack(other)
+}
 
 function isSplitSelected(point: Split) {
   return split.selectedSplit?.id === point.id
@@ -124,14 +130,21 @@ watch(
                 :key="match.number"
                 class="flex items-center gap-1"
               >
-                <UiTooltip
-                  :label="matchTooltip(match, split.tracks.length)"
-                  :disabled="match.kind === 'duplicate'"
-                >
-                  <p class="truncate text-xs">
-                    {{ matchWords(match, split.tracks.length) }}
-                  </p>
-                </UiTooltip>
+                <p class="min-w-0 truncate text-xs">
+                  <UiTooltip
+                    :label="matchTooltip(match, split.tracks.length)"
+                    :disabled="match.kind === 'duplicate'"
+                  >
+                    <button
+                      type="button"
+                      class="cursor-pointer underline decoration-hairline underline-offset-2 hover:decoration-current focus-visible:focus-ring"
+                      @click.stop="selectMatched(match)"
+                      @mousedown="releaseFocus"
+                    >
+                      {{ matchWords(match, split.tracks.length) }}
+                    </button>
+                  </UiTooltip>
+                </p>
                 <UiIconButton
                   size="sm"
                   :label="`Dismiss the match of track ${row.track.number} with track ${match.number}`"

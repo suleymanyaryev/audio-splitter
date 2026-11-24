@@ -103,6 +103,30 @@ const startOf = (store: ReturnType<typeof useSplitStore>, number: number) =>
 const endOf = (store: ReturnType<typeof useSplitStore>, number: number) =>
   store.tracks[number]?.startSplit
 
+// A stretch of other music, 30 s.
+const FOREIGN = () => recording(9, 30)
+
+// A time in track `number` (1-based), as the playhead of the file holds it.
+const at = (store: ReturnType<typeof useSplitStore>, number: number, seconds: number) =>
+  store.tracks[number - 1]!.startSeconds + seconds
+
+// The swap target as where it lands: the track's number, and the time in that track.
+function landing(store: ReturnType<typeof useSplitStore>, playhead: number) {
+  const target = store.swapTarget(playhead)
+  return target === null
+    ? null
+    : [target.track.number, Math.round((target.seconds - target.track.startSeconds) * 10) / 10]
+}
+
+// Track 4 holds 01 and 02 with other music between them, and is selected.
+async function pressedHolder() {
+  const store = openPlaylist(A(), B(), C(), [...A(), ...FOREIGN(), ...B()])
+  await store.findDuplicates()
+  expect(partialsOf(store)[3]).toEqual(['01 from 0:02', '02 from 1:12'])
+  store.selectTrack(store.tracks[3]!)
+  return store
+}
+
 // A, B, A, B, A and the press: 03 and 05 name 01, 04 names 02.
 async function pressedFiveTracks() {
   const store = openPlaylist(A(), B(), A(), B(), A())
@@ -1139,6 +1163,138 @@ describe('Find duplicates', () => {
       // The moved split is a second off now: 03 is within the 2 s of the ends, so it is back.
       expect(duplicatesOf(store)).toEqual([null, null, 1, 2])
       expect(store.duplicateResult).toEqual({ duplicates: 2, partialMatches: 0 })
+    })
+  })
+
+  describe('the swap target', () => {
+    it('is the same moment of the match whose shared stretch holds the playhead', async () => {
+      const store = await pressedHolder()
+
+      // 10 s into track 4 is 8 s into A, which starts at 2 s in track 4 and 0 s in track 1.
+      expect(landing(store, at(store, 4, 10))).toEqual([1, 8])
+      // B starts at 72 s in track 4 and at 2 s in track 2, after its quiet lead.
+      expect(landing(store, at(store, 4, 80))).toEqual([2, 10])
+    })
+
+    it('is the start of the nearest shared stretch outside every one', async () => {
+      const store = await pressedHolder()
+
+      // 0:45 is just after A's stretch (to 0:42) and far from B's (from 1:12).
+      expect(landing(store, at(store, 4, 45))).toEqual([1, 0])
+      // 1:00 is nearer B's stretch than A's.
+      expect(landing(store, at(store, 4, 65))).toEqual([2, 2])
+    })
+
+    it('is none on a track with no match and no way back, and with no track selected', async () => {
+      const store = await pressedHolder()
+      store.selectTrack(store.tracks[2]!)
+
+      expect(store.swapTarget(at(store, 3, 10))).toBeNull()
+
+      store.selectSplit(store.splits[0]!.id)
+      expect(store.swapTarget(10)).toBeNull()
+    })
+
+    it('is none before any search', () => {
+      const store = openPlaylist(A(), B(), A())
+      store.selectTrack(store.tracks[2]!)
+
+      expect(store.swapTarget(at(store, 3, 10))).toBeNull()
+    })
+
+    it('takes a duplicate to its kept copy at the same moment', async () => {
+      const store = openPlaylist(A(), B(), A())
+      await store.findDuplicates()
+      store.selectTrack(store.tracks[2]!)
+
+      // The copy starts after a 2 s quiet lead that the first track does not have.
+      expect(landing(store, at(store, 3, 10))).toEqual([1, 8])
+    })
+
+    it('selects the target track and gives it back, and the kept copy goes back to where it came from', async () => {
+      const store = await pressedHolder()
+
+      const target = store.swapTrack(at(store, 4, 10))
+      expect(target?.track.number).toBe(1)
+      expect(store.selectedTrack?.number).toBe(1)
+
+      // On the kept copy: the track the swap came from, at the same moment of the shared stretch.
+      expect(landing(store, at(store, 1, 8))).toEqual([4, 10])
+      store.swapTrack(at(store, 1, 8))
+      expect(store.selectedTrack?.number).toBe(4)
+    })
+
+    it('has no way back for a track reached by hand, or after another swap', async () => {
+      const store = await pressedHolder()
+      store.selectTrack(store.tracks[0]!)
+      expect(store.swapTarget(at(store, 1, 8))).toBeNull()
+
+      store.selectTrack(store.tracks[3]!)
+      store.swapTrack(at(store, 4, 10))
+      store.selectTrack(store.tracks[3]!)
+      store.swapTrack(at(store, 4, 80))
+      expect(store.selectedTrack?.number).toBe(2)
+
+      // The last swap went from 04 to 02, so 01 has nowhere to go back to.
+      store.selectTrack(store.tracks[0]!)
+      expect(store.swapTarget(at(store, 1, 8))).toBeNull()
+      store.selectTrack(store.tracks[1]!)
+      expect(landing(store, at(store, 2, 10))).toEqual([4, 80])
+    })
+
+    it('keeps the selection when the swap would discard pending splits', async () => {
+      const store = await pressedHolder()
+      store.addPendingSplit(at(store, 4, 30), true)
+
+      expect(store.swapTrack(at(store, 4, 10))).toBeNull()
+
+      expect(store.selectedTrack?.number).toBe(4)
+      expect(store.discardQuestion).not.toBeNull()
+      // The swap that did not happen left no way back.
+      store.cancelDiscard()
+      store.deleteSelectedPendingSplit()
+      store.selectTrack(store.tracks[0]!)
+      expect(store.selectedTrack?.number).toBe(1)
+      expect(store.swapTarget(at(store, 1, 8))).toBeNull()
+    })
+
+    it('loses the way back when the match dies, and does not get it back', async () => {
+      const store = await pressedHolder()
+      store.swapTrack(at(store, 4, 10))
+      const start = store.tracks[3]!.startSplit!
+      store.selectSplit(start.id)
+      store.moveSplit(start.id, start.seconds - 1)
+      store.selectTrack(store.tracks[0]!)
+      expect(store.swapTarget(at(store, 1, 8))).toBeNull()
+
+      store.moveSplit(start.id, start.seconds)
+      store.selectTrack(store.tracks[0]!)
+      expect(store.swapTarget(at(store, 1, 8))).toBeNull()
+    })
+
+    it('loses the way back on Clear splits and on a new file', async () => {
+      const store = await pressedHolder()
+      store.swapTrack(at(store, 4, 10))
+      store.clearSplits()
+      expect(store.swapTarget(8)).toBeNull()
+
+      const again = await pressedHolder()
+      again.swapTrack(at(again, 4, 10))
+      const curve = playlist(A(), B(), C(), [...A(), ...FOREIGN(), ...B()])
+      again.open(curve, { windowSeconds: 0.05, durationSeconds: curve.length * 0.05 })
+      again.addGapSplits()
+      again.selectTrack(again.tracks[0]!)
+      expect(again.swapTarget(8)).toBeNull()
+    })
+
+    it('goes back from a dismissed match to nothing', async () => {
+      const store = await pressedHolder()
+      store.swapTrack(at(store, 4, 10))
+
+      store.dismissMatch(store.tracks[3]?.startSplit?.id ?? null, null)
+
+      expect(store.selectedTrack?.number).toBe(1)
+      expect(store.swapTarget(at(store, 1, 8))).toBeNull()
     })
   })
 })

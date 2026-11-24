@@ -49,7 +49,8 @@ selecting it, so a tap along a playing track is always taken. Delete and Backspa
 selected pending split and Escape deselects it; with none selected those keys are left alone, since
 removing a track deletes splits and has its own button. `[` and `]` select the previous and next
 track, as a click on its row does; a track that is playing or being decoded plays the new one from
-its start, and a paused or stopped one leaves it resting there. `X` leaves the selected track out of the export, or brings it back. A held Space, Enter,
+its start, and a paused or stopped one leaves it resting there. `X` leaves the selected track out of the export, or brings it back. `C` swaps to the same moment in the track the selected one matches (`split.swapTrack`), playing on if it was playing, and
+back again from there. A held Space, Enter,
 Shift+Enter, `[`, `]` or `X` is ignored, so it does not start and stop the sound, add pending splits or step over and
 over. A failure to play is said in a line at the bottom of the view.
 
@@ -274,7 +275,24 @@ function isLeftOutKeyActedOn(event: KeyboardEvent) {
   return true
 }
 
-// The view's other keys: Space, Enter, Delete, Escape, Home, X and the arrows.
+/*
+`C` swaps to the other track of a match: the store selects it, the playhead goes to the same moment
+in it, and a track that was playing (or decoding) plays on from there. With no target the key is left
+alone. Shift is a modifier like Ctrl, so Shift+C is left alone, and a held key swaps once.
+*/
+function isSwapKeyActedOn(event: KeyboardEvent) {
+  if (event.shiftKey || extent.value === null) return false
+  if (event.repeat) return true
+  const wasOn = audition.stretchStatus === 'playing' || audition.stretchStatus === 'loading'
+  const target = split.swapTrack(audition.stretchPlayheadSeconds(extent.value))
+  if (target === null || extent.value === null) return false
+  // The player let go of the old track when the selection moved; the new one rests at the moment.
+  audition.seekStretch(extent.value, target.seconds)
+  if (wasOn) audition.toggleStretch(extent.value)
+  return true
+}
+
+// The view's other keys: Space, Enter, Delete, Escape, Home, X, C and the arrows.
 function isOtherKeyActedOn(event: KeyboardEvent) {
   switch (event.key) {
     case ' ': {
@@ -303,6 +321,10 @@ function isOtherKeyActedOn(event: KeyboardEvent) {
     case 'x':
     case 'X': {
       return isLeftOutKeyActedOn(event)
+    }
+    case 'c':
+    case 'C': {
+      return isSwapKeyActedOn(event)
     }
     case 'ArrowLeft':
     case 'ArrowRight': {
