@@ -680,7 +680,11 @@ export const useSplitStore = defineStore('split', () => {
         curve: loudness,
         windowSeconds: curveTiming.windowSeconds,
         silenceThreshold: threshold,
-        tracks: pressed.map(({ startSeconds, endSeconds }) => ({ startSeconds, endSeconds })),
+        tracks: pressed.map(({ startSeconds, endSeconds, stored }) => ({
+          startSeconds,
+          endSeconds,
+          isLeftOutByHand: stored === 'by-hand',
+        })),
       })
     } catch {
       if (press === searchNumber) duplicateSearchStatus.value = 'idle'

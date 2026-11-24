@@ -13,8 +13,11 @@ export interface MatchInput {
   curve: Float32Array
   windowSeconds: number
   silenceThreshold: number
-  // The tracks in time order, each from its start to its end in the file.
-  tracks: { startSeconds: number; endSeconds: number }[]
+  /*
+  The tracks in time order, each from its start to its end in the file and whether the user left
+  it out by hand.
+  */
+  tracks: { startSeconds: number; endSeconds: number; isLeftOutByHand: boolean }[]
 }
 
 /*
@@ -88,7 +91,10 @@ earlier track from end to end. The method is in docs/concepts/11-finding-repeats
 - two stretches match when their best Pearson's r over a 30 s overlap is at least 0.95, and the
   match is full when the shared stretch covers both to within 2 s at each end;
 - tracks joined through any chain of full matches are one recording, whose kept copy is the
-  earliest track of it, and every other track of it is a duplicate naming that copy.
+  earliest track of it not left out by hand, and every later track of it is a duplicate naming that
+  copy, a track left out by hand included. A recording with every track left out by hand has no
+  kept copy and no match, and a track before the kept copy, left out by hand, names nothing: a
+  match always names an earlier track.
 
 A pure function, so the store and the worker share it. The matches come in track order.
 */
@@ -109,8 +115,8 @@ export function findMatches(input: MatchInput): FoundMatch[] {
     compared.minimumLength,
   )
 
-  // Union-find over the tracks: each full match joins two tracks into one recording, and the
-  // earlier root wins, so a recording's root is its earliest track.
+  // Union-find over the tracks, left out by hand or not: each full match joins two tracks into one
+  // recording, and the earlier root wins, so a recording's root is its earliest track.
   const parent = tracks.map((_track, index) => index)
   function root(index: number): number {
     let current = index
@@ -127,10 +133,17 @@ export function findMatches(input: MatchInput): FoundMatch[] {
     }
   }
 
+  // The kept copy of each recording, by its root: its earliest track not left out by hand.
+  const keptOf = new Map<number, number>()
+  for (const [index, track] of tracks.entries()) {
+    const recording = root(index)
+    if (!track.isLeftOutByHand && !keptOf.has(recording)) keptOf.set(recording, index)
+  }
+
   const found: FoundMatch[] = []
   for (const index of tracks.keys()) {
-    const kept = root(index)
-    if (kept !== index) found.push({ duplicate: index, kept })
+    const kept = keptOf.get(root(index))
+    if (kept !== undefined && kept < index) found.push({ duplicate: index, kept })
   }
   return found
 }

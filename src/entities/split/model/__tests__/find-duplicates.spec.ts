@@ -69,6 +69,11 @@ function openPlaylist(...recordings: number[][]) {
 const duplicatesOf = (store: ReturnType<typeof useSplitStore>) =>
   store.tracks.map((track) => track.duplicateOf)
 
+// Leaves track `number` (1-based) out by hand, as the eye button does.
+function leaveOut(store: ReturnType<typeof useSplitStore>, number: number) {
+  store.toggleLeftOut(store.tracks[number - 1]?.startSplit?.id ?? null)
+}
+
 // Three recordings, A to C, each 40 s or more.
 const A = () => recording(1, 40)
 const B = () => recording(2, 50)
@@ -179,6 +184,115 @@ describe('Find duplicates', () => {
       await store.findDuplicates()
 
       expect(duplicatesOf(store)).toEqual([null, null, null])
+    })
+  })
+
+  describe('copies left out by hand', () => {
+    it('makes the earliest copy not left out by hand the kept copy', async () => {
+      const store = openPlaylist(A(), B(), A(), A(), B())
+      leaveOut(store, 1)
+
+      await store.findDuplicates()
+
+      // 01 is left out by hand: 03 is the kept copy and 04 names it, 01 gets no words.
+      expect(duplicatesOf(store)).toEqual([null, null, null, 3, 2])
+      expect(store.tracks.map((track) => track.inclusion)).toEqual([
+        'by-hand',
+        'included',
+        'included',
+        'duplicate',
+        'duplicate',
+      ])
+    })
+
+    it('gives a copy left out by hand its words and keeps its reason', async () => {
+      const store = openPlaylist(A(), B(), A(), A())
+      leaveOut(store, 3)
+
+      await store.findDuplicates()
+
+      expect(duplicatesOf(store)).toEqual([null, null, 1, 1])
+      expect(store.tracks[2]).toMatchObject({
+        inclusion: 'by-hand',
+        isLeftOut: true,
+        exportNumber: null,
+        duplicateOf: 1,
+      })
+      expect(store.tracks[3]?.inclusion).toBe('duplicate')
+      // The two copies are left out, one by hand and one as a duplicate: 01 and 02 are written.
+      expect(store.exportTrackCount).toBe(2)
+      expect(store.tracks.map((track) => track.exportNumber)).toEqual([1, 2, null, null])
+    })
+
+    it('gives no match to a recording whose every copy is left out by hand', async () => {
+      const store = openPlaylist(A(), B(), A(), B(), A())
+      leaveOut(store, 1)
+      leaveOut(store, 3)
+      leaveOut(store, 5)
+
+      await store.findDuplicates()
+
+      // A has no match at all; B still has one.
+      expect(duplicatesOf(store)).toEqual([null, null, null, 2, null])
+      expect(store.duplicateResult).toEqual({ duplicates: 1 })
+    })
+
+    it('gives no match to a recording left out by hand, and one to the other', async () => {
+      const store = openPlaylist(A(), A(), B(), B())
+      leaveOut(store, 1)
+      leaveOut(store, 2)
+
+      await store.findDuplicates()
+
+      expect(duplicatesOf(store)).toEqual([null, null, null, 3])
+      expect(store.duplicateResult).toEqual({ duplicates: 1 })
+    })
+
+    it('lets the kept copy be left out after the press without moving any match', async () => {
+      const store = openPlaylist(A(), B(), A(), A())
+      await store.findDuplicates()
+      expect(duplicatesOf(store)).toEqual([null, null, 1, 1])
+
+      leaveOut(store, 1)
+
+      expect(duplicatesOf(store)).toEqual([null, null, 1, 1])
+      expect(store.tracks.map((track) => track.inclusion)).toEqual([
+        'by-hand',
+        'included',
+        'duplicate',
+        'duplicate',
+      ])
+      // The export may write none of the copies.
+      expect(store.tracks.filter((track) => !track.isLeftOut).map((track) => track.number)).toEqual(
+        [2],
+      )
+    })
+
+    it('picks the kept copy again from the left-out state as it is on the next press', async () => {
+      const store = openPlaylist(A(), B(), A(), A())
+      await store.findDuplicates()
+      leaveOut(store, 1)
+
+      await store.findDuplicates()
+
+      // 01 is left out by hand now, so 03 is kept and 04 names it.
+      expect(duplicatesOf(store)).toEqual([null, null, null, 3])
+      expect(store.tracks.map((track) => track.inclusion)).toEqual([
+        'by-hand',
+        'included',
+        'included',
+        'duplicate',
+      ])
+    })
+
+    it('counts the leaving out by hand as an edit and the search as none', async () => {
+      const store = openPlaylist(A(), B(), A())
+      leaveOut(store, 3)
+      expect(store.editCount).toBe(1)
+
+      await store.findDuplicates()
+
+      expect(store.editCount).toBe(1)
     })
   })
 

@@ -4,20 +4,32 @@
 
 **Blocked by:** 02.
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 Spec: `.scratch/find-duplicates/spec.md` (stories 23, 24, 31, 32 and 66; Implementation Decisions, "Finding matches", the kept copy).
 
-- [ ] With 01 left out by hand, 12 is the kept copy, and 23 and 34 name 12.
-- [ ] A copy left out by hand before the press:
+- [x] With 01 left out by hand, 12 is the kept copy, and 23 and 34 name 12.
+- [x] A copy left out by hand before the press:
   - it shows "duplicate of 01";
   - its inclusion stays `by-hand`;
   - it looks and exports like any track left out by hand.
-- [ ] A group whose every member is left out by hand gives no match, and the counts leave it out.
-- [ ] Leaving the kept copy out by hand after the press:
+- [x] A group whose every member is left out by hand gives no match, and the counts leave it out.
+- [x] Leaving the kept copy out by hand after the press:
   - it is allowed;
   - it moves no match;
   - so the export may write none of the copies.
-- [ ] A second press after that makes the next copy not left out by hand the kept copy.
-- [ ] Store specs cover each case.
-- [ ] `CHANGELOG.md` has the line under Unreleased if the user can see a change.
+- [x] A second press after that makes the next copy not left out by hand the kept copy.
+- [x] Store specs cover each case.
+- [x] `CHANGELOG.md` has the line under Unreleased if the user can see a change.
+
+## Comments
+
+Built 2026-11-25. `findMatches` now takes `isLeftOutByHand` per track (the store sends `stored === 'by-hand'`). The union-find still groups every copy, left out by hand or not; the kept copy of a group is its earliest member not left out by hand, and every later member names it. No other file changed: the track list and strip already read `duplicateOf` and `isLeftOut`, and the derived inclusion already kept `by-hand` over `duplicate`. Leaving the kept copy out after the press needed no code: the stored matches do not move.
+
+Decision the ticket left open (a question for the user):
+
+- **A track left out by hand that comes before the kept copy gets no match.** With 01 left out by hand, 12 is kept and 23 and 34 name 12, but 01 carries no words, since a match names an earlier track (GLOSSARY.md: Match) and the ticket's first box lists only 23 and 34. The spec's "every other member is a duplicate naming the kept copy" read literally would give 01 "duplicate of 12". One line in `find-matches.ts` (`kept < index`) decides it; ticket 07's `C` would also then swap 01 to 12.
+
+Counts: a copy left out by hand after the kept copy has its match, so it counts among the duplicates; a recording with every copy left out by hand has none.
+
+Checks: `pnpm vitest run src/entities/split`, `pnpm lint:changed`, `pnpm test:changed`, `pnpm typecheck`. No "By ear" box in this ticket, so no browser check.
