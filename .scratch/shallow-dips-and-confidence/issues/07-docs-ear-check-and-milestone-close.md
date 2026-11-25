@@ -4,7 +4,7 @@
 
 **Blocked by:** 03, 04, 06.
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 Spec: Implementation Decisions "Docs that this changes"; Testing Decisions "By ear, in the browser"; Further Notes. Run the `finish-feature` skill for the doc sync.
 
@@ -28,3 +28,4 @@ Spec: Implementation Decisions "Docs that this changes"; Testing Decisions "By e
   - A split checked and then moved counts two edits: two things the user did.
   - The six regenerated e2e fixtures: the 15 s boundary spacing needed boundaries further apart (ticket 02).
 - **Final tier:** `pnpm verify` (2379 tests, build) -> pass; `pnpm lint` -> pass (after a cognitive-complexity fix in `SplitZoom.vue`); `pnpm knip` -> pass (after un-exporting two constants in `depth.ts`); `pnpm depcruise` -> pass.
+- **Closed by the user with the manual checks outstanding.** The user closed this ticket on 2026-11-25, saying only the manual checks remained. The three boxes stay unticked because they were not done: the by-ear checks (`sample1.m4a`, f14 and f16, the 22 dips in `sample-crossfade.mp3`) and the milestone confirmation. The 15 and 9 dB cut-offs are therefore the ones from the concept note, not tuned by ear, and nothing was added to `analysis.md`. If an ear check later moves them, change `confidence-bands.ts`, its comment and note 13, then run the Final tier again.
