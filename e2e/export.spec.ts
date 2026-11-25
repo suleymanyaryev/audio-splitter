@@ -1,12 +1,22 @@
+import { readFileSync } from 'node:fs'
+
 import { expect, test, type Page } from '@playwright/test'
 
 /*
-Milestone 7, one flow per format: load a 30 s fixture (three tone bursts, two 2 s silences), press
-"Find gaps" for two splits and three tracks, export, and read the files back. `showDirectoryPicker` is replaced by
-the browser's origin-private file system, a real directory the real File System Access writes go
-into, so no picker dialog opens.
+Milestone 7, one flow per source file: load a 30 s fixture (three tone bursts, two 2 s silences),
+press "Find gaps" for two splits and three tracks, export, and read the files back.
+`showDirectoryPicker` is replaced by the browser's origin-private file system, a real directory the
+real File System Access writes go into, so no picker dialog opens.
+
+One case per fixture: the file the page loads, the stem the export names its folder and files by,
+and the track format the files get. A video's tracks are audio-only files in the codec's format.
 */
-const FORMATS = ['m4a', 'mp3', 'opus'] as const
+const CASES = [
+  { fixture: 'bursts.m4a', stem: 'bursts', extension: 'm4a' },
+  { fixture: 'bursts.mp3', stem: 'bursts', extension: 'mp3' },
+  { fixture: 'bursts.opus', stem: 'bursts', extension: 'opus' },
+  { fixture: 'bursts-video.mp4', stem: 'bursts-video', extension: 'm4a' },
+] as const
 
 // What "Find gaps" adds on the fixtures: splits in the silences' middles, 9.5 s and 20.5 s.
 const EXPECTED_SECONDS = [9.5, 11, 9.5]
@@ -20,6 +30,8 @@ interface SavedTrack {
   // Whether the written bytes hold the title ("bursts-01") and, besides it, the album ("bursts").
   hasTitle: boolean
   hasAlbum: boolean
+  // Whether the bytes name a video codec or a video handler: a track holds the audio only.
+  hasVideo: boolean
 }
 
 // Empties the origin-private file system, so a test starts with no folder from an earlier one.
@@ -31,10 +43,11 @@ async function clearFolder(page: Page) {
 }
 
 /*
-Every file of one folder, with its size, the length the browser decodes it to and whether its tags
-are in it. Title and album are plain UTF-8 in all three formats (`©nam` in an .m4a, ID3's TIT2 and
-TALB in an .mp3, the stream's comments in an .opus), so a text search finds them; the binary track
-number is left unchecked.
+Every file of one folder, with its size, the length the browser decodes it to, whether its tags are
+in it and whether it holds a video stream. Title and album are plain UTF-8 in all three formats
+(`©nam` in an .m4a, ID3's TIT2 and TALB in an .mp3, the stream's comments in an .opus), so a text
+search finds them; the binary track number is left unchecked. A video stream shows as its codec
+(`avc1`, `vp09`) or its handler's name.
 */
 async function readFolder(page: Page, folderName: string): Promise<SavedTrack[]> {
   return page.evaluate(async (name) => {
@@ -57,6 +70,7 @@ async function readFolder(page: Page, folderName: string): Promise<SavedTrack[]>
         hasTitle: text.includes(title),
         // The title holds the album's text once, so the album is the occurrence after it.
         hasAlbum: text.split('bursts').length - 1 >= 2,
+        hasVideo: /avc1|vp09|VideoHandler/.test(text),
       })
     }
     return tracks.toSorted((a, b) => a.name.localeCompare(b.name))
@@ -81,6 +95,7 @@ async function readSavedFile(page: Page, fileName: string, title: string) {
         seconds: buffer.duration,
         hasTitle: text.includes(wantedTitle),
         hasAlbum: text.includes('bursts'),
+        hasVideo: /avc1|vp09|VideoHandler/.test(text),
       }
     },
     { name: fileName, wantedTitle: title },
@@ -97,9 +112,9 @@ async function rootFileNames(page: Page) {
   })
 }
 
-async function openReviewPage(page: Page, format: string) {
+async function openReviewPage(page: Page, fixture: string) {
   await page.goto('/')
-  await page.locator('input[type="file"]').setInputFiles(`e2e/fixtures/bursts.${format}`)
+  await page.locator('input[type="file"]').setInputFiles(`e2e/fixtures/${fixture}`)
   await expect(page.getByRole('button', { name: 'Export to folder…' })).toBeEnabled({
     timeout: 20_000,
   })
@@ -125,24 +140,32 @@ test.beforeEach(async ({ page }) => {
   await clearFolder(page)
 })
 
-for (const format of FORMATS) {
-  test(`exports the three tracks of a .${format} file as .${format} files that play`, async ({
+// The check for a video stream in a track is only worth something if it fires on a source that has one.
+test('the video fixture holds a video stream, so a track without one proves the cut dropped it', () => {
+  const bytes = readFileSync('e2e/fixtures/bursts-video.mp4').toString('latin1')
+
+  expect(bytes).toMatch(/avc1|vp09|VideoHandler/)
+})
+
+for (const { fixture, stem, extension } of CASES) {
+  test(`exports the three tracks of ${fixture} as .${extension} files that play`, async ({
     page,
   }) => {
-    await openReviewPage(page, format)
+    await openReviewPage(page, fixture)
 
-    await exportToFolder(page, '3 tracks saved to bursts/')
+    await exportToFolder(page, `3 tracks saved to ${stem}/`)
 
-    const tracks = await readFolder(page, 'bursts')
+    const tracks = await readFolder(page, stem)
     expect(tracks.map((track) => track.name)).toEqual([
-      `bursts-01.${format}`,
-      `bursts-02.${format}`,
-      `bursts-03.${format}`,
+      `${stem}-01.${extension}`,
+      `${stem}-02.${extension}`,
+      `${stem}-03.${extension}`,
     ])
     for (const track of tracks) {
       expect(track.bytes).toBeGreaterThan(0)
       expect(track.hasTitle).toBe(true)
       expect(track.hasAlbum).toBe(true)
+      expect(track.hasVideo).toBe(false)
     }
     for (const [index, track] of tracks.entries()) {
       expect(Math.abs(track.seconds - (EXPECTED_SECONDS[index] ?? 0))).toBeLessThan(
@@ -153,37 +176,41 @@ for (const format of FORMATS) {
     expect(Math.abs(total - 30)).toBeLessThan(TOLERANCE_SECONDS)
 
     // A second export of the same file never touches the first one.
-    await exportToFolder(page, '3 tracks saved to bursts (2)/')
-    expect(await readFolder(page, 'bursts (2)')).toHaveLength(3)
-    expect(await readFolder(page, 'bursts')).toEqual(tracks)
+    await exportToFolder(page, `3 tracks saved to ${stem} (2)/`)
+    expect(await readFolder(page, `${stem} (2)`)).toHaveLength(3)
+    expect(await readFolder(page, stem)).toEqual(tracks)
   })
 }
 
 /*
-Single export (v1.1.0), one flow per format: one track written under its default name straight into
+Single export (v1.1.0), one flow per source file: one track written under its default name straight into
 the folder root, and the same track again, which takes " (2)"; then a range dragged out on the
 whole-file waveform, written under a name typed in the dialog.
 */
-for (const format of FORMATS) {
-  test(`exports one .${format} track singly, twice, and a range of it`, async ({ page }) => {
-    await openReviewPage(page, format)
+for (const { fixture, stem, extension } of CASES) {
+  test(`exports one track of ${fixture} singly, twice, and a range of it`, async ({ page }) => {
+    await openReviewPage(page, fixture)
 
     await page.getByRole('button', { name: /^Select track 2/ }).click()
-    for (const savedName of [`bursts-02.${format}`, `bursts-02 (2).${format}`]) {
+    for (const savedName of [`${stem}-02.${extension}`, `${stem}-02 (2).${extension}`]) {
       await page.getByRole('button', { name: 'Export track…' }).click()
-      await expect(page.getByRole('textbox', { name: 'Name' })).toHaveValue('bursts-02')
+      await expect(page.getByRole('textbox', { name: 'Name' })).toHaveValue(`${stem}-02`)
       await page.getByRole('textbox', { name: 'Name' }).press('Enter')
       await expect(page.getByRole('status')).toContainText(`Saved ${savedName} in`, {
         timeout: 20_000,
       })
     }
 
-    expect(await rootFileNames(page)).toEqual([`bursts-02 (2).${format}`, `bursts-02.${format}`])
-    for (const name of [`bursts-02.${format}`, `bursts-02 (2).${format}`]) {
-      const saved = await readSavedFile(page, name, 'bursts-02')
+    expect(await rootFileNames(page)).toEqual([
+      `${stem}-02 (2).${extension}`,
+      `${stem}-02.${extension}`,
+    ])
+    for (const name of [`${stem}-02.${extension}`, `${stem}-02 (2).${extension}`]) {
+      const saved = await readSavedFile(page, name, `${stem}-02`)
       expect(saved.bytes).toBeGreaterThan(0)
       expect(saved.hasTitle).toBe(true)
       expect(saved.hasAlbum).toBe(true)
+      expect(saved.hasVideo).toBe(false)
       expect(Math.abs(saved.seconds - (EXPECTED_SECONDS[1] ?? 0))).toBeLessThan(TOLERANCE_SECONDS)
     }
 
@@ -199,13 +226,14 @@ for (const format of FORMATS) {
     await page.getByRole('button', { name: 'Export range…' }).click()
     await page.getByRole('textbox', { name: 'Name' }).fill('my clip')
     await page.getByRole('textbox', { name: 'Name' }).press('Enter')
-    await expect(page.getByRole('status')).toContainText(`Saved my clip.${format} in`, {
+    await expect(page.getByRole('status')).toContainText(`Saved my clip.${extension} in`, {
       timeout: 20_000,
     })
 
-    const clip = await readSavedFile(page, `my clip.${format}`, 'my clip')
+    const clip = await readSavedFile(page, `my clip.${extension}`, 'my clip')
     expect(clip.hasTitle).toBe(true)
     expect(clip.hasAlbum).toBe(true)
+    expect(clip.hasVideo).toBe(false)
     // The range's own length is in the panel's title, after the dot: `0:00:07.50 – … · 7.50`.
     const title = await page.getByRole('heading', { level: 2, name: /·/ }).textContent()
     const seconds = Number(title?.split('·').at(-1)?.trim().split(':').at(-1))

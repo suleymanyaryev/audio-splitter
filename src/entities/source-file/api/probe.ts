@@ -98,10 +98,15 @@ export function readProbeLog(log: string[]): ProbeOutcome {
     const what = `${CODEC_NAMES[codec] ?? codec} in ${CONTAINER_NAMES[container] ?? container}`
     return {
       kind: 'unsupported',
-      message: `This file is ${what}; the splitter supports AAC in .m4a, MP3 and Opus in .opus.`,
+      message: `This file is ${what}; the splitter supports AAC in .m4a, .mp4 or .mov, MP3 and Opus in .opus.`,
     }
   }
 
+  /*
+  The container's length. A video's is the longest stream's, so a picture that runs on after the
+  audio makes the file look longer than its sound, and an MP4 or MOV log has no length of the
+  audio stream alone to read instead (ticket 01 of video-and-more-formats).
+  */
   const duration = /Duration: (\d+):(\d{2}):(\d{2}(?:\.\d+)?)/.exec(text)
   if (!duration) return { kind: 'unreadable', reason: 'ffmpeg reports no duration' }
   const [, hours = 0, minutes = 0, seconds = 0] = duration.map(Number)

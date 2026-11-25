@@ -110,7 +110,7 @@ describe('the source-file store', () => {
     expect(store.failure).toEqual({
       kind: 'unsupported',
       message:
-        'This file is Vorbis in Ogg; the splitter supports AAC in .m4a, MP3 and Opus in .opus.',
+        'This file is Vorbis in Ogg; the splitter supports AAC in .m4a, .mp4 or .mov, MP3 and Opus in .opus.',
     })
     expect(session.run).toHaveBeenCalledTimes(1)
     expect(session.close).toHaveBeenCalled()

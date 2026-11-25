@@ -16,6 +16,19 @@ describe('LoadPage', () => {
     setActivePinia(createPinia())
   })
 
+  it('offers audio and video files in the file dialog', () => {
+    const wrapper = mount(LoadPage)
+
+    expect(wrapper.get('input[type="file"]').attributes('accept')?.split(',')).toEqual([
+      '.m4a',
+      '.mp4',
+      '.m4v',
+      '.mov',
+      '.mp3',
+      '.opus',
+    ])
+  })
+
   describe('while loading', () => {
     it('shows only a status line until the probe has set the slice total', () => {
       const sourceFile = useSourceFileStore()

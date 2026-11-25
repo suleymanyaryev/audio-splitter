@@ -15,7 +15,7 @@ const downloadPercent = computed(() =>
 )
 
 // The extensions are only a convenience for the file dialog: the probe decides by contents.
-const ACCEPT = '.m4a,.mp3,.opus'
+const ACCEPT = '.m4a,.mp4,.m4v,.mov,.mp3,.opus'
 
 function choose(file: File) {
   if (sourceFile.status === 'loading') return
@@ -54,8 +54,9 @@ onBeforeUnmount(() => {
   <main class="mx-auto max-w-xl p-8 pt-16">
     <UiPanel title="Load a source file">
       <p>
-        One long audio file of tracks played one after another, as .m4a, .mp3 or .opus. Choose it or
-        drop it anywhere on this page. It is read in this browser and never uploaded.
+        One long audio file of tracks played one after another, as .m4a, .mp3 or .opus, or the audio
+        of an .mp4 or .mov video. Choose it or drop it anywhere on this page. It is read in this
+        browser and never uploaded.
       </p>
 
       <template v-if="sourceFile.status === 'loading'">

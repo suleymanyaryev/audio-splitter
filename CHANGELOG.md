@@ -20,6 +20,7 @@ Versions follow [Semantic Versioning](https://semver.org/) applied to the produc
 
 ### Added
 
+- An MP4 or MOV video with AAC audio loads like an `.m4a`: the splitter reads its first audio stream and ignores the picture. The export and the single export write audio-only `.m4a` tracks, copied without re-encoding, with no video in them. The file dialog lists `.mp4`, `.m4v` and `.mov` files.
 - A "Find duplicates" button beside "Find gaps" finds matches between tracks, when you press it: it compares every track of 30 s or more with every earlier one, in about a second on a 3 h file and without freezing the page, and says what it found ("3 duplicates, 1 partial match", or "No duplicates found"), or why the search failed, and then it can be pressed again. It changes no split and no name, and counts as no edit. It finds a match at any loudness and in any order, so a second pass of the tracks in another order is found too.
 - A track that is the same recording as an earlier track from end to end is a duplicate. The track list says "duplicate of 01" (with the kept copy's name when it has one), the strip draws it as left out, and "Export to folder…" leaves it out and numbers its files without holes; "Export track…" still writes it. The kept copy is the earliest track of the recording that you have not left out by hand. A duplicate you left out by hand keeps that reason and only gains the words, and a recording whose every track you left out gets no match.
 - A track that shares at least 30 s with an earlier track, but not end to end, has a partial match and stays in the export. "03 from 1:40" says the track holds track 03 from 1:40 on, and "part of 03 from 0:30" says it is the stretch of 03 from 0:30 on, in the track's own time, so a missing or misplaced split shows where it is. A tooltip gives the stretch both tracks share.
@@ -37,6 +38,7 @@ Versions follow [Semantic Versioning](https://semver.org/) applied to the produc
 
 ### Changed
 
+- The message for a file the splitter cannot take names AAC in `.m4a`, `.mp4` or `.mov`.
 - A source file opens as one track with no splits, on track 1 in the Track view. The gaps for the settings show at once on the whole-file view, the loudness curve and the zoom panel's views, and "Find gaps" turns them into splits when you decide.
 - Moving the silence threshold or the minimum gap length, by slider or by dragging the line on the loudness curve, changes only the gaps shown. It no longer replaces your splits and names, so it asks nothing.
 - Edits now count from when the file opened. The splits "Find gaps" adds are no edit until you move or delete one, so "New file" asks only when you have done something by hand.

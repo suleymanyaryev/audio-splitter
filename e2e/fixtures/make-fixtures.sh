@@ -19,5 +19,10 @@ ffmpeg -y -v error -f lavfi -i "$(bursts 44100)" -c:a aac -b:a 96k bursts.m4a
 ffmpeg -y -v error -f lavfi -i "$(bursts 44100)" -c:a libmp3lame -b:a 96k bursts.mp3
 ffmpeg -y -v error -f lavfi -i "$(bursts 48000)" -c:a libopus -b:a 64k bursts.opus
 
+# The same bursts as AAC in a video: a 160x90 test picture at 10 fps beside the audio. A track cut
+# from it must hold the audio only.
+ffmpeg -y -v error -f lavfi -i "$(bursts 44100)" -f lavfi -i "testsrc=s=160x90:r=10:d=30" \
+  -map 1:v -map 0:a -c:v libx264 -preset veryfast -pix_fmt yuv420p -c:a aac -b:a 96k bursts-video.mp4
+
 # Readable but not a supported format: Vorbis in Ogg.
 ffmpeg -y -v error -f lavfi -i "$(bursts 44100)" -c:a libvorbis -q:a 2 unsupported-vorbis.ogg

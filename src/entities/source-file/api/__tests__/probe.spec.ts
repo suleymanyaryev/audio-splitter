@@ -28,6 +28,37 @@ const opusLog = [
   'At least one output file must be specified',
 ]
 
+// Captured from the pinned core on stand-ins built like a downloader's files (ticket 01 of
+// video-and-more-formats): the picture comes first, a chapter track last, and the audio between.
+const mp4VideoLog = [
+  "Input #0, mov,mp4,m4a,3gp,3g2,mj2, from '/in/source.mp4':",
+  '  Metadata:',
+  '    major_brand     : isom',
+  '    compatible_brands: isomiso2avc1mp41',
+  '  Duration: 01:01:26.32, start: 0.000000, bitrate: 2698 kb/s',
+  '  Stream #0:0[0x1](und): Video: h264 (Constrained Baseline) (avc1 / 0x31637661), yuv420p(progressive), 320x180 [SAR 1:1 DAR 16:9], 2500 kb/s, 25 fps, 25 tbr, 12800 tbn (default)',
+  '    Metadata:',
+  '      handler_name    : VideoHandler',
+  '  Stream #0:1[0x2](eng): Audio: aac (LC) (mp4a / 0x6134706D), 44100 Hz, stereo, fltp, 192 kb/s (default)',
+  '    Metadata:',
+  '      handler_name    : ISO Media file produced by Google Inc.',
+  '  Stream #0:2[0x3](eng): Data: bin_data (text / 0x74786574)',
+  '    Metadata:',
+  '      handler_name    : SubtitleHandler',
+  'At least one output file must be specified',
+]
+
+const movVideoLog = mp4VideoLog.map((line) =>
+  line
+    .replace("from '/in/source.mp4'", "from '/in/source.mov'")
+    .replace('major_brand     : isom', 'major_brand     : qt  '),
+)
+
+// The picture runs 3 s past the audio (600 s): the log gives the container's length only.
+const mp4VideoPastAudioLog = mp4VideoLog.map((line) =>
+  line.replace('Duration: 01:01:26.32', 'Duration: 00:10:03.00'),
+)
+
 describe('readProbeLog', () => {
   it('reads AAC in .m4a as a supported format with its duration, rate and channels', () => {
     expect(readProbeLog(m4aLog)).toEqual({
@@ -77,7 +108,44 @@ describe('readProbeLog', () => {
     expect(readProbeLog(vorbisLog)).toEqual({
       kind: 'unsupported',
       message:
-        'This file is Vorbis in Ogg; the splitter supports AAC in .m4a, MP3 and Opus in .opus.',
+        'This file is Vorbis in Ogg; the splitter supports AAC in .m4a, .mp4 or .mov, MP3 and Opus in .opus.',
+    })
+  })
+
+  describe('a video file with AAC audio', () => {
+    it('reads the first audio stream past the picture, as .m4a seeking once', () => {
+      expect(readProbeLog(mp4VideoLog)).toEqual({
+        kind: 'supported',
+        format: 'm4a',
+        seek: 'once',
+        durationSeconds: 3686.32,
+        sampleRate: 44_100,
+        channelCount: 2,
+      })
+    })
+
+    it('reads a MOV the same way, since MP4 and MOV share one demuxer', () => {
+      expect(readProbeLog(movVideoLog)).toMatchObject({ kind: 'supported', format: 'm4a' })
+    })
+
+    /*
+    MP4 and MOV logs hold no length of the audio stream on its own (ticket 01), so the
+    container's length stands in, and that is the picture's when it runs on.
+    */
+    it("falls back to the container's length when the picture runs past the audio", () => {
+      expect(readProbeLog(mp4VideoPastAudioLog)).toMatchObject({ durationSeconds: 603 })
+    })
+  })
+
+  it('lists AAC in .m4a, .mp4 or .mov among the supported formats in the unsupported message', () => {
+    const flacLog = m4aLog
+      .map((line) => line.replace('mov,mp4,m4a,3gp,3g2,mj2', 'flac'))
+      .map((line) => line.replace('Audio: aac (LC) (mp4a / 0x6134706D)', 'Audio: flac'))
+
+    expect(readProbeLog(flacLog)).toEqual({
+      kind: 'unsupported',
+      message:
+        'This file is FLAC in FLAC; the splitter supports AAC in .m4a, .mp4 or .mov, MP3 and Opus in .opus.',
     })
   })
 
