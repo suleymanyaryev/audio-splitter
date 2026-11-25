@@ -110,6 +110,16 @@ const webmVideoPastAudioLog = [
   'At least one output file must be specified',
 ]
 
+// Vorbis in Ogg from ticket 01's stand-in: no picture, no per-stream length, tags on the stream.
+const vorbisLog = [
+  "Input #0, ogg, from '/in/source.ogg':",
+  '  Duration: 01:01:26.21, start: 0.000000, bitrate: 91 kb/s',
+  '  Stream #0:0(eng): Audio: vorbis, 44100 Hz, stereo, fltp, 128 kb/s',
+  '    Metadata:',
+  '      encoder         : Lavc62.28.100 libvorbis',
+  'At least one output file must be specified',
+]
+
 describe('readProbeLog', () => {
   it('reads AAC in .m4a as a supported format with its duration, rate and channels', () => {
     expect(readProbeLog(m4aLog)).toEqual({
@@ -153,13 +163,26 @@ describe('readProbeLog', () => {
     expect(readProbeLog(log)).toMatchObject({ channelCount })
   })
 
-  it('names what a readable but unsupported file is, by its contents', () => {
-    const vorbisLog = opusLog.map((line) => line.replace('Audio: opus', 'Audio: vorbis'))
-
+  it('reads Vorbis in Ogg as .ogg, seeking twice', () => {
     expect(readProbeLog(vorbisLog)).toEqual({
+      kind: 'supported',
+      format: 'ogg',
+      seek: 'twice',
+      durationSeconds: 3686.21,
+      sampleRate: 44_100,
+      channelCount: 2,
+    })
+  })
+
+  it('names what a readable but unsupported file is, by its contents', () => {
+    const flacLog = opusLog.map((line) =>
+      line.replace('ogg, from', 'flac, from').replace('Audio: opus', 'Audio: flac'),
+    )
+
+    expect(readProbeLog(flacLog)).toEqual({
       kind: 'unsupported',
       message:
-        'This file is Vorbis in Ogg; the splitter supports AAC in .m4a, .mp4 or .mov, MP3 and Opus in .opus, .webm or .mkv.',
+        'This file is FLAC in FLAC; the splitter supports AAC in .m4a, .mp4 or .mov, MP3, Opus in .opus, .webm or .mkv, and Vorbis in .ogg.',
     })
   })
 
@@ -185,18 +208,6 @@ describe('readProbeLog', () => {
     */
     it("falls back to the container's length when the picture runs past the audio", () => {
       expect(readProbeLog(mp4VideoPastAudioLog)).toMatchObject({ durationSeconds: 603 })
-    })
-  })
-
-  it('lists AAC in .m4a, .mp4 or .mov among the supported formats in the unsupported message', () => {
-    const flacLog = m4aLog
-      .map((line) => line.replace('mov,mp4,m4a,3gp,3g2,mj2', 'flac'))
-      .map((line) => line.replace('Audio: aac (LC) (mp4a / 0x6134706D)', 'Audio: flac'))
-
-    expect(readProbeLog(flacLog)).toEqual({
-      kind: 'unsupported',
-      message:
-        'This file is FLAC in FLAC; the splitter supports AAC in .m4a, .mp4 or .mov, MP3 and Opus in .opus, .webm or .mkv.',
     })
   })
 
@@ -271,12 +282,14 @@ describe('readProbeLog', () => {
     })
 
     it('still turns away Vorbis in WebM and names the supported pairs', () => {
-      const vorbisLog = webmVideoLog.map((line) => line.replace('Audio: opus', 'Audio: vorbis'))
+      const vorbisInWebmLog = webmVideoLog.map((line) =>
+        line.replace('Audio: opus', 'Audio: vorbis'),
+      )
 
-      expect(readProbeLog(vorbisLog)).toEqual({
+      expect(readProbeLog(vorbisInWebmLog)).toEqual({
         kind: 'unsupported',
         message:
-          'This file is Vorbis in WebM or Matroska; the splitter supports AAC in .m4a, .mp4 or .mov, MP3 and Opus in .opus, .webm or .mkv.',
+          'This file is Vorbis in WebM or Matroska; the splitter supports AAC in .m4a, .mp4 or .mov, MP3, Opus in .opus, .webm or .mkv, and Vorbis in .ogg.',
       })
     })
   })

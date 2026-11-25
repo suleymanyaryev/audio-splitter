@@ -385,6 +385,43 @@ describe('cutTrack', () => {
       ])
     })
 
+    it('copies a middle Vorbis track as .ogg, seeking twice, with the tags on the audio stream', async () => {
+      const ffmpeg = fakeFfmpegSession({
+        probeLog: m4aProbeLog(3686),
+        inputPath: '/in/source.ogg',
+      })
+
+      await cutTrack(ffmpeg, {
+        format: 'ogg',
+        seek: 'twice',
+        startSeconds: 231.55,
+        endSeconds: 877.1,
+        tags,
+      })
+
+      expect(commandOf(ffmpeg)).toEqual([
+        '-v',
+        'error',
+        '-y',
+        '-ss',
+        '229.55',
+        '-i',
+        '/in/source.ogg',
+        '-ss',
+        '2',
+        '-t',
+        '645.55',
+        ...copyTail,
+        '-metadata:s:a:0',
+        'title=sample1 02',
+        '-metadata:s:a:0',
+        'track=2/8',
+        '-metadata:s:a:0',
+        'album=sample1',
+        '/track.ogg',
+      ])
+    })
+
     it('takes the .opus file out of ffmpeg by its own name', async () => {
       const track = Uint8Array.of(0x4f, 0x67, 0x67, 0x53)
       const ffmpeg = fakeFfmpegSession({

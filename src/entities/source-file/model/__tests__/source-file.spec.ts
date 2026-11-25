@@ -9,7 +9,7 @@ import {
   mp3ProbeLog,
   webmProbeLog,
   toneThenSilencePcm,
-  vorbisProbeLog,
+  flacProbeLog,
 } from '@/shared/api/ffmpeg/__tests__/fake-ffmpeg.ts'
 import { downmix } from '@/shared/lib/audio/downmix.ts'
 import { createLoudnessBuilder } from '@/shared/lib/audio/loudness-builder.ts'
@@ -101,7 +101,7 @@ describe('the source-file store', () => {
   })
 
   it('names what an unsupported file is and does not decode it', async () => {
-    const session = fakeFfmpegSession({ probeLog: vorbisProbeLog(30) })
+    const session = fakeFfmpegSession({ probeLog: flacProbeLog(30) })
     vi.mocked(openFfmpeg).mockResolvedValue(session)
     const store = useSourceFileStore()
 
@@ -111,7 +111,7 @@ describe('the source-file store', () => {
     expect(store.failure).toEqual({
       kind: 'unsupported',
       message:
-        'This file is Vorbis in Ogg; the splitter supports AAC in .m4a, .mp4 or .mov, MP3 and Opus in .opus, .webm or .mkv.',
+        'This file is FLAC in FLAC; the splitter supports AAC in .m4a, .mp4 or .mov, MP3, Opus in .opus, .webm or .mkv, and Vorbis in .ogg.',
     })
     expect(session.run).toHaveBeenCalledTimes(1)
     expect(session.close).toHaveBeenCalled()

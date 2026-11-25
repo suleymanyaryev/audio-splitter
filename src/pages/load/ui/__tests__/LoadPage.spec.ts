@@ -26,6 +26,8 @@ describe('LoadPage', () => {
       '.mov',
       '.mp3',
       '.opus',
+      '.ogg',
+      '.oga',
       '.webm',
       '.mkv',
     ])
@@ -177,16 +179,16 @@ describe('LoadPage', () => {
 
     it('keeps the unsupported-format message as it was', () => {
       const sourceFile = useSourceFileStore()
-      sourceFile.file = new File(['x'], 'dinner.ogg')
+      sourceFile.file = new File(['x'], 'dinner.flac')
       sourceFile.status = 'failed'
-      sourceFile.failure = { kind: 'unsupported', message: 'This file is Vorbis in Ogg.' }
+      sourceFile.failure = { kind: 'unsupported', message: 'This file is FLAC in FLAC.' }
 
       const wrapper = mount(LoadPage)
 
       const lines = wrapper.findAll('[role="alert"] p').map((line) => line.text())
       expect(lines).toEqual([
-        'dinner.ogg is not a supported format.',
-        'This file is Vorbis in Ogg.',
+        'dinner.flac is not a supported format.',
+        'This file is FLAC in FLAC.',
       ])
       expect(buttons(wrapper)).toEqual(['Choose another file'])
     })

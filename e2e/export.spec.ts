@@ -15,6 +15,7 @@ const CASES = [
   { fixture: 'bursts.m4a', stem: 'bursts', extension: 'm4a' },
   { fixture: 'bursts.mp3', stem: 'bursts', extension: 'mp3' },
   { fixture: 'bursts.opus', stem: 'bursts', extension: 'opus' },
+  { fixture: 'bursts.ogg', stem: 'bursts', extension: 'ogg' },
   { fixture: 'bursts-video.mp4', stem: 'bursts-video', extension: 'm4a' },
   { fixture: 'bursts-video.webm', stem: 'bursts-video', extension: 'opus' },
 ] as const
@@ -45,8 +46,8 @@ async function clearFolder(page: Page) {
 
 /*
 Every file of one folder, with its size, the length the browser decodes it to, whether its tags are
-in it and whether it holds a video stream. Title and album are plain UTF-8 in all three formats
-(`©nam` in an .m4a, ID3's TIT2 and TALB in an .mp3, the stream's comments in an .opus), so a text
+in it and whether it holds a video stream. Title and album are plain UTF-8 in every format (`©nam`
+in an .m4a, ID3's TIT2 and TALB in an .mp3, the stream's comments in an .opus or .ogg), so a text
 search finds them; the binary track number is left unchecked. A video stream shows as its codec
 (`avc1`, `V_VP9`) or its handler's name.
 */
@@ -149,6 +150,19 @@ for (const fixture of ['bursts-video.mp4', 'bursts-video.webm']) {
     expect(bytes).toMatch(/avc1|VideoHandler|V_VP9/)
   })
 }
+
+test('a FLAC file stays on the load page and is named, with the supported formats', async ({
+  page,
+}) => {
+  await page.goto('/')
+  await page.locator('input[type="file"]').setInputFiles('e2e/fixtures/unsupported.flac')
+
+  await expect(page.getByRole('alert')).toContainText(
+    'This file is FLAC in FLAC; the splitter supports AAC in .m4a, .mp4 or .mov, MP3, Opus in .opus, .webm or .mkv, and Vorbis in .ogg.',
+    { timeout: 20_000 },
+  )
+  await expect(page.getByRole('button', { name: 'Export to folder…' })).toBeHidden()
+})
 
 for (const { fixture, stem, extension } of CASES) {
   test(`exports the three tracks of ${fixture} as .${extension} files that play`, async ({

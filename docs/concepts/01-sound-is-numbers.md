@@ -10,7 +10,7 @@ A speaker cone moves back and forth, and that movement is the sound. Digital aud
 - **Frame**: one sample of every channel at the same instant. A stereo second at 44.1 kHz is 44,100 frames, 88,200 samples.
 - **PCM** (pulse-code modulation): audio stored as exactly this list of samples, uncompressed. ffmpeg's `-f f32le` writes PCM as raw 32-bit floats, interleaved: `L R L R …`.
 - **Codec**: the method that compresses PCM into far fewer bytes and back (AAC, MP3, Opus, Vorbis). **Decoding** turns the compressed data back into PCM.
-- **Container**: the file format that wraps the compressed data with its timing and tags (MP4 for `.m4a`, Ogg for `.opus` and `.ogg`; an `.mp3` is MP3 frames with little wrapping). The same codec can sit in different containers, and one container can hold different codecs, so the extension alone cannot tell a **supported format**: the app asks ffmpeg for both. An `.ogg` holding Vorbis is readable but not supported.
+- **Container**: the file format that wraps the compressed data with its timing and tags (MP4 for `.m4a`, Ogg for `.opus` and `.ogg`; an `.mp3` is MP3 frames with little wrapping). The same codec can sit in different containers, and one container can hold different codecs, so the extension alone cannot tell a **supported format**: the app asks ffmpeg for both. A FLAC file is readable but not supported.
 - **Downmix**: turning several channels into one by averaging them per frame: `(L + R) / 2`. The splitter only needs to know how loud the file is, not where the sound comes from. (ffmpeg's own `-ac 1` would come out 3.01 dB louder than this plain average.)
 - **Min/max peaks**: a screen has a few thousand pixels, a file has millions of frames. So the frames are cut into **buckets** of 10 ms, and each bucket keeps only its lowest and highest sample. A waveform draws a vertical bar from min to max for each bucket, or for many buckets merged into one bar. Because the extremes are kept, no loud moment can vanish from the picture.
 
@@ -35,7 +35,7 @@ This milestone decodes the whole file in one call, which is fine for the 30 s fi
 
 ## Where it lives in the code
 
-- [`e2e/fixtures/make-fixtures.sh`](../../e2e/fixtures/make-fixtures.sh): makes the 30 s test files (three tone bursts, two 2 s silences), one per supported format plus a Vorbis `.ogg`.
+- [`e2e/fixtures/make-fixtures.sh`](../../e2e/fixtures/make-fixtures.sh): makes the 30 s test files (three tone bursts, two 2 s silences), one per supported format, plus a short FLAC that is not supported.
 - [`src/shared/api/ffmpeg/ffmpeg.ts`](../../src/shared/api/ffmpeg/ffmpeg.ts): loads ffmpeg.wasm, mounts the file read-only, a timeout on every call.
 - [`src/entities/source-file/api/probe.ts`](../../src/entities/source-file/api/probe.ts): reads duration, rate, channels, container and codec from ffmpeg's log; decides the supported format.
 - `src/entities/source-file/api/decode-whole-file.ts`: one `f32le` decode at the file's own rate. Removed in milestone 2: `decode-slice.ts` decodes a slice at a time.

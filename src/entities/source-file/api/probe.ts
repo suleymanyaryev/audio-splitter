@@ -1,7 +1,7 @@
 import type { FfmpegSession } from '@/shared/api/ffmpeg/ffmpeg.ts'
 
 // The track format: the extension the exported tracks get, set by the codec (GLOSSARY.md).
-export type TrackFormat = 'm4a' | 'mp3' | 'opus'
+export type TrackFormat = 'm4a' | 'mp3' | 'opus' | 'ogg'
 
 /*
 How a cut seeks, set by the container (docs/concepts/07-cutting-without-re-encoding.md): `once`
@@ -37,6 +37,7 @@ const SUPPORTED: {
   { container: 'ogg', codec: 'opus', format: 'opus', seek: 'twice' },
   // WebM and Matroska are one demuxer. A single seek before the input breaks its Opus (ticket 01).
   { container: 'matroska,webm', codec: 'opus', format: 'opus', seek: 'twice' },
+  { container: 'ogg', codec: 'vorbis', format: 'ogg', seek: 'twice' },
 ]
 
 // Readable names for the message about an unsupported file; anything else shows ffmpeg's name.
@@ -139,7 +140,7 @@ export function readProbeLog(log: string[]): ProbeOutcome {
     const what = `${CODEC_NAMES[codec] ?? codec} in ${CONTAINER_NAMES[container] ?? container}`
     return {
       kind: 'unsupported',
-      message: `This file is ${what}; the splitter supports AAC in .m4a, .mp4 or .mov, MP3 and Opus in .opus, .webm or .mkv.`,
+      message: `This file is ${what}; the splitter supports AAC in .m4a, .mp4 or .mov, MP3, Opus in .opus, .webm or .mkv, and Vorbis in .ogg.`,
     }
   }
 

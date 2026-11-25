@@ -94,12 +94,10 @@ export const mp3ProbeLog = (durationSeconds: number) =>
       .replace('aac (LC) (mp4a / 0x6134706D)', 'mp3 (mp3float)'),
   )
 
-// The same file as Vorbis in Ogg: readable, but not a supported format.
-export const vorbisProbeLog = (durationSeconds: number) =>
+// The same file as FLAC: readable, but not a supported format.
+export const flacProbeLog = (durationSeconds: number) =>
   m4aProbeLog(durationSeconds).map((line) =>
-    line
-      .replace('mov,mp4,m4a,3gp,3g2,mj2', 'ogg')
-      .replace('aac (LC) (mp4a / 0x6134706D)', 'vorbis'),
+    line.replace('mov,mp4,m4a,3gp,3g2,mj2', 'flac').replace('aac (LC) (mp4a / 0x6134706D)', 'flac'),
   )
 
 // The same file as Opus in a WebM with a picture before the audio, as the core prints it.

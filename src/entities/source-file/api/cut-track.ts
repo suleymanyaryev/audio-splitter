@@ -83,12 +83,13 @@ function seekArguments(cut: TrackCut): SeekArguments {
 
 /*
 The tags and format options of one format. `.mp3` keeps its tags in the file's own tag header, so
-the file-level keys are the ones that land. `.opus` keeps them in the stream's comment header, and
-a file-level key would not replace the tags the source's stream already carries, so they go on the
-stream (tickets 03 and 12). `+faststart` moves an `.m4a` index in front of the audio.
+the file-level keys are the ones that land. `.opus` and `.ogg` (Vorbis) keep them in the stream's
+comment header, and a file-level key would not replace the tags the source's stream already
+carries, so they go on the stream (tickets 03 and 12). `+faststart` moves an `.m4a` index in front
+of the audio.
 */
 function tagArguments(cut: TrackCut): string[] {
-  const key = cut.format === 'opus' ? '-metadata:s:a:0' : '-metadata'
+  const key = cut.format === 'opus' || cut.format === 'ogg' ? '-metadata:s:a:0' : '-metadata'
   return [
     key,
     `title=${cut.tags.title}`,
