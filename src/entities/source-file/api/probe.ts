@@ -118,7 +118,7 @@ about this file" answer in this build, so the log is the only place they appear:
     Stream #0:0[0x1](eng): Audio: aac (LC) (mp4a / 0x6134706D), 44100 Hz, stereo, fltp, …
 
 A WebM or Matroska log also gives each stream its own length, in its metadata (see
-`audioStreamSeconds`); an MP4 log does not.
+`audioStreamSeconds`); an MP4 or Ogg log does not.
 
 The container and codec decide whether the file is a supported format, never the extension.
 */
@@ -145,13 +145,15 @@ export function readProbeLog(log: string[]): ProbeOutcome {
   }
 
   /*
-  The first audio stream's own length where the log has one (WebM and Matroska give every stream
-  a DURATION line), else the container's. A video's container length is the longest stream's, so
-  a picture that runs on after the audio makes the file look longer than its sound. An MP4 or MOV
-  log has no length of the audio stream alone, so those fall back (ticket 01 of
-  video-and-more-formats).
+  In WebM and Matroska, the first audio stream's own length where the log has one (they give every
+  stream a DURATION line), else the container's. A video's container length is the longest
+  stream's, so a picture that runs on after the audio makes the file look longer than its sound.
+  An MP4 or MOV log has no length of the audio stream alone, so those fall back (ticket 01 of
+  video-and-more-formats). In Ogg a DURATION line is only a tag, and a track cut from a WebM keeps
+  the source's, so Ogg always takes the container's.
   */
-  const durationSeconds = audioStreamSeconds(log) ?? containerSeconds(text)
+  const durationSeconds =
+    (container === 'matroska,webm' ? audioStreamSeconds(log) : undefined) ?? containerSeconds(text)
   if (durationSeconds === undefined)
     return { kind: 'unreadable', reason: 'ffmpeg reports no duration' }
 

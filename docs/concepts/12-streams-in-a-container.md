@@ -69,7 +69,7 @@ The splitter needs 7 % of this file, but ffmpeg.wasm reads the file through the 
 
 ## Where it lives in the code
 
-- [`src/entities/source-file/api/probe.ts`](../../src/entities/source-file/api/probe.ts): reads the log. Container and codec pick the track format and the seek method; the first audio stream's own `DURATION` line, or the container's `Duration`, is the length.
+- [`src/entities/source-file/api/probe.ts`](../../src/entities/source-file/api/probe.ts): reads the log. Container and codec pick the track format and the seek method; in a WebM or MKV the first audio stream's own `DURATION` line is the length, and elsewhere the container's `Duration`.
 - [`src/entities/source-file/api/cut-track.ts`](../../src/entities/source-file/api/cut-track.ts): the seek method picks the command, the track format picks the extension and where the tags go (on the stream for `.opus` and `.ogg`).
 - [`src/pages/load/ui/LoadPage.vue`](../../src/pages/load/ui/LoadPage.vue): the file dialog's `accept` list, a convenience only: the probe decides.
 - [`e2e/fixtures/make-fixtures.sh`](../../e2e/fixtures/make-fixtures.sh): the 160×90 test-picture MP4 and WebM, and the check in [`e2e/export.spec.ts`](../../e2e/export.spec.ts) that a track holds no video.

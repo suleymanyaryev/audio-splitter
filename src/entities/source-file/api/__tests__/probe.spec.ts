@@ -178,6 +178,22 @@ describe('readProbeLog', () => {
     })
   })
 
+  it("takes an Ogg file's length from the container, past a DURATION tag on its stream", () => {
+    // A track cut from a WebM keeps the source's DURATION among its stream tags.
+    const trackFromWebmLog = [
+      "Input #0, ogg, from '/in/source.opus':",
+      '  Duration: 00:00:11.02, start: 0.020500, bitrate: 89 kb/s',
+      '  Stream #0:0: Audio: opus, 48000 Hz, stereo, fltp, start 0.020500',
+      '    Metadata:',
+      '      ENCODER         : Lavc62.28.100 libopus',
+      '      DURATION        : 00:00:30.008000000',
+      '      title           : x',
+      'At least one output file must be specified',
+    ]
+
+    expect(readProbeLog(trackFromWebmLog)).toMatchObject({ durationSeconds: 11.02 })
+  })
+
   it('names a WAV the same way, since PCM is not a pair the splitter cuts', () => {
     const wavLog = [
       "Input #0, wav, from '/in/source.wav':",
