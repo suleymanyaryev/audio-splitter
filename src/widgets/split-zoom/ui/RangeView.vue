@@ -3,6 +3,7 @@ import { computed, ref, useTemplateRef, watch } from 'vue'
 
 import { useSourceFileStore } from '@/entities/source-file/model/source-file.ts'
 import { useSplitStore } from '@/entities/split/model/split.ts'
+import { drawConfidenceMarks, markOfBand } from '@/shared/lib/canvas/draw-confidence-marks.ts'
 import { drawLands, drawSplitLines } from '@/shared/lib/canvas/draw-lands-and-splits.ts'
 import { drawMark } from '@/shared/lib/canvas/draw-mark.ts'
 import { BAR_PITCH, drawPeakBars } from '@/shared/lib/canvas/draw-peak-bars.ts'
@@ -103,6 +104,15 @@ function draw() {
     0,
     height,
     split.selectedSplitIndex,
+  )
+  drawConfidenceMarks(
+    context,
+    split.splits.map((point) => zoomTimeToX(point.seconds, centreSeconds, windowSeconds, width)),
+    split.splits.map((point) => markOfBand(point.confidence?.band)),
+    style.getPropertyValue('--color-split'),
+    style.getPropertyValue('--color-surface'),
+    0,
+    height,
   )
 
   // The mark is a dashed line, never mistaken for a split line or the playhead, under the latter.

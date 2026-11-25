@@ -22,8 +22,9 @@ other track, with a button that dismisses the match), its start (hundredths, whe
 position is read) and its length (whole seconds), then two buttons: one that leaves the track out of
 the export or brings it back (a left-out row is muted), and a merge button that removes the track
 and merges it with its neighbours (none when it is the only track). A split row reads `Split N`
-where the name goes, its time in the start column, no length and a trash button that deletes the
-split, which merges the tracks either side of it; it has no name field, because naming belongs to
+where the name goes (with the band, "likely" or "doubtful", after it when Find splits was less than
+sure of the split, a ring or a disc as on the canvases, and the depth in a tooltip), its time in the
+start column, no length and a trash button that deletes the split, which merges the tracks either side of it; it has no name field, because naming belongs to
 tracks. The two buttons carry different icons, so one is not taken for the other. The box is as tall
 as the zoom view's 160 px content area and scrolls inside itself, the heading row staying in view.
 
@@ -205,6 +206,22 @@ watch(
               :class="isSplitSelected(row.point) ? '' : 'text-muted'"
             >
               Split {{ row.number }}
+              <UiTooltip
+                v-if="row.point.confidence !== null && row.point.confidence.band !== 'sure'"
+                :label="`${row.point.confidence.depth.toFixed(1)} dB under its surroundings`"
+              >
+                <span
+                  class="ml-2 inline-flex items-center gap-1 align-middle text-xs"
+                  :class="row.point.confidence.band === 'doubtful' ? 'font-bold text-ink' : ''"
+                >
+                  <span
+                    aria-hidden="true"
+                    class="size-2 shrink-0 rounded-full border-[1.5px] border-split"
+                    :class="row.point.confidence.band === 'doubtful' ? 'bg-split' : 'bg-surface'"
+                  ></span>
+                  {{ row.point.confidence.band }}
+                </span>
+              </UiTooltip>
             </td>
             <td class="border-b border-hairline py-1.5 pr-4 whitespace-nowrap">
               {{ formatHundredths(row.point.seconds) }}

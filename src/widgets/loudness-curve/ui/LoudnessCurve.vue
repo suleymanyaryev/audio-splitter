@@ -5,6 +5,7 @@ import { useSourceFileStore } from '@/entities/source-file/model/source-file.ts'
 import { useSplitStore } from '@/entities/split/model/split.ts'
 import { CANVAS_FONT } from '@/shared/lib/canvas/canvas-text.ts'
 import { DASH_PATTERN } from '@/shared/lib/canvas/dash-pattern.ts'
+import { drawConfidenceMarks, markOfBand } from '@/shared/lib/canvas/draw-confidence-marks.ts'
 import { drawLands, drawSplitLines } from '@/shared/lib/canvas/draw-lands-and-splits.ts'
 import { landSpans } from '@/shared/lib/canvas/land-spans.ts'
 import { prepareCanvas } from '@/shared/lib/canvas/prepare-canvas.ts'
@@ -251,6 +252,15 @@ function draw() {
     0,
     height,
     split.selectedSplitIndex,
+  )
+  drawConfidenceMarks(
+    context,
+    split.splits.map((point) => timeToX(point.seconds, duration, width)),
+    split.splits.map((point) => markOfBand(point.confidence?.band)),
+    style.getPropertyValue('--color-split'),
+    style.getPropertyValue('--color-surface'),
+    0,
+    height,
   )
   drawMovingLine(context, style, columns.length, height)
   drawDipMarks(context, style, columns, width, height)

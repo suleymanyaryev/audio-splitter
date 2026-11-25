@@ -22,6 +22,7 @@ import { MAX_TRACK_NAME_LENGTH } from '../config/track-name.ts'
 import { ZOOM_WINDOW_SECONDS } from '../config/zoom-window.ts'
 import { findMatchesInWorker } from '../api/find-matches-client.ts'
 import { MINIMUM_COMPARED_SECONDS } from '../config/match-thresholds.ts'
+import { bandOf, type Confidence } from '../lib/confidence-band.ts'
 import { findDips } from '../lib/find-dips.ts'
 import { findGaps, type Gap } from '../lib/find-gaps.ts'
 import { proposeSplits } from '../lib/propose-splits.ts'
@@ -62,13 +63,15 @@ export type Inclusion = StoredInclusion | 'duplicate'
 /*
 `id` is stable for the split's life, so a selection and a count of edits can hold it.
 `name` and `inclusion` are those of the track that starts at this split: the name is null while the
-track is unnamed.
+track is unnamed. `confidence` (GLOSSARY.md) is how sure Find splits was of the split, set once when
+it added it, and null for any other split and for one the user has moved.
 */
 export interface Split {
   id: number
   seconds: number
   name: string | null
   inclusion: StoredInclusion
+  confidence: Confidence | null
 }
 
 export interface Track {
@@ -796,7 +799,9 @@ export const useSplitStore = defineStore('split', () => {
           seconds > track.startSeconds && seconds < track.startSeconds + track.lengthSeconds,
       )
     unlessItDiscards(() => {
-      for (const { seconds } of proposedSplits.value) insertSplit(seconds, false)
+      for (const { seconds, depth } of proposedSplits.value) {
+        insertSplit(seconds, false, { band: bandOf(depth), depth })
+      }
     }, isInside)
   }
 
@@ -1170,6 +1175,8 @@ export const useSplitStore = defineStore('split', () => {
     const moved = Math.min(Math.max(seconds, lowest), highest)
     if (moved === split.seconds) return
     split.seconds = moved
+    // The place is the user's now: it is no longer a detector's guess.
+    split.confidence = null
     // A split the user added is one edit already.
     if (!addedIds.value.has(id)) movedIds.value.add(id)
   }
@@ -1180,12 +1187,12 @@ export const useSplitStore = defineStore('split', () => {
   left-out tracks; that is no edit. A split the user adds is one edit; a detected one (`isEdit`
   false) is none until it is moved or deleted.
   */
-  function insertSplit(seconds: number, isEdit = true) {
+  function insertSplit(seconds: number, isEdit = true, confidence: Confidence | null = null) {
     const found = splits.value.findIndex((candidate) => candidate.seconds > seconds)
     const index = found === -1 ? splits.value.length : found
     // The track it cuts starts at the split before it, or with the file.
     const inclusion = splits.value[index - 1]?.inclusion ?? firstTrackInclusion.value
-    const split: Split = { id: nextSplitId++, seconds, name: null, inclusion }
+    const split: Split = { id: nextSplitId++, seconds, name: null, inclusion, confidence }
     splits.value.splice(index, 0, split)
     if (isEdit) addedIds.value.add(split.id)
     return split

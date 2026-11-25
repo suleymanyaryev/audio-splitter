@@ -3,6 +3,7 @@ import { computed, ref, useTemplateRef, watch } from 'vue'
 
 import { useSourceFileStore } from '@/entities/source-file/model/source-file.ts'
 import { useSplitStore } from '@/entities/split/model/split.ts'
+import { drawConfidenceMarks, markOfBand } from '@/shared/lib/canvas/draw-confidence-marks.ts'
 import { drawLands, drawSplitLines } from '@/shared/lib/canvas/draw-lands-and-splits.ts'
 import { drawMark } from '@/shared/lib/canvas/draw-mark.ts'
 import { drawPendingSplits } from '@/shared/lib/canvas/draw-pending-splits.ts'
@@ -124,6 +125,15 @@ function draw() {
     context,
     split.splits.map((point) => zoomTimeToX(point.seconds, centreSeconds, windowSeconds, width)),
     style.getPropertyValue('--color-split'),
+    0,
+    height,
+  )
+  drawConfidenceMarks(
+    context,
+    split.splits.map((point) => zoomTimeToX(point.seconds, centreSeconds, windowSeconds, width)),
+    split.splits.map((point) => markOfBand(point.confidence?.band)),
+    style.getPropertyValue('--color-split'),
+    style.getPropertyValue('--color-surface'),
     0,
     height,
   )

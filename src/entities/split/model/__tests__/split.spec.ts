@@ -238,6 +238,19 @@ const HELD = {
 const selectedTracks = (store: ReturnType<typeof useSplitStore>) =>
   store.tracks.map((track) => store.isTrackSelected(track))
 
+// A gap 40 dB deep, then dips of 12 dB and 6 dB, each far from the others.
+function threeDepths() {
+  return curveOf(
+    [LOUD, 400],
+    [QUIET, 60],
+    [LOUD, 400],
+    [-22, 80],
+    [LOUD, 400],
+    [-16, 80],
+    [LOUD, 400],
+  )
+}
+
 describe('the split store', () => {
   beforeEach(() => {
     // The default settings are kept in localStorage, which a spec must not inherit from another.
@@ -682,6 +695,75 @@ describe('the split store', () => {
         )
 
         expect(store.proposedSplits.map((proposal) => proposal.kind)).toEqual(['dip', 'gap'])
+      })
+    })
+
+    describe('the confidence of a split', () => {
+      it('is the band of the depth, sure for a gap, set by Find splits', () => {
+        const store = openCurve(threeDepths())
+        store.setDepth(3)
+
+        store.findSplits()
+
+        expect(store.splits.map((split) => split.confidence?.band)).toEqual([
+          'sure',
+          'likely',
+          'doubtful',
+        ])
+        expect(store.splits[1]?.confidence?.depth).toBeCloseTo(12, 3)
+        expect(store.splits[2]?.confidence?.depth).toBeCloseTo(6, 3)
+      })
+
+      it('is none for a split added by hand, from a pending split or from the Range view', () => {
+        const curve = farGaps()
+        const store = useSplitStore()
+        store.open(curve, timing(curve))
+        store.addSplitAt(5)
+        store.selectTrack(store.tracks[1]!)
+        store.placeTrackMark(50)
+        store.addPendingSplit(50, true)
+        store.applyPendingSplits()
+
+        expect(store.splits.map((split) => split.confidence)).toEqual([null, null])
+      })
+
+      it('is set once: a later change of the depth leaves it', () => {
+        const store = openCurve(threeDepths())
+        store.setDepth(3)
+        store.findSplits()
+        const before = store.splits.map((split) => split.confidence)
+
+        store.setDepth(30)
+        store.setSilenceThreshold(-60)
+
+        expect(store.splits.map((split) => split.confidence)).toEqual(before)
+      })
+
+      it('goes when the split is moved, with no edit beyond the move', () => {
+        const store = openCurve(threeDepths())
+        store.setDepth(3)
+        store.findSplits()
+        const moved = store.splits[1]!
+        store.selectSplit(moved.id)
+
+        store.moveSplit(moved.id, moved.seconds + 0.5)
+
+        expect(moved.confidence).toBeNull()
+        expect(store.splits[0]?.confidence?.band).toBe('sure')
+        expect(store.editCount).toBe(1)
+      })
+
+      it('is kept by the splits that stay when a track is removed, and goes with a deleted split', () => {
+        const store = openCurve(threeDepths())
+        store.setDepth(3)
+        store.findSplits()
+
+        // Track 2 runs from the first split to the second: removing it deletes both.
+        store.removeTrack(store.tracks[1]!)
+        expect(store.splits.map((split) => split.confidence?.band)).toEqual(['doubtful'])
+
+        store.deleteSplit(store.splits[0]!.id)
+        expect(store.splits).toEqual([])
       })
     })
 
