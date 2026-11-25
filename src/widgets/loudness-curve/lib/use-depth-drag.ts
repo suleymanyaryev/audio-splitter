@@ -2,6 +2,7 @@ import { computed, ref } from 'vue'
 
 import {
   aroundByColumn,
+  columnAt,
   depthFromPointer,
   isOnMovingLine,
   movingLineColumns,
@@ -46,7 +47,7 @@ export function useDepthDrag({ around, depth, set }: DepthDragSource) {
     const loudness = around()
     const line = lineAt(width)
     if (loudness === null || line === null || !isOnMovingLine(x, y, line, height)) return
-    const column = Math.min(Math.max(Math.floor(x), 0), line.length - 1)
+    const column = columnAt(x, line.length)
     const aroundAtGrab = aroundByColumn(loudness, line.length)[column] ?? 0
     grab.value = { aroundAtGrab, offset: y - curveY(aroundAtGrab - depth(), height) }
     ;(event.currentTarget as HTMLCanvasElement).setPointerCapture(event.pointerId)

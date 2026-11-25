@@ -128,7 +128,7 @@ describe('LoudnessSettings', () => {
     useSplitStore().open(curveWithOneGap(), { windowSeconds: 0.05, durationSeconds: 20 })
   })
 
-  it('reads out both settings of the split store, with a real minus sign', () => {
+  it('reads out the settings of the split store, with a real minus sign', () => {
     const wrapper = mount(LoudnessSettings)
 
     // The median is -10 dB, so the threshold starts the default offset under it.

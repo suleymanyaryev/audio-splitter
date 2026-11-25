@@ -24,8 +24,8 @@ the export or brings it back (a left-out row is muted), and a merge button that 
 and merges it with its neighbours (none when it is the only track). A split row reads `Split N`
 where the name goes (with the band, "likely" or "doubtful", after it when Find splits was less than
 sure of the split, a ring or a disc as on the canvases, and the depth in a tooltip), its time in the
-start column, no length and a trash button that deletes the split, which merges the tracks either side of it; it has no name field, because naming belongs to
-tracks. The two buttons carry different icons, so one is not taken for the other. The box is as tall
+start column, no length and a trash button that deletes the split, which merges the tracks either
+side of it; it has no name field, because naming belongs to tracks. The two buttons carry different icons, so one is not taken for the other. The box is as tall
 as the zoom view's 160 px content area and scrolls inside itself, the heading row staying in view.
 
 A click on a row selects what it shows, a track or a split (the first track included), and the

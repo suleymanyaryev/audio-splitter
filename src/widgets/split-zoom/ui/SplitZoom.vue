@@ -4,7 +4,7 @@ import { computed, ref, useTemplateRef, watch } from 'vue'
 import { useSourceFileStore } from '@/entities/source-file/model/source-file.ts'
 import { ZOOM_WINDOW_SECONDS } from '@/entities/split/config/zoom-window.ts'
 import { useSplitStore } from '@/entities/split/model/split.ts'
-import { drawConfidenceMarks, markOfBand } from '@/shared/lib/canvas/draw-confidence-marks.ts'
+import { drawConfidenceMarks } from '@/shared/lib/canvas/draw-confidence-marks.ts'
 import { drawSplitLines } from '@/shared/lib/canvas/draw-lands-and-splits.ts'
 import { BAR_PITCH, drawPeakBars } from '@/shared/lib/canvas/draw-peak-bars.ts'
 import { prepareCanvas } from '@/shared/lib/canvas/prepare-canvas.ts'
@@ -30,8 +30,8 @@ split is a wider line with a drag handle at its top. The handle is a real elemen
 it can be reached with Tab and read by a screen reader. The view takes the page's keys, wherever the
 focus is: Left and Right move the split 10 ms, with Shift 100 ms, Delete (Backspace too, the delete
 key of a Mac keyboard) deletes it, and `[` and `]` select the previous and next split, as a click
-on it does. `K` marks a split with a confidence as checked (ticket 06 of shallow-dips: the split
-keeps its place and leaves the queue that `{` and `}`, the page's keys, walk). Space plays the clip across the split and pauses it, as the "Play across split" button
+on it does. `K` marks a split that has a confidence as checked: it keeps its place and
+leaves the walk of `{` and `}`, which are the review page's keys. Space plays the clip across the split and pauses it, as the "Play across split" button
 does (ticket 14); a 1 px ink line always shows the audition's playhead, where the sound is while it
 plays and where it resumes otherwise, and a failure to play is said in a line at the bottom of the
 view. A held Space, `[` or `]` is ignored, so it does not start and stop the sound or step over and
@@ -265,10 +265,9 @@ function draw() {
   )
   drawConfidenceMarks(
     context,
+    style,
+    split.splits,
     split.splits.map((point) => zoomTimeToX(point.seconds, centre, ZOOM_WINDOW_SECONDS, width)),
-    split.splits.map((point) => markOfBand(point.confidence?.band)),
-    style.getPropertyValue('--color-split'),
-    style.getPropertyValue('--color-surface'),
     0,
     height,
   )

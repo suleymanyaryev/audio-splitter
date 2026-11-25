@@ -216,7 +216,7 @@ export const useSplitStore = defineStore('split', () => {
   // Null until the file opens; from then on a plain value the user moves.
   const silenceThreshold = ref<number | null>(null)
   const minimumGapLength = ref(DEFAULT_MINIMUM_GAP_SECONDS)
-  // How deep a dip must be to propose a split, in dB (GLOSSARY.md: Depth setting).
+  // How deep a dip must be to propose a split, in dB (GLOSSARY.md: Depth).
   const depth = ref(DEFAULT_DEPTH_DB)
   // This file's median loudness, which the threshold's distance under it is measured from.
   const medianDecibels = ref<number | null>(null)
@@ -721,7 +721,7 @@ export const useSplitStore = defineStore('split', () => {
       : roundToTenth(medianDecibels.value - silenceThreshold.value),
   )
 
-  // Whether the two settings are what the default settings would give this file.
+  // Whether the three settings are what the default settings would give this file.
   const matchesDefaultSettings = computed(
     () =>
       silenceThreshold.value !== null &&
@@ -737,7 +737,7 @@ export const useSplitStore = defineStore('split', () => {
       defaultSettings.value.depthDb === BUILT_IN_SETTINGS.depthDb,
   )
 
-  // "Save as default": the current minimum gap length and threshold distance, kept across visits.
+  // "Save as default": the current threshold distance, minimum gap length and depth, kept across visits.
   function saveAsDefault() {
     if (currentOffsetDecibels.value === null) return
     defaultSettings.value = {
@@ -804,8 +804,9 @@ export const useSplitStore = defineStore('split', () => {
           seconds > track.startSeconds && seconds < track.startSeconds + track.lengthSeconds,
       )
     unlessItDiscards(() => {
-      for (const { seconds, depth } of proposedSplits.value) {
-        insertSplit(seconds, false, { band: bandOf(depth), depth })
+      for (const proposal of proposedSplits.value) {
+        const { seconds, depth: measured } = proposal
+        insertSplit(seconds, false, { band: bandOf(measured), depth: measured })
       }
     }, isInside)
   }

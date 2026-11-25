@@ -1,16 +1,6 @@
 import { describe, it, expect, vi } from 'vitest'
 
-import { drawConfidenceMarks, markOfBand } from '../draw-confidence-marks.ts'
-
-describe('markOfBand', () => {
-  it('gives a likely split a ring and a doubtful one a disc, and the rest none', () => {
-    expect(markOfBand('likely')).toBe('ring')
-    expect(markOfBand('doubtful')).toBe('disc')
-    expect(markOfBand('sure')).toBeNull()
-    expect(markOfBand(null)).toBeNull()
-    expect(markOfBand(undefined)).toBeNull()
-  })
-})
+import { drawConfidenceMarks } from '../draw-confidence-marks.ts'
 
 function contextOf() {
   return {
@@ -24,16 +14,23 @@ function contextOf() {
   }
 }
 
+const style = {
+  getPropertyValue: (name: string) => (name === '--color-split' ? 'rust' : 'white'),
+} as CSSStyleDeclaration
+
+const withBand = (band: 'sure' | 'likely' | 'doubtful' | null) => ({
+  confidence: band === null ? null : { band },
+})
+
 describe('drawConfidenceMarks', () => {
   it('draws one mark at the foot of each line that has one, and none for the others', () => {
     const context = contextOf()
 
     drawConfidenceMarks(
       context as unknown as CanvasRenderingContext2D,
-      [10, 20, 30],
-      ['ring', null, 'disc'],
-      'rust',
-      'white',
+      style,
+      [withBand('likely'), withBand(null), withBand('doubtful'), withBand('sure')],
+      [10, 20, 30, 40],
       0,
       100,
     )
@@ -51,19 +48,17 @@ describe('drawConfidenceMarks', () => {
 
     drawConfidenceMarks(
       ring as unknown as CanvasRenderingContext2D,
+      style,
+      [withBand('likely')],
       [5],
-      ['ring'],
-      'rust',
-      'white',
       0,
       50,
     )
     drawConfidenceMarks(
       disc as unknown as CanvasRenderingContext2D,
+      style,
+      [withBand('doubtful')],
       [5],
-      ['disc'],
-      'rust',
-      'white',
       0,
       50,
     )

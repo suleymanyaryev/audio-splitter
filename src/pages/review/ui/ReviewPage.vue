@@ -100,9 +100,8 @@ first, and the one before it, and open the Split view on it.
 */
 usePageKeys((event) => {
   const step = confidenceStepOfKey(event)
-  if (step === null) return false
-  split.selectAdjacentByConfidence(step)
-  return true
+  // Left to the browser when the walk goes nowhere, as `[` and `]` are at the end of the splits.
+  return step !== null && split.selectAdjacentByConfidence(step)
 })
 
 const { loudness, loudnessWindowSeconds, durationSeconds } = sourceFile
