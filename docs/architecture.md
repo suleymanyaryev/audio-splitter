@@ -279,7 +279,7 @@ stateDiagram-v2
 - **Cancel** stops the running cut. Files already written stay.
 - **A failed write removes its empty file**, so the folder only holds whole tracks.
 
-The cut commands per format are in [note 07](concepts/07-cutting-without-re-encoding.md).
+The cut commands per seek method are in [note 07](concepts/07-cutting-without-re-encoding.md).
 
 ### Single export
 

@@ -11,7 +11,13 @@ describe('cutTrack', () => {
   it('copies a middle .m4a track with -ss and -to before the input', async () => {
     const ffmpeg = fakeFfmpegSession({ probeLog: m4aProbeLog(3686) })
 
-    await cutTrack(ffmpeg, { format: 'm4a', startSeconds: 231.55, endSeconds: 877.1, tags })
+    await cutTrack(ffmpeg, {
+      format: 'm4a',
+      seek: 'once',
+      startSeconds: 231.55,
+      endSeconds: 877.1,
+      tags,
+    })
 
     // The concept note's worked example: track 2 of 8 of sample1.m4a.
     expect(ffmpeg.run).toHaveBeenCalledOnce()
@@ -46,7 +52,13 @@ describe('cutTrack', () => {
   it('has no -ss for the first track, which starts with the file', async () => {
     const ffmpeg = fakeFfmpegSession({ probeLog: m4aProbeLog(3686) })
 
-    await cutTrack(ffmpeg, { format: 'm4a', startSeconds: 0, endSeconds: 231.55, tags })
+    await cutTrack(ffmpeg, {
+      format: 'm4a',
+      seek: 'once',
+      startSeconds: 0,
+      endSeconds: 231.55,
+      tags,
+    })
 
     const command = commandOf(ffmpeg) ?? []
     expect(command.slice(3, 7)).toEqual(['-to', '231.55', '-i', '/in/source.m4a'])
@@ -56,7 +68,13 @@ describe('cutTrack', () => {
   it('has no -to for the last track, which runs to the end of the file', async () => {
     const ffmpeg = fakeFfmpegSession({ probeLog: m4aProbeLog(3686) })
 
-    await cutTrack(ffmpeg, { format: 'm4a', startSeconds: 3549.35, endSeconds: undefined, tags })
+    await cutTrack(ffmpeg, {
+      format: 'm4a',
+      seek: 'once',
+      startSeconds: 3549.35,
+      endSeconds: undefined,
+      tags,
+    })
 
     const command = commandOf(ffmpeg) ?? []
     expect(command.slice(3, 6)).toEqual(['-ss', '3549.35', '-i'])
@@ -66,7 +84,13 @@ describe('cutTrack', () => {
   it('has neither for a file with no splits: one track over the whole file', async () => {
     const ffmpeg = fakeFfmpegSession({ probeLog: m4aProbeLog(30) })
 
-    await cutTrack(ffmpeg, { format: 'm4a', startSeconds: 0, endSeconds: undefined, tags })
+    await cutTrack(ffmpeg, {
+      format: 'm4a',
+      seek: 'once',
+      startSeconds: 0,
+      endSeconds: undefined,
+      tags,
+    })
 
     const command = commandOf(ffmpeg) ?? []
     expect(command.slice(0, 4)).toEqual(['-v', 'error', '-y', '-i'])
@@ -80,6 +104,7 @@ describe('cutTrack', () => {
     // 0.1 + 0.2 is 0.30000000000000004 in floats.
     await cutTrack(ffmpeg, {
       format: 'm4a',
+      seek: 'once',
       startSeconds: 0.1 + 0.2,
       endSeconds: 100.1 + 0.2,
       tags,
@@ -96,6 +121,7 @@ describe('cutTrack', () => {
 
     await cutTrack(ffmpeg, {
       format: 'm4a',
+      seek: 'once',
       startSeconds: 0,
       endSeconds: 10,
       tags: { ...tags, title },
@@ -109,6 +135,7 @@ describe('cutTrack', () => {
 
     await cutTrack(ffmpeg, {
       format: 'm4a',
+      seek: 'once',
       startSeconds: 0,
       endSeconds: 10,
       tags: { ...tags, track: null },
@@ -122,7 +149,13 @@ describe('cutTrack', () => {
     const track = Uint8Array.of(0, 0, 0, 24, 0x66, 0x74, 0x79, 0x70)
     const ffmpeg = fakeFfmpegSession({ probeLog: m4aProbeLog(30), track })
 
-    const bytes = await cutTrack(ffmpeg, { format: 'm4a', startSeconds: 0, endSeconds: 10, tags })
+    const bytes = await cutTrack(ffmpeg, {
+      format: 'm4a',
+      seek: 'once',
+      startSeconds: 0,
+      endSeconds: 10,
+      tags,
+    })
 
     expect(bytes).toEqual(track)
     expect(ffmpeg.takeFile).toHaveBeenCalledWith('/track.m4a')
@@ -131,7 +164,7 @@ describe('cutTrack', () => {
   it('gives the watchdog 5 minutes', async () => {
     const ffmpeg = fakeFfmpegSession({ probeLog: m4aProbeLog(30) })
 
-    await cutTrack(ffmpeg, { format: 'm4a', startSeconds: 0, endSeconds: 10, tags })
+    await cutTrack(ffmpeg, { format: 'm4a', seek: 'once', startSeconds: 0, endSeconds: 10, tags })
 
     expect(ffmpeg.run.mock.calls[0]?.[1]).toBe(300_000)
   })
@@ -143,9 +176,28 @@ describe('cutTrack', () => {
     })
 
     await expect(
-      cutTrack(ffmpeg, { format: 'm4a', startSeconds: 0, endSeconds: 10, tags }),
+      cutTrack(ffmpeg, { format: 'm4a', seek: 'once', startSeconds: 0, endSeconds: 10, tags }),
     ).rejects.toThrow('Invalid data found when processing input')
     expect(ffmpeg.takeFile).not.toHaveBeenCalled()
+  })
+
+  it('seeks by the seek method and not by the format: an .m4a track can seek twice', async () => {
+    const ffmpeg = fakeFfmpegSession({ probeLog: m4aProbeLog(3686) })
+
+    await cutTrack(ffmpeg, {
+      format: 'm4a',
+      seek: 'twice',
+      startSeconds: 231.55,
+      endSeconds: 877.1,
+      tags,
+    })
+
+    const command = commandOf(ffmpeg) ?? []
+    expect(command).toContain('-t')
+    expect(command).not.toContain('-to')
+    // The tags and the extension still follow the format.
+    expect(command).toContain('+faststart')
+    expect(command.at(-1)).toBe('/track.m4a')
   })
 
   describe('.mp3 and .opus, which seek twice', () => {
@@ -154,7 +206,13 @@ describe('cutTrack', () => {
     it('copies a middle .mp3 track: a jump 2 s early, then the exact seek and -t', async () => {
       const ffmpeg = fakeFfmpegSession({ inputPath: '/in/source.mp3', probeLog: m4aProbeLog(3686) })
 
-      await cutTrack(ffmpeg, { format: 'mp3', startSeconds: 231.55, endSeconds: 877.1, tags })
+      await cutTrack(ffmpeg, {
+        format: 'mp3',
+        seek: 'twice',
+        startSeconds: 231.55,
+        endSeconds: 877.1,
+        tags,
+      })
 
       /*
       Start 231.55, so the jump lands at 229.55 and the exact seek is 2 s later; the length is
@@ -186,7 +244,13 @@ describe('cutTrack', () => {
     it('has no -ss at all for the first .mp3 track, which starts with the file', async () => {
       const ffmpeg = fakeFfmpegSession({ inputPath: '/in/source.mp3', probeLog: m4aProbeLog(3686) })
 
-      await cutTrack(ffmpeg, { format: 'mp3', startSeconds: 0, endSeconds: 231.55, tags })
+      await cutTrack(ffmpeg, {
+        format: 'mp3',
+        seek: 'twice',
+        startSeconds: 0,
+        endSeconds: 231.55,
+        tags,
+      })
 
       const command = commandOf(ffmpeg) ?? []
       expect(command.slice(3, 7)).toEqual(['-i', '/in/source.mp3', '-t', '231.55'])
@@ -196,7 +260,13 @@ describe('cutTrack', () => {
     it('has no -t for the last .mp3 track, which runs to the end of the file', async () => {
       const ffmpeg = fakeFfmpegSession({ inputPath: '/in/source.mp3', probeLog: m4aProbeLog(3686) })
 
-      await cutTrack(ffmpeg, { format: 'mp3', startSeconds: 3549.35, endSeconds: undefined, tags })
+      await cutTrack(ffmpeg, {
+        format: 'mp3',
+        seek: 'twice',
+        startSeconds: 3549.35,
+        endSeconds: undefined,
+        tags,
+      })
 
       const command = commandOf(ffmpeg) ?? []
       expect(command.slice(3, 10)).toEqual([
@@ -215,7 +285,13 @@ describe('cutTrack', () => {
     it('never seeks before 0 for a track that starts inside the first 2 s', async () => {
       const ffmpeg = fakeFfmpegSession({ inputPath: '/in/source.mp3', probeLog: m4aProbeLog(30) })
 
-      await cutTrack(ffmpeg, { format: 'mp3', startSeconds: 1.25, endSeconds: 10, tags })
+      await cutTrack(ffmpeg, {
+        format: 'mp3',
+        seek: 'twice',
+        startSeconds: 1.25,
+        endSeconds: 10,
+        tags,
+      })
 
       // No jump (the file's start is already near enough); the exact seek is the whole start.
       const command = commandOf(ffmpeg) ?? []
@@ -226,7 +302,13 @@ describe('cutTrack', () => {
     it('has neither seek nor -t for a file with no splits', async () => {
       const ffmpeg = fakeFfmpegSession({ inputPath: '/in/source.mp3', probeLog: m4aProbeLog(30) })
 
-      await cutTrack(ffmpeg, { format: 'mp3', startSeconds: 0, endSeconds: undefined, tags })
+      await cutTrack(ffmpeg, {
+        format: 'mp3',
+        seek: 'twice',
+        startSeconds: 0,
+        endSeconds: undefined,
+        tags,
+      })
 
       const command = commandOf(ffmpeg) ?? []
       expect(command.slice(0, 5)).toEqual(['-v', 'error', '-y', '-i', '/in/source.mp3'])
@@ -240,6 +322,7 @@ describe('cutTrack', () => {
       // 100.1 + 0.2 is 100.30000000000001 and 229.55 - 2 is 227.54999999999998 in floats.
       await cutTrack(ffmpeg, {
         format: 'mp3',
+        seek: 'twice',
         startSeconds: 100.1 + 0.2,
         endSeconds: 229.55 + 0.1,
         tags,
@@ -254,7 +337,13 @@ describe('cutTrack', () => {
     it('has no faststart for .mp3', async () => {
       const ffmpeg = fakeFfmpegSession({ inputPath: '/in/source.mp3', probeLog: m4aProbeLog(30) })
 
-      await cutTrack(ffmpeg, { format: 'mp3', startSeconds: 5, endSeconds: 10, tags })
+      await cutTrack(ffmpeg, {
+        format: 'mp3',
+        seek: 'twice',
+        startSeconds: 5,
+        endSeconds: 10,
+        tags,
+      })
 
       expect(commandOf(ffmpeg)).not.toContain('-movflags')
     })
@@ -265,7 +354,13 @@ describe('cutTrack', () => {
         inputPath: '/in/source.opus',
       })
 
-      await cutTrack(ffmpeg, { format: 'opus', startSeconds: 231.55, endSeconds: 877.1, tags })
+      await cutTrack(ffmpeg, {
+        format: 'opus',
+        seek: 'twice',
+        startSeconds: 231.55,
+        endSeconds: 877.1,
+        tags,
+      })
 
       expect(commandOf(ffmpeg)).toEqual([
         '-v',
@@ -300,6 +395,7 @@ describe('cutTrack', () => {
 
       const bytes = await cutTrack(ffmpeg, {
         format: 'opus',
+        seek: 'twice',
         startSeconds: 0,
         endSeconds: 10,
         tags,

@@ -33,6 +33,7 @@ describe('readProbeLog', () => {
     expect(readProbeLog(m4aLog)).toEqual({
       kind: 'supported',
       format: 'm4a',
+      seek: 'once',
       durationSeconds: 3686.21,
       sampleRate: 44_100,
       channelCount: 2,
@@ -43,6 +44,7 @@ describe('readProbeLog', () => {
     expect(readProbeLog(mp3WithCoverLog)).toEqual({
       kind: 'supported',
       format: 'mp3',
+      seek: 'twice',
       durationSeconds: 30,
       sampleRate: 44_100,
       channelCount: 2,
@@ -53,6 +55,7 @@ describe('readProbeLog', () => {
     expect(readProbeLog(opusLog)).toMatchObject({
       kind: 'supported',
       format: 'opus',
+      seek: 'twice',
       sampleRate: 48_000,
       channelCount: 1,
     })

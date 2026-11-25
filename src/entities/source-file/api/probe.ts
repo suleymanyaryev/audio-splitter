@@ -1,12 +1,20 @@
 import type { FfmpegSession } from '@/shared/api/ffmpeg/ffmpeg.ts'
 
-// The extension each supported format is exported under.
-export type SupportedFormat = 'm4a' | 'mp3' | 'opus'
+// The track format: the extension the exported tracks get, set by the codec (GLOSSARY.md).
+export type TrackFormat = 'm4a' | 'mp3' | 'opus'
+
+/*
+How a cut seeks, set by the container (docs/concepts/07-cutting-without-re-encoding.md): `once`
+jumps before the input, where the container's index lands on the frame that holds the time;
+`twice` jumps 2 s early and then seeks exactly after the input.
+*/
+export type SeekMethod = 'once' | 'twice'
 
 export type ProbeOutcome =
   | {
       kind: 'supported'
-      format: SupportedFormat
+      format: TrackFormat
+      seek: SeekMethod
       durationSeconds: number
       sampleRate: number
       channelCount: number
@@ -14,11 +22,19 @@ export type ProbeOutcome =
   | { kind: 'unsupported'; message: string }
   | { kind: 'unreadable'; reason: string }
 
-// ffmpeg's demuxer name for the container, then the codec, for each supported format.
-const SUPPORTED: { container: string; codec: string; format: SupportedFormat }[] = [
-  { container: 'mov,mp4,m4a,3gp,3g2,mj2', codec: 'aac', format: 'm4a' },
-  { container: 'mp3', codec: 'mp3', format: 'mp3' },
-  { container: 'ogg', codec: 'opus', format: 'opus' },
+/*
+ffmpeg's demuxer name for the container and the codec of each supported pair, with the track
+format the codec sets and the seek method the container sets.
+*/
+const SUPPORTED: {
+  container: string
+  codec: string
+  format: TrackFormat
+  seek: SeekMethod
+}[] = [
+  { container: 'mov,mp4,m4a,3gp,3g2,mj2', codec: 'aac', format: 'm4a', seek: 'once' },
+  { container: 'mp3', codec: 'mp3', format: 'mp3', seek: 'twice' },
+  { container: 'ogg', codec: 'opus', format: 'opus', seek: 'twice' },
 ]
 
 // Readable names for the message about an unsupported file; anything else shows ffmpeg's name.
@@ -96,6 +112,7 @@ export function readProbeLog(log: string[]): ProbeOutcome {
   return {
     kind: 'supported',
     format: supported.format,
+    seek: supported.seek,
     durationSeconds: hours * 3600 + minutes * 60 + seconds,
     sampleRate: Number(rate),
     channelCount,

@@ -36,6 +36,10 @@ _Avoid_: Base name, stem
 Writing every track that is not left out as its own audio file, in the source file's track format, into a new folder named after the source file, made inside a folder the user picks (a second export of the same file makes `name (2)`).
 _Avoid_: Download, save, split (as a verb)
 
+**Seek method**:
+How a cut finds its start in a source file, set by the container: once, with one jump before the input (MP4 and MOV, which index every frame), or twice, with a jump 2 s early and then an exact seek (MP3, Ogg, and later WebM and Matroska). Not the same as the track format, which the codec sets.
+_Avoid_: Cut mode, seek type
+
 **Single export**:
 Writing one track, or the range, as one audio file in the source file's track format, under a name the user confirms, into a folder the user picks once per file.
 _Avoid_: Cut, extract, chunk

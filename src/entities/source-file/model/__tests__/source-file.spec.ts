@@ -901,6 +901,24 @@ describe('the source-file store', () => {
       expect(command.at(-1)).toBe('/track.m4a')
     })
 
+    it('cuts with the seek method the probe read: an MP3 seeks twice', async () => {
+      const session = fakeFfmpegSession({
+        probeLog: mp3ProbeLog(30),
+        pcm: toneThenSilencePcm(44_100, 15, 0.5),
+        track,
+      })
+      vi.mocked(openFfmpeg).mockResolvedValue(session)
+      const store = useSourceFileStore()
+      await store.load(file)
+
+      await store.cutTrack({ startSeconds: 10, endSeconds: 20, tags })
+
+      const command = cutRuns(session)[0]?.[0] ?? []
+      expect(store.format).toBe('mp3')
+      expect(command.slice(3, 5)).toEqual(['-ss', '8'])
+      expect(command).toContain('-t')
+    })
+
     it('rejects a cut before a file is ready', async () => {
       const store = useSourceFileStore()
 

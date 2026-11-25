@@ -12,7 +12,7 @@ import { createPeaksBuilder } from '@/shared/lib/audio/peaks-builder.ts'
 import { cutTrack as cutTrackIn, type TrackCut } from '../api/cut-track.ts'
 import { decodeClip } from '../api/decode-clip.ts'
 import { decodeSlice, sliceCount } from '../api/decode-slice.ts'
-import { probe, type SupportedFormat } from '../api/probe.ts'
+import { probe, type SeekMethod, type TrackFormat } from '../api/probe.ts'
 
 export type LoadFailure =
   | { kind: 'unsupported'; message: string }
@@ -34,7 +34,8 @@ const STOPPED_MESSAGE = 'ffmpeg was stopped'
 interface ReadyFile {
   open: FfmpegSession
   duration: number
-  format: SupportedFormat
+  format: TrackFormat
+  seek: SeekMethod
 }
 
 // Waits for a call's end however it ends: its caller gets the error, and the next call goes on.
@@ -63,7 +64,9 @@ the peaks and the loudness curve have taken what they need: only the small summa
 export const useSourceFileStore = defineStore('source-file', () => {
   const status = ref<'empty' | 'loading' | 'ready' | 'failed'>('empty')
   const file = shallowRef<File | null>(null)
-  const format = ref<SupportedFormat | null>(null)
+  // The track format and the seek method of the probe's outcome.
+  const format = ref<TrackFormat | null>(null)
+  const seek = ref<SeekMethod | null>(null)
   const durationSeconds = ref<number | null>(null)
   // [min, max] of the mono downmix per bucket of round(rate / 100) samples: exactly 10 ms at
   // 44.1 and 48 kHz (see shared/lib/audio/peaks-builder.ts).
@@ -119,6 +122,7 @@ export const useSourceFileStore = defineStore('source-file', () => {
     status.value = 'empty'
     file.value = null
     format.value = null
+    seek.value = null
     durationSeconds.value = null
     peaks.value = null
     loudness.value = null
@@ -172,6 +176,7 @@ export const useSourceFileStore = defineStore('source-file', () => {
         return
       }
       format.value = probed.format
+      seek.value = probed.seek
       durationSeconds.value = probed.durationSeconds
 
       const total = sliceCount(probed.durationSeconds, probed.format)
@@ -224,7 +229,14 @@ export const useSourceFileStore = defineStore('source-file', () => {
     const open = session
     const duration = durationSeconds.value
     const kind = format.value
-    if (!open || duration === null || kind === null || status.value !== 'ready') {
+    const seekMethod = seek.value
+    if (
+      !open ||
+      duration === null ||
+      kind === null ||
+      seekMethod === null ||
+      status.value !== 'ready'
+    ) {
       throw new Error('No file is ready')
     }
     const thisLoad = currentLoad
@@ -234,7 +246,7 @@ export const useSourceFileStore = defineStore('source-file', () => {
     const turn = (async () => {
       await previous
       if (isStale()) throw new FileReplacedError()
-      const result = await work({ open, duration, format: kind })
+      const result = await work({ open, duration, format: kind, seek: seekMethod })
       if (isStale()) throw new FileReplacedError()
       return result
     })()
@@ -270,11 +282,11 @@ export const useSourceFileStore = defineStore('source-file', () => {
   session's 20-call reload budget like any other call. A cut asked for before `stopCuts` and not
   yet started when it is called rejects with that call's error, without running.
   */
-  async function cutTrack(track: Omit<TrackCut, 'format'>) {
+  async function cutTrack(track: Omit<TrackCut, 'format' | 'seek'>) {
     const askedAt = stopCount
-    return inSession(({ open, format: kind }) => {
+    return inSession(({ open, format: kind, seek: seekMethod }) => {
       if (stopCount !== askedAt) throw new Error(STOPPED_MESSAGE)
-      return cutTrackIn(open, { format: kind, ...track })
+      return cutTrackIn(open, { format: kind, seek: seekMethod, ...track })
     })
   }
 

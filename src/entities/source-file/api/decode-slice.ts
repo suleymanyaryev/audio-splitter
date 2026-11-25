@@ -1,5 +1,5 @@
 import type { FfmpegSession } from '@/shared/api/ffmpeg/ffmpeg.ts'
-import type { SupportedFormat } from './probe.ts'
+import type { TrackFormat } from './probe.ts'
 
 const OUTPUT_PATH = '/slice.pcm'
 
@@ -16,11 +16,11 @@ ffmpeg seeks an MP3 by reading from the start, so every slice costs a seek that 
 position. Fewer, longer slices mean fewer seeks (see "Longer MP3 slices" in the concept note). The
 other formats seek for free, and longer slices would only cost memory.
 */
-function sliceSeconds(format: SupportedFormat): number {
+function sliceSeconds(format: TrackFormat): number {
   return format === 'mp3' ? 300 : 60
 }
 
-export function sliceCount(durationSeconds: number, format: SupportedFormat): number {
+export function sliceCount(durationSeconds: number, format: TrackFormat): number {
   return Math.ceil(durationSeconds / sliceSeconds(format))
 }
 
@@ -37,7 +37,7 @@ the pre-roll off the decoded audio.
 export async function decodeSlice(
   ffmpeg: FfmpegSession,
   index: number,
-  format: SupportedFormat,
+  format: TrackFormat,
 ): Promise<Float32Array> {
   const seconds = sliceSeconds(format)
   const cut =
