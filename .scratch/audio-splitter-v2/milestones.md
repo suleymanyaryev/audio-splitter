@@ -162,6 +162,8 @@ The order is the agent's proposal; the user confirmed milestone 1 goes first. Tw
 
 **Needs from the user.** One real video file. A yt-dlp download made with `--embed-chapters` covers milestone 4 too.
 
+**Status.** Grilled on 2026-11-25; decisions and first measurements in [`.scratch/video-and-more-formats/analysis.md`](../video-and-more-formats/analysis.md#decisions). It claims five pairs: AAC in MP4 or MOV, MP3, Opus in Ogg, Opus in WebM or Matroska, Vorbis in Ogg. No real video file is needed: the spike builds stand-ins from the samples the way yt-dlp does. Spec at [`.scratch/video-and-more-formats/spec.md`](../video-and-more-formats/spec.md), ready for tickets; its first two are the browser spike and concept note 12.
+
 ## Milestone 4: Chapters and pasted tracklists
 
 **Audio idea.** A container carries metadata beside its streams: chapters are times with titles.
