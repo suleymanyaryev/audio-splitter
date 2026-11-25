@@ -18,6 +18,8 @@ Versions follow [Semantic Versioning](https://semver.org/) applied to the produc
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-11-25
+
 ### Added
 
 - A Vorbis `.ogg` file loads and splits like an `.opus`, and its tracks are exported as `.ogg` files, copied without re-encoding, with the title, number and album in each. The file dialog lists `.ogg` and `.oga` files.
@@ -158,7 +160,8 @@ The first release: milestones 0 to 7.
 - A question before a setting change ("Replace your edits?") or "New file" ("Discard your edits?") throws edits away.
 - "Export to folder…": every track written by stream copy, without re-encoding, into a new subfolder named after the source file (`name (2)/` the second time). Files are named `01.m4a` or `01 Name.m4a` and tagged with title, track number and album. Cancel keeps the tracks already written.
 
-[unreleased]: https://github.com/suleymanyaryev/audio-splitter/compare/v1.4.0...HEAD
+[unreleased]: https://github.com/suleymanyaryev/audio-splitter/compare/v2.0.0...HEAD
+[2.0.0]: https://github.com/suleymanyaryev/audio-splitter/compare/v1.4.0...v2.0.0
 [1.4.0]: https://github.com/suleymanyaryev/audio-splitter/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/suleymanyaryev/audio-splitter/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/suleymanyaryev/audio-splitter/compare/v1.1.0...v1.2.0
