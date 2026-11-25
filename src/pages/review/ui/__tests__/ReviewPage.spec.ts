@@ -3,6 +3,7 @@ import { createPinia, setActivePinia } from 'pinia'
 
 import { DOMWrapper, enableAutoUnmount, flushPromises, mount } from '@vue/test-utils'
 import { useSourceFileStore } from '@/entities/source-file/model/source-file.ts'
+import { confidenceQueue } from '@/entities/split/lib/confidence-queue.ts'
 import { useSplitStore } from '@/entities/split/model/split.ts'
 import { useShortcutsDialogStore } from '@/widgets/shortcuts-dialog/model/shortcuts-dialog.ts'
 import { trackExtent } from '@/widgets/split-zoom/lib/track-extent.ts'
@@ -2419,6 +2420,36 @@ describe('ReviewPage', () => {
       wrapper.unmount()
     })
 
+    it('select the splits by confidence with Shift: } the first, { from none the last', async () => {
+      const wrapper = await mountPageWithTrack(1)
+      const split = useSplitStore()
+      // The second gap is the longer one, so the least deep split is the first.
+      const [first, last] = confidenceQueue(split.splits)
+
+      pressKey('}', { code: 'BracketRight', shiftKey: true })
+      await wrapper.vm.$nextTick()
+      expect(split.selectedSplit?.id).toBe(first?.id)
+      expect(split.view).toBe('split')
+
+      pressKey('}', { code: 'BracketRight', shiftKey: true })
+      expect(split.selectedSplit?.id).toBe(last?.id)
+
+      pressKey('{', { code: 'BracketLeft', shiftKey: true })
+      expect(split.selectedSplit?.id).toBe(first?.id)
+      wrapper.unmount()
+    })
+
+    it('leave { and } to a dialog, a text field and a held key', async () => {
+      const wrapper = await mountPageWithTrack(1)
+      const split = useSplitStore()
+
+      pressKey('}', { code: 'BracketRight', shiftKey: true, repeat: true })
+      pressKey('}', { code: 'BracketRight', shiftKey: true }, wrapper.get('input').element)
+
+      expect(split.selectedSplit).toBeNull()
+      wrapper.unmount()
+    })
+
     it('marks the new track’s block in the track strip', async () => {
       const wrapper = await mountPageWithTrack(1)
       const strip = wrapper.get('ol[aria-label="Tracks"]')
@@ -2461,14 +2492,14 @@ describe('ReviewPage', () => {
     })
 
     describe('are left alone', () => {
-      it('with Shift held', async () => {
+      it('with Shift held, which is the walk by confidence’s and selects a split instead', async () => {
         const wrapper = await mountPageWithTrack(1)
 
-        const event = pressKey(NEXT.key, { code: NEXT.code, shiftKey: true })
+        pressKey('}', { code: NEXT.code, shiftKey: true })
         await wrapper.vm.$nextTick()
 
-        expect(useSplitStore().selectedTrack?.number).toBe(1)
-        expect(event.defaultPrevented).toBe(false)
+        expect(useSplitStore().selectedTrack).toBeNull()
+        expect(useSplitStore().selectedSplit).not.toBeNull()
       })
 
       it('when the key is held down, which steps once', async () => {

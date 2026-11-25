@@ -30,7 +30,8 @@ split is a wider line with a drag handle at its top. The handle is a real elemen
 it can be reached with Tab and read by a screen reader. The view takes the page's keys, wherever the
 focus is: Left and Right move the split 10 ms, with Shift 100 ms, Delete (Backspace too, the delete
 key of a Mac keyboard) deletes it, and `[` and `]` select the previous and next split, as a click
-on it does. Space plays the clip across the split and pauses it, as the "Play across split" button
+on it does. `K` marks a split with a confidence as checked (ticket 06 of shallow-dips: the split
+keeps its place and leaves the queue that `{` and `}`, the page's keys, walk). Space plays the clip across the split and pauses it, as the "Play across split" button
 does (ticket 14); a 1 px ink line always shows the audition's playhead, where the sound is while it
 plays and where it resumes otherwise, and a failure to play is said in a line at the bottom of the
 view. A held Space, `[` or `]` is ignored, so it does not start and stop the sound or step over and
@@ -152,6 +153,12 @@ function isKeyActedOn(event: KeyboardEvent) {
   }
   const selected = split.selectedSplit
   if (selected === null) return false
+  // K is the split checked, kept where it is; a held key marks once, and a split with none has no use for it.
+  if (event.code === 'KeyK' && !event.shiftKey) {
+    if (selected.confidence === null) return false
+    if (!event.repeat) split.markChecked()
+    return true
+  }
   if (event.key === 'Home') {
     audition.backToAuditionStart()
     return true

@@ -26,10 +26,12 @@ import UiSegmentedControl from '@/shared/ui/UiSegmentedControl.vue'
 import LoudnessCurve from '@/widgets/loudness-curve/ui/LoudnessCurve.vue'
 import LoudnessSettings from '@/widgets/loudness-curve/ui/LoudnessSettings.vue'
 import SourceWaveform from '@/widgets/source-waveform/ui/SourceWaveform.vue'
+import { usePageKeys } from '@/shared/lib/keyboard/use-page-keys.ts'
 import { rangeTitle } from '@/widgets/split-zoom/lib/range-title.ts'
 import { trackExtent } from '@/widgets/split-zoom/lib/track-extent.ts'
 import { trackTitle } from '@/widgets/split-zoom/lib/track-title.ts'
 import { zoomTitle } from '@/widgets/split-zoom/lib/zoom-title.ts'
+import { confidenceStepOfKey } from '@/widgets/split-zoom/lib/step-of-key.ts'
 import { useQuestionMarkKey } from '@/widgets/shortcuts-dialog/lib/use-question-mark-key.ts'
 import { useShortcutsDialogStore } from '@/widgets/shortcuts-dialog/model/shortcuts-dialog.ts'
 import ShortcutsDialog from '@/widgets/shortcuts-dialog/ui/ShortcutsDialog.vue'
@@ -90,6 +92,17 @@ const shortcuts = useShortcutsDialogStore()
 // `?` anywhere on the page opens the shortcuts dialog, as the header's button does.
 useQuestionMarkKey(() => {
   shortcuts.show()
+})
+
+/*
+`{` and `}` anywhere on the page select the next split that still has a confidence, least sure
+first, and the one before it, and open the Split view on it.
+*/
+usePageKeys((event) => {
+  const step = confidenceStepOfKey(event)
+  if (step === null) return false
+  split.selectAdjacentByConfidence(step)
+  return true
 })
 
 const { loudness, loudnessWindowSeconds, durationSeconds } = sourceFile

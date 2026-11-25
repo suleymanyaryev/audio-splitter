@@ -251,6 +251,31 @@ function threeDepths() {
   )
 }
 
+/*
+Dips of 6, 12 and 9 dB in time order (a doubtful, a sure-looking 12 is likely, and a likely 9),
+and a gap of 40 dB: the order is 6, 9, 12, then the gap's 40.
+*/
+function openWithFourDepths() {
+  const curve = curveOf(
+    [LOUD, 400],
+    [-16, 80],
+    [LOUD, 400],
+    [-22, 80],
+    [LOUD, 400],
+    [-19, 80],
+    [LOUD, 400],
+    [QUIET, 60],
+    [LOUD, 400],
+  )
+  const store = openCurve(curve)
+  store.setDepth(3)
+  store.findSplits()
+  return store
+}
+
+const depths = (store: ReturnType<typeof useSplitStore>) =>
+  store.splits.map((split) => split.confidence?.depth.toFixed(0))
+
 describe('the split store', () => {
   beforeEach(() => {
     // The default settings are kept in localStorage, which a spec must not inherit from another.
@@ -764,6 +789,148 @@ describe('the split store', () => {
 
         store.deleteSplit(store.splits[0]!.id)
         expect(store.splits).toEqual([])
+      })
+    })
+
+    describe('going through by confidence', () => {
+      it('walks the splits with a confidence, least deep first', () => {
+        const store = openWithFourDepths()
+        expect(depths(store)).toEqual(['6', '12', '9', '40'])
+        const walked: (string | undefined)[] = []
+
+        while (store.selectAdjacentByConfidence(1)) {
+          walked.push(store.selectedSplit?.confidence?.depth.toFixed(0))
+        }
+
+        expect(walked).toEqual(['6', '9', '12', '40'])
+      })
+
+      it('goes to the first from none and to the last backwards from none', () => {
+        const store = openWithFourDepths()
+
+        store.selectAdjacentByConfidence(-1)
+        expect(store.selectedSplit?.confidence?.depth.toFixed(0)).toBe('40')
+
+        store.moveZoomTo(1)
+        store.selectTrack(store.tracks[0]!)
+        store.selectAdjacentByConfidence(1)
+        expect(store.selectedSplit?.confidence?.depth.toFixed(0)).toBe('6')
+      })
+
+      it('goes to the first from a split with no confidence, and opens the Split view', () => {
+        const store = openWithFourDepths()
+        store.addSplitAt(10)
+        const manual = store.splits.find((split) => split.confidence === null)!
+        store.selectSplit(manual.id)
+        store.showView('track')
+
+        store.selectAdjacentByConfidence(1)
+
+        expect(store.selectedSplit?.confidence?.depth.toFixed(0)).toBe('6')
+        expect(store.view).toBe('split')
+      })
+
+      it('stops at either end of the order', () => {
+        const store = openWithFourDepths()
+        store.selectAdjacentByConfidence(1)
+
+        expect(store.selectAdjacentByConfidence(-1)).toBe(false)
+        expect(store.selectedSplit?.confidence?.depth.toFixed(0)).toBe('6')
+      })
+
+      it('breaks a tie by time', () => {
+        const curve = curveOf([LOUD, 400], [-16, 80], [LOUD, 400], [-16, 80], [LOUD, 400])
+        const store = openCurve(curve)
+        store.setDepth(3)
+        store.findSplits()
+
+        store.selectAdjacentByConfidence(1)
+        const first = store.selectedSplit!.seconds
+        store.selectAdjacentByConfidence(1)
+
+        expect(store.selectedSplit!.seconds).toBeGreaterThan(first)
+      })
+
+      it('does nothing when no split has a confidence', () => {
+        const store = openCurve(curveOf([LOUD, 400], [QUIET, 60], [LOUD, 400]))
+        store.addSplitAt(10)
+
+        expect(store.selectAdjacentByConfidence(1)).toBe(false)
+        expect(store.selectAdjacentByConfidence(-1)).toBe(false)
+        expect(store.selectedSplit).toBeNull()
+      })
+
+      it('lets a moved split leave the walk', () => {
+        const store = openWithFourDepths()
+        store.selectAdjacentByConfidence(1)
+        store.moveSplit(store.selectedSplit!.id, store.selectedSplit!.seconds + 0.5)
+
+        store.selectAdjacentByConfidence(1)
+
+        expect(store.selectedSplit?.confidence?.depth.toFixed(0)).toBe('9')
+      })
+
+      describe('marking a split checked', () => {
+        it('clears its confidence, keeps its place and counts one edit', () => {
+          const store = openWithFourDepths()
+          store.selectAdjacentByConfidence(1)
+          const { id, seconds } = store.selectedSplit!
+
+          store.markChecked()
+
+          const checked = store.splits.find((split) => split.id === id)!
+          expect(checked.confidence).toBeNull()
+          expect(checked.seconds).toBe(seconds)
+          expect(store.editCount).toBe(1)
+          store.selectAdjacentByConfidence(1)
+          expect(store.selectedSplit?.confidence?.depth.toFixed(0)).toBe('9')
+        })
+
+        it('counts once when pressed again, and does nothing for a split with no confidence', () => {
+          const store = openWithFourDepths()
+          store.selectAdjacentByConfidence(1)
+          store.markChecked()
+          store.markChecked()
+          store.addSplitAt(10)
+          store.selectSplit(store.splits.find((split) => split.confidence === null)!.id)
+          store.markChecked()
+
+          expect(store.editCount).toBe(2)
+        })
+
+        it('does nothing with no split selected', () => {
+          const store = openWithFourDepths()
+
+          store.markChecked()
+
+          expect(store.editCount).toBe(0)
+        })
+
+        it('is taken back with its split when the split is deleted', () => {
+          const store = openWithFourDepths()
+          store.selectAdjacentByConfidence(1)
+          store.markChecked()
+
+          store.deleteSplit(store.selectedSplit!.id)
+
+          // The delete is one edit; the check went with the split.
+          expect(store.editCount).toBe(1)
+        })
+
+        it('is cleared by Clear splits and by reset', () => {
+          const store = openWithFourDepths()
+          store.selectAdjacentByConfidence(1)
+          store.markChecked()
+
+          store.clearSplits()
+          expect(store.editCount).toBe(0)
+
+          store.findSplits()
+          store.selectAdjacentByConfidence(1)
+          store.markChecked()
+          store.reset()
+          expect(store.editCount).toBe(0)
+        })
       })
     })
 

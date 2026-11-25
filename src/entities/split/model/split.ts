@@ -23,6 +23,7 @@ import { ZOOM_WINDOW_SECONDS } from '../config/zoom-window.ts'
 import { findMatchesInWorker } from '../api/find-matches-client.ts'
 import { MINIMUM_COMPARED_SECONDS } from '../config/match-thresholds.ts'
 import { bandOf, type Confidence } from '../lib/confidence-band.ts'
+import { confidenceQueue } from '../lib/confidence-queue.ts'
 import { findDips } from '../lib/find-dips.ts'
 import { findGaps, type Gap } from '../lib/find-gaps.ts'
 import { proposeSplits } from '../lib/propose-splits.ts'
@@ -302,6 +303,8 @@ export const useSplitStore = defineStore('split', () => {
   const renamedKeys = ref(new Set<number | null>())
   // The tracks the user left out or brought back, keyed like a rename; a second toggle takes it back.
   const inclusionKeys = ref(new Set<number | null>())
+  // The splits the user marked checked: each one edit, as a move is.
+  const checkedIds = ref(new Set<number>())
   const deletedCount = ref(0)
 
   // The index in `splits` of the selected split, or null when no split is selected.
@@ -552,6 +555,7 @@ export const useSplitStore = defineStore('split', () => {
     addedIds.value.clear()
     renamedKeys.value.clear()
     inclusionKeys.value.clear()
+    checkedIds.value.clear()
     deletedCount.value = 0
   }
 
@@ -561,6 +565,7 @@ export const useSplitStore = defineStore('split', () => {
       addedIds.value.size +
       renamedKeys.value.size +
       inclusionKeys.value.size +
+      checkedIds.value.size +
       liveDismissals.value.length +
       deletedCount.value,
   )
@@ -1018,6 +1023,41 @@ export const useSplitStore = defineStore('split', () => {
     return selectedSplit.value?.id === next.id
   }
 
+  /*
+  The splits that still have a confidence, least deep first, ties by time (`splits` is in time
+  order and the sort is stable). It is the queue that `{` and `}` walk: a split leaves it when it is
+  moved or checked.
+  */
+  const confidenceOrder = computed(() => confidenceQueue(splits.value))
+
+  /*
+  Selects the next (`step` 1) or previous (-1) split in the confidence queue, as a click on it does.
+  From no selection, or a split that is not in the queue, the next is the first and the previous is
+  the last; past either end nothing happens. Whether the selection changed at once.
+  */
+  function selectAdjacentByConfidence(step: -1 | 1) {
+    const queue = confidenceOrder.value
+    const current = selectedSplit.value
+    const at = current === null ? -1 : queue.findIndex((split) => split.id === current.id)
+    // From none, or a split outside the queue: the first for `}`, the last for `{`.
+    const edge = step === 1 ? queue[0] : queue.at(-1)
+    const next = at === -1 ? edge : queue[at + step]
+    if (next === undefined) return false
+    selectSplit(next.id)
+    return selectedSplit.value?.id === next.id
+  }
+
+  /*
+  The selected split has been listened to and is kept where it is: its confidence goes, so it leaves
+  the queue, and it counts as one edit. Nothing happens for a split with no confidence.
+  */
+  function markChecked() {
+    const current = selectedSplit.value
+    if (current === null || current.confidence === null) return
+    current.confidence = null
+    checkedIds.value.add(current.id)
+  }
+
   // The split nearest the zoom window's centre on the `step` side of it, strictly past the centre.
   function splitFromCentre(step: -1 | 1) {
     const centre = zoomCentreSeconds.value
@@ -1257,6 +1297,7 @@ export const useSplitStore = defineStore('split', () => {
     movedIds.value.delete(id)
     renamedKeys.value.delete(id)
     inclusionKeys.value.delete(id)
+    checkedIds.value.delete(id)
     // The selected track starts at the deleted split: the merged track starts at the one before it.
     if (wasTrackStart) {
       selection.value = { kind: 'track', startSplitId: splits.value[index - 1]?.id ?? null }
@@ -1443,6 +1484,8 @@ export const useSplitStore = defineStore('split', () => {
     selectTrack,
     selectAdjacentTrack,
     selectAdjacentSplit,
+    selectAdjacentByConfidence,
+    markChecked,
     isTrackSelected,
     moveZoomTo,
     setRange,
