@@ -1,8 +1,9 @@
-import { computed, ref, shallowRef, type Ref } from 'vue'
+import { computed, ref, shallowRef, watch, type Ref } from 'vue'
 
 import { findMatchesInWorker } from '../api/find-matches-client.ts'
 import { MINIMUM_COMPARED_SECONDS } from '../config/match-thresholds.ts'
 import type { FoundMatch, SharedStretch } from '../lib/find-matches.ts'
+import { swapMoment, type SwapLink } from '../lib/swap-moment.ts'
 
 // One track as the split store has it now: the split it starts at (none for the first), its ends.
 export interface TrackEnds {
@@ -20,7 +21,7 @@ export interface SearchInput {
 }
 
 // A match that holds now, by the indices of its two tracks (GLOSSARY.md: Match).
-export interface LiveMatch {
+interface LiveMatch {
   later: number
   earlier: number
   kind: FoundMatch['kind']
@@ -29,16 +30,20 @@ export interface LiveMatch {
 }
 
 // A track as a match recorded it: where it starts and ends, so a match can tell it has changed.
-interface MatchedTrack {
-  startSplitId: number | null
-  startSeconds: number
-  endSeconds: number
-}
+type MatchedTrack = Omit<TrackEnds, 'isLeftOutByHand'>
 
 // A match of the last press: a track, an earlier one, and what they share.
 interface StoredMatch extends Omit<LiveMatch, 'later' | 'earlier'> {
   later: MatchedTrack
   earlier: MatchedTrack
+}
+
+/*
+A match seen from the track `C` is pressed on, and whether that track is the match's later one:
+away from a way back, `C` goes only by the matches of the later track.
+*/
+interface MatchLink extends SwapLink {
+  isFromLater: boolean
 }
 
 function matchedOf({ startSplitId, startSeconds, endSeconds }: TrackEnds): MatchedTrack {
@@ -68,6 +73,8 @@ them, so an edit ends it by changing a track and nothing has to find and remove 
 records the pair the same way: it lasts as long as the match would, counts as one edit meanwhile,
 and the next press leaves the pair out. Every press takes a number, and the answer of an older press,
 or one after `drop`, is dropped; `drop` also stops the running search's worker.
+
+It also owns the matches part of a swap (GLOSSARY.md: Swap): where `C` goes, and the way back.
 */
 export function useMatches(trackEnds: Ref<TrackEnds[]>, searchInput: () => SearchInput | null) {
   const matches = shallowRef<StoredMatch[]>([])
@@ -76,6 +83,11 @@ export function useMatches(trackEnds: Ref<TrackEnds[]>, searchInput: () => Searc
   const failure = ref<string | null>(null)
   // False until the first answer, so the result says nothing before.
   const hasSearched = ref(false)
+  /*
+  The last swap: the track it left and the track it went to, as they were. It is the way back for
+  the track it went to, and holds while both keep their ends and a live match joins them.
+  */
+  const wayBack = shallowRef<{ from: MatchedTrack; to: MatchedTrack } | null>(null)
   let searchNumber = 0
   let searchAbort: AbortController | null = null
 
@@ -115,6 +127,32 @@ export function useMatches(trackEnds: Ref<TrackEnds[]>, searchInput: () => Searc
     }
     return live
   })
+
+  /*
+  The way back of the last swap, as the indices of the two tracks, while both keep their ends and a
+  live match joins them; null once either fails, and then `wayBack` is let go for good, so a match
+  that comes back with its ends does not bring the way back with it.
+  */
+  const liveWayBack = computed(() => {
+    const back = wayBack.value
+    if (back === null) return null
+    const from = indexOfMatched.value(back.from)
+    const to = indexOfMatched.value(back.to)
+    if (from === undefined || to === undefined) return null
+    const isJoined = liveMatches.value.some(
+      (match) =>
+        (match.later === from && match.earlier === to) ||
+        (match.later === to && match.earlier === from),
+    )
+    return isJoined ? { from, to } : null
+  })
+  watch(
+    liveWayBack,
+    (live) => {
+      if (live === null) wayBack.value = null
+    },
+    { flush: 'sync' },
+  )
 
   // Two tracks of 30 s or more, a file open and no search running; after a failure, again.
   const canFind = computed(
@@ -197,13 +235,57 @@ export function useMatches(trackEnds: Ref<TrackEnds[]>, searchInput: () => Searc
     dismissed.value = [...dismissed.value, stored]
   }
 
-  // Forgets every match and dismissal and stops a running search: its answer is for a gone file.
+  /*
+  Where `C` goes from track `index` at `offsetSeconds` into it: the other track of a live match, by
+  its index, and the same moment in it, in seconds from its start, or null.
+
+  - A track that was swapped to, with a live match joining it to the track the swap came from, goes
+    back there. Any other track goes by its own matches, with the earlier tracks.
+  - Of those, the moment is the one `swapMoment` gives: the same moment inside a shared stretch,
+    else the start of the nearest one in the other track.
+  */
+  function swapTarget(index: number, offsetSeconds: number) {
+    const links: MatchLink[] = []
+    for (const match of liveMatches.value) {
+      if (match.later === index)
+        links.push({
+          other: match.earlier,
+          here: match.laterShared,
+          there: match.earlierShared,
+          isFromLater: true,
+        })
+      else if (match.earlier === index)
+        links.push({
+          other: match.later,
+          here: match.earlierShared,
+          there: match.laterShared,
+          isFromLater: false,
+        })
+    }
+    const back = liveWayBack.value
+    const wayBackLinks =
+      back !== null && back.to === index ? links.filter((link) => link.other === back.from) : []
+    const candidates =
+      wayBackLinks.length > 0 ? wayBackLinks : links.filter((link) => link.isFromLater)
+    return swapMoment(candidates, offsetSeconds)
+  }
+
+  // Remembers a swap from track `fromIndex` to track `toIndex`: the way back for the track it went to.
+  function rememberSwap(fromIndex: number, toIndex: number) {
+    const from = trackEnds.value[fromIndex]
+    const to = trackEnds.value[toIndex]
+    if (from === undefined || to === undefined) return
+    wayBack.value = { from: matchedOf(from), to: matchedOf(to) }
+  }
+
+  // Forgets every match, dismissal and way back, and stops a running search: its answer is for a gone file.
   function drop() {
     searchNumber++
     searchAbort?.abort()
     searchAbort = null
     matches.value = []
     dismissed.value = []
+    wayBack.value = null
     hasSearched.value = false
     status.value = 'idle'
     failure.value = null
@@ -219,5 +301,7 @@ export function useMatches(trackEnds: Ref<TrackEnds[]>, searchInput: () => Searc
     search,
     dismiss,
     drop,
+    swapTarget,
+    rememberSwap,
   }
 }

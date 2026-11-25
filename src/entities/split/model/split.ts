@@ -28,7 +28,6 @@ import type { TrackMatch } from '../lib/match-words.ts'
 import { defaultTrackName } from '../lib/default-track-name.ts'
 import { rangeBetween, type TimeRange } from '../lib/range-between.ts'
 import { roundToTenth } from '../lib/round-to-tenth.ts'
-import { swapMoment, type SwapLink } from '../lib/swap-moment.ts'
 import { useMatches, type TrackEnds } from './matches.ts'
 
 const BUILT_IN_SETTINGS: DefaultSettings = {
@@ -117,24 +116,6 @@ export interface CurveTiming {
 }
 
 /*
-A match seen from the track `C` is pressed on, and whether that track is the match's later one:
-away from a way back, `C` goes only by the matches of the later track.
-*/
-interface MatchLink extends SwapLink {
-  isFromLater: boolean
-}
-
-// The index of a track the way back recorded, while it keeps those ends, else -1.
-function indexOfKept(ends: TrackEnds[], held: TrackEnds) {
-  return ends.findIndex(
-    (track) =>
-      track.startSplitId === held.startSplitId &&
-      track.startSeconds === held.startSeconds &&
-      track.endSeconds === held.endSeconds,
-  )
-}
-
-/*
 The splits of the source file and the tracks between them. This slice cannot import
 `entities/source-file`, so `open` receives the loudness curve as data and keeps a reference to it
 (the page's source-file store owns the array; it is never written to), to find the gaps again when
@@ -163,13 +144,10 @@ nothing else moves it except `moveZoomTo`. A split can only be moved inside the 
 is added at the window's centre, and `editCount` says how many things the user changed since the
 file opened. The splits Find splits adds are no edit; moving or deleting one is.
 
-`findDuplicates` ("Find duplicates") keeps the matches of the last press (GLOSSARY.md: Match). A
-match lasts while both its tracks keep the ends they had, so an edit drops it by changing a track,
-and a track with a live match with an earlier track is a `duplicate` (`Inclusion`), derived and
-never kept on a split. Finding matches is no edit and changes no split, name or selection;
-`clearSplits`, `open` and `reset` drop every match and stop a running search. `dismissMatch` rejects
-a match: the pair is remembered with both tracks' ends, so it lasts as long as a match does, is one
-edit meanwhile, and the next press leaves it out.
+The matches of "Find duplicates" (GLOSSARY.md: Match) live in the matches module (`matches.ts`),
+which the store feeds the track ends. A track with a live full match with an earlier track is a
+`duplicate` (`Inclusion`), derived and never kept on a split; `clearSplits`, `open` and `reset` drop
+every match.
 
 The range (GLOSSARY.md) is view state beside the window's centre: a stretch the user dragged out on
 the whole-file view, or none. It belongs to the file, so a setting change and the edits leave it
@@ -231,12 +209,6 @@ export const useSplitStore = defineStore('split', () => {
   let heldAction: (() => void) | null = null
   const view = ref<PanelView>('split')
   let nextSplitId = 0
-  /*
-  The last swap (`swapTrack`): the track it left and the track it went to, as they were. It is the
-  way back for the track it went to, and holds while both keep their ends and a live match joins
-  them (`liveWayBack`).
-  */
-  const wayBack = shallowRef<{ from: TrackEnds; to: TrackEnds } | null>(null)
   /*
   What the user changed since the file opened, counted as things changed, not actions: a split
   moved ten times is one edit. The sets hold split ids (a rename is keyed by the split where its
@@ -300,32 +272,6 @@ export const useSplitStore = defineStore('split', () => {
         },
   )
   const liveMatches = matches.liveMatches
-
-  /*
-  The way back of the last swap, as the indices of the two tracks, while both keep their ends and a
-  live match joins them; null once either fails, and then `wayBack` is let go for good, so a match
-  that comes back with its ends does not bring the way back with it.
-  */
-  const liveWayBack = computed(() => {
-    const back = wayBack.value
-    if (back === null) return null
-    const from = indexOfKept(matchTrackEnds.value, back.from)
-    const to = indexOfKept(matchTrackEnds.value, back.to)
-    if (from === -1 || to === -1) return null
-    const isJoined = liveMatches.value.some(
-      (match) =>
-        (match.later === from && match.earlier === to) ||
-        (match.later === to && match.earlier === from),
-    )
-    return isJoined ? { from, to } : null
-  })
-  watch(
-    liveWayBack,
-    (live) => {
-      if (live === null) wayBack.value = null
-    },
-    { flush: 'sync' },
-  )
 
   const tracks = computed<Track[]>(() => {
     const ends = trackEnds.value
@@ -607,7 +553,7 @@ export const useSplitStore = defineStore('split', () => {
     firstTrackName.value = null
     firstTrackInclusion.value = 'included'
     clearEdits()
-    dropMatches()
+    matches.drop()
     trackMarkSeconds.value = null
     clearPending()
     // The first track starts with the file, so it is keyed by no split and exists with none.
@@ -741,12 +687,6 @@ export const useSplitStore = defineStore('split', () => {
     }, isInside)
   }
 
-  // Drops every match, dismissal and way back, and stops a running search: the file starts over.
-  function dropMatches() {
-    matches.drop()
-    wayBack.value = null
-  }
-
   /*
   "Find duplicates" (GLOSSARY.md: Duplicate): the matches module compares the tracks as they are
   now and keeps the answer. It changes no split, name, pending split or selection, counts no edit
@@ -767,41 +707,13 @@ export const useSplitStore = defineStore('split', () => {
   }
 
   /*
-  Where `C` goes from the selected track at `playheadSeconds` (a time in the file): the other track
-  of a live match and the same moment in it (GLOSSARY.md: Match), or null.
-
-  - A track that was swapped to, with a live match joining it to the track the swap came from, goes
-    back there. Any other track goes by its own matches, with the earlier tracks.
-  - Of those, the moment is the one `swapMoment` gives: the same moment inside a shared stretch,
-    else the start of the nearest one in the other track.
+  Where `C` goes from the selected track at `playheadSeconds` (a time in the file): the track and the
+  time the matches module gives (GLOSSARY.md: Swap), held to that track's end, or null.
   */
   function swapTarget(playheadSeconds: number) {
     const track = selectedTrack.value
     if (track === null) return null
-    const index = track.number - 1
-    const links: MatchLink[] = []
-    for (const match of liveMatches.value) {
-      if (match.later === index)
-        links.push({
-          other: match.earlier,
-          here: match.laterShared,
-          there: match.earlierShared,
-          isFromLater: true,
-        })
-      else if (match.earlier === index)
-        links.push({
-          other: match.later,
-          here: match.earlierShared,
-          there: match.laterShared,
-          isFromLater: false,
-        })
-    }
-    const back = liveWayBack.value
-    const wayBackLinks =
-      back !== null && back.to === index ? links.filter((link) => link.other === back.from) : []
-    const candidates =
-      wayBackLinks.length > 0 ? wayBackLinks : links.filter((link) => link.isFromLater)
-    const moment = swapMoment(candidates, playheadSeconds - track.startSeconds)
+    const moment = matches.swapTarget(track.number - 1, playheadSeconds - track.startSeconds)
     const target = moment === null ? undefined : tracks.value[moment.other]
     if (moment === null || target === undefined) return null
     const end = target.startSeconds + target.lengthSeconds
@@ -809,19 +721,18 @@ export const useSplitStore = defineStore('split', () => {
   }
 
   /*
-  `C`: selects the track `swapTarget` gives, which is the way back for the swap that follows, and
-  returns the target for the caller to put the playhead at. Null when there is no target, or when
-  the selection did not move because pending splits would be discarded and the question opened.
+  `C`: selects the track `swapTarget` gives and returns it, for the caller to put the playhead at.
+  Only once the selection happened does the module remember the swap, as the way back. Null when
+  there is no target, or when the selection did not move because pending splits would be discarded
+  and the question opened.
   */
   function swapTrack(playheadSeconds: number) {
-    const from = matchTrackEnds.value[(selectedTrack.value?.number ?? 0) - 1]
+    const from = selectedTrack.value
     const target = swapTarget(playheadSeconds)
-    if (from === undefined || target === null) return null
+    if (from === null || target === null) return null
     selectTrack(target.track)
     if (!isTrackSelected(target.track)) return null
-    const to = matchTrackEnds.value[target.track.number - 1]
-    if (to === undefined) return null
-    wayBack.value = { from, to }
+    matches.rememberSwap(from.number - 1, target.track.number - 1)
     return target
   }
 
@@ -1273,7 +1184,7 @@ export const useSplitStore = defineStore('split', () => {
     firstTrackInclusion.value = 'included'
     trackNamePrefix.value = ''
     clearEdits()
-    dropMatches()
+    matches.drop()
     selection.value = null
     zoomCentreSeconds.value = ZOOM_WINDOW_SECONDS / 2
     range.value = null

@@ -39,3 +39,6 @@ export const C = () => recording(3, 60)
 
 // A recording of 80 s.
 export const LONG = () => recording(2, 80)
+
+// A stretch of other music, 30 s.
+export const FOREIGN = () => recording(9, 30)

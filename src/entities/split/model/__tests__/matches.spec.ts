@@ -7,6 +7,7 @@ import {
   A,
   B,
   C,
+  FOREIGN,
   GAP_WINDOWS,
   LONG,
   QUIET,
@@ -131,6 +132,23 @@ function dismissPair(matches: Matches, later: number, earlier: number) {
 // Every live match as [later, earlier, kind].
 const pairsOf = ({ liveMatches }: Matches) =>
   liveMatches.value.map(({ later, earlier, kind }) => [later, earlier, kind])
+
+// Track 3 holds A and B with other music between them, and the press.
+async function pressedHolder() {
+  const matches = matchesOf(A(), B(), C(), [...A(), ...FOREIGN(), ...B()])
+  await matches.search()
+  expect(pairsOf(matches)).toEqual([
+    [3, 0, 'holds'],
+    [3, 1, 'holds'],
+  ])
+  return matches
+}
+
+// Where `C` from track `index` at `offset` s into it lands: [the other track, the offset in it].
+function landing({ swapTarget }: Matches, index: number, offset: number) {
+  const target = swapTarget(index, offset)
+  return target === null ? null : [target.other, Math.round(target.seconds * 10) / 10]
+}
 
 // Moves the split between the second and third tracks a second on: the end of one, the start of the other.
 function moveThirdStart({ trackEnds }: Matches) {
@@ -797,6 +815,113 @@ describe('useMatches', () => {
       await matches.search()
 
       expect(duplicatesOf(matches)).toEqual([null, null, null, 2])
+    })
+  })
+
+  describe('the swap target', () => {
+    it('is the same moment of the match whose shared stretch holds the offset', async () => {
+      const matches = await pressedHolder()
+
+      // 10 s into track 3 is 8 s into A, which starts at 2 s in track 3 and 0 s in track 0.
+      expect(landing(matches, 3, 10)).toEqual([0, 8])
+      // B starts at 72 s in track 3 and at 2 s in track 1, after its quiet lead.
+      expect(landing(matches, 3, 80)).toEqual([1, 10])
+    })
+
+    it('is the start of the nearest shared stretch outside every one', async () => {
+      const matches = await pressedHolder()
+
+      // 0:45 is just after A's stretch (to 0:42) and far from B's (from 1:12).
+      expect(landing(matches, 3, 45)).toEqual([0, 0])
+      // 1:05 is nearer B's stretch than A's.
+      expect(landing(matches, 3, 65)).toEqual([1, 2])
+    })
+
+    it('is none on a track with no match and no way back', async () => {
+      const matches = await pressedHolder()
+
+      expect(landing(matches, 2, 10)).toBeNull()
+    })
+
+    it('is none before any search', () => {
+      const matches = matchesOf(A(), B(), A())
+
+      expect(landing(matches, 2, 10)).toBeNull()
+    })
+
+    it('takes a duplicate to its kept copy at the same moment', async () => {
+      const matches = matchesOf(A(), B(), A())
+      await matches.search()
+
+      // The copy starts after a 2 s quiet lead that the first track does not have.
+      expect(landing(matches, 2, 10)).toEqual([0, 8])
+    })
+
+    it('takes a duplicate cut a second short to the moment it lined up at, not the start of the stretch', async () => {
+      // The copy lacks the first second of the music, within the 2 s a full match may fall short by.
+      const matches = matchesOf(A(), B(), A().slice(WINDOWS_PER_SECOND))
+      await matches.search()
+
+      // 10 s into the copy is 8 s into its music (after the 2 s lead), which is 9 s into the first.
+      expect(landing(matches, 2, 10)).toEqual([0, 9])
+    })
+  })
+
+  describe('the way back', () => {
+    it('takes the track a swap went to back to where it came from, at the same moment', async () => {
+      const matches = await pressedHolder()
+
+      matches.rememberSwap(3, 0)
+
+      expect(landing(matches, 0, 8)).toEqual([3, 10])
+    })
+
+    it('is none for a track reached without a swap, or after another swap', async () => {
+      const matches = await pressedHolder()
+      expect(landing(matches, 0, 8)).toBeNull()
+
+      matches.rememberSwap(3, 0)
+      matches.rememberSwap(3, 1)
+
+      // The last swap went from 3 to 1, so 0 has nowhere to go back to.
+      expect(landing(matches, 0, 8)).toBeNull()
+      expect(landing(matches, 1, 10)).toEqual([3, 80])
+    })
+
+    it('is lost when the match dies, and not got back when the ends return', async () => {
+      const matches = await pressedHolder()
+      matches.rememberSwap(3, 0)
+      const start = matches.trackEnds.value[3]!.startSeconds
+
+      editTrack(matches, 3, { startSeconds: start - 1 })
+      expect(landing(matches, 0, 8)).toBeNull()
+
+      editTrack(matches, 3, { startSeconds: start })
+      expect(pairsOf(matches)).toEqual([
+        [3, 0, 'holds'],
+        [3, 1, 'holds'],
+      ])
+      expect(landing(matches, 0, 8)).toBeNull()
+    })
+
+    it('is lost on drop, so a fresh search does not bring it back', async () => {
+      const matches = await pressedHolder()
+      matches.rememberSwap(3, 0)
+
+      matches.drop()
+      await matches.search()
+
+      expect(landing(matches, 3, 10)).toEqual([0, 8])
+      expect(landing(matches, 0, 8)).toBeNull()
+    })
+
+    it('goes back from a dismissed match to nothing', async () => {
+      const matches = await pressedHolder()
+      matches.rememberSwap(3, 0)
+
+      dismissPair(matches, 3, 0)
+
+      expect(landing(matches, 0, 8)).toBeNull()
     })
   })
 })
