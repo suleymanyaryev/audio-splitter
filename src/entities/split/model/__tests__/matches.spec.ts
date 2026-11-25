@@ -84,6 +84,54 @@ const partialsOf = ({ liveMatches }: Matches) =>
       earlierShared,
     }))
 
+// A, B, A, B, A and the press: 2 and 4 name 0, 3 names 1.
+async function pressedFive() {
+  const matches = matchesOf(A(), B(), A(), B(), A())
+  await matches.search()
+  expect(duplicatesOf(matches)).toEqual([null, null, 0, 1, 0])
+  return matches
+}
+
+// Changes track `index` (0-based) in the track ends, and no other.
+function editTrack({ trackEnds }: Matches, index: number, change: Partial<TrackEnds>) {
+  trackEnds.value = trackEnds.value.map((track, at) =>
+    at === index ? { ...track, ...change } : track,
+  )
+}
+
+// Splits track `index` (0-based) in two, 20 s into it, at a new split.
+function splitTrack({ trackEnds }: Matches, index: number) {
+  const track = trackEnds.value[index]!
+  const at = track.startSeconds + 20
+  trackEnds.value = [
+    ...trackEnds.value.slice(0, index),
+    { ...track, endSeconds: at },
+    { startSplitId: 99, startSeconds: at, endSeconds: track.endSeconds, isLeftOutByHand: false },
+    ...trackEnds.value.slice(index + 1),
+  ]
+}
+
+// Merges track `index` (0-based) with the next one, as deleting the split between them does.
+function mergeWithNext({ trackEnds }: Matches, index: number) {
+  const track = trackEnds.value[index]!
+  const next = trackEnds.value[index + 1]!
+  trackEnds.value = [
+    ...trackEnds.value.slice(0, index),
+    { ...track, endSeconds: next.endSeconds },
+    ...trackEnds.value.slice(index + 2),
+  ]
+}
+
+// Dismisses the match of track `later` with track `earlier` (0-based), by their start splits.
+function dismissPair(matches: Matches, later: number, earlier: number) {
+  const ends = matches.trackEnds.value
+  matches.dismiss(ends[later]?.startSplitId ?? null, ends[earlier]?.startSplitId ?? null)
+}
+
+// Every live match as [later, earlier, kind].
+const pairsOf = ({ liveMatches }: Matches) =>
+  liveMatches.value.map(({ later, earlier, kind }) => [later, earlier, kind])
+
 // Moves the split between the second and third tracks a second on: the end of one, the start of the other.
 function moveThirdStart({ trackEnds }: Matches) {
   const [first, second, third, ...rest] = trackEnds.value
@@ -254,9 +302,7 @@ describe('useMatches', () => {
       await matches.search()
 
       expect(duplicatesOf(matches)).toEqual([null, 0, null, null])
-      expect(
-        matches.liveMatches.value.map(({ later, earlier, kind }) => [later, earlier, kind]),
-      ).toEqual([
+      expect(pairsOf(matches)).toEqual([
         [1, 0, 'full'],
         [3, 0, 'holds'],
         [3, 2, 'holds'],
@@ -269,9 +315,7 @@ describe('useMatches', () => {
 
       await matches.search()
 
-      expect(
-        matches.liveMatches.value.map(({ later, earlier, kind }) => [later, earlier, kind]),
-      ).toEqual([
+      expect(pairsOf(matches)).toEqual([
         [1, 0, 'holds'],
         [2, 0, 'full'],
       ])
@@ -525,6 +569,234 @@ describe('useMatches', () => {
       // The moved start is a second off now: 2 is within the 2 s of the ends, so it is back.
       expect(duplicatesOf(matches)).toEqual([null, null, 0, 1])
       expect(matches.result.value).toEqual({ duplicates: 2, partialMatches: 0 })
+    })
+  })
+
+  describe('how long a match lasts', () => {
+    it('holds while the track ends do not change', async () => {
+      const matches = await pressedFive()
+
+      // The same ends, as a fresh list, and another track left out by hand.
+      matches.trackEnds.value = matches.trackEnds.value.map((track) => ({ ...track }))
+      editTrack(matches, 1, { isLeftOutByHand: true })
+
+      expect(duplicatesOf(matches)).toEqual([null, null, 0, 1, 0])
+      expect(matches.result.value).toEqual({ duplicates: 3, partialMatches: 0 })
+    })
+
+    it("ends when a track's start moves", async () => {
+      const matches = await pressedFive()
+
+      editTrack(matches, 2, { startSeconds: matches.trackEnds.value[2]!.startSeconds + 1 })
+
+      expect(duplicatesOf(matches)).toEqual([null, null, null, 1, 0])
+      expect(matches.result.value).toEqual({ duplicates: 2, partialMatches: 0 })
+    })
+
+    it("ends when a track's end moves", async () => {
+      const matches = await pressedFive()
+
+      editTrack(matches, 3, { endSeconds: matches.trackEnds.value[3]!.endSeconds - 1 })
+
+      expect(duplicatesOf(matches)).toEqual([null, null, 0, null, 0])
+    })
+
+    it('ends both partial matches of a track whose start moves', async () => {
+      const matches = matchesOf(A(), B(), C(), [...A(), ...B()])
+      await matches.search()
+      expect(matches.result.value).toEqual({ duplicates: 0, partialMatches: 2 })
+
+      editTrack(matches, 3, { startSeconds: matches.trackEnds.value[3]!.startSeconds - 1 })
+
+      expect(matches.liveMatches.value).toEqual([])
+      expect(matches.result.value).toEqual({ duplicates: 0, partialMatches: 0 })
+    })
+
+    it('ends the matches that name a track whose end moves', async () => {
+      const matches = await pressedFive()
+
+      // 0 is the kept copy of 2 and 4.
+      editTrack(matches, 0, { endSeconds: matches.trackEnds.value[0]!.endSeconds - 1 })
+
+      expect(duplicatesOf(matches)).toEqual([null, null, null, 1, null])
+    })
+
+    it('ends when a new end appears inside a track, and holds the others at their new places', async () => {
+      const matches = await pressedFive()
+
+      splitTrack(matches, 2)
+
+      // 2 is two tracks now, neither a copy of 0; 3 and 4 hold their matches as 4 and 5.
+      expect(duplicatesOf(matches)).toEqual([null, null, null, null, 1, 0])
+    })
+
+    it('ends the matches that name a track split in two', async () => {
+      const matches = await pressedFive()
+
+      splitTrack(matches, 0)
+
+      // 2 and 4 named 0, and are not copies of a half; 3 names 1, now 2.
+      expect(duplicatesOf(matches)).toEqual([null, null, null, null, 2, null])
+      expect(matches.result.value).toEqual({ duplicates: 1, partialMatches: 0 })
+    })
+
+    it('ends the matches of a track merged with the next, and those naming either', async () => {
+      const later = await pressedFive()
+      const earlier = await pressedFive()
+
+      // 3 and 4 become one track: 3 ends later, and 4 is gone.
+      mergeWithNext(later, 3)
+      // 0 and 1 become one track: every match named one of them.
+      mergeWithNext(earlier, 0)
+
+      expect(duplicatesOf(later)).toEqual([null, null, 0, null])
+      expect(duplicatesOf(earlier)).toEqual([null, null, null, null])
+      expect(earlier.result.value).toEqual({ duplicates: 0, partialMatches: 0 })
+    })
+  })
+
+  describe('a dismissal', () => {
+    it('leaves the match out, and counts, while both tracks keep their ends', async () => {
+      const matches = await pressedFive()
+
+      dismissPair(matches, 2, 0)
+
+      expect(duplicatesOf(matches)).toEqual([null, null, null, 1, 0])
+      expect(matches.result.value).toEqual({ duplicates: 2, partialMatches: 0 })
+      expect(matches.liveDismissalCount.value).toBe(1)
+      matches.trackEnds.value = matches.trackEnds.value.map((track) => ({ ...track }))
+      expect(matches.liveDismissalCount.value).toBe(1)
+
+      editTrack(matches, 2, { startSeconds: matches.trackEnds.value[2]!.startSeconds + 1 })
+
+      expect(matches.liveDismissalCount.value).toBe(0)
+    })
+
+    it('counts two dismissals as two', async () => {
+      const matches = await pressedFive()
+
+      dismissPair(matches, 2, 0)
+      dismissPair(matches, 3, 1)
+
+      expect(matches.liveDismissalCount.value).toBe(2)
+    })
+
+    it('dismisses one piece of a track that holds two', async () => {
+      const matches = matchesOf(A(), B(), C(), [...A(), ...B()])
+      await matches.search()
+
+      dismissPair(matches, 3, 0)
+
+      expect(pairsOf(matches)).toEqual([[3, 1, 'holds']])
+      expect(matches.result.value).toEqual({ duplicates: 0, partialMatches: 1 })
+      expect(matches.liveDismissalCount.value).toBe(1)
+    })
+
+    it('refuses a pair that is no live match, or one dismissed already', async () => {
+      const matches = await pressedFive()
+      dismissPair(matches, 2, 0)
+
+      // The wrong way round, a pair that does not repeat, a gone track, and the same pair again.
+      dismissPair(matches, 1, 3)
+      dismissPair(matches, 1, 0)
+      matches.dismiss(42, null)
+      dismissPair(matches, 2, 0)
+      // A match whose track has changed since.
+      editTrack(matches, 4, { endSeconds: matches.trackEnds.value[4]!.endSeconds - 1 })
+      dismissPair(matches, 4, 0)
+
+      expect(matches.liveDismissalCount.value).toBe(1)
+      expect(duplicatesOf(matches)).toEqual([null, null, null, 1, null])
+    })
+
+    it('leaves a live dismissed pair out of a second press', async () => {
+      const matches = await pressedFive()
+      dismissPair(matches, 2, 0)
+
+      await matches.search()
+
+      expect(duplicatesOf(matches)).toEqual([null, null, null, 1, 0])
+      expect(matches.result.value).toEqual({ duplicates: 2, partialMatches: 0 })
+      expect(matches.liveDismissalCount.value).toBe(1)
+    })
+
+    it('leaves a dismissed piece out of a second press, and finds the other piece again', async () => {
+      const matches = matchesOf(A(), B(), C(), [...A(), ...B()])
+      await matches.search()
+      dismissPair(matches, 3, 0)
+
+      await matches.search()
+
+      expect(pairsOf(matches)).toEqual([[3, 1, 'holds']])
+    })
+
+    it('finds the pair again on a second press once a track of the pair has changed', async () => {
+      const matches = await pressedFive()
+      dismissPair(matches, 2, 0)
+      editTrack(matches, 2, { startSeconds: matches.trackEnds.value[2]!.startSeconds + 1 })
+
+      await matches.search()
+
+      // The start is a second off: 2 is within the 2 s of its ends, so it is a copy of 0 again.
+      expect(duplicatesOf(matches)).toEqual([null, null, 0, 1, 0])
+      expect(matches.liveDismissalCount.value).toBe(0)
+    })
+
+    it('does not let a dismissed pair join its recording through a third copy', async () => {
+      const matches = matchesOf(A(), B(), A(), A())
+      await matches.search()
+      expect(duplicatesOf(matches)).toEqual([null, null, 0, 0])
+
+      dismissPair(matches, 2, 0)
+      await matches.search()
+
+      // 2 is not a copy of 0 any more, though 3 repeats both; 3 still names 0.
+      expect(duplicatesOf(matches)).toEqual([null, null, null, 0])
+    })
+
+    it('keeps a dismissed last copy out of a second press', async () => {
+      const matches = await pressedFive()
+      dismissPair(matches, 4, 0)
+
+      await matches.search()
+
+      expect(duplicatesOf(matches)).toEqual([null, null, 0, 1, null])
+    })
+
+    it('lets a track hold a dismissed duplicate, which is a track like any other', async () => {
+      const matches = matchesOf(A(), B(), A(), [...A(), ...B()])
+      await matches.search()
+      expect(pairsOf(matches)).toEqual([
+        [2, 0, 'full'],
+        [3, 0, 'holds'],
+        [3, 1, 'holds'],
+      ])
+
+      dismissPair(matches, 2, 0)
+      await matches.search()
+
+      expect(pairsOf(matches)).toEqual([
+        [3, 0, 'holds'],
+        [3, 1, 'holds'],
+        [3, 2, 'holds'],
+      ])
+    })
+  })
+
+  describe('the kept copy', () => {
+    it('stays the one chosen at the last press when it is left out by hand after', async () => {
+      const matches = matchesOf(A(), B(), A(), A())
+      await matches.search()
+      expect(duplicatesOf(matches)).toEqual([null, null, 0, 0])
+
+      editTrack(matches, 0, { isLeftOutByHand: true })
+
+      expect(duplicatesOf(matches)).toEqual([null, null, 0, 0])
+
+      // The next press picks it again from the tracks as they are: 2 is the earliest copy not left out.
+      await matches.search()
+
+      expect(duplicatesOf(matches)).toEqual([null, null, null, 2])
     })
   })
 })
