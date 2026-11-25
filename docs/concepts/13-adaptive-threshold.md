@@ -145,4 +145,10 @@ On `sample1.m4a` the music's own dips were 13 dB at most. Here dips of 15 to 20 
 
 ## Where it lives in the code
 
-Filled in when the milestone's build is done.
+- [`src/shared/lib/audio/depth.ts`](../../src/shared/lib/audio/depth.ts): the smoothed level, the loudness around (a median over ±400 windows, held between every 10th), the depth, and a gap's depth from the 20 s either side.
+- [`src/entities/split/lib/find-dips.ts`](../../src/entities/split/lib/find-dips.ts): a dip is a window at least as deep as the setting, the deepest within ±15 s, and not in the first or last 10 s.
+- [`src/entities/split/lib/propose-splits.ts`](../../src/entities/split/lib/propose-splits.ts): one split per boundary, a gap's middle kept, a dip used only where no gap is within 15 s.
+- [`src/entities/split/config/confidence-bands.ts`](../../src/entities/split/config/confidence-bands.ts) and [`confidence-band.ts`](../../src/entities/split/lib/confidence-band.ts): the 15 dB and 9 dB cut-offs and the band of a depth. [`confidence-queue.ts`](../../src/entities/split/lib/confidence-queue.ts) orders the walk.
+- [`src/entities/split/model/split.ts`](../../src/entities/split/model/split.ts): `findSplits`, `setDepth`, a split's `confidence`, `markChecked` and the walk.
+- [`src/widgets/loudness-curve/lib/moving-line.ts`](../../src/widgets/loudness-curve/lib/moving-line.ts): the moving line's position and the depth a drag of it gives.
+- [`src/shared/lib/canvas/draw-confidence-marks.ts`](../../src/shared/lib/canvas/draw-confidence-marks.ts): the ring and the disc on a split line.
