@@ -47,10 +47,10 @@ function curveWithOneGap() {
   return curve
 }
 
-// Find gaps pressed, then the first track and the second named: two hand-made edits.
+// Find splits pressed, then the first track and the second named: two hand-made edits.
 function mountEdited() {
   const split = useSplitStore()
-  split.addGapSplits()
+  split.findSplits()
   split.renameTrack(null, 'Opener')
   split.renameTrack(split.splits[0]!.id, 'Closer')
   const wrapper = mount(LoudnessSettings, { attachTo: document.body })
@@ -102,17 +102,17 @@ function findDuplicatesButton(wrapper: ReturnType<typeof mount>) {
     .findAll('button')
     .find(
       (candidate) =>
-        candidate.text().includes('duplicates') && !candidate.text().includes('Find gaps'),
+        candidate.text().includes('duplicates') && !candidate.text().includes('Find splits'),
     )
   if (!button) throw new Error('no Find duplicates button')
   return button
 }
 
-function findGapsButton(wrapper: ReturnType<typeof mount>) {
+function findSplitsButton(wrapper: ReturnType<typeof mount>) {
   const button = wrapper
     .findAll('button')
-    .find((candidate) => candidate.text().startsWith('Find gaps'))
-  if (!button) throw new Error('no Find gaps button')
+    .find((candidate) => candidate.text().startsWith('Find splits'))
+  if (!button) throw new Error('no Find splits button')
   return button
 }
 
@@ -151,7 +151,7 @@ describe('LoudnessSettings', () => {
     const wrapper = mount(LoudnessSettings, { attachTo: document.body })
     await flushPromises()
     const split = useSplitStore()
-    split.addGapSplits()
+    split.findSplits()
     expect(split.gaps).toHaveLength(1)
 
     // The gap is 2 s long, the default minimum: one step up (0.1 s) puts the minimum above it.
@@ -164,23 +164,23 @@ describe('LoudnessSettings', () => {
     wrapper.unmount()
   })
 
-  describe('Find gaps', () => {
+  describe('Find splits', () => {
     it('says how many splits a press would add', () => {
       const wrapper = mount(LoudnessSettings)
 
-      expect(findGapsButton(wrapper).text()).toBe('Find gaps (1)')
-      expect(findGapsButton(wrapper).attributes('disabled')).toBeUndefined()
+      expect(findSplitsButton(wrapper).text()).toBe('Find splits (1)')
+      expect(findSplitsButton(wrapper).attributes('disabled')).toBeUndefined()
     })
 
     it('adds the splits, and is disabled at 0 once they are there', async () => {
       const wrapper = mount(LoudnessSettings)
 
-      await findGapsButton(wrapper).trigger('click')
+      await findSplitsButton(wrapper).trigger('click')
 
       const split = useSplitStore()
       expect(split.splits.map((point) => point.seconds)).toEqual([expect.closeTo(11, 9)])
-      expect(findGapsButton(wrapper).text()).toBe('Find gaps (0)')
-      expect(findGapsButton(wrapper).attributes('disabled')).toBeDefined()
+      expect(findSplitsButton(wrapper).text()).toBe('Find splits (0)')
+      expect(findSplitsButton(wrapper).attributes('disabled')).toBeDefined()
     })
 
     it('follows the sliders live', async () => {
@@ -192,7 +192,7 @@ describe('LoudnessSettings', () => {
         .get('[aria-label="Minimum gap length"]')
         .trigger('keydown', { key: 'ArrowRight' })
 
-      expect(findGapsButton(wrapper).text()).toBe('Find gaps (0)')
+      expect(findSplitsButton(wrapper).text()).toBe('Find splits (0)')
       wrapper.unmount()
     })
   })
@@ -204,10 +204,10 @@ describe('LoudnessSettings', () => {
       search.isHolding = false
       const split = useSplitStore()
       split.open(curveWithThreeLongTracks(), { windowSeconds: 0.05, durationSeconds: 107 })
-      split.addGapSplits()
+      split.findSplits()
     })
 
-    it('sits beside "Find gaps" and says nothing before the first press', () => {
+    it('sits beside "Find splits" and says nothing before the first press', () => {
       const wrapper = mount(LoudnessSettings)
 
       expect(
@@ -215,7 +215,7 @@ describe('LoudnessSettings', () => {
           .findAll('button')
           .map((button) => button.text())
           .slice(0, 2),
-      ).toEqual(['Find gaps (0)', 'Find duplicates'])
+      ).toEqual(['Find splits (0)', 'Find duplicates'])
       expect(findDuplicatesButton(wrapper).attributes('disabled')).toBeUndefined()
       expect(wrapper.find('[role="status"]').exists()).toBe(false)
     })
@@ -311,7 +311,7 @@ describe('LoudnessSettings', () => {
 
     it('runs at once, with no question, when there is nothing of the user’s to lose', async () => {
       const split = useSplitStore()
-      split.addGapSplits()
+      split.findSplits()
       const wrapper = mount(LoudnessSettings, { attachTo: document.body })
 
       await clearButton(wrapper).trigger('click')
@@ -345,7 +345,7 @@ describe('LoudnessSettings', () => {
 
     it('asks for pending splits alone, and counts them with the edits when there are both', async () => {
       const split = useSplitStore()
-      split.addGapSplits()
+      split.findSplits()
       split.addPendingSplit(4, false)
       split.addPendingSplit(7, false)
       const wrapper = mount(LoudnessSettings, { attachTo: document.body })

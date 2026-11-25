@@ -30,7 +30,7 @@ function setup() {
   useSourceFileStore().durationSeconds = 100
   const split = useSplitStore()
   split.open(curveWithTwoGaps(), { windowSeconds: 0.05, durationSeconds: 100 })
-  split.addGapSplits()
+  split.findSplits()
   // Detection opens on track 1; this spec is about the zoom view, on split 1.
   split.selectSplit(split.splits[0]!.id)
   return { split, wrapper: mount(SplitZoom, { attachTo: document.body }) }
@@ -856,7 +856,7 @@ describe('SplitZoom', () => {
       useSourceFileStore().durationSeconds = 100
       const split = useSplitStore()
       split.open(curveWithGapNearTheStart(), { windowSeconds: 0.05, durationSeconds: 100 })
-      split.addGapSplits()
+      split.findSplits()
       split.selectSplit(split.splits[0]!.id)
       mount(SplitZoom, { attachTo: document.body })
 
@@ -881,7 +881,7 @@ describe('SplitZoom', () => {
       useSourceFileStore().peaks = new Float32Array(2000)
       useSourceFileStore().durationSeconds = 100
       useSplitStore().open(curveWithTwoGaps(), { windowSeconds: 0.05, durationSeconds: 100 })
-      useSplitStore().addGapSplits()
+      useSplitStore().findSplits()
       mount(SplitZoom, { attachTo: document.body })
 
       expect(stemsAt()).toEqual([])

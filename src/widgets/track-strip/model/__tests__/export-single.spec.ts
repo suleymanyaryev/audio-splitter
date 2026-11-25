@@ -75,7 +75,7 @@ describe('the single export store', () => {
     sourceFile.status = 'ready'
     const split = useSplitStore()
     split.open(curveWithTwoGaps(), { windowSeconds: 0.05, durationSeconds: 100 })
-    split.addGapSplits()
+    split.findSplits()
     return { sourceFile, split, exporter: useExportSingleStore() }
   }
 
@@ -267,7 +267,7 @@ describe('the single export store', () => {
     it('is written alone like any left-out track, tagged with its place in the file', async () => {
       const { split, exporter } = setUp()
       split.open(curveWithThreeLongTracks(), { windowSeconds: 0.05, durationSeconds: 107 })
-      split.addGapSplits()
+      split.findSplits()
       await split.findDuplicates()
       split.setTrackNamePrefix('dreamscape-')
       expect(trackOf(split, 2).inclusion).toBe('duplicate')

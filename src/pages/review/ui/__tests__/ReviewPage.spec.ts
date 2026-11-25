@@ -36,13 +36,13 @@ function mountOpenedPage() {
 }
 
 /*
-The page after "Find gaps", which most specs start from: splits at 21 s and 71.5 s. Find gaps runs
+The page after "Find splits", which most specs start from: splits at 21 s and 71.5 s. Find splits runs
 right after the page opens the file, before its first render.
 */
 function mountPage() {
   const split = useSplitStore()
   split.$onAction(({ name, after }) => {
-    if (name === 'open') after(() => split.addGapSplits())
+    if (name === 'open') after(() => split.findSplits())
   })
   return mountOpenedPage()
 }
@@ -374,14 +374,14 @@ describe('ReviewPage', () => {
       expect(wrapper.text()).toContain('Tracks (1)')
     })
 
-    it('adds a split in each gap when Find gaps is pressed, and keeps the view', async () => {
+    it('adds a split in each gap when Find splits is pressed, and keeps the view', async () => {
       const wrapper = mountOpenedPage()
       const split = useSplitStore()
       const button = wrapper
         .findAll('button')
-        .find((candidate) => candidate.text().startsWith('Find gaps'))
+        .find((candidate) => candidate.text().startsWith('Find splits'))
 
-      expect(button?.text()).toBe('Find gaps (2)')
+      expect(button?.text()).toBe('Find splits (2)')
       await button?.trigger('click')
 
       expect(split.splits.map((point) => point.seconds)).toEqual([
@@ -390,7 +390,7 @@ describe('ReviewPage', () => {
       ])
       expect(split.selectedTrack?.number).toBe(1)
       expect(split.view).toBe('track')
-      expect(button?.text()).toBe('Find gaps (0)')
+      expect(button?.text()).toBe('Find splits (0)')
     })
 
     it('asks "Discard 1 pending split?" when a split would land inside the selected track', async () => {
@@ -399,7 +399,7 @@ describe('ReviewPage', () => {
       split.addPendingSplit(10, true)
       const button = wrapper
         .findAll('button')
-        .find((candidate) => candidate.text().startsWith('Find gaps'))
+        .find((candidate) => candidate.text().startsWith('Find splits'))
 
       await button?.trigger('click')
 

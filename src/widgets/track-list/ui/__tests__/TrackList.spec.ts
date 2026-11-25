@@ -81,7 +81,7 @@ function curveWithThreeLongTracks() {
 async function mountWithDuplicate() {
   const split = useSplitStore()
   split.open(curveWithThreeLongTracks(), { windowSeconds: 0.05, durationSeconds: 107 })
-  split.addGapSplits()
+  split.findSplits()
   await split.findDuplicates()
   return { split, wrapper: mount(TrackList) }
 }
@@ -89,7 +89,7 @@ async function mountWithDuplicate() {
 function mountWithTwoGaps() {
   const split = useSplitStore()
   split.open(curveWithTwoGaps(), { windowSeconds: 0.05, durationSeconds: 100 })
-  split.addGapSplits()
+  split.findSplits()
   return { split, wrapper: mount(TrackList) }
 }
 
@@ -120,7 +120,7 @@ describe('TrackList', () => {
 
   it('lists each track, with a split row between every two, in time order', () => {
     useSplitStore().open(curveWithTwoGaps(), { windowSeconds: 0.05, durationSeconds: 100 })
-    useSplitStore().addGapSplits()
+    useSplitStore().findSplits()
 
     const wrapper = mount(TrackList)
 
@@ -152,7 +152,7 @@ describe('TrackList', () => {
   it('keeps its rows when the minimum gap length changes, since that changes only the gaps', async () => {
     const split = useSplitStore()
     split.open(curveWithTwoGaps(), { windowSeconds: 0.05, durationSeconds: 100 })
-    split.addGapSplits()
+    split.findSplits()
     const wrapper = mount(TrackList)
     expect(wrapper.findAll('tbody tr')).toHaveLength(5)
 
@@ -247,7 +247,7 @@ describe('TrackList', () => {
       vi.useFakeTimers()
       const split = useSplitStore()
       split.open(curveWithThreeLongTracks(), { windowSeconds: 0.05, durationSeconds: 107 })
-      split.addGapSplits()
+      split.findSplits()
       await split.findDuplicates()
       const wrapper = mount(TrackList, { attachTo: document.body })
 
@@ -382,7 +382,7 @@ describe('TrackList', () => {
     it('leaves a track left out by hand out, without its words', async () => {
       const split = useSplitStore()
       split.open(curveWithThreeLongTracks(), { windowSeconds: 0.05, durationSeconds: 107 })
-      split.addGapSplits()
+      split.findSplits()
       split.toggleLeftOut(split.tracks[2]?.startSplit?.id ?? null)
       await split.findDuplicates()
       const wrapper = mount(TrackList)
@@ -494,7 +494,7 @@ describe('TrackList', () => {
 
   it('scrolls inside a box as tall as the zoom view', () => {
     useSplitStore().open(curveWithTwoGaps(), { windowSeconds: 0.05, durationSeconds: 100 })
-    useSplitStore().addGapSplits()
+    useSplitStore().findSplits()
 
     const wrapper = mount(TrackList)
 

@@ -27,7 +27,7 @@ import ClearSplitsDialog from './ClearSplitsDialog.vue'
 The loudness panel's title row: the two settings of gap finding, and the button that turns the
 gaps they show into splits. The threshold covers the curve's drawn range, −60 to 0 dB, in tenths;
 the minimum gap length runs from a few windows to a long pause. Moving either changes only the
-gaps shown, so there is nothing to ask. "Find gaps" says how many splits a press would add.
+gaps shown, so there is nothing to ask. "Find splits" says how many splits a press would add.
 "Find duplicates" looks for tracks that are the same recording as an earlier one and changes
 nothing of the user's: it is off until two tracks are 30 s long, busy while it searches, and the
 line beside it says what it found, nothing before the first press, or why the search failed.
@@ -76,10 +76,10 @@ function confirmClear() {
       <UiTooltip label="Add a split in the middle of each gap that has none">
         <UiButton
           size="sm"
-          :disabled="split.gapSplitSeconds.length === 0"
-          @click="split.addGapSplits()"
+          :disabled="split.proposedSplits.length === 0"
+          @click="split.findSplits()"
         >
-          Find gaps ({{ split.gapSplitSeconds.length }})
+          Find splits ({{ split.proposedSplits.length }})
         </UiButton>
       </UiTooltip>
       <UiTooltip label="Find tracks that match an earlier track, from end to end or in part">
