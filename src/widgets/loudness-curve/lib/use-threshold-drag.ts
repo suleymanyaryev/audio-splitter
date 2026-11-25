@@ -1,17 +1,12 @@
 import { computed, ref } from 'vue'
 
+import { pointerPosition } from './pointer-position.ts'
 import { curveY, isOnThresholdLine, thresholdFromPointer } from './threshold-line.ts'
 
 export interface ThresholdDragSource {
   // The current threshold in dB, null before the file opens.
   threshold: () => number | null
   set: (decibels: number) => void
-}
-
-// The pointer's vertical position and the canvas height, in the canvas's own pixels.
-function pointerPosition(event: PointerEvent) {
-  const { top, height } = (event.currentTarget as HTMLCanvasElement).getBoundingClientRect()
-  return { y: event.clientY - top, height }
 }
 
 /*

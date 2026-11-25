@@ -79,14 +79,14 @@ function confirmClear() {
       @update:model-value="split.setMinimumGapLength"
     />
     <UiSlider
-      :model-value="split.depth"
+      :model-value="split.depthSetting"
       label="Depth"
-      :readout="formatDecibels(split.depth)"
+      :readout="formatDecibels(split.depthSetting)"
       :min="DEPTH_MIN_DB"
       :max="DEPTH_MAX_DB"
       :step="SETTING_STEP"
       class="w-80"
-      @update:model-value="split.setDepth"
+      @update:model-value="split.setDepthSetting"
     />
     <div class="flex items-center gap-2">
       <UiTooltip label="Add a split at each gap and each dip that has none near it">
@@ -137,7 +137,7 @@ function confirmClear() {
     </div>
     <div class="flex items-center gap-2">
       <UiTooltip
-        :label="`Save ${formatOffset(split.currentOffsetDb ?? 0)}, ${formatSettingSeconds(split.minimumGapLength)} and ${formatSettingDecibels(split.depth)} deep as the default`"
+        :label="`Save ${formatOffset(split.currentOffsetDb ?? 0)}, ${formatSettingSeconds(split.minimumGapLength)} and ${formatSettingDecibels(split.depthSetting)} deep as the default`"
       >
         <UiButton size="sm" :disabled="split.matchesDefaultSettings" @click="split.saveAsDefault()">
           Save as default

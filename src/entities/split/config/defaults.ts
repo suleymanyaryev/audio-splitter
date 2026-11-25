@@ -13,16 +13,15 @@ export const DEFAULT_MINIMUM_GAP_SECONDS = 2
 export const DEFAULT_DEPTH_DB = 15
 
 /*
-The three settings' sliders: the threshold covers the loudness curve's drawn range, −60 to 0 dB, the
-minimum gap length runs from a few windows to a long pause, and the depth from 3 to 30 dB, all in tenths. A saved default
-settings is held to them.
+The three settings' sliders, all in tenths: the threshold covers the loudness curve's drawn range,
+−60 to 0 dB, the minimum gap length runs from a few windows to a long pause, and the depth from a
+shallow dip to a drop deeper than any boundary measured. A saved default settings is held to them.
 */
 export const THRESHOLD_MIN_DB = -60
 export const THRESHOLD_MAX_DB = 0
 export const MINIMUM_GAP_MIN_SECONDS = 0.2
 export const MINIMUM_GAP_MAX_SECONDS = 5
 export const SETTING_STEP = 0.1
-// The depth slider runs from a shallow dip to a drop deeper than any boundary measured, in tenths.
 export const DEPTH_MIN_DB = 3
 export const DEPTH_MAX_DB = 30
 

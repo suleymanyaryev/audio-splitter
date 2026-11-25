@@ -176,7 +176,7 @@ describe('LoudnessSettings', () => {
 
     await wrapper.get('[aria-label="Depth"]').trigger('keydown', { key: 'ArrowRight' })
 
-    expect(useSplitStore().depth).toBeCloseTo(DEFAULT_DEPTH_DB + 0.1, 9)
+    expect(useSplitStore().depthSetting).toBeCloseTo(DEFAULT_DEPTH_DB + 0.1, 9)
     expect(wrapper.text()).toContain('15.1 dB')
     wrapper.unmount()
   })

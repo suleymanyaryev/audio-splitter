@@ -97,22 +97,18 @@ function draw() {
   )
 
   // A split on the range's edge is drawn on it; one outside is off the canvas.
+  const lineXs = split.splits.map((point) =>
+    zoomTimeToX(point.seconds, centreSeconds, windowSeconds, width),
+  )
   drawSplitLines(
     context,
-    split.splits.map((point) => zoomTimeToX(point.seconds, centreSeconds, windowSeconds, width)),
+    lineXs,
     style.getPropertyValue('--color-split'),
     0,
     height,
     split.selectedSplitIndex,
   )
-  drawConfidenceMarks(
-    context,
-    style,
-    split.splits,
-    split.splits.map((point) => zoomTimeToX(point.seconds, centreSeconds, windowSeconds, width)),
-    0,
-    height,
-  )
+  drawConfidenceMarks(context, style, split.splits, lineXs, 0, height)
 
   // The mark is a dashed line, never mistaken for a split line or the playhead, under the latter.
   if (split.markSeconds !== null) {
@@ -257,6 +253,8 @@ watch(
     split.range,
     split.gaps,
     split.splits.map((point) => point.seconds),
+    // Checking a split takes its mark away and changes nothing else.
+    split.splits.map((point) => point.confidence?.band),
     split.selectedSplit?.id,
     split.markSeconds,
     playheadSeconds(),

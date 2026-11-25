@@ -12,7 +12,7 @@ import { prepareCanvas } from '@/shared/lib/canvas/prepare-canvas.ts'
 import { timeToX } from '@/shared/lib/canvas/time-axis.ts'
 import { useCanvasRedraw } from '@/shared/lib/canvas/use-canvas-redraw.ts'
 import { formatDuration } from '@/shared/lib/time/format-duration.ts'
-import { DIP_MARK_SIZE, dipMarks } from '../lib/dip-marks.ts'
+import { DIP_MARK_OUTLINE_WIDTH, DIP_MARK_SIZE, dipMarks } from '../lib/dip-marks.ts'
 import { formatDecibels } from '../lib/format-readout.ts'
 import { mergeLoudness } from '../lib/merge-loudness.ts'
 import { isOnPanel, movingLineColumns } from '../lib/moving-line.ts'
@@ -49,8 +49,8 @@ const thresholdDrag = useThresholdDrag({
 // Dragging the moving line is the depth slider's move: it changes what Find splits would add.
 const depthDrag = useDepthDrag({
   around: () => split.loudnessAround,
-  depth: () => split.depth,
-  set: split.setDepth,
+  depth: () => split.depthSetting,
+  set: split.setDepthSetting,
 })
 
 // Where both lines are under the pointer, the threshold line takes hold.
@@ -107,7 +107,7 @@ function drawMovingLine(
 ) {
   const around = split.loudnessAround
   if (around === null) return
-  const line = movingLineColumns(around, split.depth, columnCount)
+  const line = movingLineColumns(around, split.depthSetting, columnCount)
 
   context.strokeStyle = style.getPropertyValue('--color-ink')
   context.lineWidth = THRESHOLD_LINE_WIDTH
@@ -151,7 +151,7 @@ function drawDipMarks(
   const half = DIP_MARK_SIZE / 2
   context.fillStyle = style.getPropertyValue('--color-ink')
   context.strokeStyle = style.getPropertyValue('--color-surface')
-  context.lineWidth = 1.5
+  context.lineWidth = DIP_MARK_OUTLINE_WIDTH
   // One diamond around the origin, moved to each mark.
   const diamond = new Path2D()
   diamond.moveTo(0, -half)
@@ -245,22 +245,16 @@ function draw() {
     context.stroke()
   }
 
+  const lineXs = split.splits.map((point) => timeToX(point.seconds, duration, width))
   drawSplitLines(
     context,
-    split.splits.map((point) => timeToX(point.seconds, duration, width)),
+    lineXs,
     style.getPropertyValue('--color-split'),
     0,
     height,
     split.selectedSplitIndex,
   )
-  drawConfidenceMarks(
-    context,
-    style,
-    split.splits,
-    split.splits.map((point) => timeToX(point.seconds, duration, width)),
-    0,
-    height,
-  )
+  drawConfidenceMarks(context, style, split.splits, lineXs, 0, height)
   drawMovingLine(context, style, columns.length, height)
   drawDipMarks(context, style, columns, width, height)
 
@@ -275,10 +269,12 @@ watch(
     sourceFile.loudness,
     split.gaps,
     split.splits.map((point) => point.seconds),
+    // Checking a split takes its mark away and changes nothing else.
+    split.splits.map((point) => point.confidence?.band),
     split.selectedSplit?.id,
     split.silenceThreshold,
     split.proposedSplits,
-    split.depth,
+    split.depthSetting,
   ],
   draw,
 )

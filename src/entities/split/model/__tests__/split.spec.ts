@@ -268,7 +268,7 @@ function openWithFourDepths() {
     [LOUD, 400],
   )
   const store = openCurve(curve)
-  store.setDepth(3)
+  store.setDepthSetting(3)
   store.findSplits()
   return store
 }
@@ -680,11 +680,11 @@ describe('the split store', () => {
       it('starts at 15 dB, which a dip of 16 dB reaches and one of 17 dB does not', () => {
         const store = openCurve(shallowDip())
 
-        expect(store.depth).toBe(15)
+        expect(store.depthSetting).toBe(15)
         expect(store.gaps).toEqual([])
         expect(seconds(store)).toHaveLength(1)
 
-        store.setDepth(16.5)
+        store.setDepthSetting(16.5)
         expect(seconds(store)).toEqual([])
       })
 
@@ -692,10 +692,10 @@ describe('the split store', () => {
         const store = openCurve(shallowDip())
         store.renameTrack(null, 'Opening')
         const selection = store.selectedTrack?.number
-        store.setDepth(30)
+        store.setDepthSetting(30)
         expect(store.proposedSplits).toEqual([])
 
-        store.setDepth(3)
+        store.setDepthSetting(3)
 
         expect(store.proposedSplits.length).toBeGreaterThan(0)
         expect(store.splits).toEqual([])
@@ -707,11 +707,11 @@ describe('the split store', () => {
       it('is held to the slider: 3 to 30 dB', () => {
         const store = openCurve(shallowDip())
 
-        store.setDepth(1)
-        expect(store.depth).toBe(3)
+        store.setDepthSetting(1)
+        expect(store.depthSetting).toBe(3)
 
-        store.setDepth(99)
-        expect(store.depth).toBe(30)
+        store.setDepthSetting(99)
+        expect(store.depthSetting).toBe(30)
       })
 
       it('marks the proposals of dips, and not those of gaps', () => {
@@ -726,7 +726,7 @@ describe('the split store', () => {
     describe('the confidence of a split', () => {
       it('is the band of the depth, sure for a gap, set by Find splits', () => {
         const store = openCurve(threeDepths())
-        store.setDepth(3)
+        store.setDepthSetting(3)
 
         store.findSplits()
 
@@ -754,11 +754,11 @@ describe('the split store', () => {
 
       it('is set once: a later change of the depth leaves it', () => {
         const store = openCurve(threeDepths())
-        store.setDepth(3)
+        store.setDepthSetting(3)
         store.findSplits()
         const before = store.splits.map((split) => split.confidence)
 
-        store.setDepth(30)
+        store.setDepthSetting(30)
         store.setSilenceThreshold(-60)
 
         expect(store.splits.map((split) => split.confidence)).toEqual(before)
@@ -766,7 +766,7 @@ describe('the split store', () => {
 
       it('goes when the split is moved, with no edit beyond the move', () => {
         const store = openCurve(threeDepths())
-        store.setDepth(3)
+        store.setDepthSetting(3)
         store.findSplits()
         const moved = store.splits[1]!
         store.selectSplit(moved.id)
@@ -780,7 +780,7 @@ describe('the split store', () => {
 
       it('is kept by the splits that stay when a track is removed, and goes with a deleted split', () => {
         const store = openCurve(threeDepths())
-        store.setDepth(3)
+        store.setDepthSetting(3)
         store.findSplits()
 
         // Track 2 runs from the first split to the second: removing it deletes both.
@@ -841,7 +841,7 @@ describe('the split store', () => {
       it('breaks a tie by time', () => {
         const curve = curveOf([LOUD, 400], [-16, 80], [LOUD, 400], [-16, 80], [LOUD, 400])
         const store = openCurve(curve)
-        store.setDepth(3)
+        store.setDepthSetting(3)
         store.findSplits()
 
         store.selectAdjacentByConfidence(1)
@@ -904,6 +904,17 @@ describe('the split store', () => {
           store.markChecked()
 
           expect(store.editCount).toBe(0)
+        })
+
+        it('counts one edit for a split checked and then moved', () => {
+          const store = openWithFourDepths()
+          store.selectAdjacentByConfidence(1)
+          const { id, seconds } = store.selectedSplit!
+          store.markChecked()
+
+          store.moveSplit(id, seconds + 0.5)
+
+          expect(store.editCount).toBe(1)
         })
 
         it('is taken back with its split when the split is deleted', () => {
@@ -1003,6 +1014,17 @@ describe('the split store', () => {
         store.addSplitAt(5)
 
         expect(seconds(store)).toEqual([expect.closeTo(22, 9), expect.closeTo(42, 9)])
+      })
+
+      it('proposes no dip near the middle of a gap that holds a split, far as the split may be', () => {
+        // Room noise from 20 s to 38 s, quietest near its end, and a split at 20.6 s.
+        const curve = curveOf([LOUD, 400], [QUIET, 320], [-58, 30], [QUIET, 10], [LOUD, 400])
+        const store = openCurve(curve)
+        expect(seconds(store)).toEqual([expect.closeTo(29, 9)])
+
+        store.addSplitAt(20.6)
+
+        expect(seconds(store)).toEqual([])
       })
 
       it('proposes no dip in the first or last 10 s of the file', () => {
@@ -1270,20 +1292,20 @@ describe('the split store', () => {
     it('hold the depth too: 15 dB at first, saved with the others and used by the next file', () => {
       const store = useSplitStore()
       openFile(store, loudFile())
-      expect(store.depth).toBe(DEFAULT_DEPTH_DB)
+      expect(store.depthSetting).toBe(DEFAULT_DEPTH_DB)
       expect(store.matchesDefaultSettings).toBe(true)
 
-      store.setDepth(11.5)
+      store.setDepthSetting(11.5)
       expect(store.matchesDefaultSettings).toBe(false)
 
       store.saveAsDefault()
       expect(store.matchesDefaultSettings).toBe(true)
       expect(store.areDefaultSettingsBuiltIn).toBe(false)
       openFile(store, quietFile())
-      expect(store.depth).toBe(11.5)
+      expect(store.depthSetting).toBe(11.5)
 
       store.restoreBuiltIn()
-      expect(store.depth).toBe(15)
+      expect(store.depthSetting).toBe(15)
       expect(store.areDefaultSettingsBuiltIn).toBe(true)
     })
 
@@ -1298,7 +1320,7 @@ describe('the split store', () => {
 
       expect(store.silenceThreshold).toBe(-22)
       expect(store.minimumGapLength).toBe(3)
-      expect(store.depth).toBe(15)
+      expect(store.depthSetting).toBe(15)
     })
 
     it('hold a saved threshold to the slider’s range for a file of another loudness', () => {

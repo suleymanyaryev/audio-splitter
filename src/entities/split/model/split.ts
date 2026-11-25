@@ -23,7 +23,6 @@ import { ZOOM_WINDOW_SECONDS } from '../config/zoom-window.ts'
 import { findMatchesInWorker } from '../api/find-matches-client.ts'
 import { MINIMUM_COMPARED_SECONDS } from '../config/match-thresholds.ts'
 import { bandOf, type Confidence } from '../lib/confidence-band.ts'
-import { confidenceQueue } from '../lib/confidence-queue.ts'
 import { findDips } from '../lib/find-dips.ts'
 import { findGaps, type Gap } from '../lib/find-gaps.ts'
 import { proposeSplits } from '../lib/propose-splits.ts'
@@ -217,7 +216,7 @@ export const useSplitStore = defineStore('split', () => {
   const silenceThreshold = ref<number | null>(null)
   const minimumGapLength = ref(DEFAULT_MINIMUM_GAP_SECONDS)
   // How deep a dip must be to propose a split, in dB (GLOSSARY.md: Depth).
-  const depth = ref(DEFAULT_DEPTH_DB)
+  const depthSetting = ref(DEFAULT_DEPTH_DB)
   // This file's median loudness, which the threshold's distance under it is measured from.
   const medianDecibels = ref<number | null>(null)
   /*
@@ -228,8 +227,6 @@ export const useSplitStore = defineStore('split', () => {
     readSavedDefaultSettings() ?? { ...BUILT_IN_SETTINGS },
   )
   const gaps = ref<Gap[]>([])
-  // The depth of each gap in `gaps` (GLOSSARY.md: Depth), in the same order.
-  const gapDepths = shallowRef<number[]>([])
   // The depth of every window, worked out when the file opens and never written again.
   const depthProfile = shallowRef<DepthProfile | null>(null)
   const splits = ref<Split[]>([])
@@ -634,22 +631,11 @@ export const useSplitStore = defineStore('split', () => {
   // Finds the gaps again from the two settings. Nothing but the gaps changes.
   function findGapsAgain() {
     if (curve.value === null || timing.value === null || silenceThreshold.value === null) return
-    const { windowSeconds } = timing.value
     gaps.value = findGaps(curve.value, {
       ...timing.value,
       silenceThreshold: silenceThreshold.value,
       minimumGapLength: minimumGapLength.value,
     })
-    const profile = depthProfile.value
-    gapDepths.value = gaps.value.map((gap) =>
-      profile === null || gap.edge !== null
-        ? 0
-        : gapDepth(
-            profile,
-            Math.round(gap.startSeconds / windowSeconds),
-            Math.round(gap.endSeconds / windowSeconds) - 1,
-          ),
-    )
   }
 
   // The threshold that sits this far under this file's median, on the slider's grid and range.
@@ -671,7 +657,7 @@ export const useSplitStore = defineStore('split', () => {
     medianDecibels.value = median(loudness)
     silenceThreshold.value = thresholdUnder(defaultSettings.value.offsetDb)
     minimumGapLength.value = defaultSettings.value.minimumGapSeconds
-    depth.value = defaultSettings.value.depthDb
+    depthSetting.value = defaultSettings.value.depthDb
     findGapsAgain()
     // One track, no splits: the zoom window starts at 0:00, so the Split view shows the file's opening seconds.
     clearSplits()
@@ -710,8 +696,8 @@ export const useSplitStore = defineStore('split', () => {
   }
 
   // The depth setting is held to its slider: it changes only what Find splits would add.
-  function setDepth(decibels: number) {
-    depth.value = Math.min(Math.max(decibels, DEPTH_MIN_DB), DEPTH_MAX_DB)
+  function setDepthSetting(decibels: number) {
+    depthSetting.value = Math.min(Math.max(decibels, DEPTH_MIN_DB), DEPTH_MAX_DB)
   }
 
   // The threshold's distance under this file's median now, rounded to 0.1 dB: what "Save as default" saves.
@@ -727,7 +713,7 @@ export const useSplitStore = defineStore('split', () => {
       silenceThreshold.value !== null &&
       roundToTenth(silenceThreshold.value) === thresholdUnder(defaultSettings.value.offsetDb) &&
       roundToTenth(minimumGapLength.value) === defaultSettings.value.minimumGapSeconds &&
-      roundToTenth(depth.value) === defaultSettings.value.depthDb,
+      roundToTenth(depthSetting.value) === defaultSettings.value.depthDb,
   )
 
   const areDefaultSettingsBuiltIn = computed(
@@ -743,7 +729,7 @@ export const useSplitStore = defineStore('split', () => {
     defaultSettings.value = {
       offsetDb: currentOffsetDecibels.value,
       minimumGapSeconds: roundToTenth(minimumGapLength.value),
-      depthDb: roundToTenth(depth.value),
+      depthDb: roundToTenth(depthSetting.value),
     }
     saveDefaultSettings(defaultSettings.value)
   }
@@ -755,7 +741,7 @@ export const useSplitStore = defineStore('split', () => {
     if (medianDecibels.value === null) return
     silenceThreshold.value = thresholdUnder(BUILT_IN_SETTINGS.offsetDb)
     minimumGapLength.value = BUILT_IN_SETTINGS.minimumGapSeconds
-    depth.value = BUILT_IN_SETTINGS.depthDb
+    depthSetting.value = BUILT_IN_SETTINGS.depthDb
     findGapsAgain()
   }
 
@@ -769,8 +755,23 @@ export const useSplitStore = defineStore('split', () => {
   const dips = computed(() =>
     depthProfile.value === null || timing.value === null
       ? []
-      : findDips(depthProfile.value.depth, { ...timing.value, depthSetting: depth.value }),
+      : findDips(depthProfile.value.depth, { ...timing.value, depthSetting: depthSetting.value }),
   )
+
+  // Each gap with its depth, from its first window to its last.
+  const measuredGaps = computed(() => {
+    const profile = depthProfile.value
+    if (profile === null || timing.value === null) return []
+    const { windowSeconds } = timing.value
+    return gaps.value.map((gap) => ({
+      ...gap,
+      depth: gapDepth(
+        profile,
+        Math.round(gap.startSeconds / windowSeconds),
+        Math.round(gap.endSeconds / windowSeconds) - 1,
+      ),
+    }))
+  })
 
   /*
   The splits "Find splits" would add now (see `proposeSplits`), each with its depth; its length is the
@@ -780,8 +781,7 @@ export const useSplitStore = defineStore('split', () => {
     timing.value === null
       ? []
       : proposeSplits({
-          gaps: gaps.value,
-          gapDepths: gapDepths.value,
+          gaps: measuredGaps.value,
           dips: dips.value,
           splitSeconds: splits.value.map((split) => split.seconds),
           durationSeconds: timing.value.durationSeconds,
@@ -804,9 +804,8 @@ export const useSplitStore = defineStore('split', () => {
           seconds > track.startSeconds && seconds < track.startSeconds + track.lengthSeconds,
       )
     unlessItDiscards(() => {
-      for (const proposal of proposedSplits.value) {
-        const { seconds, depth: measured } = proposal
-        insertSplit(seconds, false, { band: bandOf(measured), depth: measured })
+      for (const { seconds, depth } of proposedSplits.value) {
+        insertSplit(seconds, { band: bandOf(depth), depth })
       }
     }, isInside)
   }
@@ -1029,7 +1028,13 @@ export const useSplitStore = defineStore('split', () => {
   order and the sort is stable). It is the queue that `{` and `}` walk: a split leaves it when it is
   moved or checked.
   */
-  const confidenceOrder = computed(() => confidenceQueue(splits.value))
+  const confidenceOrder = computed(() => {
+    const queue = splits.value.filter(
+      (split): split is Split & { confidence: Confidence } => split.confidence !== null,
+    )
+    queue.sort((first, second) => first.confidence.depth - second.confidence.depth)
+    return queue
+  })
 
   /*
   Selects the next (`step` 1) or previous (-1) split in the confidence queue, as a click on it does.
@@ -1218,24 +1223,25 @@ export const useSplitStore = defineStore('split', () => {
     split.seconds = moved
     // The place is the user's now: it is no longer a detector's guess.
     split.confidence = null
-    // A split the user added is one edit already.
+    // A split the user added is one edit already. A checked split that moves is still one edit.
     if (!addedIds.value.has(id)) movedIds.value.add(id)
+    checkedIds.value.delete(id)
   }
 
   /*
   The new split is unnamed, so its track takes its prefixed number from its place. It takes the
   inclusion of the track it cuts, whichever way it is added, so cutting a left-out track makes two
-  left-out tracks; that is no edit. A split the user adds is one edit; a detected one (`isEdit`
-  false) is none until it is moved or deleted.
+  left-out tracks; that is no edit. A split the user adds is one edit; a detected one, which Find
+  splits gives a confidence, is none until it is moved or deleted.
   */
-  function insertSplit(seconds: number, isEdit = true, confidence: Confidence | null = null) {
+  function insertSplit(seconds: number, confidence: Confidence | null = null) {
     const found = splits.value.findIndex((candidate) => candidate.seconds > seconds)
     const index = found === -1 ? splits.value.length : found
     // The track it cuts starts at the split before it, or with the file.
     const inclusion = splits.value[index - 1]?.inclusion ?? firstTrackInclusion.value
     const split: Split = { id: nextSplitId++, seconds, name: null, inclusion, confidence }
     splits.value.splice(index, 0, split)
-    if (isEdit) addedIds.value.add(split.id)
+    if (confidence === null) addedIds.value.add(split.id)
     return split
   }
 
@@ -1410,10 +1416,9 @@ export const useSplitStore = defineStore('split', () => {
     depthProfile.value = null
     silenceThreshold.value = null
     minimumGapLength.value = DEFAULT_MINIMUM_GAP_SECONDS
-    depth.value = DEFAULT_DEPTH_DB
+    depthSetting.value = DEFAULT_DEPTH_DB
     medianDecibels.value = null
     gaps.value = []
-    gapDepths.value = []
     splits.value = []
     firstTrackName.value = null
     firstTrackInclusion.value = 'included'
@@ -1434,7 +1439,7 @@ export const useSplitStore = defineStore('split', () => {
   return {
     silenceThreshold,
     minimumGapLength,
-    depth,
+    depthSetting,
     gaps,
     proposedSplits,
     loudnessAround,
@@ -1480,7 +1485,7 @@ export const useSplitStore = defineStore('split', () => {
     restoreBuiltIn,
     setSilenceThreshold,
     setMinimumGapLength,
-    setDepth,
+    setDepthSetting,
     selectSplit,
     selectTrack,
     selectAdjacentTrack,

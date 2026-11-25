@@ -3,7 +3,7 @@ import { computed, ref, useTemplateRef, watch } from 'vue'
 
 import { useSourceFileStore } from '@/entities/source-file/model/source-file.ts'
 import { ZOOM_WINDOW_SECONDS } from '@/entities/split/config/zoom-window.ts'
-import { useSplitStore } from '@/entities/split/model/split.ts'
+import { useSplitStore, type Split } from '@/entities/split/model/split.ts'
 import { drawConfidenceMarks } from '@/shared/lib/canvas/draw-confidence-marks.ts'
 import { drawSplitLines } from '@/shared/lib/canvas/draw-lands-and-splits.ts'
 import { BAR_PITCH, drawPeakBars } from '@/shared/lib/canvas/draw-peak-bars.ts'
@@ -30,12 +30,12 @@ split is a wider line with a drag handle at its top. The handle is a real elemen
 it can be reached with Tab and read by a screen reader. The view takes the page's keys, wherever the
 focus is: Left and Right move the split 10 ms, with Shift 100 ms, Delete (Backspace too, the delete
 key of a Mac keyboard) deletes it, and `[` and `]` select the previous and next split, as a click
-on it does. `K` marks a split that has a confidence as checked: it keeps its place and
-leaves the walk of `{` and `}`, which are the review page's keys. Space plays the clip across the split and pauses it, as the "Play across split" button
-does (ticket 14); a 1 px ink line always shows the audition's playhead, where the sound is while it
-plays and where it resumes otherwise, and a failure to play is said in a line at the bottom of the
-view. A held Space, `[` or `]` is ignored, so it does not start and stop the sound or step over and
-over.
+on it does. `K` marks a split that has a confidence as checked: it keeps its place and leaves the
+walk of `{` and `}`, which are the review page's keys. Space plays the clip across the split and
+pauses it, as the "Play across split" button does (ticket 14); a 1 px ink line always shows the
+audition's playhead, where the sound is while it plays and where it resumes otherwise, and a failure
+to play is said in a line at the bottom of the view. A held Space, `[` or `]` is ignored, so it does
+not start and stop the sound or step over and over.
 
 The playhead is moved by the keys `,` and `.` (back and forward 100 ms, with Shift 1 s, and again
 while held) and Home (back to the audition's start). `,` and `.` are matched by the physical key
@@ -146,7 +146,7 @@ function isStepKeyActedOn(step: -1 | 1) {
 K marks the selected split checked, kept where it is. A held key marks once, and a split with no
 confidence has no use for it, so the key is left to the browser.
 */
-function isCheckKeyActedOn(event: KeyboardEvent, selected: { confidence: object | null }) {
+function isCheckKeyActedOn(event: KeyboardEvent, selected: Split) {
   if (selected.confidence === null) return false
   if (!event.repeat) split.markChecked()
   return true
@@ -260,22 +260,18 @@ function draw() {
 
   drawAuditionEdges(context, style, centre, width, height)
 
+  const lineXs = split.splits.map((point) =>
+    zoomTimeToX(point.seconds, centre, ZOOM_WINDOW_SECONDS, width),
+  )
   drawSplitLines(
     context,
-    split.splits.map((point) => zoomTimeToX(point.seconds, centre, ZOOM_WINDOW_SECONDS, width)),
+    lineXs,
     style.getPropertyValue('--color-split'),
     0,
     height,
     split.selectedSplitIndex,
   )
-  drawConfidenceMarks(
-    context,
-    style,
-    split.splits,
-    split.splits.map((point) => zoomTimeToX(point.seconds, centre, ZOOM_WINDOW_SECONDS, width)),
-    0,
-    height,
-  )
+  drawConfidenceMarks(context, style, split.splits, lineXs, 0, height)
 
   /*
   The playhead goes over the split lines, which it must stay readable against, and under the
@@ -316,6 +312,8 @@ watch(
     sourceFile.peaks,
     split.gaps,
     split.splits.map((point) => point.seconds),
+    // Checking a split takes its mark away and changes nothing else.
+    split.splits.map((point) => point.confidence?.band),
     split.selectedSplit?.id,
     split.zoomCentreSeconds,
     // The resting place moves while paused, when nothing else here changes.

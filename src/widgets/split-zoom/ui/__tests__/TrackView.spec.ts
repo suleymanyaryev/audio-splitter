@@ -960,6 +960,47 @@ describe('TrackView', () => {
     })
   })
 
+  describe('the confidence marks', () => {
+    afterEach(() => {
+      vi.restoreAllMocks()
+    })
+
+    it('are redrawn when a confidence goes, as K takes it, with nothing else changed', async () => {
+      // A 2D context that records how many marks each draw makes; a draw starts by clearing.
+      const marksPerDraw: number[] = []
+      const recorder = new Proxy(
+        {},
+        {
+          get: (_target, name) => () => {
+            if (name === 'clearRect') marksPerDraw.push(0)
+            else if (name === 'arc') marksPerDraw.push((marksPerDraw.pop() ?? 0) + 1)
+          },
+          set: () => true,
+        },
+      )
+      vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(
+        recorder as unknown as CanvasRenderingContext2D,
+      )
+      vi.spyOn(Element.prototype, 'getBoundingClientRect').mockReturnValue(
+        new DOMRect(0, 0, 200, 160),
+      )
+      useSourceFileStore().peaks = new Float32Array(2000)
+      const { split } = setup()
+      // The gaps give sure splits, which have no mark: the second track's first is made doubtful.
+      const start = split.splits[0]!
+      start.confidence = { band: 'doubtful', depth: 5 }
+      await nextTick()
+      expect(marksPerDraw.at(-1)).toBe(1)
+      const draws = marksPerDraw.length
+
+      start.confidence = null
+      await nextTick()
+
+      expect(marksPerDraw).toHaveLength(draws + 1)
+      expect(marksPerDraw.at(-1)).toBe(0)
+    })
+  })
+
   describe('the failure line', () => {
     it('is not there while nothing failed', () => {
       const { wrapper } = setup()

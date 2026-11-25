@@ -44,7 +44,7 @@ All state lives in Pinia setup stores, in memory, except the theme ([below](#the
 | Store              | Slice                      | Holds                                                                         |
 | ------------------ | -------------------------- | ----------------------------------------------------------------------------- |
 | `source-file`      | `entities/source-file`     | The file, its analysis, load progress and the ffmpeg session                  |
-| `split`            | `entities/split`           | Settings, splits and their confidence, track names, matches, selection, edits |
+| `split`            | `entities/split`           | Settings, proposals, splits and their confidence, track names, matches, selection, edits |
 | `audition`         | `widgets/split-zoom`       | The one player: what plays, its status, volume and play speed                 |
 | `export-tracks`    | `widgets/track-strip`      | The export of every track not left out into a folder                          |
 | `export-single`    | `widgets/track-strip`      | The export of one track or range as a single file                             |

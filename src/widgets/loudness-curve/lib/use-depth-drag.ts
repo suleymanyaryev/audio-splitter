@@ -7,6 +7,7 @@ import {
   isOnMovingLine,
   movingLineColumns,
 } from './moving-line.ts'
+import { pointerPosition } from './pointer-position.ts'
 import { curveY } from './threshold-line.ts'
 
 export interface DepthDragSource {
@@ -15,14 +16,6 @@ export interface DepthDragSource {
   // The current depth in dB.
   depth: () => number
   set: (decibels: number) => void
-}
-
-// The pointer's place in the canvas's own pixels, and the canvas's size.
-function pointerPosition(event: PointerEvent) {
-  const { left, top, width, height } = (
-    event.currentTarget as HTMLCanvasElement
-  ).getBoundingClientRect()
-  return { x: event.clientX - left, y: event.clientY - top, width, height }
 }
 
 /*

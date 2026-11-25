@@ -3,7 +3,6 @@ import { createPinia, setActivePinia } from 'pinia'
 
 import { DOMWrapper, enableAutoUnmount, flushPromises, mount } from '@vue/test-utils'
 import { useSourceFileStore } from '@/entities/source-file/model/source-file.ts'
-import { confidenceQueue } from '@/entities/split/lib/confidence-queue.ts'
 import { useSplitStore } from '@/entities/split/model/split.ts'
 import { useShortcutsDialogStore } from '@/widgets/shortcuts-dialog/model/shortcuts-dialog.ts'
 import { trackExtent } from '@/widgets/split-zoom/lib/track-extent.ts'
@@ -2424,7 +2423,7 @@ describe('ReviewPage', () => {
       const wrapper = await mountPageWithTrack(1)
       const split = useSplitStore()
       // The second gap is the longer one, so the least deep split is the first.
-      const [first, last] = confidenceQueue(split.splits)
+      const [first, last] = split.splits
 
       pressKey('}', { code: 'BracketRight', shiftKey: true })
       await wrapper.vm.$nextTick()

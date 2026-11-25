@@ -1,8 +1,10 @@
 import { timeToX } from '@/shared/lib/canvas/time-axis.ts'
+import { columnAt } from './moving-line.ts'
 import { curveY } from './threshold-line.ts'
 
-// DESIGN.md: a dip mark is an 8 px diamond.
+// DESIGN.md: a dip mark is an 8 px diamond, ringed 1.5 px wide.
 export const DIP_MARK_SIZE = 8
+export const DIP_MARK_OUTLINE_WIDTH = 1.5
 
 export interface DipMark {
   x: number
@@ -23,7 +25,6 @@ export function dipMarks(
   if (columns.length === 0) return []
   return seconds.map((time) => {
     const x = timeToX(time, durationSeconds, width)
-    const column = Math.min(Math.max(Math.floor(x), 0), columns.length - 1)
-    return { x, y: curveY(columns[column] ?? 0, height) }
+    return { x, y: curveY(columns[columnAt(x, columns.length)] ?? 0, height) }
   })
 }

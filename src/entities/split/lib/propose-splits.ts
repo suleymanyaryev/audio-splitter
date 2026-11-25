@@ -14,10 +14,13 @@ export interface Proposal {
   kind: 'gap' | 'dip'
 }
 
+// A gap and its depth, in dB (GLOSSARY.md: Depth).
+interface MeasuredGap extends Gap {
+  depth: number
+}
+
 export interface ProposalInput {
-  gaps: Gap[]
-  // The depth of each gap, in the gaps' order.
-  gapDepths: number[]
+  gaps: MeasuredGap[]
   dips: Dip[]
   splitSeconds: number[]
   durationSeconds: number
@@ -28,6 +31,8 @@ function areApart(first: number, second: number, spacing: number) {
   return Math.abs(first - second) >= spacing - LIMIT_TOLERANCE
 }
 
+const middleOf = (gap: Gap) => (gap.startSeconds + gap.endSeconds) / 2
+
 /*
 The splits Find splits would add, in time order. Two detectors propose, and a boundary gets one split
 (concept note 13):
@@ -35,24 +40,16 @@ The splits Find splits would add, in time order. Two detectors propose, and a bo
 1. Each gap that has a track on both sides and holds no split proposes its middle, as Find gaps
    did, with the gap's depth.
 2. Of gap proposals within 15 s of each other, the deepest gap's stays; at equal depth, the earlier one.
-3. A dip within 15 s of a gap proposal is dropped. The other dips propose their own time.
+3. A dip within 15 s of a gap proposal is dropped, and one within 15 s of the middle of a gap that
+   holds a split: that gap is the boundary, wherever in it the split is. The other dips propose
+   their own time.
 4. A proposal within 15 s of a split that exists is dropped, and one within 1 s of the file's ends.
 */
 export function proposeSplits(input: ProposalInput): Proposal[] {
-  const { gaps, gapDepths, dips, splitSeconds, durationSeconds } = input
-
-  // In time order, as the gaps are.
-  const candidates = gaps
-    .map((gap, index) => ({
-      gap,
-      seconds: (gap.startSeconds + gap.endSeconds) / 2,
-      depth: gapDepths[index] ?? 0,
-    }))
-    .filter(
-      ({ gap }) =>
-        gap.edge === null &&
-        splitSeconds.every((seconds) => seconds < gap.startSeconds || seconds > gap.endSeconds),
-    )
+  const { gaps, dips, splitSeconds, durationSeconds } = input
+  const holdsSplit = (gap: Gap) =>
+    splitSeconds.some((seconds) => seconds >= gap.startSeconds && seconds <= gap.endSeconds)
+  const innerGaps = gaps.filter((gap) => gap.edge === null)
 
   /*
   Walking in time, a gap within 15 s of the last one kept takes its place when it is deeper, and
@@ -60,43 +57,33 @@ export function proposeSplits(input: ProposalInput): Proposal[] {
   from the one before, and the new one is further still, so it needs no second look.
   */
   const kept: Proposal[] = []
-  for (const { seconds, depth } of candidates) {
+  for (const gap of innerGaps) {
+    if (holdsSplit(gap)) continue
+    const proposal: Proposal = { seconds: middleOf(gap), depth: gap.depth, kind: 'gap' }
     const last = kept.at(-1)
-    if (last === undefined || areApart(last.seconds, seconds, BOUNDARY_SPACING_SECONDS)) {
-      kept.push({ seconds, depth, kind: 'gap' })
-    } else if (depth > last.depth) {
-      kept[kept.length - 1] = { seconds, depth, kind: 'gap' }
+    if (last === undefined || areApart(last.seconds, proposal.seconds, BOUNDARY_SPACING_SECONDS)) {
+      kept.push(proposal)
+    } else if (proposal.depth > last.depth) {
+      kept[kept.length - 1] = proposal
     }
   }
+
+  const boundaries = [
+    ...kept.map((proposal) => proposal.seconds),
+    ...innerGaps.filter((gap) => holdsSplit(gap)).map((gap) => middleOf(gap)),
+  ]
   const dipsAway = dips
     .filter((dip) =>
-      kept.every((other) => areApart(other.seconds, dip.seconds, BOUNDARY_SPACING_SECONDS)),
+      boundaries.every((seconds) => areApart(seconds, dip.seconds, BOUNDARY_SPACING_SECONDS)),
     )
     .map(({ seconds, depth }): Proposal => ({ seconds, depth, kind: 'dip' }))
 
-  return inTimeOrder(kept, dipsAway).filter(
+  const proposals = [...kept, ...dipsAway]
+  proposals.sort((first, second) => first.seconds - second.seconds)
+  return proposals.filter(
     ({ seconds }) =>
       areApart(seconds, 0, MINIMUM_DISTANCE_SECONDS) &&
       areApart(seconds, durationSeconds, MINIMUM_DISTANCE_SECONDS) &&
       splitSeconds.every((split) => areApart(split, seconds, BOUNDARY_SPACING_SECONDS)),
   )
-}
-
-// Two lists that are each in time order, merged into one.
-function inTimeOrder(first: Proposal[], second: Proposal[]) {
-  const merged: Proposal[] = []
-  let firstAt = 0
-  let secondAt = 0
-  while (firstAt < first.length || secondAt < second.length) {
-    const next = first[firstAt]
-    const other = second[secondAt]
-    if (other === undefined || (next !== undefined && next.seconds <= other.seconds)) {
-      if (next !== undefined) merged.push(next)
-      firstAt++
-    } else {
-      merged.push(other)
-      secondAt++
-    }
-  }
-  return merged
 }

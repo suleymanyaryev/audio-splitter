@@ -104,7 +104,7 @@ function mountWithThreeDepths() {
   curve.fill(-16, 1400, 1480)
   const split = useSplitStore()
   split.open(curve, { windowSeconds: 0.05, durationSeconds: 100 })
-  split.setDepth(3)
+  split.setDepthSetting(3)
   split.findSplits()
   return { split, wrapper: mount(TrackList, { attachTo: document.body }) }
 }

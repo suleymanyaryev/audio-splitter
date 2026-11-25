@@ -187,6 +187,8 @@ watch(
     sourceFile.peaks,
     split.gaps,
     split.splits.map((point) => point.seconds),
+    // Checking a split takes its mark away and changes nothing else.
+    split.splits.map((point) => point.confidence?.band),
     split.selectedSplit?.id,
     split.zoomCentreSeconds,
     split.view,
