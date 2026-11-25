@@ -1,4 +1,4 @@
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 
 import { curveY, isOnThresholdLine, thresholdFromPointer } from './threshold-line.ts'
 
@@ -55,5 +55,8 @@ export function useThresholdDrag({ threshold, set }: ThresholdDragSource) {
     grabOffset.value = null
   }
 
-  return { overLine, onPointerDown, onPointerMove, onPointerEnd }
+  // Whether a drag of the line is on, so another line under the pointer does not take hold too.
+  const isDragging = computed(() => grabOffset.value !== null)
+
+  return { overLine, isDragging, onPointerDown, onPointerMove, onPointerEnd }
 }

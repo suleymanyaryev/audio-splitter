@@ -754,6 +754,9 @@ export const useSplitStore = defineStore('split', () => {
   // "Clear splits" has something to clear while there is a split.
   const canClearSplits = computed(() => splits.value.length > 0)
 
+  // The loudness around every window (GLOSSARY.md: Depth), which the loudness panel's moving line follows.
+  const loudnessAround = computed(() => depthProfile.value?.around ?? null)
+
   // The dips that propose a split now: as deep as the depth setting, and the deepest within 15 s.
   const dips = computed(() =>
     depthProfile.value === null || timing.value === null
@@ -1385,6 +1388,7 @@ export const useSplitStore = defineStore('split', () => {
     depth,
     gaps,
     proposedSplits,
+    loudnessAround,
     canClearSplits,
     currentOffsetDb: currentOffsetDecibels,
     matchesDefaultSettings,
