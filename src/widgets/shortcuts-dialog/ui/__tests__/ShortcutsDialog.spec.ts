@@ -66,6 +66,17 @@ describe('ShortcutsDialog', () => {
     expect(text).toContain('Click a split’s line')
   })
 
+  it('lists { / } and K in the Split view’s section', async () => {
+    await openDialog()
+
+    const section = [...(dialog()?.querySelectorAll('section') ?? [])].find((candidate) =>
+      candidate.textContent?.startsWith('Split view'),
+    )
+
+    expect(section?.textContent).toContain('{ / }')
+    expect(section?.textContent).toContain('Mark the selected split as checked')
+  })
+
   it('lists C in the Track view’s section, and nowhere else', async () => {
     await openDialog()
 

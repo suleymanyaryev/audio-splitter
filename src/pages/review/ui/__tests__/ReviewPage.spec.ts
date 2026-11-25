@@ -36,13 +36,13 @@ function mountOpenedPage() {
 }
 
 /*
-The page after "Find gaps", which most specs start from: splits at 21 s and 71.5 s. Find gaps runs
+The page after "Find splits", which most specs start from: splits at 21 s and 71.5 s. Find splits runs
 right after the page opens the file, before its first render.
 */
 function mountPage() {
   const split = useSplitStore()
   split.$onAction(({ name, after }) => {
-    if (name === 'open') after(() => split.addGapSplits())
+    if (name === 'open') after(() => split.findSplits())
   })
   return mountOpenedPage()
 }
@@ -374,14 +374,14 @@ describe('ReviewPage', () => {
       expect(wrapper.text()).toContain('Tracks (1)')
     })
 
-    it('adds a split in each gap when Find gaps is pressed, and keeps the view', async () => {
+    it('adds a split in each gap when Find splits is pressed, and keeps the view', async () => {
       const wrapper = mountOpenedPage()
       const split = useSplitStore()
       const button = wrapper
         .findAll('button')
-        .find((candidate) => candidate.text().startsWith('Find gaps'))
+        .find((candidate) => candidate.text().startsWith('Find splits'))
 
-      expect(button?.text()).toBe('Find gaps (2)')
+      expect(button?.text()).toBe('Find splits (2)')
       await button?.trigger('click')
 
       expect(split.splits.map((point) => point.seconds)).toEqual([
@@ -390,7 +390,7 @@ describe('ReviewPage', () => {
       ])
       expect(split.selectedTrack?.number).toBe(1)
       expect(split.view).toBe('track')
-      expect(button?.text()).toBe('Find gaps (0)')
+      expect(button?.text()).toBe('Find splits (0)')
     })
 
     it('asks "Discard 1 pending split?" when a split would land inside the selected track', async () => {
@@ -399,7 +399,7 @@ describe('ReviewPage', () => {
       split.addPendingSplit(10, true)
       const button = wrapper
         .findAll('button')
-        .find((candidate) => candidate.text().startsWith('Find gaps'))
+        .find((candidate) => candidate.text().startsWith('Find splits'))
 
       await button?.trigger('click')
 
@@ -2419,6 +2419,36 @@ describe('ReviewPage', () => {
       wrapper.unmount()
     })
 
+    it('select the splits by confidence with Shift: } the first, { from none the last', async () => {
+      const wrapper = await mountPageWithTrack(1)
+      const split = useSplitStore()
+      // The second gap is the longer one, so the least deep split is the first.
+      const [first, last] = split.splits
+
+      pressKey('}', { code: 'BracketRight', shiftKey: true })
+      await wrapper.vm.$nextTick()
+      expect(split.selectedSplit?.id).toBe(first?.id)
+      expect(split.view).toBe('split')
+
+      pressKey('}', { code: 'BracketRight', shiftKey: true })
+      expect(split.selectedSplit?.id).toBe(last?.id)
+
+      pressKey('{', { code: 'BracketLeft', shiftKey: true })
+      expect(split.selectedSplit?.id).toBe(first?.id)
+      wrapper.unmount()
+    })
+
+    it('leave { and } to a dialog, a text field and a held key', async () => {
+      const wrapper = await mountPageWithTrack(1)
+      const split = useSplitStore()
+
+      pressKey('}', { code: 'BracketRight', shiftKey: true, repeat: true })
+      pressKey('}', { code: 'BracketRight', shiftKey: true }, wrapper.get('input').element)
+
+      expect(split.selectedSplit).toBeNull()
+      wrapper.unmount()
+    })
+
     it('marks the new track’s block in the track strip', async () => {
       const wrapper = await mountPageWithTrack(1)
       const strip = wrapper.get('ol[aria-label="Tracks"]')
@@ -2461,14 +2491,14 @@ describe('ReviewPage', () => {
     })
 
     describe('are left alone', () => {
-      it('with Shift held', async () => {
+      it('with Shift held, which is the walk by confidence’s and selects a split instead', async () => {
         const wrapper = await mountPageWithTrack(1)
 
-        const event = pressKey(NEXT.key, { code: NEXT.code, shiftKey: true })
+        pressKey('}', { code: NEXT.code, shiftKey: true })
         await wrapper.vm.$nextTick()
 
-        expect(useSplitStore().selectedTrack?.number).toBe(1)
-        expect(event.defaultPrevented).toBe(false)
+        expect(useSplitStore().selectedTrack).toBeNull()
+        expect(useSplitStore().selectedSplit).not.toBeNull()
       })
 
       it('when the key is held down, which steps once', async () => {

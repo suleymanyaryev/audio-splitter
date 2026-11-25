@@ -16,6 +16,11 @@ export function formatSettingSeconds(seconds: number): string {
   return `${Number(seconds.toFixed(1))} s`
 }
 
+// The depth as a tooltip says it, with no trailing zero: "15 dB", "11.5 dB".
+export function formatSettingDecibels(decibels: number): string {
+  return `${Number(decibels.toFixed(1))} dB`
+}
+
 // The threshold's distance from the median in words: "18 dB under the median".
 export function formatOffset(offsetDecibels: number): string {
   const tenths = roundToTenth(offsetDecibels)

@@ -3,8 +3,8 @@ import { readFileSync } from 'node:fs'
 import { expect, test, type Page } from '@playwright/test'
 
 /*
-Milestone 7, one flow per source file: load a 30 s fixture (three tone bursts, two 2 s silences),
-press "Find gaps" for two splits and three tracks, export, and read the files back.
+Milestone 7, one flow per source file: load a 40 s fixture (three tone bursts, two 2 s silences),
+press "Find splits" for two splits and three tracks, export, and read the files back.
 `showDirectoryPicker` is replaced by the browser's origin-private file system, a real directory the
 real File System Access writes go into, so no picker dialog opens.
 
@@ -20,8 +20,8 @@ const CASES = [
   { fixture: 'bursts-video.webm', stem: 'bursts-video', extension: 'opus' },
 ] as const
 
-// What "Find gaps" adds on the fixtures: splits in the silences' middles, 9.5 s and 20.5 s.
-const EXPECTED_SECONDS = [9.5, 11, 9.5]
+// What "Find splits" adds on the fixtures: splits in the silences' middles, 9.5 s and 30.5 s.
+const EXPECTED_SECONDS = [9.5, 21, 9.5]
 // A compressed frame is 1024 samples (AAC) or 1152 (MP3) and the cut lands on frame edges.
 const TOLERANCE_SECONDS = 0.15
 
@@ -121,7 +121,7 @@ async function openReviewPage(page: Page, fixture: string) {
     timeout: 20_000,
   })
   // The file opens as one track; the two gaps become splits on request.
-  await page.getByRole('button', { name: 'Find gaps (2)' }).click()
+  await page.getByRole('button', { name: 'Find splits (2)' }).click()
   await expect(page.getByRole('button', { name: /^Select track 3/ })).toBeVisible()
 }
 
@@ -190,7 +190,7 @@ for (const { fixture, stem, extension } of CASES) {
       )
     }
     const total = tracks.reduce((sum, track) => sum + track.seconds, 0)
-    expect(Math.abs(total - 30)).toBeLessThan(TOLERANCE_SECONDS)
+    expect(Math.abs(total - 40)).toBeLessThan(TOLERANCE_SECONDS)
 
     // A second export of the same file never touches the first one.
     await exportToFolder(page, `3 tracks saved to ${stem} (2)/`)
@@ -231,7 +231,7 @@ for (const { fixture, stem, extension } of CASES) {
       expect(Math.abs(saved.seconds - (EXPECTED_SECONDS[1] ?? 0))).toBeLessThan(TOLERANCE_SECONDS)
     }
 
-    // A quarter to a half of the 30 s file: about 7.5 s to 15 s.
+    // A quarter to a half of the 40 s file: about 10 s to 20 s.
     const waveform = page.getByRole('region', { name: 'Whole file' }).locator('canvas')
     // Selecting track 2 in the list scrolls the page, and the mouse only reaches what is in view.
     await waveform.scrollIntoViewIfNeeded()
@@ -251,7 +251,7 @@ for (const { fixture, stem, extension } of CASES) {
     expect(clip.hasTitle).toBe(true)
     expect(clip.hasAlbum).toBe(true)
     expect(clip.hasVideo).toBe(false)
-    // The range's own length is in the panel's title, after the dot: `0:00:07.50 – … · 7.50`.
+    // The range's own length is in the panel's title, after the dot: `0:00:10.00 – … · 10.00`.
     const title = await page.getByRole('heading', { level: 2, name: /·/ }).textContent()
     const seconds = Number(title?.split('·').at(-1)?.trim().split(':').at(-1))
     expect(Math.abs(clip.seconds - seconds)).toBeLessThan(TOLERANCE_SECONDS)

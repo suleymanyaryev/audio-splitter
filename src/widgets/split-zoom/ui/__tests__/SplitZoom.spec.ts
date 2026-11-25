@@ -30,7 +30,7 @@ function setup() {
   useSourceFileStore().durationSeconds = 100
   const split = useSplitStore()
   split.open(curveWithTwoGaps(), { windowSeconds: 0.05, durationSeconds: 100 })
-  split.addGapSplits()
+  split.findSplits()
   // Detection opens on track 1; this spec is about the zoom view, on split 1.
   split.selectSplit(split.splits[0]!.id)
   return { split, wrapper: mount(SplitZoom, { attachTo: document.body }) }
@@ -856,7 +856,7 @@ describe('SplitZoom', () => {
       useSourceFileStore().durationSeconds = 100
       const split = useSplitStore()
       split.open(curveWithGapNearTheStart(), { windowSeconds: 0.05, durationSeconds: 100 })
-      split.addGapSplits()
+      split.findSplits()
       split.selectSplit(split.splits[0]!.id)
       mount(SplitZoom, { attachTo: document.body })
 
@@ -881,7 +881,7 @@ describe('SplitZoom', () => {
       useSourceFileStore().peaks = new Float32Array(2000)
       useSourceFileStore().durationSeconds = 100
       useSplitStore().open(curveWithTwoGaps(), { windowSeconds: 0.05, durationSeconds: 100 })
-      useSplitStore().addGapSplits()
+      useSplitStore().findSplits()
       mount(SplitZoom, { attachTo: document.body })
 
       expect(stemsAt()).toEqual([])
@@ -1044,6 +1044,43 @@ describe('SplitZoom', () => {
       await press({ key: 'ArrowRight' })
 
       expect(split.splits.map((point) => point.seconds)).toEqual(before)
+    })
+  })
+
+  describe('marking a split checked with K', () => {
+    it('clears the confidence of the selected split, which counts as one edit', async () => {
+      const { split } = setup()
+      expect(split.selectedSplit?.confidence).not.toBeNull()
+
+      await press({ key: 'k', code: 'KeyK' })
+
+      expect(split.selectedSplit?.confidence).toBeNull()
+      expect(split.editCount).toBe(1)
+    })
+
+    it('leaves a split with no confidence to the browser, and a held key marks once', async () => {
+      const { split } = setup()
+      const first = new KeyboardEvent('keydown', { code: 'KeyK', bubbles: true, cancelable: true })
+      const again = new KeyboardEvent('keydown', { code: 'KeyK', bubbles: true, cancelable: true })
+
+      document.dispatchEvent(first)
+      document.dispatchEvent(again)
+
+      expect(first.defaultPrevented).toBe(true)
+      expect(again.defaultPrevented).toBe(false)
+      expect(split.editCount).toBe(1)
+    })
+
+    it('works by the physical key, and does nothing with Shift or with no split selected', async () => {
+      const { split, wrapper } = setup()
+
+      await press({ key: 'K', code: 'KeyK', shiftKey: true })
+      expect(split.editCount).toBe(0)
+
+      split.moveZoomTo(40)
+      await wrapper.vm.$nextTick()
+      await press({ key: 'к', code: 'KeyK' })
+      expect(split.editCount).toBe(0)
     })
   })
 

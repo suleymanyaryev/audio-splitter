@@ -81,7 +81,7 @@ function curveWithThreeLongTracks() {
 async function mountWithDuplicate() {
   const split = useSplitStore()
   split.open(curveWithThreeLongTracks(), { windowSeconds: 0.05, durationSeconds: 107 })
-  split.addGapSplits()
+  split.findSplits()
   await split.findDuplicates()
   return { split, wrapper: mount(TrackList) }
 }
@@ -89,8 +89,24 @@ async function mountWithDuplicate() {
 function mountWithTwoGaps() {
   const split = useSplitStore()
   split.open(curveWithTwoGaps(), { windowSeconds: 0.05, durationSeconds: 100 })
-  split.addGapSplits()
+  split.findSplits()
   return { split, wrapper: mount(TrackList) }
+}
+
+/*
+100 s, median -10 dB: a 2 s silence from 20 s (a gap, sure), a 4 s dip of 12 dB from 45 s
+(likely) and one of 6 dB from 70 s (doubtful).
+*/
+function mountWithThreeDepths() {
+  const curve = new Float32Array(2000).fill(-10)
+  curve.fill(-70, 400, 440)
+  curve.fill(-22, 900, 980)
+  curve.fill(-16, 1400, 1480)
+  const split = useSplitStore()
+  split.open(curve, { windowSeconds: 0.05, durationSeconds: 100 })
+  split.setDepthSetting(3)
+  split.findSplits()
+  return { split, wrapper: mount(TrackList, { attachTo: document.body }) }
 }
 
 // Each row's `aria-current`, in order: 'true' on the marked one.
@@ -120,7 +136,7 @@ describe('TrackList', () => {
 
   it('lists each track, with a split row between every two, in time order', () => {
     useSplitStore().open(curveWithTwoGaps(), { windowSeconds: 0.05, durationSeconds: 100 })
-    useSplitStore().addGapSplits()
+    useSplitStore().findSplits()
 
     const wrapper = mount(TrackList)
 
@@ -152,7 +168,7 @@ describe('TrackList', () => {
   it('keeps its rows when the minimum gap length changes, since that changes only the gaps', async () => {
     const split = useSplitStore()
     split.open(curveWithTwoGaps(), { windowSeconds: 0.05, durationSeconds: 100 })
-    split.addGapSplits()
+    split.findSplits()
     const wrapper = mount(TrackList)
     expect(wrapper.findAll('tbody tr')).toHaveLength(5)
 
@@ -247,7 +263,7 @@ describe('TrackList', () => {
       vi.useFakeTimers()
       const split = useSplitStore()
       split.open(curveWithThreeLongTracks(), { windowSeconds: 0.05, durationSeconds: 107 })
-      split.addGapSplits()
+      split.findSplits()
       await split.findDuplicates()
       const wrapper = mount(TrackList, { attachTo: document.body })
 
@@ -382,7 +398,7 @@ describe('TrackList', () => {
     it('leaves a track left out by hand out, without its words', async () => {
       const split = useSplitStore()
       split.open(curveWithThreeLongTracks(), { windowSeconds: 0.05, durationSeconds: 107 })
-      split.addGapSplits()
+      split.findSplits()
       split.toggleLeftOut(split.tracks[2]?.startSplit?.id ?? null)
       await split.findDuplicates()
       const wrapper = mount(TrackList)
@@ -494,7 +510,7 @@ describe('TrackList', () => {
 
   it('scrolls inside a box as tall as the zoom view', () => {
     useSplitStore().open(curveWithTwoGaps(), { windowSeconds: 0.05, durationSeconds: 100 })
-    useSplitStore().addGapSplits()
+    useSplitStore().findSplits()
 
     const wrapper = mount(TrackList)
 
@@ -510,6 +526,54 @@ describe('TrackList', () => {
         expect(row.findAll('button[aria-label^="Select track"]')).toHaveLength(0)
         expect(row.findAll('td')[3]?.text()).toBe('')
       }
+    })
+
+    describe('the confidence of a split', () => {
+      it('says likely or doubtful after the name, and nothing for a sure split', () => {
+        const { wrapper } = mountWithThreeDepths()
+
+        expect(
+          splitRows(wrapper).map((row) => row.findAll('td')[1]?.text().replaceAll(/\s+/g, ' ')),
+        ).toEqual(['Split 1', 'Split 2 likely', 'Split 3 doubtful'])
+        wrapper.unmount()
+      })
+
+      it('draws a ring for a likely split and a filled disc for a doubtful one', () => {
+        const { wrapper } = mountWithThreeDepths()
+        const glyphs = splitRows(wrapper).map((row) => row.find('td:nth-child(2) [aria-hidden]'))
+
+        expect(glyphs[0]?.exists()).toBe(false)
+        expect(glyphs[1]?.classes()).toContain('bg-surface')
+        expect(glyphs[2]?.classes()).toContain('bg-split')
+        wrapper.unmount()
+      })
+
+      it('gives the depth in a tooltip on the band', async () => {
+        vi.useFakeTimers()
+        const { wrapper } = mountWithThreeDepths()
+
+        await splitRows(wrapper)[1]?.find('td:nth-child(2) span').trigger('pointermove')
+        await vi.advanceTimersByTimeAsync(1000)
+
+        expect(document.querySelector('[role="tooltip"]')?.textContent).toBe(
+          '12.0 dB under its surroundings',
+        )
+        wrapper.unmount()
+        vi.useRealTimers()
+      })
+
+      it('goes when the split is moved', async () => {
+        const { split, wrapper } = mountWithThreeDepths()
+        split.selectSplit(split.splits[1]!.id)
+
+        split.moveSplit(split.splits[1]!.id, split.splits[1]!.seconds + 0.5)
+        await wrapper.vm.$nextTick()
+
+        expect(
+          splitRows(wrapper).map((row) => row.findAll('td')[1]?.text().replaceAll(/\s+/g, ' ')),
+        ).toEqual(['Split 1', 'Split 2', 'Split 3 doubtful'])
+        wrapper.unmount()
+      })
     })
 
     it('offers a trash button on every split row, naming the split’s time', () => {
@@ -568,7 +632,9 @@ describe('TrackList', () => {
       split.deleteSplit(split.splits[0]!.id)
       await wrapper.vm.$nextTick()
 
-      expect(splitRows(wrapper).map((row) => row.findAll('td')[1]?.text())).toEqual(['Split 1'])
+      expect(
+        splitRows(wrapper).map((row) => row.findAll('td')[1]?.text().replaceAll(/\s+/g, ' ')),
+      ).toEqual(['Split 1'])
       expect(splitRows(wrapper)[0]?.findAll('td')[2]?.text()).toBe('0:01:11.50')
     })
   })

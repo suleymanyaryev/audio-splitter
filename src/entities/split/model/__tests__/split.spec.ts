@@ -3,6 +3,7 @@ import { createPinia, setActivePinia } from 'pinia'
 import { watch } from 'vue'
 
 import {
+  DEFAULT_DEPTH_DB,
   DEFAULT_MINIMUM_GAP_SECONDS,
   DEFAULT_OFFSET_DB,
   DEFAULT_SETTINGS_STORAGE_KEY,
@@ -26,10 +27,11 @@ function timing(curve: Float32Array) {
 }
 
 /*
-12 s, median -10 dB. Quiet from 2 s to 5 s (3 s) and from 7 s to 9 s (2 s, the default minimum),
-so the splits are at 3.5 s and 8 s and the tracks are 3.5 s, 4.5 s and 4 s long.
+30 s, median -10 dB. Quiet from 2 s to 5 s (3 s) and from 25 s to 27 s (2 s, the default minimum),
+so the splits are at 3.5 s and 26 s, over the 15 s one boundary takes, and the tracks are 3.5 s,
+22.5 s and 4 s long.
 */
-const twoGaps = () => curveOf([LOUD, 40], [QUIET, 60], [LOUD, 40], [QUIET, 40], [LOUD, 60])
+const twoGaps = () => curveOf([LOUD, 40], [QUIET, 60], [LOUD, 400], [QUIET, 40], [LOUD, 60])
 
 /*
 60 s, median -10 dB. Quiet from 20 s to 24 s and from 40 s to 44 s, so the splits are at 22 s and
@@ -41,12 +43,39 @@ const farGaps = () => curveOf([LOUD, 400], [QUIET, 80], [LOUD, 320], [QUIET, 80]
 const threeFarGapsCurve = () =>
   curveOf([LOUD, 400], [QUIET, 80], [LOUD, 320], [QUIET, 80], [LOUD, 320], [QUIET, 80], [LOUD, 320])
 
+/*
+12 s with splits added by hand at 3.5 s and 8 s: closer than Find splits ever puts two (15 s), for
+the tests of what a split keeps from its neighbours.
+*/
+function closeSplitsStore() {
+  const curve = curveOf([LOUD, 40], [QUIET, 60], [LOUD, 40], [QUIET, 40], [LOUD, 60])
+  const store = useSplitStore()
+  store.open(curve, timing(curve))
+  store.addSplitAt(3.5)
+  store.addSplitAt(8)
+  return store
+}
+
+// A store with the file opened at the default settings.
+function openCurve(curve: Float32Array) {
+  const store = useSplitStore()
+  store.open(curve, timing(curve))
+  return store
+}
+
+// 4 s from 20 s that sit 16 dB under the music: no gap at -28 dB, but a dip 16 dB deep.
+const shallowDip = () => curveOf([LOUD, 400], [-26, 80], [LOUD, 400])
+
+// The times Find splits would add now.
+const seconds = (store: ReturnType<typeof useSplitStore>) =>
+  store.proposedSplits.map((proposal) => proposal.seconds)
+
 // Every kind of edit at once: split 1 moved, split 2 deleted, one added, a track renamed.
 function editedStore() {
   const curve = threeFarGapsCurve()
   const store = useSplitStore()
   store.open(curve, timing(curve))
-  store.addGapSplits()
+  store.findSplits()
   // A split moves only inside the window, and detection leaves the window at the file's start.
   store.selectSplit(store.splits[0]!.id)
   store.moveSplit(store.splits[0]!.id, 25)
@@ -63,7 +92,7 @@ function namedFourTracks() {
   const curve = threeFarGapsCurve()
   const store = useSplitStore()
   store.open(curve, timing(curve))
-  store.addGapSplits()
+  store.findSplits()
   const [first, second, third] = store.splits
   store.renameTrack(null, 'A')
   store.renameTrack(first!.id, 'B')
@@ -79,7 +108,7 @@ function storeWithTwoGaps() {
   const curve = twoGaps()
   const store = useSplitStore()
   store.open(curve, timing(curve))
-  store.addGapSplits()
+  store.findSplits()
   return { curve, store }
 }
 
@@ -88,7 +117,7 @@ function threeSplits() {
   const curve = threeFarGapsCurve()
   const store = useSplitStore()
   store.open(curve, timing(curve))
-  store.addGapSplits()
+  store.findSplits()
   return store
 }
 
@@ -97,7 +126,7 @@ function loadedStore() {
   const curve = farGaps()
   const store = useSplitStore()
   store.open(curve, timing(curve))
-  store.addGapSplits()
+  store.findSplits()
   return store
 }
 
@@ -142,13 +171,13 @@ function openTwoGaps() {
   return store
 }
 
-// A file opened with no split and a pending split at 10 s in its one track.
+// A file opened with no split and a pending split at 5 s in its one track.
 function openWithPending() {
   const curve = farGaps()
   const store = useSplitStore()
   store.open(curve, timing(curve))
-  store.placeTrackMark(10)
-  store.addPendingSplit(10, true)
+  store.placeTrackMark(5)
+  store.addPendingSplit(5, true)
   return store
 }
 
@@ -209,6 +238,44 @@ const HELD = {
 const selectedTracks = (store: ReturnType<typeof useSplitStore>) =>
   store.tracks.map((track) => store.isTrackSelected(track))
 
+// A gap 40 dB deep, then dips of 12 dB and 6 dB, each far from the others.
+function threeDepths() {
+  return curveOf(
+    [LOUD, 400],
+    [QUIET, 60],
+    [LOUD, 400],
+    [-22, 80],
+    [LOUD, 400],
+    [-16, 80],
+    [LOUD, 400],
+  )
+}
+
+/*
+Dips of 6, 12 and 9 dB in time order (a doubtful, a sure-looking 12 is likely, and a likely 9),
+and a gap of 40 dB: the order is 6, 9, 12, then the gap's 40.
+*/
+function openWithFourDepths() {
+  const curve = curveOf(
+    [LOUD, 400],
+    [-16, 80],
+    [LOUD, 400],
+    [-22, 80],
+    [LOUD, 400],
+    [-19, 80],
+    [LOUD, 400],
+    [QUIET, 60],
+    [LOUD, 400],
+  )
+  const store = openCurve(curve)
+  store.setDepthSetting(3)
+  store.findSplits()
+  return store
+}
+
+const depths = (store: ReturnType<typeof useSplitStore>) =>
+  store.splits.map((split) => split.confidence?.depth.toFixed(0))
+
 describe('the split store', () => {
   beforeEach(() => {
     // The default settings are kept in localStorage, which a spec must not inherit from another.
@@ -223,7 +290,7 @@ describe('the split store', () => {
     const store = useSplitStore()
 
     store.open(curve, timing(curve))
-    store.addGapSplits()
+    store.findSplits()
 
     expect(store.silenceThreshold).toBe(-10 - DEFAULT_OFFSET_DB)
     expect(store.minimumGapLength).toBe(DEFAULT_MINIMUM_GAP_SECONDS)
@@ -235,7 +302,7 @@ describe('the split store', () => {
     const store = useSplitStore()
 
     store.open(curve, timing(curve))
-    store.addGapSplits()
+    store.findSplits()
 
     expect(store.silenceThreshold).toBeCloseTo(-34.7, 12)
   })
@@ -245,12 +312,12 @@ describe('the split store', () => {
     const store = useSplitStore()
 
     store.open(curve, timing(curve))
-    store.addGapSplits()
+    store.findSplits()
 
     expect(store.gaps).toHaveLength(2)
     expect(store.splits.map((split) => split.seconds)).toEqual([
       expect.closeTo(3.5, 9),
-      expect.closeTo(8, 9),
+      expect.closeTo(26, 9),
     ])
     expect(store.splits.map((split) => split.name)).toEqual([null, null])
     expect(store.firstTrackName).toBeNull()
@@ -261,22 +328,22 @@ describe('the split store', () => {
     const store = useSplitStore()
 
     store.open(curve, timing(curve))
-    store.addGapSplits()
+    store.findSplits()
 
     expect(store.tracks.map((track) => track.number)).toEqual([1, 2, 3])
     expect(store.tracks.map((track) => track.name)).toEqual(['01', '02', '03'])
     expect(store.tracks.map((track) => track.startSeconds)).toEqual([
       0,
       expect.closeTo(3.5, 9),
-      expect.closeTo(8, 9),
+      expect.closeTo(26, 9),
     ])
     expect(store.tracks.map((track) => track.lengthSeconds)).toEqual([
       expect.closeTo(3.5, 9),
-      expect.closeTo(4.5, 9),
+      expect.closeTo(22.5, 9),
       expect.closeTo(4, 9),
     ])
     const total = store.tracks.reduce((sum, track) => sum + track.lengthSeconds, 0)
-    expect(total).toBeCloseTo(12, 9)
+    expect(total).toBeCloseTo(30, 9)
   })
 
   it('tells which split starts each track: none for the first', () => {
@@ -284,7 +351,7 @@ describe('the split store', () => {
     const store = useSplitStore()
 
     store.open(curve, timing(curve))
-    store.addGapSplits()
+    store.findSplits()
 
     expect(store.tracks[0]?.startSplit).toBeNull()
     expect(store.tracks[1]?.startSplit).toBe(store.splits[0])
@@ -295,7 +362,7 @@ describe('the split store', () => {
     const curve = twoGaps()
     const store = useSplitStore()
     store.open(curve, timing(curve))
-    store.addGapSplits()
+    store.findSplits()
 
     store.firstTrackName = 'Opening'
     store.splits[1]!.name = 'Encore'
@@ -307,7 +374,7 @@ describe('the split store', () => {
     const curve = twoGaps()
     const store = useSplitStore()
     store.open(curve, timing(curve))
-    store.addGapSplits()
+    store.findSplits()
 
     store.firstTrackName = 'Opening'
     store.splits[1]!.name = 'Encore'
@@ -325,7 +392,7 @@ describe('the split store', () => {
     const store = useSplitStore()
 
     store.open(curve, timing(curve))
-    store.addGapSplits()
+    store.findSplits()
 
     expect(store.splits).toEqual([])
     expect(store.tracks).toEqual([
@@ -351,7 +418,7 @@ describe('the split store', () => {
     const store = useSplitStore()
 
     store.open(curve, timing(curve))
-    store.addGapSplits()
+    store.findSplits()
 
     expect(store.gaps.map((gap) => gap.edge)).toEqual(['lead-in', 'run-out'])
     expect(store.splits).toEqual([])
@@ -362,7 +429,7 @@ describe('the split store', () => {
     const curve = twoGaps()
     const store = useSplitStore()
     store.open(curve, timing(curve))
-    store.addGapSplits()
+    store.findSplits()
     store.firstTrackName = 'Opening'
     store.splits[0]!.name = 'Middle'
 
@@ -386,7 +453,7 @@ describe('the split store', () => {
     const curve = twoGaps()
     const store = useSplitStore()
     store.open(curve, timing(curve))
-    store.addGapSplits()
+    store.findSplits()
     store.firstTrackName = 'Opening'
     store.splits[1]!.name = 'Encore'
 
@@ -397,7 +464,7 @@ describe('the split store', () => {
     expect(store.gaps).toHaveLength(1)
     expect(store.splits.map((split) => split.seconds)).toEqual([
       expect.closeTo(3.5, 9),
-      expect.closeTo(8, 9),
+      expect.closeTo(26, 9),
     ])
     expect(store.splits[1]?.name).toBe('Encore')
     expect(store.firstTrackName).toBe('Opening')
@@ -407,7 +474,7 @@ describe('the split store', () => {
     const curve = twoGaps()
     const store = useSplitStore()
     store.open(curve, timing(curve))
-    store.addGapSplits()
+    store.findSplits()
     store.setSilenceThreshold(-40)
 
     store.setMinimumGapLength(1.5)
@@ -421,7 +488,7 @@ describe('the split store', () => {
     const store = useSplitStore()
 
     store.open(curve, timing(curve))
-    store.addGapSplits()
+    store.findSplits()
 
     expect(curve).toEqual(before)
   })
@@ -430,13 +497,13 @@ describe('the split store', () => {
     const store = useSplitStore()
     const first = twoGaps()
     store.open(first, timing(first))
-    store.addGapSplits()
+    store.findSplits()
     store.setSilenceThreshold(-40)
     store.setMinimumGapLength(3)
 
     const second = curveOf([-20, 100])
     store.open(second, timing(second))
-    store.addGapSplits()
+    store.findSplits()
 
     expect(store.silenceThreshold).toBe(-20 - DEFAULT_OFFSET_DB)
     expect(store.minimumGapLength).toBe(DEFAULT_MINIMUM_GAP_SECONDS)
@@ -447,7 +514,7 @@ describe('the split store', () => {
     const curve = twoGaps()
     const store = useSplitStore()
     store.open(curve, timing(curve))
-    store.addGapSplits()
+    store.findSplits()
 
     const [first, second] = store.splits
     expect(first!.id).not.toBe(second!.id)
@@ -486,17 +553,17 @@ describe('the split store', () => {
     })
   })
 
-  describe('Find gaps', () => {
+  describe('Find splits', () => {
     it('would add the middle of each inner gap, and a press adds exactly those', () => {
       const store = openTwoGaps()
-      const times = [...store.gapSplitSeconds]
+      const times = [...store.proposedSplits.map((proposal) => proposal.seconds)]
 
-      expect(times).toEqual([expect.closeTo(3.5, 9), expect.closeTo(8, 9)])
+      expect(times).toEqual([expect.closeTo(3.5, 9), expect.closeTo(26, 9)])
 
-      store.addGapSplits()
+      store.findSplits()
 
       expect(store.splits.map((split) => split.seconds)).toEqual(times)
-      expect(store.gapSplitSeconds).toEqual([])
+      expect(store.proposedSplits.map((proposal) => proposal.seconds)).toEqual([])
     })
 
     it('follows the settings live, with no split changed', () => {
@@ -504,10 +571,12 @@ describe('the split store', () => {
 
       // The 2 s gap is dropped; the 3 s gap stays.
       store.setMinimumGapLength(2.5)
-      expect(store.gapSplitSeconds).toEqual([expect.closeTo(3.5, 9)])
+      expect(store.proposedSplits.map((proposal) => proposal.seconds)).toEqual([
+        expect.closeTo(3.5, 9),
+      ])
 
       store.setSilenceThreshold(-60)
-      expect(store.gapSplitSeconds).toEqual([])
+      expect(store.proposedSplits.map((proposal) => proposal.seconds)).toEqual([])
       expect(store.splits).toEqual([])
     })
 
@@ -517,7 +586,7 @@ describe('the split store', () => {
       store.open(curve, timing(curve))
 
       expect(store.gaps.map((gap) => gap.edge)).toEqual(['lead-in', 'run-out'])
-      expect(store.gapSplitSeconds).toEqual([])
+      expect(store.proposedSplits.map((proposal) => proposal.seconds)).toEqual([])
     })
 
     it('skips a gap that already holds a split, wherever the split is in it', () => {
@@ -526,7 +595,9 @@ describe('the split store', () => {
       store.moveZoomTo(3)
       store.addSplitAt(2.5)
 
-      expect(store.gapSplitSeconds).toEqual([expect.closeTo(8, 9)])
+      expect(store.proposedSplits.map((proposal) => proposal.seconds)).toEqual([
+        expect.closeTo(26, 9),
+      ])
     })
 
     it('skips a middle less than 1 s from a split, and adds it again once the split is gone', () => {
@@ -535,14 +606,18 @@ describe('the split store', () => {
       const store = useSplitStore()
       store.open(curve, timing(curve))
       store.setMinimumGapLength(0.5)
-      expect(store.gapSplitSeconds).toEqual([expect.closeTo(2.3, 9)])
+      expect(store.proposedSplits.map((proposal) => proposal.seconds)).toEqual([
+        expect.closeTo(2.3, 9),
+      ])
 
       // A split at 2.9 s is outside the gap and 0.6 s from its middle.
       store.addSplitAt(2.9)
-      expect(store.gapSplitSeconds).toEqual([])
+      expect(store.proposedSplits.map((proposal) => proposal.seconds)).toEqual([])
 
       store.deleteSplit(store.splits[0]!.id)
-      expect(store.gapSplitSeconds).toEqual([expect.closeTo(2.3, 9)])
+      expect(store.proposedSplits.map((proposal) => proposal.seconds)).toEqual([
+        expect.closeTo(2.3, 9),
+      ])
     })
 
     it('skips a middle less than 1 s from the end of the file', () => {
@@ -553,32 +628,34 @@ describe('the split store', () => {
       store.setMinimumGapLength(0.5)
 
       expect(store.gaps).toHaveLength(1)
-      expect(store.gapSplitSeconds).toEqual([])
+      expect(store.proposedSplits.map((proposal) => proposal.seconds)).toEqual([])
     })
 
     it('keeps every split and name, the selection, the window and the view', () => {
-      const store = openTwoGaps()
-      store.moveZoomTo(10)
-      store.addSplitAt(10.5)
+      const curve = farGaps()
+      const store = useSplitStore()
+      store.open(curve, timing(curve))
+      store.moveZoomTo(5)
+      store.addSplitAt(5.5)
       store.renameTrack(null, 'Opening')
       store.selectSplit(store.splits[0]!.id)
       store.setRange(1, 5)
       const before = { ...store.splits[0]! }
 
-      store.addGapSplits()
+      store.findSplits()
 
       expect(store.splits).toHaveLength(3)
       expect(store.splits.find((split) => split.id === before.id)).toEqual(before)
       expect(store.firstTrackName).toBe('Opening')
       expect(store.selectedSplit?.id).toBe(before.id)
-      expect(store.zoomCentreSeconds).toBe(10.5)
+      expect(store.zoomCentreSeconds).toBe(5.5)
       expect(store.view).toBe('range')
     })
 
     it('adds splits that are no edit, until one is moved or deleted', () => {
       const store = openTwoGaps()
 
-      store.addGapSplits()
+      store.findSplits()
       expect(store.editCount).toBe(0)
       expect(store.hasEdits).toBe(false)
 
@@ -593,17 +670,379 @@ describe('the split store', () => {
     it('adds splits that a later press does not double', () => {
       const store = openTwoGaps()
 
-      store.addGapSplits()
-      store.addGapSplits()
+      store.findSplits()
+      store.findSplits()
 
       expect(store.splits).toHaveLength(2)
+    })
+
+    describe('the depth setting', () => {
+      it('starts at 15 dB, which a dip of 16 dB reaches and one of 17 dB does not', () => {
+        const store = openCurve(shallowDip())
+
+        expect(store.depthSetting).toBe(15)
+        expect(store.gaps).toEqual([])
+        expect(seconds(store)).toHaveLength(1)
+
+        store.setDepthSetting(16.5)
+        expect(seconds(store)).toEqual([])
+      })
+
+      it('shows what a press would add as it moves, and changes no split, name or selection', () => {
+        const store = openCurve(shallowDip())
+        store.renameTrack(null, 'Opening')
+        const selection = store.selectedTrack?.number
+        store.setDepthSetting(30)
+        expect(store.proposedSplits).toEqual([])
+
+        store.setDepthSetting(3)
+
+        expect(store.proposedSplits.length).toBeGreaterThan(0)
+        expect(store.splits).toEqual([])
+        expect(store.firstTrackName).toBe('Opening')
+        expect(store.selectedTrack?.number).toBe(selection)
+        expect(store.editCount).toBe(1)
+      })
+
+      it('is held to the slider: 3 to 30 dB', () => {
+        const store = openCurve(shallowDip())
+
+        store.setDepthSetting(1)
+        expect(store.depthSetting).toBe(3)
+
+        store.setDepthSetting(99)
+        expect(store.depthSetting).toBe(30)
+      })
+
+      it('marks the proposals of dips, and not those of gaps', () => {
+        const store = openCurve(
+          curveOf([LOUD, 400], [-26, 80], [LOUD, 400], [QUIET, 60], [LOUD, 400]),
+        )
+
+        expect(store.proposedSplits.map((proposal) => proposal.kind)).toEqual(['dip', 'gap'])
+      })
+    })
+
+    describe('the confidence of a split', () => {
+      it('is the band of the depth, sure for a gap, set by Find splits', () => {
+        const store = openCurve(threeDepths())
+        store.setDepthSetting(3)
+
+        store.findSplits()
+
+        expect(store.splits.map((split) => split.confidence?.band)).toEqual([
+          'sure',
+          'likely',
+          'doubtful',
+        ])
+        expect(store.splits[1]?.confidence?.depth).toBeCloseTo(12, 3)
+        expect(store.splits[2]?.confidence?.depth).toBeCloseTo(6, 3)
+      })
+
+      it('is none for a split added by hand, from a pending split or from the Range view', () => {
+        const curve = farGaps()
+        const store = useSplitStore()
+        store.open(curve, timing(curve))
+        store.addSplitAt(5)
+        store.selectTrack(store.tracks[1]!)
+        store.placeTrackMark(50)
+        store.addPendingSplit(50, true)
+        store.applyPendingSplits()
+
+        expect(store.splits.map((split) => split.confidence)).toEqual([null, null])
+      })
+
+      it('is set once: a later change of the depth leaves it', () => {
+        const store = openCurve(threeDepths())
+        store.setDepthSetting(3)
+        store.findSplits()
+        const before = store.splits.map((split) => split.confidence)
+
+        store.setDepthSetting(30)
+        store.setSilenceThreshold(-60)
+
+        expect(store.splits.map((split) => split.confidence)).toEqual(before)
+      })
+
+      it('goes when the split is moved, with no edit beyond the move', () => {
+        const store = openCurve(threeDepths())
+        store.setDepthSetting(3)
+        store.findSplits()
+        const moved = store.splits[1]!
+        store.selectSplit(moved.id)
+
+        store.moveSplit(moved.id, moved.seconds + 0.5)
+
+        expect(moved.confidence).toBeNull()
+        expect(store.splits[0]?.confidence?.band).toBe('sure')
+        expect(store.editCount).toBe(1)
+      })
+
+      it('is kept by the splits that stay when a track is removed, and goes with a deleted split', () => {
+        const store = openCurve(threeDepths())
+        store.setDepthSetting(3)
+        store.findSplits()
+
+        // Track 2 runs from the first split to the second: removing it deletes both.
+        store.removeTrack(store.tracks[1]!)
+        expect(store.splits.map((split) => split.confidence?.band)).toEqual(['doubtful'])
+
+        store.deleteSplit(store.splits[0]!.id)
+        expect(store.splits).toEqual([])
+      })
+    })
+
+    describe('going through by confidence', () => {
+      it('walks the splits with a confidence, least deep first', () => {
+        const store = openWithFourDepths()
+        expect(depths(store)).toEqual(['6', '12', '9', '40'])
+        const walked: (string | undefined)[] = []
+
+        while (store.selectAdjacentByConfidence(1)) {
+          walked.push(store.selectedSplit?.confidence?.depth.toFixed(0))
+        }
+
+        expect(walked).toEqual(['6', '9', '12', '40'])
+      })
+
+      it('goes to the first from none and to the last backwards from none', () => {
+        const store = openWithFourDepths()
+
+        store.selectAdjacentByConfidence(-1)
+        expect(store.selectedSplit?.confidence?.depth.toFixed(0)).toBe('40')
+
+        store.moveZoomTo(1)
+        store.selectTrack(store.tracks[0]!)
+        store.selectAdjacentByConfidence(1)
+        expect(store.selectedSplit?.confidence?.depth.toFixed(0)).toBe('6')
+      })
+
+      it('goes to the first from a split with no confidence, and opens the Split view', () => {
+        const store = openWithFourDepths()
+        store.addSplitAt(10)
+        const manual = store.splits.find((split) => split.confidence === null)!
+        store.selectSplit(manual.id)
+        store.showView('track')
+
+        store.selectAdjacentByConfidence(1)
+
+        expect(store.selectedSplit?.confidence?.depth.toFixed(0)).toBe('6')
+        expect(store.view).toBe('split')
+      })
+
+      it('stops at either end of the order', () => {
+        const store = openWithFourDepths()
+        store.selectAdjacentByConfidence(1)
+
+        expect(store.selectAdjacentByConfidence(-1)).toBe(false)
+        expect(store.selectedSplit?.confidence?.depth.toFixed(0)).toBe('6')
+      })
+
+      it('breaks a tie by time', () => {
+        const curve = curveOf([LOUD, 400], [-16, 80], [LOUD, 400], [-16, 80], [LOUD, 400])
+        const store = openCurve(curve)
+        store.setDepthSetting(3)
+        store.findSplits()
+
+        store.selectAdjacentByConfidence(1)
+        const first = store.selectedSplit!.seconds
+        store.selectAdjacentByConfidence(1)
+
+        expect(store.selectedSplit!.seconds).toBeGreaterThan(first)
+      })
+
+      it('does nothing when no split has a confidence', () => {
+        const store = openCurve(curveOf([LOUD, 400], [QUIET, 60], [LOUD, 400]))
+        store.addSplitAt(10)
+
+        expect(store.selectAdjacentByConfidence(1)).toBe(false)
+        expect(store.selectAdjacentByConfidence(-1)).toBe(false)
+        expect(store.selectedSplit).toBeNull()
+      })
+
+      it('lets a moved split leave the walk', () => {
+        const store = openWithFourDepths()
+        store.selectAdjacentByConfidence(1)
+        store.moveSplit(store.selectedSplit!.id, store.selectedSplit!.seconds + 0.5)
+
+        store.selectAdjacentByConfidence(1)
+
+        expect(store.selectedSplit?.confidence?.depth.toFixed(0)).toBe('9')
+      })
+
+      describe('marking a split checked', () => {
+        it('clears its confidence, keeps its place and counts one edit', () => {
+          const store = openWithFourDepths()
+          store.selectAdjacentByConfidence(1)
+          const { id, seconds } = store.selectedSplit!
+
+          store.markChecked()
+
+          const checked = store.splits.find((split) => split.id === id)!
+          expect(checked.confidence).toBeNull()
+          expect(checked.seconds).toBe(seconds)
+          expect(store.editCount).toBe(1)
+          store.selectAdjacentByConfidence(1)
+          expect(store.selectedSplit?.confidence?.depth.toFixed(0)).toBe('9')
+        })
+
+        it('counts once when pressed again, and does nothing for a split with no confidence', () => {
+          const store = openWithFourDepths()
+          store.selectAdjacentByConfidence(1)
+          store.markChecked()
+          store.markChecked()
+          store.addSplitAt(10)
+          store.selectSplit(store.splits.find((split) => split.confidence === null)!.id)
+          store.markChecked()
+
+          expect(store.editCount).toBe(2)
+        })
+
+        it('does nothing with no split selected', () => {
+          const store = openWithFourDepths()
+
+          store.markChecked()
+
+          expect(store.editCount).toBe(0)
+        })
+
+        it('counts one edit for a split checked and then moved', () => {
+          const store = openWithFourDepths()
+          store.selectAdjacentByConfidence(1)
+          const { id, seconds } = store.selectedSplit!
+          store.markChecked()
+
+          store.moveSplit(id, seconds + 0.5)
+
+          expect(store.editCount).toBe(1)
+        })
+
+        it('is taken back with its split when the split is deleted', () => {
+          const store = openWithFourDepths()
+          store.selectAdjacentByConfidence(1)
+          store.markChecked()
+
+          store.deleteSplit(store.selectedSplit!.id)
+
+          // The delete is one edit; the check went with the split.
+          expect(store.editCount).toBe(1)
+        })
+
+        it('is cleared by Clear splits and by reset', () => {
+          const store = openWithFourDepths()
+          store.selectAdjacentByConfidence(1)
+          store.markChecked()
+
+          store.clearSplits()
+          expect(store.editCount).toBe(0)
+
+          store.findSplits()
+          store.selectAdjacentByConfidence(1)
+          store.markChecked()
+          store.reset()
+          expect(store.editCount).toBe(0)
+        })
+      })
+    })
+
+    describe('dips and one split per boundary', () => {
+      it('proposes a split in a silence shorter than the minimum gap length', () => {
+        // 1.5 s of quiet from 20 s to 21.5 s: no gap at the default 2 s, but a dip 40 dB deep.
+        const store = openCurve(curveOf([LOUD, 400], [QUIET, 30], [LOUD, 400]))
+
+        expect(store.gaps).toEqual([])
+        expect(seconds(store)).toHaveLength(1)
+        expect(seconds(store)[0]).toBeGreaterThan(20)
+        expect(seconds(store)[0]).toBeLessThan(21.5)
+
+        store.findSplits()
+
+        expect(store.splits).toHaveLength(1)
+        expect(store.tracks).toHaveLength(2)
+      })
+
+      it('proposes nothing for a quiet passage shallower than the depth', () => {
+        // 5 s that are 10 dB under the music, short of 15 dB, and not under the threshold.
+        const store = openCurve(curveOf([LOUD, 400], [-20, 100], [LOUD, 400]))
+
+        expect(seconds(store)).toEqual([])
+      })
+
+      it('splits a long silence at its middle, where no window is deep', () => {
+        // 60 s of silence from 75 s to 135 s: the loudness around is the silence itself.
+        const store = openCurve(curveOf([LOUD, 1500], [QUIET, 1200], [LOUD, 1500]))
+
+        expect(seconds(store)).toEqual([expect.closeTo(105, 9)])
+      })
+
+      it("gives a gap and the dip inside it one split, at the gap's middle", () => {
+        const store = openCurve(curveOf([LOUD, 400], [QUIET, 60], [LOUD, 400]))
+
+        expect(store.gaps).toHaveLength(1)
+        expect(seconds(store)).toEqual([expect.closeTo(21.5, 9)])
+      })
+
+      it("gives two gaps around a short sound one split, at the deeper gap's middle", () => {
+        // Gaps of 2.5 s (20 s to 22.5 s) and 4 s (25.5 s to 29.5 s), the second one quieter.
+        const store = openCurve(
+          curveOf([LOUD, 400], [QUIET, 50], [LOUD, 60], [-58, 80], [LOUD, 400]),
+        )
+
+        expect(store.gaps).toHaveLength(2)
+        expect(seconds(store)).toEqual([expect.closeTo(27.5, 9)])
+      })
+
+      it('gives each of two boundaries that are 15 s apart a split', () => {
+        // Gap middles at 21.25 s and 36.25 s.
+        const store = openCurve(
+          curveOf([LOUD, 400], [QUIET, 50], [LOUD, 250], [QUIET, 50], [LOUD, 400]),
+        )
+
+        expect(seconds(store)).toEqual([expect.closeTo(21.25, 9), expect.closeTo(36.25, 9)])
+      })
+
+      it('proposes nothing within 15 s of a split, and what is further off stays', () => {
+        const curve = farGaps()
+        const store = useSplitStore()
+        store.open(curve, timing(curve))
+        store.addSplitAt(30)
+
+        // Split 22 s and 42 s are 8 s and 12 s from the split at 30 s.
+        expect(seconds(store)).toEqual([])
+
+        store.deleteSplit(store.splits[0]!.id)
+        store.addSplitAt(5)
+
+        expect(seconds(store)).toEqual([expect.closeTo(22, 9), expect.closeTo(42, 9)])
+      })
+
+      it('proposes no dip near the middle of a gap that holds a split, far as the split may be', () => {
+        // Room noise from 20 s to 38 s, quietest near its end, and a split at 20.6 s.
+        const curve = curveOf([LOUD, 400], [QUIET, 320], [-58, 30], [QUIET, 10], [LOUD, 400])
+        const store = openCurve(curve)
+        expect(seconds(store)).toEqual([expect.closeTo(29, 9)])
+
+        store.addSplitAt(20.6)
+
+        expect(seconds(store)).toEqual([])
+      })
+
+      it('proposes no dip in the first or last 10 s of the file', () => {
+        // A 1.5 s silence at 5 s, and one 5 s before the end: under 10 s from each edge.
+        const first = openCurve(curveOf([LOUD, 100], [QUIET, 30], [LOUD, 500]))
+        const last = openCurve(curveOf([LOUD, 500], [QUIET, 30], [LOUD, 100]))
+
+        expect(first.gaps).toEqual([])
+        expect(seconds(first)).toEqual([])
+        expect(seconds(last)).toEqual([])
+      })
     })
 
     describe('with pending splits', () => {
       it('asks first when a split would land inside the selected track', () => {
         const store = openWithPending()
 
-        store.addGapSplits()
+        store.findSplits()
 
         expect(store.discardQuestion).toEqual({ pendingCount: 1 })
         expect(store.splits).toEqual([])
@@ -611,7 +1050,7 @@ describe('the split store', () => {
 
       it('adds the splits and drops the pending splits after "Discard"', () => {
         const store = openWithPending()
-        store.addGapSplits()
+        store.findSplits()
 
         store.discardPending()
 
@@ -621,12 +1060,12 @@ describe('the split store', () => {
 
       it('adds the pending split first, then the gaps, after "Apply first"', () => {
         const store = openWithPending()
-        store.addGapSplits()
+        store.findSplits()
 
         store.applyFirst()
 
         expect(store.splits.map((split) => split.seconds)).toEqual([
-          10,
+          5,
           expect.closeTo(22, 9),
           expect.closeTo(42, 9),
         ])
@@ -634,25 +1073,25 @@ describe('the split store', () => {
 
       it('adds nothing and keeps the pending splits after "Cancel"', () => {
         const store = openWithPending()
-        store.addGapSplits()
+        store.findSplits()
 
         store.cancelDiscard()
 
         expect(store.splits).toEqual([])
-        expect(store.pendingSplits).toEqual([10])
+        expect(store.pendingSplits).toEqual([5])
       })
 
       it('asks nothing when every split would land outside the selected track', () => {
         const curve = threeFarGapsCurve()
         const store = useSplitStore()
         store.open(curve, timing(curve))
-        // A split inside the third gap holds it, so Find gaps adds 22 s and 42 s, in track 1.
+        // A split inside the third gap holds it, so Find splits adds 22 s and 42 s, in track 1.
         store.addSplitAt(62)
         store.selectTrack(store.tracks[1]!)
         store.placeTrackMark(70)
         store.addPendingSplit(70, true)
 
-        store.addGapSplits()
+        store.findSplits()
 
         expect(store.discardQuestion).toBeNull()
         expect(store.splits).toHaveLength(3)
@@ -661,12 +1100,12 @@ describe('the split store', () => {
 
       it('checks the room again when the held press runs', () => {
         const store = openWithPending()
-        store.addGapSplits()
-        // "Apply first" adds the pending split at 10 s, which is more than 1 s from both middles.
+        store.findSplits()
+        // "Apply first" adds the pending split at 5 s, which is over 15 s from both middles.
         store.applyFirst()
 
         expect(store.splits).toHaveLength(3)
-        expect(store.gapSplitSeconds).toEqual([])
+        expect(store.proposedSplits.map((proposal) => proposal.seconds)).toEqual([])
       })
     })
   })
@@ -676,7 +1115,7 @@ describe('the split store', () => {
       const store = openTwoGaps()
       expect(store.canClearSplits).toBe(false)
 
-      store.addGapSplits()
+      store.findSplits()
       expect(store.canClearSplits).toBe(true)
 
       store.clearSplits()
@@ -742,13 +1181,13 @@ describe('the split store', () => {
       expect(store.selectedTrack).toBe(store.tracks[0])
     })
 
-    it('leaves Find gaps able to add the splits again', () => {
+    it('leaves Find splits able to add the splits again', () => {
       const store = openTwoGaps()
-      store.addGapSplits()
+      store.findSplits()
 
       store.clearSplits()
 
-      expect(store.gapSplitSeconds).toHaveLength(2)
+      expect(store.proposedSplits.map((proposal) => proposal.seconds)).toHaveLength(2)
     })
   })
 
@@ -836,7 +1275,7 @@ describe('the split store', () => {
       const curve = twoGaps()
       const store = useSplitStore()
       store.open(curve, timing(curve))
-      store.addGapSplits()
+      store.findSplits()
       store.renameTrack(null, 'Opening')
       store.setSilenceThreshold(-60)
       expect(store.gaps).toEqual([])
@@ -848,6 +1287,40 @@ describe('the split store', () => {
       expect(store.splits).toHaveLength(2)
       expect(store.firstTrackName).toBe('Opening')
       expect(store.editCount).toBe(1)
+    })
+
+    it('hold the depth too: 15 dB at first, saved with the others and used by the next file', () => {
+      const store = useSplitStore()
+      openFile(store, loudFile())
+      expect(store.depthSetting).toBe(DEFAULT_DEPTH_DB)
+      expect(store.matchesDefaultSettings).toBe(true)
+
+      store.setDepthSetting(11.5)
+      expect(store.matchesDefaultSettings).toBe(false)
+
+      store.saveAsDefault()
+      expect(store.matchesDefaultSettings).toBe(true)
+      expect(store.areDefaultSettingsBuiltIn).toBe(false)
+      openFile(store, quietFile())
+      expect(store.depthSetting).toBe(11.5)
+
+      store.restoreBuiltIn()
+      expect(store.depthSetting).toBe(15)
+      expect(store.areDefaultSettingsBuiltIn).toBe(true)
+    })
+
+    it('start a version 1 entry, which has no depth, at 15 dB', () => {
+      localStorage.setItem(
+        DEFAULT_SETTINGS_STORAGE_KEY,
+        '{"version":1,"offsetDb":12,"minimumGapSeconds":3}',
+      )
+
+      const store = useSplitStore()
+      openFile(store, loudFile())
+
+      expect(store.silenceThreshold).toBe(-22)
+      expect(store.minimumGapLength).toBe(3)
+      expect(store.depthSetting).toBe(15)
     })
 
     it('hold a saved threshold to the slider’s range for a file of another loudness', () => {
@@ -875,7 +1348,8 @@ describe('the split store', () => {
       ['text that is no JSON', 'loud'],
       ['an offset off the 0.1 grid', '{"version":1,"offsetDb":18.25,"minimumGapSeconds":2}'],
       ['a minimum gap length out of range', '{"version":1,"offsetDb":12,"minimumGapSeconds":9}'],
-      ['another version', '{"version":2,"offsetDb":12,"minimumGapSeconds":3}'],
+      ['another version', '{"version":3,"offsetDb":12,"minimumGapSeconds":3,"depthDb":9}'],
+      ['a depth out of range', '{"version":2,"offsetDb":12,"minimumGapSeconds":3,"depthDb":40}'],
     ])('are the built-in ones for %s', (_, saved) => {
       if (saved !== null) localStorage.setItem(DEFAULT_SETTINGS_STORAGE_KEY, saved)
 
@@ -974,14 +1448,14 @@ describe('the split store', () => {
     })
 
     it('pads the export numbers to the count written, not to the count of tracks', () => {
-      // A 0.3 s gap in every second: 119 inner gaps, so 120 tracks.
-      const curve = Float32Array.from({ length: 2400 }, (_, index) =>
-        index % 20 < 6 ? QUIET : LOUD,
+      // A 0.3 s gap every 15 s, the closest two splits can be: 103 inner gaps, so 104 tracks.
+      const curve = Float32Array.from({ length: 31_000 }, (_, index) =>
+        index % 300 < 6 ? QUIET : LOUD,
       )
       const store = useSplitStore()
       store.open(curve, timing(curve))
       store.setMinimumGapLength(0.2)
-      store.addGapSplits()
+      store.findSplits()
       expect(store.tracks.length).toBeGreaterThan(99)
 
       // Leave out all but the first two: two files are written, so their numbers have two digits.
@@ -1117,13 +1591,13 @@ describe('the split store', () => {
         expect(inclusions(store)).toEqual(['included', 'by-hand', 'by-hand', 'by-hand', 'included'])
       })
 
-      it('makes two left-out tracks when Find gaps cuts a left-out track', () => {
+      it('makes two left-out tracks when Find splits cuts a left-out track', () => {
         const curve = farGaps()
         const store = useSplitStore()
         store.open(curve, timing(curve))
         store.toggleLeftOut(null)
 
-        store.addGapSplits()
+        store.findSplits()
 
         expect(inclusions(store)).toEqual(['by-hand', 'by-hand', 'by-hand'])
       })
@@ -1152,7 +1626,7 @@ describe('the split store', () => {
         store.addSplitAt(30)
         expect(store.editCount).toBe(2)
 
-        store.addGapSplits()
+        store.findSplits()
         expect(store.editCount).toBe(2)
       })
 
@@ -1288,7 +1762,7 @@ describe('the split store', () => {
       const store = useSplitStore()
 
       store.open(curve, timing(curve))
-      store.addGapSplits()
+      store.findSplits()
 
       expect(store.selectedTrack).toBe(store.tracks[0])
       expect(store.selectedSplit).toBeNull()
@@ -1300,7 +1774,7 @@ describe('the split store', () => {
       const store = useSplitStore()
 
       store.open(curve, timing(curve))
-      store.addGapSplits()
+      store.findSplits()
 
       expect(store.tracks).toHaveLength(1)
       expect(store.selectedTrack).toBe(store.tracks[0])
@@ -1313,7 +1787,7 @@ describe('the split store', () => {
       const curve = farGaps()
       const store = useSplitStore()
       store.open(curve, timing(curve))
-      store.addGapSplits()
+      store.findSplits()
 
       store.selectSplit(store.splits[1]!.id)
 
@@ -1325,7 +1799,7 @@ describe('the split store', () => {
       const curve = farGaps()
       const store = useSplitStore()
       store.open(curve, timing(curve))
-      store.addGapSplits()
+      store.findSplits()
 
       store.selectSplit(-1)
 
@@ -1337,7 +1811,7 @@ describe('the split store', () => {
       const curve = farGaps()
       const store = useSplitStore()
       store.open(curve, timing(curve))
-      store.addGapSplits()
+      store.findSplits()
 
       store.moveZoomTo(31.5)
 
@@ -1350,7 +1824,7 @@ describe('the split store', () => {
       const curve = farGaps()
       const store = useSplitStore()
       store.open(curve, timing(curve))
-      store.addGapSplits()
+      store.findSplits()
       expect(store.selectedSplitIndex).toBeNull()
 
       store.selectSplit(store.splits[0]!.id)
@@ -1367,7 +1841,7 @@ describe('the split store', () => {
       const curve = farGaps()
       const store = useSplitStore()
       store.open(curve, timing(curve))
-      store.addGapSplits()
+      store.findSplits()
       store.moveZoomTo(31.5)
       store.addSplit()
 
@@ -1379,7 +1853,7 @@ describe('the split store', () => {
       const curve = farGaps()
       const store = useSplitStore()
       store.open(curve, timing(curve))
-      store.addGapSplits()
+      store.findSplits()
 
       store.selectTrack(store.tracks[2]!)
 
@@ -1396,7 +1870,7 @@ describe('the split store', () => {
       const curve = farGaps()
       const store = useSplitStore()
       store.open(curve, timing(curve))
-      store.addGapSplits()
+      store.findSplits()
       const stale = store.tracks[2]!
       store.selectSplit(store.splits[0]!.id)
       store.deleteSplit(stale.startSplit!.id)
@@ -1412,7 +1886,7 @@ describe('the split store', () => {
       const curve = farGaps()
       const other = useSplitStore()
       other.open(curve, timing(curve))
-      other.addGapSplits()
+      other.findSplits()
       const track = other.tracks[0]!
       other.reset()
 
@@ -1426,7 +1900,7 @@ describe('the split store', () => {
       const curve = farGaps()
       const store = useSplitStore()
       store.open(curve, timing(curve))
-      store.addGapSplits()
+      store.findSplits()
       store.selectTrack(store.tracks[1]!)
 
       store.selectSplit(store.splits[1]!.id)
@@ -1439,7 +1913,7 @@ describe('the split store', () => {
       const curve = farGaps()
       const store = useSplitStore()
       store.open(curve, timing(curve))
-      store.addGapSplits()
+      store.findSplits()
       store.selectTrack(store.tracks[1]!)
 
       store.moveZoomTo(5)
@@ -1451,7 +1925,7 @@ describe('the split store', () => {
       const curve = farGaps()
       const store = useSplitStore()
       store.open(curve, timing(curve))
-      store.addGapSplits()
+      store.findSplits()
       store.moveZoomTo(31.5)
 
       store.selectTrack(store.tracks[2]!)
@@ -1469,7 +1943,7 @@ describe('the split store', () => {
       const curve = farGaps()
       const store = useSplitStore()
       store.open(curve, timing(curve))
-      store.addGapSplits()
+      store.findSplits()
       // A split moves only inside the window, and selecting a track leaves the window where it is.
       store.moveZoomTo(22)
       store.selectTrack(store.tracks[1]!)
@@ -1484,7 +1958,7 @@ describe('the split store', () => {
       const curve = farGaps()
       const store = useSplitStore()
       store.open(curve, timing(curve))
-      store.addGapSplits()
+      store.findSplits()
       // Detection selects the first track.
       expect(selectedTracks(store)).toEqual([true, false, false])
 
@@ -1502,7 +1976,7 @@ describe('the split store', () => {
       const curve = farGaps()
       const store = useSplitStore()
       store.open(curve, timing(curve))
-      store.addGapSplits()
+      store.findSplits()
       store.selectSplit(store.splits[1]!.id)
       const centre = store.zoomCentreSeconds
 
@@ -1638,7 +2112,7 @@ describe('the split store', () => {
       const curve = farGaps()
       const store = useSplitStore()
       store.open(curve, timing(curve))
-      store.addGapSplits()
+      store.findSplits()
       store.selectSplit(store.splits[0]!.id)
       store.splits[0]!.name = 'Opening'
 
@@ -1654,7 +2128,7 @@ describe('the split store', () => {
       const curve = farGaps()
       const store = useSplitStore()
       store.open(curve, timing(curve))
-      store.addGapSplits()
+      store.findSplits()
       store.selectSplit(store.splits[0]!.id)
 
       store.moveSplit(store.splits[0]!.id, 25)
@@ -1667,7 +2141,7 @@ describe('the split store', () => {
       const curve = farGaps()
       const store = useSplitStore()
       store.open(curve, timing(curve))
-      store.addGapSplits()
+      store.findSplits()
       store.selectSplit(store.splits[0]!.id)
       const id = store.splits[0]!.id
 
@@ -1680,10 +2154,7 @@ describe('the split store', () => {
 
     it('stays 1 s from its neighbouring splits', () => {
       // The window on split 1 (3.5 s) runs from -6.5 s to 13.5 s, so it reaches split 2 (8 s).
-      const curve = twoGaps()
-      const store = useSplitStore()
-      store.open(curve, timing(curve))
-      store.addGapSplits()
+      const store = closeSplitsStore()
 
       store.moveSplit(store.splits[0]!.id, 9)
       expect(store.splits[0]!.seconds).toBeCloseTo(7, 9)
@@ -1694,10 +2165,7 @@ describe('the split store', () => {
     })
 
     it('stays 1 s from the start and the end of the file', () => {
-      const curve = twoGaps()
-      const store = useSplitStore()
-      store.open(curve, timing(curve))
-      store.addGapSplits()
+      const store = closeSplitsStore()
 
       store.moveSplit(store.splits[0]!.id, 0)
       expect(store.splits[0]!.seconds).toBeCloseTo(1, 9)
@@ -1708,10 +2176,7 @@ describe('the split store', () => {
     })
 
     it('never reorders the splits', () => {
-      const curve = twoGaps()
-      const store = useSplitStore()
-      store.open(curve, timing(curve))
-      store.addGapSplits()
+      const store = closeSplitsStore()
 
       store.moveSplit(store.splits[1]!.id, 0)
 
@@ -1723,7 +2188,7 @@ describe('the split store', () => {
       const curve = farGaps()
       const store = useSplitStore()
       store.open(curve, timing(curve))
-      store.addGapSplits()
+      store.findSplits()
 
       store.moveSplit(store.splits[1]!.id, 35)
 
@@ -1735,7 +2200,7 @@ describe('the split store', () => {
       const curve = twoGaps()
       const store = useSplitStore()
       store.open(curve, timing(curve))
-      store.addGapSplits()
+      store.findSplits()
       store.splits[1]!.seconds = 4.2
 
       store.moveSplit(store.splits[0]!.id, 3)
@@ -1746,10 +2211,7 @@ describe('the split store', () => {
     })
 
     it('ignores an id that is no split', () => {
-      const curve = twoGaps()
-      const store = useSplitStore()
-      store.open(curve, timing(curve))
-      store.addGapSplits()
+      const store = closeSplitsStore()
 
       store.moveSplit(-1, 5)
 
@@ -1765,7 +2227,7 @@ describe('the split store', () => {
       const curve = farGaps()
       const store = useSplitStore()
       store.open(curve, timing(curve))
-      store.addGapSplits()
+      store.findSplits()
       store.moveZoomTo(31.5)
 
       store.addSplit()
@@ -1785,7 +2247,7 @@ describe('the split store', () => {
       const curve = farGaps()
       const store = useSplitStore()
       store.open(curve, timing(curve))
-      store.addGapSplits()
+      store.findSplits()
       store.moveZoomTo(22.5)
 
       store.addSplit()
@@ -1806,7 +2268,7 @@ describe('the split store', () => {
       const curve = farGaps()
       const store = useSplitStore()
       store.open(curve, timing(curve))
-      store.addGapSplits()
+      store.findSplits()
       store.splits[1]!.name = 'Encore'
       store.moveZoomTo(31.5)
 
@@ -1823,7 +2285,7 @@ describe('the split store', () => {
 
       const curve = farGaps()
       store.open(curve, timing(curve))
-      store.addGapSplits()
+      store.findSplits()
       store.moveZoomTo(31.5)
 
       expect(store.canAddSplit).toBe(true)
@@ -1833,7 +2295,7 @@ describe('the split store', () => {
       const curve = farGaps()
       const store = useSplitStore()
       store.open(curve, timing(curve))
-      store.addGapSplits()
+      store.findSplits()
       store.selectSplit(store.splits[0]!.id)
 
       // Split 1 is selected, so the centre is on it.
@@ -1857,7 +2319,7 @@ describe('the split store', () => {
       const curve = farGaps()
       const store = useSplitStore()
       store.open(curve, timing(curve))
-      store.addGapSplits()
+      store.findSplits()
 
       store.moveZoomTo(0.5)
       expect(store.canAddSplit).toBe(false)
@@ -1877,7 +2339,7 @@ describe('the split store', () => {
       const curve = curveOf([LOUD, 100])
       const store = useSplitStore()
       store.open(curve, timing(curve))
-      store.addGapSplits()
+      store.findSplits()
 
       expect(store.canAddSplit).toBe(false)
     })
@@ -1888,16 +2350,16 @@ describe('the split store', () => {
       const curve = twoGaps()
       const store = useSplitStore()
       store.open(curve, timing(curve))
-      store.addGapSplits()
+      store.findSplits()
       store.firstTrackName = 'Opening'
       store.splits[0]!.name = 'Middle'
       store.splits[1]!.name = 'Encore'
 
       store.deleteSplit(store.splits[0]!.id)
 
-      expect(store.splits.map((split) => split.seconds)).toEqual([expect.closeTo(8, 9)])
+      expect(store.splits.map((split) => split.seconds)).toEqual([expect.closeTo(26, 9)])
       expect(store.tracks.map((track) => track.name)).toEqual(['Opening', 'Encore'])
-      expect(store.tracks[0]!.lengthSeconds).toBeCloseTo(8, 9)
+      expect(store.tracks[0]!.lengthSeconds).toBeCloseTo(26, 9)
     })
 
     describe('the selection afterwards', () => {
@@ -1905,7 +2367,7 @@ describe('the split store', () => {
         const curve = threeFarGapsCurve()
         const store = useSplitStore()
         store.open(curve, timing(curve))
-        store.addGapSplits()
+        store.findSplits()
         store.selectSplit(store.splits[1]!.id)
 
         store.deleteSplit(store.splits[1]!.id)
@@ -1919,7 +2381,7 @@ describe('the split store', () => {
         const curve = threeFarGapsCurve()
         const store = useSplitStore()
         store.open(curve, timing(curve))
-        store.addGapSplits()
+        store.findSplits()
         store.selectSplit(store.splits[2]!.id)
 
         store.deleteSplit(store.splits[2]!.id)
@@ -1932,7 +2394,7 @@ describe('the split store', () => {
         const curve = farGaps()
         const store = useSplitStore()
         store.open(curve, timing(curve))
-        store.addGapSplits()
+        store.findSplits()
         store.selectSplit(store.splits[0]!.id)
         store.deleteSplit(store.splits[1]!.id)
 
@@ -1947,7 +2409,7 @@ describe('the split store', () => {
         const curve = threeFarGapsCurve()
         const store = useSplitStore()
         store.open(curve, timing(curve))
-        store.addGapSplits()
+        store.findSplits()
         store.selectSplit(store.splits[0]!.id)
         const selected = store.splits[0]!
 
@@ -1962,7 +2424,7 @@ describe('the split store', () => {
       const curve = twoGaps()
       const store = useSplitStore()
       store.open(curve, timing(curve))
-      store.addGapSplits()
+      store.findSplits()
 
       store.deleteSplit(-1)
 
@@ -2012,7 +2474,7 @@ describe('the split store', () => {
         const curve = farGaps()
         const store = useSplitStore()
         store.open(curve, timing(curve))
-        store.addGapSplits()
+        store.findSplits()
         store.deleteSplit(store.splits[1]!.id)
 
         store.removeTrack(store.tracks[0]!)
@@ -2025,7 +2487,7 @@ describe('the split store', () => {
         const curve = curveOf([LOUD, 100])
         const store = useSplitStore()
         store.open(curve, timing(curve))
-        store.addGapSplits()
+        store.findSplits()
 
         store.removeTrack(store.tracks[0]!)
 
@@ -2076,7 +2538,7 @@ describe('the split store', () => {
         const curve = threeFarGapsCurve()
         const store = useSplitStore()
         store.open(curve, timing(curve))
-        store.addGapSplits()
+        store.findSplits()
         store.renameTrack(null, 'A')
 
         store.removeTrack(store.tracks[0]!)
@@ -2100,7 +2562,7 @@ describe('the split store', () => {
         const curve = threeFarGapsCurve()
         const store = useSplitStore()
         store.open(curve, timing(curve))
-        store.addGapSplits()
+        store.findSplits()
 
         store.removeTrack(store.tracks[1]!)
         expect(store.editCount).toBe(2)
@@ -2113,7 +2575,7 @@ describe('the split store', () => {
         const curve = threeFarGapsCurve()
         const store = useSplitStore()
         store.open(curve, timing(curve))
-        store.addGapSplits()
+        store.findSplits()
         store.moveZoomTo(52)
         store.addSplit()
         expect(store.editCount).toBe(1)
@@ -2132,7 +2594,7 @@ describe('the split store', () => {
         const curve = threeFarGapsCurve()
         const store = useSplitStore()
         store.open(curve, timing(curve))
-        store.addGapSplits()
+        store.findSplits()
         store.moveZoomTo(30)
         store.addSplit()
         store.moveZoomTo(36)
@@ -2172,7 +2634,7 @@ describe('the split store', () => {
         const curve = threeFarGapsCurve()
         const store = useSplitStore()
         store.open(curve, timing(curve))
-        store.addGapSplits()
+        store.findSplits()
         store.renameTrack(null, 'A')
         expect(store.editCount).toBe(1)
 
@@ -2186,7 +2648,7 @@ describe('the split store', () => {
         const curve = threeFarGapsCurve()
         const store = useSplitStore()
         store.open(curve, timing(curve))
-        store.addGapSplits()
+        store.findSplits()
         store.renameTrack(store.splits[0]!.id, 'B')
 
         store.removeTrack(store.tracks[0]!)
@@ -2291,7 +2753,7 @@ describe('the split store', () => {
         const curve = farGaps()
         const store = useSplitStore()
         store.open(curve, timing(curve))
-        store.addGapSplits()
+        store.findSplits()
         store.deleteSplit(store.splits[1]!.id)
         store.selectSplit(store.splits[0]!.id)
 
@@ -2317,7 +2779,7 @@ describe('the split store', () => {
       const curve = twoGaps()
       const store = useSplitStore()
       store.open(curve, timing(curve))
-      store.addGapSplits()
+      store.findSplits()
 
       store.renameTrack(store.splits[1]!.id, 'Encore')
       store.renameTrack(null, 'Opening')
@@ -2331,7 +2793,7 @@ describe('the split store', () => {
       const curve = twoGaps()
       const store = useSplitStore()
       store.open(curve, timing(curve))
-      store.addGapSplits()
+      store.findSplits()
 
       store.renameTrack(store.splits[0]!.id, '  Intro \t')
 
@@ -2342,7 +2804,7 @@ describe('the split store', () => {
       const curve = twoGaps()
       const store = useSplitStore()
       store.open(curve, timing(curve))
-      store.addGapSplits()
+      store.findSplits()
       store.renameTrack(store.splits[0]!.id, 'Intro')
       store.renameTrack(null, 'Opening')
 
@@ -2358,7 +2820,7 @@ describe('the split store', () => {
       const curve = twoGaps()
       const store = useSplitStore()
       store.open(curve, timing(curve))
-      store.addGapSplits()
+      store.findSplits()
 
       store.renameTrack(store.splits[0]!.id, `  ${'a'.repeat(150)}`)
 
@@ -2370,7 +2832,7 @@ describe('the split store', () => {
       const curve = twoGaps()
       const store = useSplitStore()
       store.open(curve, timing(curve))
-      store.addGapSplits()
+      store.findSplits()
 
       store.renameTrack(-1, 'Ghost')
 
@@ -2412,7 +2874,7 @@ describe('the split store', () => {
       const curve = curveOf([LOUD, 3000])
       const store = useSplitStore()
       store.open(curve, timing(curve))
-      store.addGapSplits()
+      store.findSplits()
       for (let index = 1; index <= 99; index++) store.addSplitAt(index * 1.5)
 
       store.setTrackNamePrefix('t')
@@ -2474,7 +2936,7 @@ describe('the split store', () => {
       const curve = farGaps()
       const store = useSplitStore()
       store.open(curve, timing(curve))
-      store.addGapSplits()
+      store.findSplits()
 
       store.selectSplit(store.splits[1]!.id)
       store.moveZoomTo(5)
@@ -2487,7 +2949,7 @@ describe('the split store', () => {
       const curve = farGaps()
       const store = useSplitStore()
       store.open(curve, timing(curve))
-      store.addGapSplits()
+      store.findSplits()
       store.selectSplit(store.splits[0]!.id)
       const id = store.splits[0]!.id
 
@@ -2503,7 +2965,7 @@ describe('the split store', () => {
       const curve = farGaps()
       const store = useSplitStore()
       store.open(curve, timing(curve))
-      store.addGapSplits()
+      store.findSplits()
 
       // Split 2 is outside the window and does not move; split 1 is asked to go where it is.
       store.moveSplit(store.splits[1]!.id, 35)
@@ -2516,7 +2978,7 @@ describe('the split store', () => {
       const curve = farGaps()
       const store = useSplitStore()
       store.open(curve, timing(curve))
-      store.addGapSplits()
+      store.findSplits()
       store.selectSplit(store.splits[0]!.id)
       const id = store.splits[0]!.id
 
@@ -2530,7 +2992,7 @@ describe('the split store', () => {
       const curve = farGaps()
       const store = useSplitStore()
       store.open(curve, timing(curve))
-      store.addGapSplits()
+      store.findSplits()
       store.moveZoomTo(31.5)
 
       store.addSplit()
@@ -2546,7 +3008,7 @@ describe('the split store', () => {
       const curve = farGaps()
       const store = useSplitStore()
       store.open(curve, timing(curve))
-      store.addGapSplits()
+      store.findSplits()
       store.selectSplit(store.splits[0]!.id)
       const id = store.splits[0]!.id
       store.moveSplit(id, 25)
@@ -2563,7 +3025,7 @@ describe('the split store', () => {
       const curve = farGaps()
       const store = useSplitStore()
       store.open(curve, timing(curve))
-      store.addGapSplits()
+      store.findSplits()
       store.moveZoomTo(31.5)
       store.addSplit()
       expect(store.editCount).toBe(1)
@@ -2578,7 +3040,7 @@ describe('the split store', () => {
       const curve = twoGaps()
       const store = useSplitStore()
       store.open(curve, timing(curve))
-      store.addGapSplits()
+      store.findSplits()
 
       store.renameTrack(store.splits[0]!.id, 'Intro')
       store.renameTrack(store.splits[0]!.id, 'Intro 2')
@@ -2592,7 +3054,7 @@ describe('the split store', () => {
       const curve = twoGaps()
       const store = useSplitStore()
       store.open(curve, timing(curve))
-      store.addGapSplits()
+      store.findSplits()
 
       store.renameTrack(store.splits[0]!.id, ' '.repeat(3))
       store.renameTrack(null, '')
@@ -2608,7 +3070,7 @@ describe('the split store', () => {
       const curve = twoGaps()
       const store = useSplitStore()
       store.open(curve, timing(curve))
-      store.addGapSplits()
+      store.findSplits()
       store.renameTrack(store.splits[0]!.id, 'Intro')
       store.renameTrack(null, 'Opening')
 
@@ -2623,7 +3085,7 @@ describe('the split store', () => {
       const curve = twoGaps()
       const store = useSplitStore()
       store.open(curve, timing(curve))
-      store.addGapSplits()
+      store.findSplits()
       store.renameTrack(store.splits[0]!.id, 'Intro')
       store.renameTrack(store.splits[1]!.id, 'Encore')
       expect(store.editCount).toBe(2)
@@ -2638,7 +3100,7 @@ describe('the split store', () => {
       const curve = farGaps()
       const store = useSplitStore()
       store.open(curve, timing(curve))
-      store.addGapSplits()
+      store.findSplits()
       store.moveZoomTo(31.5)
       store.addSplit()
       store.renameTrack(store.selectedSplit!.id, 'Hidden')
@@ -2654,7 +3116,7 @@ describe('the split store', () => {
       const second = twoGaps()
 
       store.open(second, timing(second))
-      store.addGapSplits()
+      store.findSplits()
 
       expect(store.editCount).toBe(0)
       store.moveSplit(store.splits[0]!.id, 3)
@@ -2713,7 +3175,7 @@ describe('the split store', () => {
       const store = useSplitStore()
       // 2000 s of file.
       store.open(curve, timing(curve))
-      store.addGapSplits()
+      store.findSplits()
 
       store.setRange(100, 1900)
 
@@ -3007,7 +3469,7 @@ describe('the split store', () => {
 
       const curve = curveOf([LOUD, 100])
       store.open(curve, timing(curve))
-      store.addGapSplits()
+      store.findSplits()
       expect(store.selectedTrackEndSplits).toEqual([])
 
       store.moveZoomTo(2)
@@ -4138,7 +4600,7 @@ describe('the split store', () => {
 
         const second = twoGaps()
         store.open(second, timing(second))
-        store.addGapSplits()
+        store.findSplits()
 
         expect(store.view).toBe('track')
       })
@@ -4240,7 +4702,7 @@ describe('the split store', () => {
     const curve = twoGaps()
     const store = useSplitStore()
     store.open(curve, timing(curve))
-    store.addGapSplits()
+    store.findSplits()
 
     store.reset()
 

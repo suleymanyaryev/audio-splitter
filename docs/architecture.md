@@ -41,15 +41,15 @@ An arrow means "may import from". Two slices of one layer never import each othe
 
 All state lives in Pinia setup stores, in memory, except the theme ([below](#the-theme)). Only the volume, the mute flag, the play speed, the default settings and the theme choice are also saved, in `localStorage`.
 
-| Store              | Slice                      | Holds                                                               |
-| ------------------ | -------------------------- | ------------------------------------------------------------------- |
-| `source-file`      | `entities/source-file`     | The file, its analysis, load progress and the ffmpeg session        |
-| `split`            | `entities/split`           | Settings, splits, track names and states, matches, selection, edits |
-| `audition`         | `widgets/split-zoom`       | The one player: what plays, its status, volume and play speed       |
-| `export-tracks`    | `widgets/track-strip`      | The export of every track not left out into a folder                |
-| `export-single`    | `widgets/track-strip`      | The export of one track or range as a single file                   |
-| `export-lock`      | `widgets/track-strip`      | Which export is running, so the two never overlap                   |
-| `shortcuts-dialog` | `widgets/shortcuts-dialog` | Whether the shortcuts dialog is open                                |
+| Store              | Slice                      | Holds                                                                         |
+| ------------------ | -------------------------- | ----------------------------------------------------------------------------- |
+| `source-file`      | `entities/source-file`     | The file, its analysis, load progress and the ffmpeg session                  |
+| `split`            | `entities/split`           | Settings, proposals, splits and their confidence, track names, matches, selection, edits |
+| `audition`         | `widgets/split-zoom`       | The one player: what plays, its status, volume and play speed                 |
+| `export-tracks`    | `widgets/track-strip`      | The export of every track not left out into a folder                          |
+| `export-single`    | `widgets/track-strip`      | The export of one track or range as a single file                             |
+| `export-lock`      | `widgets/track-strip`      | Which export is running, so the two never overlap                             |
+| `shortcuts-dialog` | `widgets/shortcuts-dialog` | Whether the shortcuts dialog is open                                          |
 
 ```mermaid
 flowchart LR
@@ -73,7 +73,7 @@ flowchart LR
   exporterSingle -- "take, release" --> exportLock
 ```
 
-- **`split` can't import `source-file`.** `ReviewPage` hands it the loudness curve and the track name prefix once, on mount. The file opens as one track with no splits; "Find gaps" turns the gaps into splits.
+- **`split` can't import `source-file`.** `ReviewPage` hands it the loudness curve and the track name prefix once, on mount. The file opens as one track with no splits. `split` works out how deep every window falls under its surroundings once, and "Find splits" turns the gaps and the dips into splits, one per boundary.
 - **Widgets read the entity stores directly.** They never go through another widget.
 - **Tracks are derived from the splits**, never stored. Deleting a split merges the tracks either side of it.
 - **Matches are stored as found, and whether one holds is derived.** A match keeps both tracks' ends, so an edit never has to find it: it is live while both tracks still have them.

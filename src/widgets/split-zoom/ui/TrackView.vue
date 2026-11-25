@@ -3,6 +3,7 @@ import { computed, ref, useTemplateRef, watch } from 'vue'
 
 import { useSourceFileStore } from '@/entities/source-file/model/source-file.ts'
 import { useSplitStore } from '@/entities/split/model/split.ts'
+import { drawConfidenceMarks } from '@/shared/lib/canvas/draw-confidence-marks.ts'
 import { drawLands, drawSplitLines } from '@/shared/lib/canvas/draw-lands-and-splits.ts'
 import { drawMark } from '@/shared/lib/canvas/draw-mark.ts'
 import { drawPendingSplits } from '@/shared/lib/canvas/draw-pending-splits.ts'
@@ -120,13 +121,11 @@ function draw() {
   )
 
   // The track's end splits are drawn on its edges; every other split is off the canvas.
-  drawSplitLines(
-    context,
-    split.splits.map((point) => zoomTimeToX(point.seconds, centreSeconds, windowSeconds, width)),
-    style.getPropertyValue('--color-split'),
-    0,
-    height,
+  const lineXs = split.splits.map((point) =>
+    zoomTimeToX(point.seconds, centreSeconds, windowSeconds, width),
   )
+  drawSplitLines(context, lineXs, style.getPropertyValue('--color-split'), 0, height)
+  drawConfidenceMarks(context, style, split.splits, lineXs, 0, height)
 
   // Pending splits go over the split lines and under the mark, which can sit on one.
   drawPendingSplits(
@@ -379,6 +378,8 @@ watch(
     extent.value?.endSeconds,
     split.gaps,
     split.splits.map((point) => point.seconds),
+    // Checking a split takes its mark away and changes nothing else.
+    split.splits.map((point) => point.confidence?.band),
     split.trackMarkSeconds,
     split.pendingSplits,
     split.selectedPendingSplit,

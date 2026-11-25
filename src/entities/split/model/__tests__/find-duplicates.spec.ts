@@ -34,7 +34,7 @@ vi.mock('../../api/find-matches-client.ts', async () => {
 })
 
 const QUIET = -50
-// 4 s of quiet between recordings: a gap that Find gaps splits in the middle.
+// 4 s of quiet between recordings: a gap that Find splits splits in the middle.
 const GAP_WINDOWS = 80
 const WINDOWS_PER_SECOND = 20
 
@@ -69,7 +69,7 @@ function openPlaylist(...recordings: number[][]) {
   const curve = playlist(...recordings)
   const store = useSplitStore()
   store.open(curve, { windowSeconds: 0.05, durationSeconds: curve.length * 0.05 })
-  store.addGapSplits()
+  store.findSplits()
   expect(store.tracks).toHaveLength(recordings.length)
   return store
 }
@@ -262,7 +262,7 @@ describe('Find duplicates', () => {
       const store = useSplitStore()
       store.open(curve, { windowSeconds: 0.05, durationSeconds: curve.length * 0.05 })
       store.setSilenceThreshold(-38)
-      store.addGapSplits()
+      store.findSplits()
       expect(store.tracks.map((track) => track.lengthSeconds)).toEqual([151, 151, 151])
 
       await store.findDuplicates()
@@ -808,7 +808,7 @@ describe('Find duplicates', () => {
 
       const curve = playlist(A(), B(), A())
       store.open(curve, { windowSeconds: 0.05, durationSeconds: curve.length * 0.05 })
-      store.addGapSplits()
+      store.findSplits()
       await store.findDuplicates()
       store.reset()
       expect(store.duplicateResult).toBeNull()
@@ -939,19 +939,20 @@ describe('Find duplicates', () => {
       expect(store.duplicateResult).toEqual({ duplicates: 1, partialMatches: 0 })
     })
 
-    it('drops the matches of a track that Find gaps cuts, and keeps the others', async () => {
+    it('drops the matches of a track that Find splits cuts, and keeps the others', async () => {
       const curve = playlist(A_WITH_DIP(), B(), A_WITH_DIP(), B())
       const store = useSplitStore()
       store.open(curve, { windowSeconds: 0.05, durationSeconds: curve.length * 0.05 })
       store.setSilenceThreshold(-48)
-      store.addGapSplits()
+      // Find splits would cut the dips too, which are deep: the first cuts are the gaps', by hand.
+      for (const gap of store.gaps) store.addSplitAt((gap.startSeconds + gap.endSeconds) / 2)
       expect(store.tracks).toHaveLength(4)
       await store.findDuplicates()
       expect(duplicatesOf(store)).toEqual([null, null, 1, 2])
 
       store.setSilenceThreshold(-40)
       store.setMinimumGapLength(2)
-      store.addGapSplits()
+      store.findSplits()
 
       // The dips are gaps now, in 01 and in 03: both are cut. 04 still names 02, now 03.
       expect(store.tracks).toHaveLength(6)
@@ -1033,7 +1034,7 @@ describe('Find duplicates', () => {
         windowSeconds: 0.05,
         durationSeconds: playlist(A(), B(), A()).length * 0.05,
       })
-      store.addGapSplits()
+      store.findSplits()
       const second = store.findDuplicates()
 
       // The older answer arrives last: it must not replace the newer one.
@@ -1145,7 +1146,7 @@ describe('Find duplicates', () => {
 
       const curve = playlist(A(), B(), A())
       store.open(curve, { windowSeconds: 0.05, durationSeconds: curve.length * 0.05 })
-      store.addGapSplits()
+      store.findSplits()
       await store.findDuplicates()
 
       expect(store.editCount).toBe(0)
@@ -1378,7 +1379,7 @@ describe('Find duplicates', () => {
       again.swapTrack(at(again, 4, 10))
       const curve = playlist(A(), B(), C(), [...A(), ...FOREIGN(), ...B()])
       again.open(curve, { windowSeconds: 0.05, durationSeconds: curve.length * 0.05 })
-      again.addGapSplits()
+      again.findSplits()
       again.selectTrack(again.tracks[0]!)
       expect(again.swapTarget(8)).toBeNull()
     })

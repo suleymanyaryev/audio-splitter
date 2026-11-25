@@ -109,7 +109,7 @@ describe('App', () => {
 
     await chooseFile(wrapper, file)
 
-    // 15 s of tone, then 15 s of silence: one run-out gap, which Find gaps would add no split for.
+    // 15 s of tone, then 15 s of silence: one run-out gap, which Find splits would add no split for.
     const split = useSplitStore()
     expect(split.gaps).toEqual([{ startSeconds: 15, endSeconds: 30, edge: 'run-out' }])
     expect(split.tracks).toHaveLength(1)
@@ -327,7 +327,7 @@ describe('App', () => {
       wrapper.unmount()
     })
 
-    it('asks once the user moves a split that Find gaps added', async () => {
+    it('asks once the user moves a split that Find splits added', async () => {
       const wrapper = mount(App, { attachTo: document.body })
       await chooseFile(wrapper, file)
       // 20 s of tone, a 2 s silence, 20 s of tone: one inner gap.
@@ -335,7 +335,7 @@ describe('App', () => {
       curve.fill(-70, 200, 240)
       const split = useSplitStore()
       split.open(curve, { windowSeconds: 0.05, durationSeconds: 22 })
-      split.addGapSplits()
+      split.findSplits()
       expect(split.splits).toHaveLength(1)
 
       expect(split.hasEdits).toBe(false)
@@ -348,14 +348,14 @@ describe('App', () => {
       wrapper.unmount()
     })
 
-    it('does not ask after Find gaps alone', async () => {
+    it('does not ask after Find splits alone', async () => {
       const wrapper = mount(App, { attachTo: document.body })
       await chooseFile(wrapper, file)
       const curve = new Float32Array(440).fill(-10)
       curve.fill(-70, 200, 240)
       const split = useSplitStore()
       split.open(curve, { windowSeconds: 0.05, durationSeconds: 22 })
-      split.addGapSplits()
+      split.findSplits()
       expect(split.splits).toHaveLength(1)
 
       await newFileButton(wrapper).trigger('click')

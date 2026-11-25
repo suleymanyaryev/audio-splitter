@@ -127,7 +127,7 @@ function setUpAtHundred() {
     windowSeconds: 0.05,
     durationSeconds: 150,
   })
-  split.addGapSplits()
+  split.findSplits()
   split.selectSplit(split.splits[0]!.id)
   expect(split.selectedSplit?.seconds).toBeCloseTo(100, 6)
   return { split, audition: useAuditionStore() }
@@ -145,7 +145,7 @@ function setUp() {
   const split = useSplitStore()
   const curve = farGaps()
   split.open(curve, { windowSeconds: 0.05, durationSeconds: 60 })
-  split.addGapSplits()
+  split.findSplits()
   // Detection opens on track 1; the clip around a split is for the zoom view's selected split.
   split.selectSplit(split.splits[0]!.id)
   return { split, audition: useAuditionStore() }
@@ -252,7 +252,7 @@ describe('the audition store', () => {
       windowSeconds: 0.05,
       durationSeconds: 60,
     })
-    split.addGapSplits()
+    split.findSplits()
     split.selectSplit(split.splits[0]!.id)
 
     expect(useAuditionStore().playheadSeconds()).toBe(0)
@@ -290,7 +290,7 @@ describe('the audition store', () => {
       windowSeconds: 0.05,
       durationSeconds: 60,
     })
-    split.addGapSplits()
+    split.findSplits()
     split.selectSplit(split.splits[0]!.id)
     const audition = useAuditionStore()
 
@@ -307,7 +307,7 @@ describe('the audition store', () => {
       windowSeconds: 0.05,
       durationSeconds: 60,
     })
-    split.addGapSplits()
+    split.findSplits()
     split.selectSplit(split.splits[0]!.id)
     const audition = useAuditionStore()
 
@@ -825,7 +825,7 @@ describe('the audition store', () => {
         windowSeconds: 0.05,
         durationSeconds: 60,
       })
-      split.addGapSplits()
+      split.findSplits()
       split.selectSplit(split.splits[0]!.id)
       const audition = useAuditionStore()
 
@@ -841,7 +841,7 @@ describe('the audition store', () => {
         windowSeconds: 0.05,
         durationSeconds: 60,
       })
-      split.addGapSplits()
+      split.findSplits()
       split.selectSplit(split.splits[0]!.id)
       const audition = useAuditionStore()
 

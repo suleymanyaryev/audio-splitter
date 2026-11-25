@@ -7,6 +7,7 @@ import { rangeBetween } from '@/entities/split/lib/range-between.ts'
 import { useSplitStore } from '@/entities/split/model/split.ts'
 import { mergePeaks } from '@/shared/lib/audio/merge-peaks.ts'
 import { CANVAS_FONT } from '@/shared/lib/canvas/canvas-text.ts'
+import { drawConfidenceMarks } from '@/shared/lib/canvas/draw-confidence-marks.ts'
 import { drawLands, drawSplitLines } from '@/shared/lib/canvas/draw-lands-and-splits.ts'
 import { BAR_PITCH, drawPeakBars } from '@/shared/lib/canvas/draw-peak-bars.ts'
 import { hitTestSplit } from '@/shared/lib/canvas/hit-test-split.ts'
@@ -94,6 +95,7 @@ function draw() {
   const lineXs = split.splits.map((point) => timeToX(point.seconds, duration, width))
   const selectedIndex = split.selectedSplitIndex
   drawSplitLines(context, lineXs, splitColor, waveTop, waveHeight, selectedIndex)
+  drawConfidenceMarks(context, style, split.splits, lineXs, waveTop, waveHeight)
 
   /*
   The stretch the panel shows, outlined inside the wave area so the stroke is not cut off: the zoom
@@ -185,6 +187,8 @@ watch(
     sourceFile.peaks,
     split.gaps,
     split.splits.map((point) => point.seconds),
+    // Checking a split takes its mark away and changes nothing else.
+    split.splits.map((point) => point.confidence?.band),
     split.selectedSplit?.id,
     split.zoomCentreSeconds,
     split.view,

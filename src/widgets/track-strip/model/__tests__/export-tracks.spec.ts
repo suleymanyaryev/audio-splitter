@@ -71,7 +71,7 @@ function renameAll(split: ReturnType<typeof useSplitStore>, names: string[]) {
 // Opens the three long tracks in place of the file, and finds that the second repeats the first.
 async function findTheDuplicate(split: ReturnType<typeof useSplitStore>) {
   split.open(curveWithThreeLongTracks(), { windowSeconds: 0.05, durationSeconds: 107 })
-  split.addGapSplits()
+  split.findSplits()
   await split.findDuplicates()
   expect(split.tracks.map((track) => track.matches[0]?.number ?? null)).toEqual([null, 1, null])
 }
@@ -97,7 +97,7 @@ describe('the export store', () => {
       windowSeconds: 0.05,
       durationSeconds: 100,
     })
-    if (withSplits) split.addGapSplits()
+    if (withSplits) split.findSplits()
     return { split, exporter: useExportTracksStore() }
   }
 

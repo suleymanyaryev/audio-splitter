@@ -1,5 +1,3 @@
-import { LIMIT_TOLERANCE, MINIMUM_DISTANCE_SECONDS } from '../config/split-room.ts'
-
 export interface Gap {
   startSeconds: number
   endSeconds: number
@@ -56,36 +54,4 @@ export function findGaps(curve: Float32Array, settings: GapSettings): Gap[] {
   if (runStart !== -1) close(runStart, curve.length - 1)
 
   return gaps
-}
-
-/*
-The times where Find gaps would add a split: the middle of each gap that has a track on both sides,
-so both neighbours lose about the same fade tail. A gap is skipped when it already holds a split, and
-a middle is skipped when it has no room: 1 s from every split, from the file's ends and from the
-middles taken before it. The gaps come in time order, so the result does too.
-*/
-export function gapSplitTimes(
-  gaps: Gap[],
-  splitSeconds: number[],
-  durationSeconds: number,
-): number[] {
-  const taken: number[] = []
-  for (const gap of gaps) {
-    if (
-      gap.edge !== null ||
-      splitSeconds.some((seconds) => seconds >= gap.startSeconds && seconds <= gap.endSeconds)
-    ) {
-      continue
-    }
-    const middle = (gap.startSeconds + gap.endSeconds) / 2
-    const isClearOf = (other: number) =>
-      Math.abs(other - middle) >= MINIMUM_DISTANCE_SECONDS - LIMIT_TOLERANCE
-    const hasRoom =
-      isClearOf(0) &&
-      isClearOf(durationSeconds) &&
-      splitSeconds.every((seconds) => isClearOf(seconds)) &&
-      taken.every((seconds) => isClearOf(seconds))
-    if (hasRoom) taken.push(middle)
-  }
-  return taken
 }

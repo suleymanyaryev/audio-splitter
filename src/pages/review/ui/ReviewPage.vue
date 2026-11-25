@@ -18,6 +18,7 @@ import { useSourceFileStore } from '@/entities/source-file/model/source-file.ts'
 import { formatPendingSplits } from '@/entities/split/lib/format-edits.ts'
 import { sourceStem } from '@/entities/split/lib/source-stem.ts'
 import { useSplitStore, type PanelView } from '@/entities/split/model/split.ts'
+import { usePageKeys } from '@/shared/lib/keyboard/use-page-keys.ts'
 import UiButton from '@/shared/ui/UiButton.vue'
 import UiDialog from '@/shared/ui/UiDialog.vue'
 import UiIconButton from '@/shared/ui/UiIconButton.vue'
@@ -27,6 +28,7 @@ import LoudnessCurve from '@/widgets/loudness-curve/ui/LoudnessCurve.vue'
 import LoudnessSettings from '@/widgets/loudness-curve/ui/LoudnessSettings.vue'
 import SourceWaveform from '@/widgets/source-waveform/ui/SourceWaveform.vue'
 import { rangeTitle } from '@/widgets/split-zoom/lib/range-title.ts'
+import { confidenceStepOfKey } from '@/widgets/split-zoom/lib/step-of-key.ts'
 import { trackExtent } from '@/widgets/split-zoom/lib/track-extent.ts'
 import { trackTitle } from '@/widgets/split-zoom/lib/track-title.ts'
 import { zoomTitle } from '@/widgets/split-zoom/lib/zoom-title.ts'
@@ -90,6 +92,16 @@ const shortcuts = useShortcutsDialogStore()
 // `?` anywhere on the page opens the shortcuts dialog, as the header's button does.
 useQuestionMarkKey(() => {
   shortcuts.show()
+})
+
+/*
+`{` and `}` anywhere on the page select the next split that still has a confidence, least sure
+first, and the one before it, and open the Split view on it.
+*/
+usePageKeys((event) => {
+  const step = confidenceStepOfKey(event)
+  // Left to the browser when the walk goes nowhere, as `[` and `]` are at the end of the splits.
+  return step !== null && split.selectAdjacentByConfidence(step)
 })
 
 const { loudness, loudnessWindowSeconds, durationSeconds } = sourceFile

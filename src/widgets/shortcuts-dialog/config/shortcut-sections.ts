@@ -34,6 +34,14 @@ export const SHORTCUT_SECTIONS: ShortcutSection[] = [
         input: '[ / ]',
         does: 'Select the previous or next split; a playing audition plays on from the new split',
       },
+      {
+        input: '{ / }',
+        does: 'Select the previous or next split that still has a confidence, least sure first (also from the other views)',
+      },
+      {
+        input: 'K',
+        does: 'Mark the selected split as checked: it keeps its place and leaves the walk',
+      },
       { input: 'Space', does: 'Play or pause the audition' },
       { input: ', / .', does: 'Move the playhead 100 ms back or forward (Shift: 1 s)' },
       { input: 'Home', does: 'Go back to the audition’s start' },

@@ -3,6 +3,7 @@ import { computed, ref, useTemplateRef, watch } from 'vue'
 
 import { useSourceFileStore } from '@/entities/source-file/model/source-file.ts'
 import { useSplitStore } from '@/entities/split/model/split.ts'
+import { drawConfidenceMarks } from '@/shared/lib/canvas/draw-confidence-marks.ts'
 import { drawLands, drawSplitLines } from '@/shared/lib/canvas/draw-lands-and-splits.ts'
 import { drawMark } from '@/shared/lib/canvas/draw-mark.ts'
 import { BAR_PITCH, drawPeakBars } from '@/shared/lib/canvas/draw-peak-bars.ts'
@@ -96,14 +97,18 @@ function draw() {
   )
 
   // A split on the range's edge is drawn on it; one outside is off the canvas.
+  const lineXs = split.splits.map((point) =>
+    zoomTimeToX(point.seconds, centreSeconds, windowSeconds, width),
+  )
   drawSplitLines(
     context,
-    split.splits.map((point) => zoomTimeToX(point.seconds, centreSeconds, windowSeconds, width)),
+    lineXs,
     style.getPropertyValue('--color-split'),
     0,
     height,
     split.selectedSplitIndex,
   )
+  drawConfidenceMarks(context, style, split.splits, lineXs, 0, height)
 
   // The mark is a dashed line, never mistaken for a split line or the playhead, under the latter.
   if (split.markSeconds !== null) {
@@ -248,6 +253,8 @@ watch(
     split.range,
     split.gaps,
     split.splits.map((point) => point.seconds),
+    // Checking a split takes its mark away and changes nothing else.
+    split.splits.map((point) => point.confidence?.band),
     split.selectedSplit?.id,
     split.markSeconds,
     playheadSeconds(),

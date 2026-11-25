@@ -2,7 +2,11 @@ import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 
 import { flushPromises, mount } from '@vue/test-utils'
-import { DEFAULT_MINIMUM_GAP_SECONDS, DEFAULT_OFFSET_DB } from '@/entities/split/config/defaults.ts'
+import {
+  DEFAULT_DEPTH_DB,
+  DEFAULT_MINIMUM_GAP_SECONDS,
+  DEFAULT_OFFSET_DB,
+} from '@/entities/split/config/defaults.ts'
 import type { FoundMatch } from '@/entities/split/lib/find-matches.ts'
 import { useSplitStore } from '@/entities/split/model/split.ts'
 import LoudnessSettings from '../LoudnessSettings.vue'
@@ -47,10 +51,10 @@ function curveWithOneGap() {
   return curve
 }
 
-// Find gaps pressed, then the first track and the second named: two hand-made edits.
+// Find splits pressed, then the first track and the second named: two hand-made edits.
 function mountEdited() {
   const split = useSplitStore()
-  split.addGapSplits()
+  split.findSplits()
   split.renameTrack(null, 'Opener')
   split.renameTrack(split.splits[0]!.id, 'Closer')
   const wrapper = mount(LoudnessSettings, { attachTo: document.body })
@@ -102,17 +106,17 @@ function findDuplicatesButton(wrapper: ReturnType<typeof mount>) {
     .findAll('button')
     .find(
       (candidate) =>
-        candidate.text().includes('duplicates') && !candidate.text().includes('Find gaps'),
+        candidate.text().includes('duplicates') && !candidate.text().includes('Find splits'),
     )
   if (!button) throw new Error('no Find duplicates button')
   return button
 }
 
-function findGapsButton(wrapper: ReturnType<typeof mount>) {
+function findSplitsButton(wrapper: ReturnType<typeof mount>) {
   const button = wrapper
     .findAll('button')
-    .find((candidate) => candidate.text().startsWith('Find gaps'))
-  if (!button) throw new Error('no Find gaps button')
+    .find((candidate) => candidate.text().startsWith('Find splits'))
+  if (!button) throw new Error('no Find splits button')
   return button
 }
 
@@ -124,7 +128,7 @@ describe('LoudnessSettings', () => {
     useSplitStore().open(curveWithOneGap(), { windowSeconds: 0.05, durationSeconds: 20 })
   })
 
-  it('reads out both settings of the split store, with a real minus sign', () => {
+  it('reads out the settings of the split store, with a real minus sign', () => {
     const wrapper = mount(LoudnessSettings)
 
     // The median is -10 dB, so the threshold starts the default offset under it.
@@ -151,7 +155,7 @@ describe('LoudnessSettings', () => {
     const wrapper = mount(LoudnessSettings, { attachTo: document.body })
     await flushPromises()
     const split = useSplitStore()
-    split.addGapSplits()
+    split.findSplits()
     expect(split.gaps).toHaveLength(1)
 
     // The gap is 2 s long, the default minimum: one step up (0.1 s) puts the minimum above it.
@@ -164,23 +168,56 @@ describe('LoudnessSettings', () => {
     wrapper.unmount()
   })
 
-  describe('Find gaps', () => {
+  it('reads out the depth, and moves it in tenths of a dB through the store', async () => {
+    const wrapper = mount(LoudnessSettings, { attachTo: document.body })
+    await flushPromises()
+    expect(wrapper.text()).toContain('Depth')
+    expect(wrapper.text()).toContain(`${DEFAULT_DEPTH_DB.toFixed(1)} dB`)
+
+    await wrapper.get('[aria-label="Depth"]').trigger('keydown', { key: 'ArrowRight' })
+
+    expect(useSplitStore().depthSetting).toBeCloseTo(DEFAULT_DEPTH_DB + 0.1, 9)
+    expect(wrapper.text()).toContain('15.1 dB')
+    wrapper.unmount()
+  })
+
+  describe('Find splits', () => {
+    it('follows the depth live, and moves no split', async () => {
+      const split = useSplitStore()
+      // 4 s that are 16 dB under the music: a dip, and no gap.
+      const curve = new Float32Array(880).fill(-10)
+      curve.fill(-26, 400, 480)
+      split.open(curve, { windowSeconds: 0.05, durationSeconds: 44 })
+      const wrapper = mount(LoudnessSettings, { attachTo: document.body })
+      await flushPromises()
+      expect(findSplitsButton(wrapper).text()).toBe('Find splits (1)')
+
+      // 15 dB to 16.1 dB, one tenth at a time: a dip of 16 dB is no longer deep enough.
+      for (let step = 0; step < 11; step++) {
+        await wrapper.get('[aria-label="Depth"]').trigger('keydown', { key: 'ArrowRight' })
+      }
+
+      expect(findSplitsButton(wrapper).text()).toBe('Find splits (0)')
+      expect(split.splits).toEqual([])
+      wrapper.unmount()
+    })
+
     it('says how many splits a press would add', () => {
       const wrapper = mount(LoudnessSettings)
 
-      expect(findGapsButton(wrapper).text()).toBe('Find gaps (1)')
-      expect(findGapsButton(wrapper).attributes('disabled')).toBeUndefined()
+      expect(findSplitsButton(wrapper).text()).toBe('Find splits (1)')
+      expect(findSplitsButton(wrapper).attributes('disabled')).toBeUndefined()
     })
 
     it('adds the splits, and is disabled at 0 once they are there', async () => {
       const wrapper = mount(LoudnessSettings)
 
-      await findGapsButton(wrapper).trigger('click')
+      await findSplitsButton(wrapper).trigger('click')
 
       const split = useSplitStore()
       expect(split.splits.map((point) => point.seconds)).toEqual([expect.closeTo(11, 9)])
-      expect(findGapsButton(wrapper).text()).toBe('Find gaps (0)')
-      expect(findGapsButton(wrapper).attributes('disabled')).toBeDefined()
+      expect(findSplitsButton(wrapper).text()).toBe('Find splits (0)')
+      expect(findSplitsButton(wrapper).attributes('disabled')).toBeDefined()
     })
 
     it('follows the sliders live', async () => {
@@ -192,7 +229,7 @@ describe('LoudnessSettings', () => {
         .get('[aria-label="Minimum gap length"]')
         .trigger('keydown', { key: 'ArrowRight' })
 
-      expect(findGapsButton(wrapper).text()).toBe('Find gaps (0)')
+      expect(findSplitsButton(wrapper).text()).toBe('Find splits (0)')
       wrapper.unmount()
     })
   })
@@ -204,10 +241,10 @@ describe('LoudnessSettings', () => {
       search.isHolding = false
       const split = useSplitStore()
       split.open(curveWithThreeLongTracks(), { windowSeconds: 0.05, durationSeconds: 107 })
-      split.addGapSplits()
+      split.findSplits()
     })
 
-    it('sits beside "Find gaps" and says nothing before the first press', () => {
+    it('sits beside "Find splits" and says nothing before the first press', () => {
       const wrapper = mount(LoudnessSettings)
 
       expect(
@@ -215,7 +252,7 @@ describe('LoudnessSettings', () => {
           .findAll('button')
           .map((button) => button.text())
           .slice(0, 2),
-      ).toEqual(['Find gaps (0)', 'Find duplicates'])
+      ).toEqual(['Find splits (0)', 'Find duplicates'])
       expect(findDuplicatesButton(wrapper).attributes('disabled')).toBeUndefined()
       expect(wrapper.find('[role="status"]').exists()).toBe(false)
     })
@@ -311,7 +348,7 @@ describe('LoudnessSettings', () => {
 
     it('runs at once, with no question, when there is nothing of the user’s to lose', async () => {
       const split = useSplitStore()
-      split.addGapSplits()
+      split.findSplits()
       const wrapper = mount(LoudnessSettings, { attachTo: document.body })
 
       await clearButton(wrapper).trigger('click')
@@ -345,7 +382,7 @@ describe('LoudnessSettings', () => {
 
     it('asks for pending splits alone, and counts them with the edits when there are both', async () => {
       const split = useSplitStore()
-      split.addGapSplits()
+      split.findSplits()
       split.addPendingSplit(4, false)
       split.addPendingSplit(7, false)
       const wrapper = mount(LoudnessSettings, { attachTo: document.body })
@@ -400,7 +437,9 @@ describe('LoudnessSettings', () => {
       const save = buttonNamed(wrapper, 'Save as default')
       expect(save.attributes('disabled')).toBeUndefined()
       // The median is -10 dB, so one step down is 18.1 dB under it.
-      expect(await tooltipOf(save)).toBe('Save 18.1 dB under the median and 2 s as the default')
+      expect(await tooltipOf(save)).toBe(
+        'Save 18.1 dB under the median, 2 s and 15 dB deep as the default',
+      )
       wrapper.unmount()
     })
 
@@ -416,7 +455,7 @@ describe('LoudnessSettings', () => {
       expect(buttonNamed(wrapper, 'Save as default').attributes('disabled')).toBeDefined()
       expect(buttonNamed(wrapper, 'Restore built-in').attributes('disabled')).toBeUndefined()
       expect(await tooltipOf(buttonNamed(wrapper, 'Restore built-in'))).toBe(
-        'Put the default settings back to 18 dB under the median and 2 s',
+        'Put the default settings back to 18 dB under the median, 2 s and 15 dB deep',
       )
       wrapper.unmount()
     })

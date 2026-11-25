@@ -61,7 +61,7 @@ function curveWithThreeLongTracks() {
 async function mountWithDuplicate() {
   const split = useSplitStore()
   split.open(curveWithThreeLongTracks(), { windowSeconds: 0.05, durationSeconds: 107 })
-  split.addGapSplits()
+  split.findSplits()
   await split.findDuplicates()
   return { split, wrapper: await mountStrip() }
 }
@@ -69,7 +69,7 @@ async function mountWithDuplicate() {
 async function mountWithTwoGaps() {
   const split = useSplitStore()
   split.open(curveWithTwoGaps(), { windowSeconds: 0.05, durationSeconds: 100 })
-  split.addGapSplits()
+  split.findSplits()
   return { split, wrapper: await mountStrip() }
 }
 
@@ -86,7 +86,7 @@ describe('TrackStrip', () => {
 
   it('draws one block per track, wide in proportion to its length, with name and length', async () => {
     useSplitStore().open(curveWithTwoGaps(), { windowSeconds: 0.05, durationSeconds: 100 })
-    useSplitStore().addGapSplits()
+    useSplitStore().findSplits()
 
     const wrapper = await mountStrip()
 
@@ -150,7 +150,7 @@ describe('TrackStrip', () => {
 
   it('drops the length, then the name, of blocks too narrow for them, keeping both in the title', async () => {
     useSplitStore().open(curveWithTwoGaps(), { windowSeconds: 0.05, durationSeconds: 100 })
-    useSplitStore().addGapSplits()
+    useSplitStore().findSplits()
     // 116 px leaves 100 px for the three tracks: 21, 50.5 and 28.5 px.
     vi.spyOn(Element.prototype, 'clientWidth', 'get').mockReturnValue(116)
 
@@ -173,7 +173,7 @@ describe('TrackStrip', () => {
   it('keeps its blocks when the minimum gap length changes, since that changes only the gaps', async () => {
     const split = useSplitStore()
     split.open(curveWithTwoGaps(), { windowSeconds: 0.05, durationSeconds: 100 })
-    split.addGapSplits()
+    split.findSplits()
     const wrapper = await mountStrip()
     expect(blocks(wrapper)).toHaveLength(3)
 
