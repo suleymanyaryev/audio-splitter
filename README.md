@@ -82,6 +82,7 @@ One screen each, with worked numbers from a real 1 h file.
 10. [Speed without pitch](docs/concepts/10-speed-without-pitch.md): resampling against time-stretching.
 11. [Finding repeats](docs/concepts/11-finding-repeats.md): sliding one loudness curve along another.
 12. [Streams in a container](docs/concepts/12-streams-in-a-container.md): why moving the audio out of a video changes no sound.
+13. [The adaptive threshold](docs/concepts/13-adaptive-threshold.md): a line that follows the music, and depth as a confidence.
 
 ### Other docs
 

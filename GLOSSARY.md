@@ -49,8 +49,12 @@ A stretch of the source file whose loudness stays under the silence threshold fo
 _Avoid_: Silence, pause, quiet region
 
 **Split**:
-A single point in time where the source file is cut. A split is either detected (added by Find gaps at the middle of a gap, only when the user asks) or manual (added by the user); once it exists the two are treated the same.
-_Avoid_: Candidate, cut point, marker, split point
+A single point in time where the source file is cut. A split is either detected (added by Find splits, only when the user asks, at the middle of a gap or at a dip, one per boundary) or manual (added by the user). A detected split carries a confidence until the user moves it or marks it checked; otherwise the two are treated the same.
+_Avoid_: Candidate, cut point, marker, split point, Find gaps (the button is Find splits)
+
+**Confidence**:
+How sure a detected split is that one track ends there: sure, likely or doubtful, read from the depth at the split. It is set once, when the split is added, and lasts until the user moves the split or marks it checked; a manual split has none.
+_Avoid_: Score, certainty, probability, rating
 
 **Selected split**:
 The one split the user is reviewing: at most one at a time. Selecting a split centres the zoom window on it; moving it does not recentre the window.
@@ -133,13 +137,21 @@ The loudness, in decibels, under which the source file counts as quiet.
 _Avoid_: Noise floor, cutoff
 
 **Default settings**:
-The silence threshold, as a distance under the source file's median loudness, and the minimum gap length that every source file starts with: the ones the user saved, or the built-in ones.
+The silence threshold, as a distance under the source file's median loudness, the minimum gap length and the depth setting that every source file starts with: the ones the user saved, or the built-in ones.
 _Avoid_: Preferences, presets, starting values, my defaults
 
 **Minimum gap length**:
 The shortest time the loudness must stay under the silence threshold for the stretch to count as a gap.
 _Avoid_: Minimum duration, minimum silence
 
+**Depth**:
+How far the loudness at a point in the source file falls under the loudness of the stretch around it, in decibels. A gap between tracks is usually deep; a quiet passage inside a track is usually shallow.
+_Avoid_: Drop, prominence, dip size
+
+**Dip**:
+A point where the loudness falls at least the depth setting under the loudness around it, and falls further than anywhere else within 15 s. It can be short, or never reach the silence threshold, so it finds the track changes a gap misses.
+_Avoid_: Shallow gap, valley, trough
+
 **Edit**:
-A thing the user changed by hand since the source file opened: a split moved, added or deleted, a track renamed, a track left out or brought back, or a match dismissed. It is counted once per thing changed, however often it was changed; the splits Find gaps adds are no edit until the user changes one, and the matches Find duplicates finds are no edit.
+A thing the user changed by hand since the source file opened: a split moved, added or deleted, a track renamed, a track left out or brought back, a match dismissed, or a split marked checked. It is counted once per thing changed, however often it was changed; the splits Find splits adds are no edit until the user changes one, and the matches Find duplicates finds are no edit.
 _Avoid_: Change, modification, revision
