@@ -1,6 +1,6 @@
 import type { FfmpegSession } from '@/shared/api/ffmpeg/ffmpeg.ts'
 import { roundToMillisecond } from '@/shared/lib/time/round-to-millisecond.ts'
-import type { SupportedFormat } from './probe.ts'
+import type { SeekMethod, TrackFormat } from './probe.ts'
 
 /*
 A copy runs at disk speed: a long track of a 3 h file takes about a second in native ffmpeg
@@ -19,7 +19,10 @@ export interface TrackTags {
 }
 
 export interface TrackCut {
-  format: SupportedFormat
+  // Sets the file's extension and where its tags go.
+  format: TrackFormat
+  // Sets how the cut seeks.
+  seek: SeekMethod
   // 0 for the first track, which then needs no seek.
   startSeconds: number
   // Undefined for the last track, which runs to the end of the file.
@@ -27,7 +30,7 @@ export interface TrackCut {
   tags: TrackTags
 }
 
-// How far before a track's start the `.mp3` and `.opus` jump lands, so the decoder starts warm.
+// How far before a track's start the first of two seeks lands, so the decoder starts warm.
 const JUMP_BACK_SECONDS = 2
 
 // The seek and stop of one cut: what goes before `-i`, and what goes after it.
@@ -37,13 +40,15 @@ interface SeekArguments {
 }
 
 /*
-The seek and stop of one format. `.m4a` has an index of every frame, so one jump before the input
-lands on the frame that holds the time, and the edit list trims the rest. The `-ss` and `-to`
-both go before `-i`: after the jump the clock restarts at 0, and `-to` before the input counts on
-the source's clock again (the note's "Why -ss and -to both go before -i").
+The seek and stop of one seek method. A container with an index of every frame (MP4, which holds
+`.m4a`) needs one jump before the input: it lands on the frame that holds the time, and the edit
+list trims the rest. The `-ss` and `-to` both go before `-i`: after the jump the clock restarts at
+0, and `-to` before the input counts on the source's clock again (the note's "Why -ss and -to
+both go before -i").
 
-`.mp3` and `.opus` have no such index, so they seek twice (the note's "Why .mp3 and .opus seek
-twice"). The first `-ss` jumps to 2 s before the start, never before 0, and the second, after
+Containers with no such index (MP3, Ogg) seek twice (the note's "Why .mp3 and .opus seek twice"),
+and so does Matroska, whose Opus a single seek before the input breaks (ticket 01 of
+video-and-more-formats). The first `-ss` jumps to 2 s before the start, never before 0, and the second, after
 the input, is the exact start counted from there. The stop is `-t`, a length, and never `-to`:
 the clock restarts after the input seek, so a `-to` would count from the jump and not from the
 file's start. The first track starts with the file and needs neither seek. Both numbers are made
@@ -53,8 +58,8 @@ function seekArguments(cut: TrackCut): SeekArguments {
   const start = roundToMillisecond(cut.startSeconds)
   const end = cut.endSeconds === undefined ? undefined : roundToMillisecond(cut.endSeconds)
 
-  switch (cut.format) {
-    case 'm4a': {
+  switch (cut.seek) {
+    case 'once': {
       return {
         beforeInput: [
           ...(start > 0 ? ['-ss', String(start)] : []),
@@ -63,8 +68,7 @@ function seekArguments(cut: TrackCut): SeekArguments {
         afterInput: [],
       }
     }
-    case 'mp3':
-    case 'opus': {
+    case 'twice': {
       const jump = roundToMillisecond(Math.max(0, start - JUMP_BACK_SECONDS))
       return {
         beforeInput: jump > 0 ? ['-ss', String(jump)] : [],
@@ -79,12 +83,13 @@ function seekArguments(cut: TrackCut): SeekArguments {
 
 /*
 The tags and format options of one format. `.mp3` keeps its tags in the file's own tag header, so
-the file-level keys are the ones that land. `.opus` keeps them in the stream's comment header, and
-a file-level key would not replace the tags the source's stream already carries, so they go on the
-stream (tickets 03 and 12). `+faststart` moves an `.m4a` index in front of the audio.
+the file-level keys are the ones that land. `.opus` and `.ogg` (Vorbis) keep them in the stream's
+comment header, and a file-level key would not replace the tags the source's stream already
+carries, so they go on the stream (tickets 03 and 12). `+faststart` moves an `.m4a` index in front
+of the audio.
 */
 function tagArguments(cut: TrackCut): string[] {
-  const key = cut.format === 'opus' ? '-metadata:s:a:0' : '-metadata'
+  const key = cut.format === 'opus' || cut.format === 'ogg' ? '-metadata:s:a:0' : '-metadata'
   return [
     key,
     `title=${cut.tags.title}`,

@@ -17,6 +17,7 @@ describe('sliceCount', () => {
   it('cuts MP3 slices of 300 s and the other formats of 60 s', () => {
     expect(sliceCount(3686.21, 'mp3')).toBe(13)
     expect(sliceCount(3686.21, 'opus')).toBe(62)
+    expect(sliceCount(3686.21, 'ogg')).toBe(62)
     expect(sliceCount(300, 'mp3')).toBe(1)
     expect(sliceCount(300.01, 'mp3')).toBe(2)
   })

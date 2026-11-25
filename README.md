@@ -14,11 +14,11 @@ The project has a second, equal reason: I wanted to learn how digital audio work
 
 ## What it does
 
-1. **Load** an `.m4a` (AAC), `.mp3` or `.opus` file. Any other file gets a message saying what it is.
+1. **Load** an `.m4a` (AAC), `.mp3`, `.opus` or `.ogg` (Vorbis) file, or an MP4, MOV, WebM or MKV video, whose first audio stream is used and picture ignored. Any other file gets a message saying what it is.
 2. **Analyse.** The file is decoded in slices into a waveform and a loudness curve. A 1 h file takes a few seconds.
 3. **Find gaps.** The file opens as one track. Two settings, the silence threshold and the minimum gap length, tune which quiet gaps show, and one button turns them into splits.
 4. **Review.** Listen across a split, to a whole track, or to a range you drag out. Move, add and delete splits, name the tracks, and leave out the ones you don't want. "Find duplicates" leaves out a track that is the same recording as an earlier one, and points at a split that may be missing.
-5. **Export** every track you kept into a new folder, or one track or range as a single file. Tracks keep the source's format and are tagged; nothing is re-encoded.
+5. **Export** every track you kept into a new folder, or one track or range as a single file. Tracks are audio-only files in the source's audio format (`.m4a`, `.mp3`, `.opus` or `.ogg`), tagged and never re-encoded.
 
 **Requirements:** desktop Chrome, because the export writes through the File System Access API. Everything is kept in memory, so a reload starts over; only the volume, the mute, the play speed, the theme and your default settings are remembered.
 
@@ -81,6 +81,7 @@ One screen each, with worked numbers from a real 1 h file.
 9. [Volume is gain](docs/concepts/09-volume-is-gain.md): gain and decibels.
 10. [Speed without pitch](docs/concepts/10-speed-without-pitch.md): resampling against time-stretching.
 11. [Finding repeats](docs/concepts/11-finding-repeats.md): sliding one loudness curve along another.
+12. [Streams in a container](docs/concepts/12-streams-in-a-container.md): why moving the audio out of a video changes no sound.
 
 ### Other docs
 

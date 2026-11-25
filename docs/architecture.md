@@ -125,7 +125,7 @@ sequenceDiagram
   page->>store: load(file)
   store->>session: openFfmpeg: download the core if needed, mount the file
   store->>session: probe
-  session-->>store: container, codec, duration, rate, channels
+  session-->>store: track format, seek method, audio length, rate, channels
   alt not supported, or unreadable
     store-->>page: failed, with the message
   else supported
@@ -275,11 +275,12 @@ stateDiagram-v2
 ```
 
 - **The tracks are fixed when the export starts**, and an overlay locks the page.
+- **Tracks are audio-only files in the track format**, set by the source's codec, even when the source is a video.
 - **One track is in memory at a time**: cut, written and dropped before the next.
 - **Cancel** stops the running cut. Files already written stay.
 - **A failed write removes its empty file**, so the folder only holds whole tracks.
 
-The cut commands per format are in [note 07](concepts/07-cutting-without-re-encoding.md).
+The cut commands per seek method are in [note 07](concepts/07-cutting-without-re-encoding.md).
 
 ### Single export
 

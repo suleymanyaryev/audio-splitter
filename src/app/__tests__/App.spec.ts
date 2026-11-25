@@ -7,7 +7,7 @@ import {
   fakeFfmpegSession,
   m4aProbeLog,
   toneThenSilencePcm,
-  vorbisProbeLog,
+  flacProbeLog,
 } from '@/shared/api/ffmpeg/__tests__/fake-ffmpeg.ts'
 import { useSplitStore } from '@/entities/split/model/split.ts'
 import { useTheme } from '@/shared/lib/theme/theme.ts'
@@ -134,13 +134,13 @@ describe('App', () => {
   })
 
   it('stays on the load page and names what an unsupported file is', async () => {
-    vi.mocked(openFfmpeg).mockResolvedValue(fakeFfmpegSession({ probeLog: vorbisProbeLog(30) }))
+    vi.mocked(openFfmpeg).mockResolvedValue(fakeFfmpegSession({ probeLog: flacProbeLog(30) }))
     const wrapper = mount(App)
 
-    await chooseFile(wrapper, new File(['x'], 'dinner.ogg'))
+    await chooseFile(wrapper, new File(['x'], 'dinner.flac'))
 
     expect(wrapper.get('[role="alert"]').text()).toContain(
-      'This file is Vorbis in Ogg; the splitter supports AAC in .m4a, MP3 and Opus in .opus.',
+      'This file is FLAC in FLAC; the splitter supports AAC in .m4a, .mp4 or .mov, MP3, Opus in .opus, .webm or .mkv, and Vorbis in .ogg.',
     )
     expect(wrapper.text()).toContain('Choose another file')
   })

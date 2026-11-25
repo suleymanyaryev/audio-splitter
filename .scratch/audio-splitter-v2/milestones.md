@@ -143,7 +143,7 @@ The order is the agent's proposal; the user confirmed milestone 1 goes first. Tw
 
 **Facts from the code.**
 
-- [`probe.ts`](../../src/entities/source-file/api/probe.ts) decides by container and codec, never by extension. Its list has three pairs.
+- [`probe.ts`](../../src/entities/source-file/api/probe.ts) decides by container and codec, never by extension. Its list had three pairs and has five now.
 - Decode and cut already pass `-map 0:a:0`, so a video stream is skipped.
 - An `.mp4` with AAC audio matches an existing pair, so it probably loads today and exports `.m4a`. Not run.
 
@@ -157,10 +157,12 @@ The order is the agent's proposal; the user confirmed milestone 1 goes first. Tw
 **Open questions.**
 
 - The exact list of pairs v2 claims. v1's rule was that a format is supported only once it passes the spike's bar.
-- The glossary's "Supported format" names three pairs and must widen.
+- The glossary's "Supported format" named three pairs and now names five.
 - The user does not expect files over 2 GB, so that limit is not checked unless one turns up.
 
 **Needs from the user.** One real video file. A yt-dlp download made with `--embed-chapters` covers milestone 4 too.
+
+**Status.** Done on 2026-11-25. Decisions and first measurements are in [`.scratch/video-and-more-formats/analysis.md`](../video-and-more-formats/analysis.md#decisions); the spec is at [`.scratch/video-and-more-formats/spec.md`](../video-and-more-formats/spec.md), resolved. It ships five pairs: AAC in MP4 or MOV, MP3, Opus in Ogg, Opus in WebM or Matroska, Vorbis in Ogg. The browser spike passed every pair; a video decodes up to 2.4 times slower than its audio alone, which was accepted, and the core read a 4.84 GB file, so there is no size limit. Known gap: an MP4 or MOV whose picture runs past its audio shows the picture's length.
 
 ## Milestone 4: Chapters and pasted tracklists
 

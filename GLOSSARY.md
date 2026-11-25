@@ -5,12 +5,16 @@ A browser-only tool that proposes where to cut a long audio file made of concate
 ## Language
 
 **Source file**:
-The long audio file the user loads, made of several tracks played one after another.
-_Avoid_: Input, upload, mix, set
+The long file the user loads, audio or video, whose first audio stream holds several tracks played one after another.
+_Avoid_: Input, upload, mix, set, video, clip
 
 **Supported format**:
-A container and codec pair the splitter accepts as a source file and exports tracks in: AAC in `.m4a`, MP3 in `.mp3`, or Opus in `.opus`. It is told by the file's contents, not its extension.
+A container and codec pair the splitter accepts as a source file: AAC in MP4 (`.m4a`, `.mp4`, `.mov`), MP3, Opus in Ogg, Opus in WebM or Matroska, or Vorbis in Ogg. It is told by the file's contents, not its extension.
 _Avoid_: File type, extension
+
+**Track format**:
+The audio-only file type a source file's tracks are exported in, set by its codec: AAC in `.m4a`, MP3 in `.mp3`, Opus in `.opus`, Vorbis in `.ogg`.
+_Avoid_: Export format, output format
 
 **ffmpeg core**:
 The audio toolkit the splitter downloads once and keeps in the browser; probing, decoding and cutting all run in it.
@@ -29,11 +33,15 @@ The text put before the number of every unnamed track, any separator included. E
 _Avoid_: Base name, stem
 
 **Export**:
-Writing every track that is not left out as its own audio file, in the source file's format, into a new folder named after the source file, made inside a folder the user picks (a second export of the same file makes `name (2)`).
+Writing every track that is not left out as its own audio file, in the source file's track format, into a new folder named after the source file, made inside a folder the user picks (a second export of the same file makes `name (2)`).
 _Avoid_: Download, save, split (as a verb)
 
+**Seek method**:
+How a cut finds its start in a source file, set by the container: once, with one jump before the input (MP4 and MOV, which index every frame), or twice, with a jump 2 s early and then an exact seek (MP3, Ogg, WebM and Matroska). Not the same as the track format, which the codec sets.
+_Avoid_: Cut mode, seek type
+
 **Single export**:
-Writing one track, or the range, as one audio file under a name the user confirms, into a folder the user picks once per file.
+Writing one track, or the range, as one audio file in the source file's track format, under a name the user confirms, into a folder the user picks once per file.
 _Avoid_: Cut, extract, chunk
 
 **Gap**:
