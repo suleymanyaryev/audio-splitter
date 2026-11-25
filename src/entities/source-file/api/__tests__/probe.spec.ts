@@ -59,6 +59,57 @@ const mp4VideoPastAudioLog = mp4VideoLog.map((line) =>
   line.replace('Duration: 01:01:26.32', 'Duration: 00:10:03.00'),
 )
 
+// The same stand-ins as WebM with VP9 video and Opus audio (ticket 01). Matroska gives each stream
+// its own DURATION line, so the audio's length is not the container's when the picture runs on.
+const webmVideoLog = [
+  "Input #0, matroska,webm, from '/in/source.webm':",
+  '  Metadata:',
+  '    ENCODER         : Lavf62.12.100',
+  '  Duration: 01:01:26.32, start: -0.007000, bitrate: 2603 kb/s',
+  '  Stream #0:0: Video: vp9 (Profile 0), yuv420p(tv, progressive), 320x180, lossless, SAR 1:1 DAR 16:9, 25 fps, 25 tbr, 1k tbn',
+  '    Metadata:',
+  '      ENCODER         : Lavc62.28.100 libvpx-vp9',
+  '      DURATION        : 01:01:26.320000000',
+  '  Stream #0:1(eng): Audio: opus, 48000 Hz, stereo, fltp',
+  '    Metadata:',
+  '      ENCODER         : Lavc62.28.100 libopus',
+  '      HANDLER_NAME    : ISO Media file produced by Google Inc.',
+  '      DURATION        : 01:01:26.222000000',
+  'At least one output file must be specified',
+]
+
+const mkvVideoLog = webmVideoLog.map((line) => line.replace('source.webm', 'source.mkv'))
+
+// Audio only: no picture and nothing to tell apart, but the stream still has its DURATION line.
+const webmAudioOnlyLog = [
+  "Input #0, matroska,webm, from '/in/source.webm':",
+  '  Metadata:',
+  '    ENCODER         : Lavf62.12.100',
+  '  Duration: 01:01:26.22, start: -0.007000, bitrate: 102 kb/s',
+  '  Stream #0:0(eng): Audio: opus, 48000 Hz, stereo, fltp',
+  '    Metadata:',
+  '      ENCODER         : Lavc62.28.100 libopus',
+  '      DURATION        : 01:01:26.222000000',
+  'At least one output file must be specified',
+]
+
+// The picture runs 3 s past the audio (600.021 s): the audio stream's own line has its length.
+const webmVideoPastAudioLog = [
+  "Input #0, matroska,webm, from '/in/source.webm':",
+  '  Metadata:',
+  '    ENCODER         : Lavf62.12.100',
+  '  Duration: 00:10:03.00, start: -0.007000, bitrate: 2599 kb/s',
+  '  Stream #0:0: Video: vp9 (Profile 0), yuv420p(tv, progressive), 320x180, lossless, SAR 1:1 DAR 16:9, 25 fps, 25 tbr, 1k tbn',
+  '    Metadata:',
+  '      ENCODER         : Lavc62.28.100 libvpx-vp9',
+  '      DURATION        : 00:10:03.000000000',
+  '  Stream #0:1(eng): Audio: opus, 48000 Hz, stereo, fltp',
+  '    Metadata:',
+  '      ENCODER         : Lavc62.28.100 libopus',
+  '      DURATION        : 00:10:00.021000000',
+  'At least one output file must be specified',
+]
+
 describe('readProbeLog', () => {
   it('reads AAC in .m4a as a supported format with its duration, rate and channels', () => {
     expect(readProbeLog(m4aLog)).toEqual({
@@ -108,7 +159,7 @@ describe('readProbeLog', () => {
     expect(readProbeLog(vorbisLog)).toEqual({
       kind: 'unsupported',
       message:
-        'This file is Vorbis in Ogg; the splitter supports AAC in .m4a, .mp4 or .mov, MP3 and Opus in .opus.',
+        'This file is Vorbis in Ogg; the splitter supports AAC in .m4a, .mp4 or .mov, MP3 and Opus in .opus, .webm or .mkv.',
     })
   })
 
@@ -145,7 +196,88 @@ describe('readProbeLog', () => {
     expect(readProbeLog(flacLog)).toEqual({
       kind: 'unsupported',
       message:
-        'This file is FLAC in FLAC; the splitter supports AAC in .m4a, .mp4 or .mov, MP3 and Opus in .opus.',
+        'This file is FLAC in FLAC; the splitter supports AAC in .m4a, .mp4 or .mov, MP3 and Opus in .opus, .webm or .mkv.',
+    })
+  })
+
+  describe('Opus in WebM or Matroska', () => {
+    it("reads a WebM video as .opus seeking twice, with the audio stream's own length", () => {
+      expect(readProbeLog(webmVideoLog)).toEqual({
+        kind: 'supported',
+        format: 'opus',
+        seek: 'twice',
+        durationSeconds: 3686.222,
+        sampleRate: 48_000,
+        channelCount: 2,
+      })
+    })
+
+    it('reads an MKV the same way, since WebM and Matroska share one demuxer', () => {
+      expect(readProbeLog(mkvVideoLog)).toMatchObject({
+        kind: 'supported',
+        format: 'opus',
+        seek: 'twice',
+        durationSeconds: 3686.222,
+      })
+    })
+
+    it('reads an audio-only WebM', () => {
+      expect(readProbeLog(webmAudioOnlyLog)).toMatchObject({
+        kind: 'supported',
+        format: 'opus',
+        seek: 'twice',
+        durationSeconds: 3686.222,
+      })
+    })
+
+    it("gives the audio's length, not the container's, when the picture runs past it", () => {
+      expect(readProbeLog(webmVideoPastAudioLog)).toMatchObject({ durationSeconds: 600.021 })
+    })
+
+    it("takes the first audio stream's length when a second audio stream follows", () => {
+      const log = [
+        ...webmVideoPastAudioLog.slice(0, -1),
+        '  Stream #0:2(fre): Audio: opus, 48000 Hz, stereo, fltp',
+        '    Metadata:',
+        '      DURATION        : 00:09:00.000000000',
+        ...webmVideoPastAudioLog.slice(-1),
+      ]
+
+      expect(readProbeLog(log)).toMatchObject({ durationSeconds: 600.021 })
+    })
+
+    it("falls back to the container's length when the audio stream has no DURATION line", () => {
+      const log = webmAudioOnlyLog.filter((line) => !line.includes('DURATION'))
+
+      expect(readProbeLog(log)).toMatchObject({ durationSeconds: 3686.22 })
+    })
+
+    it('does not take a DURATION line of the picture for the length of the audio', () => {
+      // The picture's own line says 10:05, unlike the container's 10:03, so taking it would show.
+      const log = webmVideoPastAudioLog
+        .filter((line) => !line.includes('00:10:00.021'))
+        .map((line) => line.replace('00:10:03.000000000', '00:10:05.000000000'))
+
+      expect(readProbeLog(log)).toMatchObject({ durationSeconds: 603 })
+    })
+
+    it('turns away AAC in Matroska, which the splitter does not cut', () => {
+      const log = mkvVideoLog.map((line) => line.replace('Audio: opus', 'Audio: aac (LC)'))
+
+      expect(readProbeLog(log)).toMatchObject({
+        kind: 'unsupported',
+        message: expect.stringMatching(/^This file is AAC in WebM or Matroska;/),
+      })
+    })
+
+    it('still turns away Vorbis in WebM and names the supported pairs', () => {
+      const vorbisLog = webmVideoLog.map((line) => line.replace('Audio: opus', 'Audio: vorbis'))
+
+      expect(readProbeLog(vorbisLog)).toEqual({
+        kind: 'unsupported',
+        message:
+          'This file is Vorbis in WebM or Matroska; the splitter supports AAC in .m4a, .mp4 or .mov, MP3 and Opus in .opus, .webm or .mkv.',
+      })
     })
   })
 

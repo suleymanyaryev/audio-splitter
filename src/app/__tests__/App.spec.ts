@@ -140,7 +140,7 @@ describe('App', () => {
     await chooseFile(wrapper, new File(['x'], 'dinner.ogg'))
 
     expect(wrapper.get('[role="alert"]').text()).toContain(
-      'This file is Vorbis in Ogg; the splitter supports AAC in .m4a, .mp4 or .mov, MP3 and Opus in .opus.',
+      'This file is Vorbis in Ogg; the splitter supports AAC in .m4a, .mp4 or .mov, MP3 and Opus in .opus, .webm or .mkv.',
     )
     expect(wrapper.text()).toContain('Choose another file')
   })

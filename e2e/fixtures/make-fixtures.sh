@@ -24,5 +24,10 @@ ffmpeg -y -v error -f lavfi -i "$(bursts 48000)" -c:a libopus -b:a 64k bursts.op
 ffmpeg -y -v error -f lavfi -i "$(bursts 44100)" -f lavfi -i "testsrc=s=160x90:r=10:d=30" \
   -map 1:v -map 0:a -c:v libx264 -preset veryfast -pix_fmt yuv420p -c:a aac -b:a 96k bursts-video.mp4
 
+# The same as Opus in a WebM, with a VP9 picture.
+ffmpeg -y -v error -f lavfi -i "$(bursts 48000)" -f lavfi -i "testsrc=s=160x90:r=10:d=30" \
+  -map 1:v -map 0:a -c:v libvpx-vp9 -b:v 100k -deadline realtime -cpu-used 8 -pix_fmt yuv420p \
+  -c:a libopus -b:a 64k bursts-video.webm
+
 # Readable but not a supported format: Vorbis in Ogg.
 ffmpeg -y -v error -f lavfi -i "$(bursts 44100)" -c:a libvorbis -q:a 2 unsupported-vorbis.ogg

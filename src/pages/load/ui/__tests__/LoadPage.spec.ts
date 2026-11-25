@@ -26,6 +26,8 @@ describe('LoadPage', () => {
       '.mov',
       '.mp3',
       '.opus',
+      '.webm',
+      '.mkv',
     ])
   })
 

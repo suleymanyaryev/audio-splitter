@@ -7,6 +7,7 @@ import {
   fakeFfmpegSession,
   m4aProbeLog,
   mp3ProbeLog,
+  webmProbeLog,
   toneThenSilencePcm,
   vorbisProbeLog,
 } from '@/shared/api/ffmpeg/__tests__/fake-ffmpeg.ts'
@@ -110,7 +111,7 @@ describe('the source-file store', () => {
     expect(store.failure).toEqual({
       kind: 'unsupported',
       message:
-        'This file is Vorbis in Ogg; the splitter supports AAC in .m4a, .mp4 or .mov, MP3 and Opus in .opus.',
+        'This file is Vorbis in Ogg; the splitter supports AAC in .m4a, .mp4 or .mov, MP3 and Opus in .opus, .webm or .mkv.',
     })
     expect(session.run).toHaveBeenCalledTimes(1)
     expect(session.close).toHaveBeenCalled()
@@ -917,6 +918,28 @@ describe('the source-file store', () => {
       expect(store.format).toBe('mp3')
       expect(command.slice(3, 5)).toEqual(['-ss', '8'])
       expect(command).toContain('-t')
+    })
+
+    it('cuts a WebM video as an .opus track, seeking twice, with its tags on the stream', async () => {
+      const session = fakeFfmpegSession({
+        probeLog: webmProbeLog(30),
+        inputPath: '/in/source.webm',
+        pcm: toneThenSilencePcm(48_000, 15, 0.5),
+        track,
+      })
+      vi.mocked(openFfmpeg).mockResolvedValue(session)
+      const store = useSourceFileStore()
+      await store.load(new File(['x'], 'mix.webm'))
+
+      await store.cutTrack({ startSeconds: 10, endSeconds: 20, tags })
+
+      const command = cutRuns(session)[0]?.[0] ?? []
+      expect(store.format).toBe('opus')
+      expect(command.slice(2, 8)).toEqual(['-y', '-ss', '8', '-i', '/in/source.webm', '-ss'])
+      expect(command).toContain('-t')
+      expect(command).not.toContain('-to')
+      expect(command).toContain('-metadata:s:a:0')
+      expect(command.at(-1)).toBe('/track.opus')
     })
 
     it('rejects a cut before a file is ready', async () => {

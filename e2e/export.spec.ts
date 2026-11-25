@@ -16,6 +16,7 @@ const CASES = [
   { fixture: 'bursts.mp3', stem: 'bursts', extension: 'mp3' },
   { fixture: 'bursts.opus', stem: 'bursts', extension: 'opus' },
   { fixture: 'bursts-video.mp4', stem: 'bursts-video', extension: 'm4a' },
+  { fixture: 'bursts-video.webm', stem: 'bursts-video', extension: 'opus' },
 ] as const
 
 // What "Find gaps" adds on the fixtures: splits in the silences' middles, 9.5 s and 20.5 s.
@@ -47,7 +48,7 @@ Every file of one folder, with its size, the length the browser decodes it to, w
 in it and whether it holds a video stream. Title and album are plain UTF-8 in all three formats
 (`©nam` in an .m4a, ID3's TIT2 and TALB in an .mp3, the stream's comments in an .opus), so a text
 search finds them; the binary track number is left unchecked. A video stream shows as its codec
-(`avc1`, `vp09`) or its handler's name.
+(`avc1`, `V_VP9`) or its handler's name.
 */
 async function readFolder(page: Page, folderName: string): Promise<SavedTrack[]> {
   return page.evaluate(async (name) => {
@@ -70,7 +71,7 @@ async function readFolder(page: Page, folderName: string): Promise<SavedTrack[]>
         hasTitle: text.includes(title),
         // The title holds the album's text once, so the album is the occurrence after it.
         hasAlbum: text.split('bursts').length - 1 >= 2,
-        hasVideo: /avc1|vp09|VideoHandler/.test(text),
+        hasVideo: /avc1|VideoHandler|V_VP9/.test(text),
       })
     }
     return tracks.toSorted((a, b) => a.name.localeCompare(b.name))
@@ -95,7 +96,7 @@ async function readSavedFile(page: Page, fileName: string, title: string) {
         seconds: buffer.duration,
         hasTitle: text.includes(wantedTitle),
         hasAlbum: text.includes('bursts'),
-        hasVideo: /avc1|vp09|VideoHandler/.test(text),
+        hasVideo: /avc1|VideoHandler|V_VP9/.test(text),
       }
     },
     { name: fileName, wantedTitle: title },
@@ -141,11 +142,13 @@ test.beforeEach(async ({ page }) => {
 })
 
 // The check for a video stream in a track is only worth something if it fires on a source that has one.
-test('the video fixture holds a video stream, so a track without one proves the cut dropped it', () => {
-  const bytes = readFileSync('e2e/fixtures/bursts-video.mp4').toString('latin1')
+for (const fixture of ['bursts-video.mp4', 'bursts-video.webm']) {
+  test(`${fixture} holds a video stream, so a track without one proves the cut dropped it`, () => {
+    const bytes = readFileSync(`e2e/fixtures/${fixture}`).toString('latin1')
 
-  expect(bytes).toMatch(/avc1|vp09|VideoHandler/)
-})
+    expect(bytes).toMatch(/avc1|VideoHandler|V_VP9/)
+  })
+}
 
 for (const { fixture, stem, extension } of CASES) {
   test(`exports the three tracks of ${fixture} as .${extension} files that play`, async ({

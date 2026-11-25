@@ -101,3 +101,14 @@ export const vorbisProbeLog = (durationSeconds: number) =>
       .replace('mov,mp4,m4a,3gp,3g2,mj2', 'ogg')
       .replace('aac (LC) (mp4a / 0x6134706D)', 'vorbis'),
   )
+
+// The same file as Opus in a WebM with a picture before the audio, as the core prints it.
+export const webmProbeLog = (durationSeconds: number) => [
+  "Input #0, matroska,webm, from '/in/source.webm':",
+  `  Duration: ${clock(durationSeconds)}.00, start: -0.007000, bitrate: 2603 kb/s`,
+  '  Stream #0:0: Video: vp9 (Profile 0), yuv420p(tv, progressive), 320x180, 25 fps, 25 tbr, 1k tbn',
+  '  Stream #0:1(eng): Audio: opus, 48000 Hz, stereo, fltp',
+  '    Metadata:',
+  `      DURATION        : ${clock(durationSeconds)}.000000000`,
+  'At least one output file must be specified',
+]
