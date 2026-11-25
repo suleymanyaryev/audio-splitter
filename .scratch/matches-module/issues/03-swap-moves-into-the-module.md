@@ -26,7 +26,7 @@ Spec: `.scratch/matches-module/spec.md` (Implementation Decisions, "What stays i
 - [x] No match state, way back or identity helper is left in the split store.
 - [x] The swap-target cases move to the module spec. The find-duplicates store spec covers `swapTrack` selecting the target, and a swap that the discard question held back leaving no way back. Add that second case if no spec has it yet.
 - [x] The Track view spec passes unchanged.
-- [x] Final checks pass, run once because this ticket closes the spec.
+- [x] Final tier passes: the Final checks, run once because this ticket closes the spec.
 
 ## Comments
 
@@ -36,3 +36,5 @@ Spec: `.scratch/matches-module/spec.md` (Implementation Decisions, "What stays i
 - Final review fixes: the store's header comment points at `matches.ts` rather than repeat it; `MatchedTrack` is `TrackEnds` without `isLeftOutByHand`; `FOREIGN` lives in `made-up-recordings.ts`; the store spec's two dismiss helpers became `dismissThird`; `LiveMatch` is no longer exported (knip); the store-wiring skill names the composable-inside-a-store pattern.
 - Left as the spec decided: the architecture doc's sequence and state diagrams still show the split store, as the module is internal to it; reads are by index and a dismissal by start split ids. `duplicateSearchStatus` and `duplicateSearchFailure` are read-only getters now; nothing wrote them.
 - Final tier: `pnpm verify` -> pass (2379 tests, build ok), `pnpm lint` -> pass, `pnpm knip` -> fail: unused `LiveMatch` export, fixed -> pass, `pnpm depcruise` -> pass; verify and depcruise rerun after the fix -> pass.
+- Code review of the final state (`c3ae235...97adcfd`): Spec `BLOCKING: 0`, Standards `HARD: 0`. Fixed after it: concept note 11 said `swapTarget` selects; only `swapTrack` does. Left as judgement calls: the store header says `open`, `clearSplits` and `reset` drop every match without naming the way back (`matches.ts` says it); `pressedHolder` and `landing` exist in both specs for their two subjects; `dismissThird` keeps its comment. The Final tier stands: nothing but docs changed after it.
+- The closing box was "Final checks pass"; it is relabelled "Final tier passes" to match the run's goal, with the same meaning.
