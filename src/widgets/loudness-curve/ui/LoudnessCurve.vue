@@ -11,6 +11,7 @@ import { prepareCanvas } from '@/shared/lib/canvas/prepare-canvas.ts'
 import { timeToX } from '@/shared/lib/canvas/time-axis.ts'
 import { useCanvasRedraw } from '@/shared/lib/canvas/use-canvas-redraw.ts'
 import { formatDuration } from '@/shared/lib/time/format-duration.ts'
+import { DIP_MARK_SIZE, dipMarks } from '../lib/dip-marks.ts'
 import { formatDecibels } from '../lib/format-readout.ts'
 import { mergeLoudness } from '../lib/merge-loudness.ts'
 import {
@@ -56,6 +57,46 @@ function traceCurve(context: CanvasRenderingContext2D, columns: Float32Array, he
     const y = curveY(decibels, height)
     if (column === 0) context.moveTo(0.5, y)
     else context.lineTo(column + 0.5, y)
+  }
+}
+
+/*
+DESIGN.md: each dip that Find splits would add, with no gap beside it, is an 8 px `ink` diamond on
+the curve, ringed in the surface colour so it reads over the line and the fill. It is no split,
+so it is never rust.
+*/
+function drawDipMarks(
+  context: CanvasRenderingContext2D,
+  style: CSSStyleDeclaration,
+  columns: Float32Array,
+  width: number,
+  height: number,
+) {
+  const dips = split.proposedSplits.filter((proposal) => proposal.kind === 'dip')
+  const marks = dipMarks(
+    dips.map((dip) => dip.seconds),
+    sourceFile.durationSeconds ?? 0,
+    columns,
+    width,
+    height,
+  )
+  const half = DIP_MARK_SIZE / 2
+  context.fillStyle = style.getPropertyValue('--color-ink')
+  context.strokeStyle = style.getPropertyValue('--color-surface')
+  context.lineWidth = 1.5
+  // One diamond around the origin, moved to each mark.
+  const diamond = new Path2D()
+  diamond.moveTo(0, -half)
+  diamond.lineTo(half, 0)
+  diamond.lineTo(0, half)
+  diamond.lineTo(-half, 0)
+  diamond.closePath()
+  for (const { x, y } of marks) {
+    context.save()
+    context.translate(x, y)
+    context.stroke(diamond)
+    context.fill(diamond)
+    context.restore()
   }
 }
 
@@ -144,6 +185,7 @@ function draw() {
     height,
     split.selectedSplitIndex,
   )
+  drawDipMarks(context, style, columns, width, height)
 
   drawThreshold(context, style, width, height)
 }
@@ -158,6 +200,7 @@ watch(
     split.splits.map((point) => point.seconds),
     split.selectedSplit?.id,
     split.silenceThreshold,
+    split.proposedSplits,
   ],
   draw,
 )

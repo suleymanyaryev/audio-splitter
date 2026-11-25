@@ -12,6 +12,8 @@ import {
   DEFAULT_DEPTH_DB,
   DEFAULT_MINIMUM_GAP_SECONDS,
   DEFAULT_OFFSET_DB,
+  DEPTH_MAX_DB,
+  DEPTH_MIN_DB,
   THRESHOLD_MAX_DB,
   THRESHOLD_MIN_DB,
 } from '../config/defaults.ts'
@@ -33,6 +35,7 @@ import { swapMoment, type SwapLink } from '../lib/swap-moment.ts'
 const BUILT_IN_SETTINGS: DefaultSettings = {
   offsetDb: DEFAULT_OFFSET_DB,
   minimumGapSeconds: DEFAULT_MINIMUM_GAP_SECONDS,
+  depthDb: DEFAULT_DEPTH_DB,
 }
 
 // Splits sit on the same 10 ms grid the arrow keys and a drag step in.
@@ -209,6 +212,8 @@ export const useSplitStore = defineStore('split', () => {
   // Null until the file opens; from then on a plain value the user moves.
   const silenceThreshold = ref<number | null>(null)
   const minimumGapLength = ref(DEFAULT_MINIMUM_GAP_SECONDS)
+  // How deep a dip must be to propose a split, in dB (GLOSSARY.md: Depth setting).
+  const depth = ref(DEFAULT_DEPTH_DB)
   // This file's median loudness, which the threshold's distance under it is measured from.
   const medianDecibels = ref<number | null>(null)
   /*
@@ -658,6 +663,7 @@ export const useSplitStore = defineStore('split', () => {
     medianDecibels.value = median(loudness)
     silenceThreshold.value = thresholdUnder(defaultSettings.value.offsetDb)
     minimumGapLength.value = defaultSettings.value.minimumGapSeconds
+    depth.value = defaultSettings.value.depthDb
     findGapsAgain()
     // One track, no splits: the zoom window starts at 0:00, so the Split view shows the file's opening seconds.
     clearSplits()
@@ -695,6 +701,11 @@ export const useSplitStore = defineStore('split', () => {
     findGapsAgain()
   }
 
+  // The depth setting is held to its slider: it changes only what Find splits would add.
+  function setDepth(decibels: number) {
+    depth.value = Math.min(Math.max(decibels, DEPTH_MIN_DB), DEPTH_MAX_DB)
+  }
+
   // The threshold's distance under this file's median now, rounded to 0.1 dB: what "Save as default" saves.
   const currentOffsetDecibels = computed(() =>
     medianDecibels.value === null || silenceThreshold.value === null
@@ -707,13 +718,15 @@ export const useSplitStore = defineStore('split', () => {
     () =>
       silenceThreshold.value !== null &&
       roundToTenth(silenceThreshold.value) === thresholdUnder(defaultSettings.value.offsetDb) &&
-      roundToTenth(minimumGapLength.value) === defaultSettings.value.minimumGapSeconds,
+      roundToTenth(minimumGapLength.value) === defaultSettings.value.minimumGapSeconds &&
+      roundToTenth(depth.value) === defaultSettings.value.depthDb,
   )
 
   const areDefaultSettingsBuiltIn = computed(
     () =>
       defaultSettings.value.offsetDb === BUILT_IN_SETTINGS.offsetDb &&
-      defaultSettings.value.minimumGapSeconds === BUILT_IN_SETTINGS.minimumGapSeconds,
+      defaultSettings.value.minimumGapSeconds === BUILT_IN_SETTINGS.minimumGapSeconds &&
+      defaultSettings.value.depthDb === BUILT_IN_SETTINGS.depthDb,
   )
 
   // "Save as default": the current minimum gap length and threshold distance, kept across visits.
@@ -722,6 +735,7 @@ export const useSplitStore = defineStore('split', () => {
     defaultSettings.value = {
       offsetDb: currentOffsetDecibels.value,
       minimumGapSeconds: roundToTenth(minimumGapLength.value),
+      depthDb: roundToTenth(depth.value),
     }
     saveDefaultSettings(defaultSettings.value)
   }
@@ -733,6 +747,7 @@ export const useSplitStore = defineStore('split', () => {
     if (medianDecibels.value === null) return
     silenceThreshold.value = thresholdUnder(BUILT_IN_SETTINGS.offsetDb)
     minimumGapLength.value = BUILT_IN_SETTINGS.minimumGapSeconds
+    depth.value = BUILT_IN_SETTINGS.depthDb
     findGapsAgain()
   }
 
@@ -743,7 +758,7 @@ export const useSplitStore = defineStore('split', () => {
   const dips = computed(() =>
     depthProfile.value === null || timing.value === null
       ? []
-      : findDips(depthProfile.value.depth, { ...timing.value, depthSetting: DEFAULT_DEPTH_DB }),
+      : findDips(depthProfile.value.depth, { ...timing.value, depthSetting: depth.value }),
   )
 
   /*
@@ -1343,6 +1358,7 @@ export const useSplitStore = defineStore('split', () => {
     depthProfile.value = null
     silenceThreshold.value = null
     minimumGapLength.value = DEFAULT_MINIMUM_GAP_SECONDS
+    depth.value = DEFAULT_DEPTH_DB
     medianDecibels.value = null
     gaps.value = []
     gapDepths.value = []
@@ -1366,6 +1382,7 @@ export const useSplitStore = defineStore('split', () => {
   return {
     silenceThreshold,
     minimumGapLength,
+    depth,
     gaps,
     proposedSplits,
     canClearSplits,
@@ -1410,6 +1427,7 @@ export const useSplitStore = defineStore('split', () => {
     restoreBuiltIn,
     setSilenceThreshold,
     setMinimumGapLength,
+    setDepth,
     selectSplit,
     selectTrack,
     selectAdjacentTrack,

@@ -10,6 +10,8 @@ export interface Proposal {
   seconds: number
   // How deep the boundary is, in dB: the gap's depth, or the dip's.
   depth: number
+  // Which detector proposed it: the middle of a gap, or the deepest point of a dip.
+  kind: 'gap' | 'dip'
 }
 
 export interface ProposalInput {
@@ -61,14 +63,16 @@ export function proposeSplits(input: ProposalInput): Proposal[] {
   for (const { seconds, depth } of candidates) {
     const last = kept.at(-1)
     if (last === undefined || areApart(last.seconds, seconds, BOUNDARY_SPACING_SECONDS)) {
-      kept.push({ seconds, depth })
+      kept.push({ seconds, depth, kind: 'gap' })
     } else if (depth > last.depth) {
-      kept[kept.length - 1] = { seconds, depth }
+      kept[kept.length - 1] = { seconds, depth, kind: 'gap' }
     }
   }
-  const dipsAway = dips.filter((dip) =>
-    kept.every((other) => areApart(other.seconds, dip.seconds, BOUNDARY_SPACING_SECONDS)),
-  )
+  const dipsAway = dips
+    .filter((dip) =>
+      kept.every((other) => areApart(other.seconds, dip.seconds, BOUNDARY_SPACING_SECONDS)),
+    )
+    .map(({ seconds, depth }): Proposal => ({ seconds, depth, kind: 'dip' }))
 
   return inTimeOrder(kept, dipsAway).filter(
     ({ seconds }) =>

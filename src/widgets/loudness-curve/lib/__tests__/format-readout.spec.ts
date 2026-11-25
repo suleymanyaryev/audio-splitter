@@ -5,6 +5,7 @@ import {
   formatDuplicateResult,
   formatOffset,
   formatSeconds,
+  formatSettingDecibels,
   formatSettingSeconds,
 } from '../format-readout.ts'
 
@@ -32,6 +33,13 @@ describe('formatSettingSeconds', () => {
     expect(formatSettingSeconds(2)).toBe('2 s')
     expect(formatSettingSeconds(2.5)).toBe('2.5 s')
     expect(formatSettingSeconds(0.2)).toBe('0.2 s')
+  })
+})
+
+describe('formatSettingDecibels', () => {
+  it('writes no trailing zero', () => {
+    expect(formatSettingDecibels(15)).toBe('15 dB')
+    expect(formatSettingDecibels(11.5)).toBe('11.5 dB')
   })
 })
 

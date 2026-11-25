@@ -16,7 +16,7 @@ The project has a second, equal reason: I wanted to learn how digital audio work
 
 1. **Load** an `.m4a` (AAC), `.mp3`, `.opus` or `.ogg` (Vorbis) file, or an MP4, MOV, WebM or MKV video, whose first audio stream is used and picture ignored. Any other file gets a message saying what it is.
 2. **Analyse.** The file is decoded in slices into a waveform and a loudness curve. A 1 h file takes a few seconds.
-3. **Find splits.** The file opens as one track. Two settings, the silence threshold and the minimum gap length, tune which quiet gaps show, and one button turns the gaps, and the dips where the level falls far under its surroundings, into splits.
+3. **Find splits.** The file opens as one track. Three settings, the silence threshold, the minimum gap length and the depth, tune what is found, and one button turns the gaps, and the dips where the level falls far under its surroundings, into splits.
 4. **Review.** Listen across a split, to a whole track, or to a range you drag out. Move, add and delete splits, name the tracks, and leave out the ones you don't want. "Find duplicates" leaves out a track that is the same recording as an earlier one, and points at a split that may be missing.
 5. **Export** every track you kept into a new folder, or one track or range as a single file. Tracks are audio-only files in the source's audio format (`.m4a`, `.mp3`, `.opus` or `.ogg`), tagged and never re-encoded.
 

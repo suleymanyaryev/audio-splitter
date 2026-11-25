@@ -2,7 +2,11 @@ import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 
 import { flushPromises, mount } from '@vue/test-utils'
-import { DEFAULT_MINIMUM_GAP_SECONDS, DEFAULT_OFFSET_DB } from '@/entities/split/config/defaults.ts'
+import {
+  DEFAULT_DEPTH_DB,
+  DEFAULT_MINIMUM_GAP_SECONDS,
+  DEFAULT_OFFSET_DB,
+} from '@/entities/split/config/defaults.ts'
 import type { FoundMatch } from '@/entities/split/lib/find-matches.ts'
 import { useSplitStore } from '@/entities/split/model/split.ts'
 import LoudnessSettings from '../LoudnessSettings.vue'
@@ -164,7 +168,40 @@ describe('LoudnessSettings', () => {
     wrapper.unmount()
   })
 
+  it('reads out the depth, and moves it in tenths of a dB through the store', async () => {
+    const wrapper = mount(LoudnessSettings, { attachTo: document.body })
+    await flushPromises()
+    expect(wrapper.text()).toContain('Depth')
+    expect(wrapper.text()).toContain(`${DEFAULT_DEPTH_DB.toFixed(1)} dB`)
+
+    await wrapper.get('[aria-label="Depth"]').trigger('keydown', { key: 'ArrowRight' })
+
+    expect(useSplitStore().depth).toBeCloseTo(DEFAULT_DEPTH_DB + 0.1, 9)
+    expect(wrapper.text()).toContain('15.1 dB')
+    wrapper.unmount()
+  })
+
   describe('Find splits', () => {
+    it('follows the depth live, and moves no split', async () => {
+      const split = useSplitStore()
+      // 4 s that are 16 dB under the music: a dip, and no gap.
+      const curve = new Float32Array(880).fill(-10)
+      curve.fill(-26, 400, 480)
+      split.open(curve, { windowSeconds: 0.05, durationSeconds: 44 })
+      const wrapper = mount(LoudnessSettings, { attachTo: document.body })
+      await flushPromises()
+      expect(findSplitsButton(wrapper).text()).toBe('Find splits (1)')
+
+      // 15 dB to 16.1 dB, one tenth at a time: a dip of 16 dB is no longer deep enough.
+      for (let step = 0; step < 11; step++) {
+        await wrapper.get('[aria-label="Depth"]').trigger('keydown', { key: 'ArrowRight' })
+      }
+
+      expect(findSplitsButton(wrapper).text()).toBe('Find splits (0)')
+      expect(split.splits).toEqual([])
+      wrapper.unmount()
+    })
+
     it('says how many splits a press would add', () => {
       const wrapper = mount(LoudnessSettings)
 
@@ -400,7 +437,9 @@ describe('LoudnessSettings', () => {
       const save = buttonNamed(wrapper, 'Save as default')
       expect(save.attributes('disabled')).toBeUndefined()
       // The median is -10 dB, so one step down is 18.1 dB under it.
-      expect(await tooltipOf(save)).toBe('Save 18.1 dB under the median and 2 s as the default')
+      expect(await tooltipOf(save)).toBe(
+        'Save 18.1 dB under the median, 2 s and 15 dB deep as the default',
+      )
       wrapper.unmount()
     })
 
@@ -416,7 +455,7 @@ describe('LoudnessSettings', () => {
       expect(buttonNamed(wrapper, 'Save as default').attributes('disabled')).toBeDefined()
       expect(buttonNamed(wrapper, 'Restore built-in').attributes('disabled')).toBeUndefined()
       expect(await tooltipOf(buttonNamed(wrapper, 'Restore built-in'))).toBe(
-        'Put the default settings back to 18 dB under the median and 2 s',
+        'Put the default settings back to 18 dB under the median, 2 s and 15 dB deep',
       )
       wrapper.unmount()
     })

@@ -2,8 +2,11 @@
 import { ref } from 'vue'
 
 import {
+  DEFAULT_DEPTH_DB,
   DEFAULT_MINIMUM_GAP_SECONDS,
   DEFAULT_OFFSET_DB,
+  DEPTH_MAX_DB,
+  DEPTH_MIN_DB,
   MINIMUM_GAP_MAX_SECONDS,
   MINIMUM_GAP_MIN_SECONDS,
   SETTING_STEP,
@@ -18,21 +21,24 @@ import {
   formatDecibels,
   formatDuplicateResult,
   formatOffset,
+  formatSettingDecibels,
   formatSeconds,
   formatSettingSeconds,
 } from '../lib/format-readout.ts'
 import ClearSplitsDialog from './ClearSplitsDialog.vue'
 
 /*
-The loudness panel's title row: the two settings of gap finding, and the button that turns the
-gaps they show into splits. The threshold covers the curve's drawn range, −60 to 0 dB, in tenths;
-the minimum gap length runs from a few windows to a long pause. Moving either changes only the
-gaps shown, so there is nothing to ask. "Find splits" says how many splits a press would add.
+The loudness panel's title row: the three settings of split finding, and the button that turns what
+they show into splits. The threshold covers the curve's drawn range, −60 to 0 dB, in tenths; the
+minimum gap length runs from a few windows to a long pause; the depth, from 3 to 30 dB, is how far
+under its surroundings a dip must fall. Moving any of them changes only what is shown (the gaps, and
+a mark on the curve at each dip), so there is nothing to ask. "Find splits" says how many splits a
+press would add.
 "Find duplicates" looks for tracks that are the same recording as an earlier one and changes
 nothing of the user's: it is off until two tracks are 30 s long, busy while it searches, and the
 line beside it says what it found, nothing before the first press, or why the search failed.
 "Clear splits" starts over: it asks first only when the user has edits or pending splits to lose.
-"Save as default" keeps the two settings for every later file, the threshold as a distance under
+"Save as default" keeps the three settings for every later file, the threshold as a distance under
 the median, and "Restore built-in" puts the built-in ones back; each is off when it would change
 nothing. The row wraps when the panel is too narrow for all of it, so no button is cut off.
 */
@@ -72,8 +78,18 @@ function confirmClear() {
       class="w-80"
       @update:model-value="split.setMinimumGapLength"
     />
+    <UiSlider
+      :model-value="split.depth"
+      label="Depth"
+      :readout="formatDecibels(split.depth)"
+      :min="DEPTH_MIN_DB"
+      :max="DEPTH_MAX_DB"
+      :step="SETTING_STEP"
+      class="w-80"
+      @update:model-value="split.setDepth"
+    />
     <div class="flex items-center gap-2">
-      <UiTooltip label="Add a split in the middle of each gap that has none">
+      <UiTooltip label="Add a split at each gap and each dip that has none near it">
         <UiButton
           size="sm"
           :disabled="split.proposedSplits.length === 0"
@@ -121,14 +137,14 @@ function confirmClear() {
     </div>
     <div class="flex items-center gap-2">
       <UiTooltip
-        :label="`Save ${formatOffset(split.currentOffsetDb ?? 0)} and ${formatSettingSeconds(split.minimumGapLength)} as the default`"
+        :label="`Save ${formatOffset(split.currentOffsetDb ?? 0)}, ${formatSettingSeconds(split.minimumGapLength)} and ${formatSettingDecibels(split.depth)} deep as the default`"
       >
         <UiButton size="sm" :disabled="split.matchesDefaultSettings" @click="split.saveAsDefault()">
           Save as default
         </UiButton>
       </UiTooltip>
       <UiTooltip
-        :label="`Put the default settings back to ${formatOffset(DEFAULT_OFFSET_DB)} and ${formatSettingSeconds(DEFAULT_MINIMUM_GAP_SECONDS)}`"
+        :label="`Put the default settings back to ${formatOffset(DEFAULT_OFFSET_DB)}, ${formatSettingSeconds(DEFAULT_MINIMUM_GAP_SECONDS)} and ${formatSettingDecibels(DEFAULT_DEPTH_DB)} deep`"
       >
         <UiButton
           size="sm"

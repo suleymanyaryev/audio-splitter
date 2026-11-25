@@ -3,6 +3,7 @@ import { createPinia, setActivePinia } from 'pinia'
 import { watch } from 'vue'
 
 import {
+  DEFAULT_DEPTH_DB,
   DEFAULT_MINIMUM_GAP_SECONDS,
   DEFAULT_OFFSET_DB,
   DEFAULT_SETTINGS_STORAGE_KEY,
@@ -61,6 +62,9 @@ function openCurve(curve: Float32Array) {
   store.open(curve, timing(curve))
   return store
 }
+
+// 4 s from 20 s that sit 16 dB under the music: no gap at -28 dB, but a dip 16 dB deep.
+const shallowDip = () => curveOf([LOUD, 400], [-26, 80], [LOUD, 400])
 
 // The times Find splits would add now.
 const seconds = (store: ReturnType<typeof useSplitStore>) =>
@@ -634,6 +638,53 @@ describe('the split store', () => {
       expect(store.splits).toHaveLength(2)
     })
 
+    describe('the depth setting', () => {
+      it('starts at 15 dB, which a dip of 16 dB reaches and one of 17 dB does not', () => {
+        const store = openCurve(shallowDip())
+
+        expect(store.depth).toBe(15)
+        expect(store.gaps).toEqual([])
+        expect(seconds(store)).toHaveLength(1)
+
+        store.setDepth(16.5)
+        expect(seconds(store)).toEqual([])
+      })
+
+      it('shows what a press would add as it moves, and changes no split, name or selection', () => {
+        const store = openCurve(shallowDip())
+        store.renameTrack(null, 'Opening')
+        const selection = store.selectedTrack?.number
+        store.setDepth(30)
+        expect(store.proposedSplits).toEqual([])
+
+        store.setDepth(3)
+
+        expect(store.proposedSplits.length).toBeGreaterThan(0)
+        expect(store.splits).toEqual([])
+        expect(store.firstTrackName).toBe('Opening')
+        expect(store.selectedTrack?.number).toBe(selection)
+        expect(store.editCount).toBe(1)
+      })
+
+      it('is held to the slider: 3 to 30 dB', () => {
+        const store = openCurve(shallowDip())
+
+        store.setDepth(1)
+        expect(store.depth).toBe(3)
+
+        store.setDepth(99)
+        expect(store.depth).toBe(30)
+      })
+
+      it('marks the proposals of dips, and not those of gaps', () => {
+        const store = openCurve(
+          curveOf([LOUD, 400], [-26, 80], [LOUD, 400], [QUIET, 60], [LOUD, 400]),
+        )
+
+        expect(store.proposedSplits.map((proposal) => proposal.kind)).toEqual(['dip', 'gap'])
+      })
+    })
+
     describe('dips and one split per boundary', () => {
       it('proposes a split in a silence shorter than the minimum gap length', () => {
         // 1.5 s of quiet from 20 s to 21.5 s: no gap at the default 2 s, but a dip 40 dB deep.
@@ -967,6 +1018,40 @@ describe('the split store', () => {
       expect(store.editCount).toBe(1)
     })
 
+    it('hold the depth too: 15 dB at first, saved with the others and used by the next file', () => {
+      const store = useSplitStore()
+      openFile(store, loudFile())
+      expect(store.depth).toBe(DEFAULT_DEPTH_DB)
+      expect(store.matchesDefaultSettings).toBe(true)
+
+      store.setDepth(11.5)
+      expect(store.matchesDefaultSettings).toBe(false)
+
+      store.saveAsDefault()
+      expect(store.matchesDefaultSettings).toBe(true)
+      expect(store.areDefaultSettingsBuiltIn).toBe(false)
+      openFile(store, quietFile())
+      expect(store.depth).toBe(11.5)
+
+      store.restoreBuiltIn()
+      expect(store.depth).toBe(15)
+      expect(store.areDefaultSettingsBuiltIn).toBe(true)
+    })
+
+    it('start a version 1 entry, which has no depth, at 15 dB', () => {
+      localStorage.setItem(
+        DEFAULT_SETTINGS_STORAGE_KEY,
+        '{"version":1,"offsetDb":12,"minimumGapSeconds":3}',
+      )
+
+      const store = useSplitStore()
+      openFile(store, loudFile())
+
+      expect(store.silenceThreshold).toBe(-22)
+      expect(store.minimumGapLength).toBe(3)
+      expect(store.depth).toBe(15)
+    })
+
     it('hold a saved threshold to the slider’s range for a file of another loudness', () => {
       localStorage.setItem(
         DEFAULT_SETTINGS_STORAGE_KEY,
@@ -992,7 +1077,8 @@ describe('the split store', () => {
       ['text that is no JSON', 'loud'],
       ['an offset off the 0.1 grid', '{"version":1,"offsetDb":18.25,"minimumGapSeconds":2}'],
       ['a minimum gap length out of range', '{"version":1,"offsetDb":12,"minimumGapSeconds":9}'],
-      ['another version', '{"version":2,"offsetDb":12,"minimumGapSeconds":3}'],
+      ['another version', '{"version":3,"offsetDb":12,"minimumGapSeconds":3,"depthDb":9}'],
+      ['a depth out of range', '{"version":2,"offsetDb":12,"minimumGapSeconds":3,"depthDb":40}'],
     ])('are the built-in ones for %s', (_, saved) => {
       if (saved !== null) localStorage.setItem(DEFAULT_SETTINGS_STORAGE_KEY, saved)
 
