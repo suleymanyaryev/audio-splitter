@@ -142,6 +142,16 @@ function isStepKeyActedOn(step: -1 | 1) {
   return hasStepped
 }
 
+/*
+K marks the selected split checked, kept where it is. A held key marks once, and a split with no
+confidence has no use for it, so the key is left to the browser.
+*/
+function isCheckKeyActedOn(event: KeyboardEvent, selected: { confidence: object | null }) {
+  if (selected.confidence === null) return false
+  if (!event.repeat) split.markChecked()
+  return true
+}
+
 // Whether the key was the view's: a key it leaves alone is the browser's, and is not reported.
 function isKeyActedOn(event: KeyboardEvent) {
   const step = stepOfKey(event)
@@ -153,12 +163,7 @@ function isKeyActedOn(event: KeyboardEvent) {
   }
   const selected = split.selectedSplit
   if (selected === null) return false
-  // K is the split checked, kept where it is; a held key marks once, and a split with none has no use for it.
-  if (event.code === 'KeyK' && !event.shiftKey) {
-    if (selected.confidence === null) return false
-    if (!event.repeat) split.markChecked()
-    return true
-  }
+  if (event.code === 'KeyK' && !event.shiftKey) return isCheckKeyActedOn(event, selected)
   if (event.key === 'Home') {
     audition.backToAuditionStart()
     return true

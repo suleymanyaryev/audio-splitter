@@ -8,11 +8,11 @@ Every distance is in windows, which are 50 ms (see loudness-builder.ts).
 */
 
 // Every value under this counts as this, so digital silence (-100 dB) cannot swamp a mean.
-export const FLOOR_DECIBELS = -60
+const FLOOR_DECIBELS = -60
 // The smoothed level averages the window and 10 on either side: 21 windows, a second.
 const SMOOTHING_RADIUS = 10
 // The loudness around is the median of 400 windows on either side: 20 s before and 20 s after.
-export const AROUND_RADIUS = 400
+const AROUND_RADIUS = 400
 // The median is taken every 10 windows (0.5 s) and held for the windows between.
 const AROUND_STEP = 10
 
