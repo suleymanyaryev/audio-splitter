@@ -200,7 +200,7 @@ describe('cutTrack', () => {
     expect(command.at(-1)).toBe('/track.m4a')
   })
 
-  describe('.mp3 and .opus, which seek twice', () => {
+  describe('.mp3, .opus and .ogg, which seek twice', () => {
     const copyTail = ['-map', '0:a:0', '-c', 'copy', '-map_chapters', '-1']
 
     it('copies a middle .mp3 track: a jump 2 s early, then the exact seek and -t', async () => {

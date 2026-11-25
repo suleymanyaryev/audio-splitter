@@ -37,7 +37,7 @@ Writing every track that is not left out as its own audio file, in the source fi
 _Avoid_: Download, save, split (as a verb)
 
 **Seek method**:
-How a cut finds its start in a source file, set by the container: once, with one jump before the input (MP4 and MOV, which index every frame), or twice, with a jump 2 s early and then an exact seek (MP3, Ogg, and later WebM and Matroska). Not the same as the track format, which the codec sets.
+How a cut finds its start in a source file, set by the container: once, with one jump before the input (MP4 and MOV, which index every frame), or twice, with a jump 2 s early and then an exact seek (MP3, Ogg, WebM and Matroska). Not the same as the track format, which the codec sets.
 _Avoid_: Cut mode, seek type
 
 **Single export**:

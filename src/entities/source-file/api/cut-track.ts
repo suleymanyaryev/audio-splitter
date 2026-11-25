@@ -46,9 +46,9 @@ list trims the rest. The `-ss` and `-to` both go before `-i`: after the jump the
 0, and `-to` before the input counts on the source's clock again (the note's "Why -ss and -to
 both go before -i").
 
-Containers with no such index (MP3, Ogg) seek twice, and so does Matroska, whose Opus a single
-seek before the input breaks (ticket 01 of video-and-more-formats) (the note's "Why .mp3 and .opus seek
-twice"). The first `-ss` jumps to 2 s before the start, never before 0, and the second, after
+Containers with no such index (MP3, Ogg) seek twice (the note's "Why .mp3 and .opus seek twice"),
+and so does Matroska, whose Opus a single seek before the input breaks (ticket 01 of
+video-and-more-formats). The first `-ss` jumps to 2 s before the start, never before 0, and the second, after
 the input, is the exact start counted from there. The stop is `-t`, a length, and never `-to`:
 the clock restarts after the input seek, so a `-to` would count from the jump and not from the
 file's start. The first track starts with the file and needs neither seek. Both numbers are made

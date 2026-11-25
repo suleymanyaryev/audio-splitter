@@ -59,13 +59,20 @@ Reading the sound straight out of the video, reading it from the lifted-out `.m4
 
 **Which stream the app reads.** A video usually lists its picture first (`Stream #0:0 Video`, `#0:1 Audio`). The app asks for `0:a:0`, the first audio stream, and never decodes the picture. A file with several audio streams, say two languages, gets the first. A file with none gets the "no audio" message.
 
-**How long the file is.** The container reports one duration, and it is the longest stream's. Here the picture is 3,686.32 s and the sound 3,686.214 s, so the container says 3,686.32 s: 0.1 s of nothing at the end. For a real video whose picture runs on after the sound, the difference is larger, and the length the app needs is the sound's. What ffmpeg's log offers for it, per container, was measured on a stand-in whose picture runs 3 s long (ticket 01 of this milestone).
+**How long the file is.** The container reports one duration, and it is the longest stream's. Here the picture is 3,686.32 s and the sound 3,686.214 s, so the container says 3,686.32 s: 0.1 s of nothing at the end. For a real video whose picture runs on after the sound, the difference is larger, and the length the app needs is the sound's. What ffmpeg's log offers for it was measured on a stand-in whose picture runs 3 s long (ticket 01 of this milestone). A WebM or MKV log gives every stream its own `DURATION` line, 600.021 s for the sound and 603 s for the picture, and the app reads the sound's. An MP4 or MOV log gives only the container's 603 s, so the app shows the picture's length there.
 
-**How a cut seeks.** Note 07 showed two cut commands: one jump before the input for `.m4a`, a jump 2 s early and an exact seek after it for `.mp3` and `.opus`. The choice follows the container's index, not the codec. An MP4 or MOV lists every packet, so one jump lands exactly, whether the sound is AAC alone or beside a video. A WebM, MKV or Ogg stamps time only now and then, so a jump lands early and the second seek corrects it. This is why the app stops using one value for both the seek and the file name: the container picks the seek, the codec picks the extension.
+**How a cut seeks.** Note 07 showed two cut commands: one jump before the input for `.m4a`, a jump 2 s early and an exact seek after it for `.mp3` and `.opus`. The choice follows the container's index, not the codec. An MP4 or MOV lists every packet, so one jump lands exactly, whether the sound is AAC alone or beside a video. A WebM, MKV or Ogg stamps time only now and then, so a jump lands early and the second seek corrects it. For Opus in WebM a single jump is worse than early: ffmpeg writes a file with negative timestamps that ffprobe reads with "Unsupported huge granule pos". This is why the app stops using one value for both the seek and the file name: the container picks the seek, the codec picks the extension.
 
 ## What it costs to read past the picture
 
 The splitter needs 7 % of this file, but ffmpeg.wasm reads the file through the browser, and its demuxer reads through the picture's bytes between the sound's packets. On this file in the pinned core (ticket 01 of this milestone, Chrome), decoding the hour takes 11.1 s against 4.7 s for the `.m4a` alone: 2.4 times as long. The lift-out command above takes 6 to 7 s for a file this size, so lifting the sound out on load would save nothing here. It is an idea the app does not use.
+
+## Where it lives in the code
+
+- [`src/entities/source-file/api/probe.ts`](../../src/entities/source-file/api/probe.ts): reads the log. Container and codec pick the track format and the seek method; the first audio stream's own `DURATION` line, or the container's `Duration`, is the length.
+- [`src/entities/source-file/api/cut-track.ts`](../../src/entities/source-file/api/cut-track.ts): the seek method picks the command, the track format picks the extension and where the tags go (on the stream for `.opus` and `.ogg`).
+- [`src/pages/load/ui/LoadPage.vue`](../../src/pages/load/ui/LoadPage.vue): the file dialog's `accept` list, a convenience only: the probe decides.
+- [`e2e/fixtures/make-fixtures.sh`](../../e2e/fixtures/make-fixtures.sh): the 160×90 test-picture MP4 and WebM, and the check in [`e2e/export.spec.ts`](../../e2e/export.spec.ts) that a track holds no video.
 
 ## Not measured
 

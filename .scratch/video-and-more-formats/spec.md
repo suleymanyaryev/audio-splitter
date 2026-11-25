@@ -1,6 +1,6 @@
 # Video files and more audio formats
 
-Status: ready-for-agent
+Status: resolved
 
 From GitHub issue #13, milestone 3 of the [v2 milestones](../audio-splitter-v2/milestones.md#milestone-3-containers-video-and-more-audio-formats). Vocabulary is in the glossary. While this was grilled, **Source file** and **Supported format** changed, **Track format** was added, and **Export** and **Single export** now say "track format". The decisions and the first measurements are in [analysis.md](analysis.md#decisions). No ADR: each decision is easy to reverse.
 

@@ -48,10 +48,14 @@ const mp4VideoLog = [
   'At least one output file must be specified',
 ]
 
+// The MOV copy of the same file: the brand is `qt`, and the streams carry no language tag on the
+// picture. The probe sees the same demuxer.
 const movVideoLog = mp4VideoLog.map((line) =>
   line
     .replace("from '/in/source.mp4'", "from '/in/source.mov'")
-    .replace('major_brand     : isom', 'major_brand     : qt  '),
+    .replace('major_brand     : isom', 'major_brand     : qt  ')
+    .replace('compatible_brands: isomiso2avc1mp41', 'compatible_brands: qt  ')
+    .replace('Stream #0:0[0x1](und): Video', 'Stream #0:0[0x1]: Video'),
 )
 
 // The picture runs 3 s past the audio (600 s): the log gives the container's length only.
@@ -171,6 +175,20 @@ describe('readProbeLog', () => {
       durationSeconds: 3686.21,
       sampleRate: 44_100,
       channelCount: 2,
+    })
+  })
+
+  it('names a WAV the same way, since PCM is not a pair the splitter cuts', () => {
+    const wavLog = [
+      "Input #0, wav, from '/in/source.wav':",
+      '  Duration: 00:00:30.00, bitrate: 1411 kb/s',
+      '  Stream #0:0: Audio: pcm_s16le ([1][0][0][0] / 0x0001), 44100 Hz, 2 channels, s16, 1411 kb/s',
+      'At least one output file must be specified',
+    ]
+
+    expect(readProbeLog(wavLog)).toMatchObject({
+      kind: 'unsupported',
+      message: expect.stringMatching(/^This file is pcm_s16le in WAV;/),
     })
   })
 
