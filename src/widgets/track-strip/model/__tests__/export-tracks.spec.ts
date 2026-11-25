@@ -7,6 +7,28 @@ import { exportSummary } from '../../lib/export-summary.ts'
 import { useExportTracksStore } from '../export-tracks.ts'
 import { FakeFolder } from './fake-folder.ts'
 
+// The worker is replaced by an answer: the second track repeats the first, the third is its own.
+vi.mock('@/entities/split/api/find-matches-client.ts', () => ({
+  findMatchesInWorker: () =>
+    Promise.resolve([
+      {
+        later: 1,
+        earlier: 0,
+        kind: 'full',
+        laterShared: { from: 0, to: 30 },
+        earlierShared: { from: 0, to: 30 },
+      },
+    ]),
+}))
+
+// 107 s: three loud stretches of 35 s with a 2 s silence between each two, so three tracks of 30 s or more.
+function curveWithThreeLongTracks() {
+  const curve = new Float32Array(2140).fill(-10)
+  curve.fill(-70, 700, 740)
+  curve.fill(-70, 1440, 1480)
+  return curve
+}
+
 /*
 100 s at 50 ms per window: loud, a 2 s silence from 20 s, loud, a 2 s silence from 70.5 s, loud.
 The splits are at 21 s and 71.5 s, so three tracks.
@@ -44,6 +66,14 @@ function renameAll(split: ReturnType<typeof useSplitStore>, names: string[]) {
     const id = ids[index]
     if (id !== undefined) split.renameTrack(id, name)
   }
+}
+
+// Opens the three long tracks in place of the file, and finds that the second repeats the first.
+async function findTheDuplicate(split: ReturnType<typeof useSplitStore>) {
+  split.open(curveWithThreeLongTracks(), { windowSeconds: 0.05, durationSeconds: 107 })
+  split.addGapSplits()
+  await split.findDuplicates()
+  expect(split.tracks.map((track) => track.matches[0]?.number ?? null)).toEqual([null, 1, null])
 }
 
 // The names of the files the export wrote into its subfolder, in order.
@@ -156,6 +186,35 @@ describe('the export store', () => {
       'Sunrise- Drive.m4a',
       '03.m4a',
     ])
+  })
+
+  describe('duplicates', () => {
+    it('writes no file for a duplicate, and numbers the files it writes 1 to K', async () => {
+      const { split, exporter } = setUp({ withSplits: false })
+      await findTheDuplicate(split)
+      split.setTrackNamePrefix('set-')
+
+      await exporter.start()
+
+      expect(fileNames(picked)).toEqual(['set-01.m4a', 'set-02.m4a'])
+      expect(cutTrack.mock.calls.map(([cut]) => cut.tags)).toEqual([
+        { title: 'set-01', track: '1/2', album: 'Evening Set' },
+        { title: 'set-02', track: '2/2', album: 'Evening Set' },
+      ])
+      expect(exporter.trackCount).toBe(2)
+    })
+
+    it('cuts the track before a duplicate to where the duplicate starts', async () => {
+      const { split, exporter } = setUp({ withSplits: false })
+      await findTheDuplicate(split)
+
+      await exporter.start()
+
+      expect(cutTrack.mock.calls.map(([cut]) => [cut.startSeconds, cut.endSeconds])).toEqual([
+        [0, 36],
+        [73, undefined],
+      ])
+    })
   })
 
   describe('left-out tracks', () => {

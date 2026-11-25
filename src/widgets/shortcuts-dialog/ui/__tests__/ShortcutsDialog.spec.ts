@@ -66,6 +66,16 @@ describe('ShortcutsDialog', () => {
     expect(text).toContain('Click a split’s line')
   })
 
+  it('lists C in the Track view’s section, and nowhere else', async () => {
+    await openDialog()
+
+    const sections = [...(dialog()?.querySelectorAll('section') ?? [])]
+    const withC = sections.filter((section) =>
+      [...section.querySelectorAll('dt')].some((key) => key.textContent === 'C'),
+    )
+    expect(withC.map((section) => section.querySelector('h3')?.textContent)).toEqual(['Track view'])
+  })
+
   it('closes on Escape', async () => {
     await openDialog()
 

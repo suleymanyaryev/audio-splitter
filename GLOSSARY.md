@@ -69,8 +69,24 @@ Merging a track into its neighbours by deleting the splits at both its ends. Its
 _Avoid_: Deleting a track, excluding a track
 
 **Left-out track**:
-A track that stays in the review, shown and heard like any other, that the export skips; the user leaves it out and brings it back. A split added inside it makes two left-out tracks, and a merged track is left out when the earlier of the two was.
+A track that stays in the review, shown and heard like any other, that the export skips. It is left out for a reason: by hand, when the user leaves it out and brings it back, or as a duplicate. A split added inside a track left out by hand makes two left-out tracks, and a merged track is left out by hand when the earlier of the two was.
 _Avoid_: Excluded track, skipped track, disabled track, muted track
+
+**Match**:
+A stretch where a track is the same recording as an earlier track, found by Find duplicates only when the user asks. It names that earlier track, which for a duplicate is the kept copy. It is full or partial, and lasts until the user dismisses it or a split at either track's ends changes.
+_Avoid_: Mark, flag, repeat, copy
+
+**Kept copy**:
+The track a duplicate's match names: the earliest track in the source file, among those that are the same recording, that was not left out by hand.
+_Avoid_: Original, source, master
+
+**Duplicate**:
+A track whose match with the kept copy covers the whole of both. It is left out as a duplicate while the match lasts, unless it was already left out by hand.
+_Avoid_: Copy, repeat, double
+
+**Partial match**:
+A match that covers only part of one track or of both, at least 30 s long; it usually means a split is missing or misplaced. The track stays in the export.
+_Avoid_: Partial duplicate, overlap, near match
 
 **Zoom window**:
 The 20 second stretch of the source file around a centre time that the Split view shows, outlined on the whole-file view.
@@ -117,5 +133,5 @@ The shortest time the loudness must stay under the silence threshold for the str
 _Avoid_: Minimum duration, minimum silence
 
 **Edit**:
-A thing the user changed by hand since the source file opened: a split moved, added or deleted, a track renamed, or a track left out or brought back. It is counted once per thing changed, however often it was changed; the splits Find gaps adds are no edit until the user changes one.
+A thing the user changed by hand since the source file opened: a split moved, added or deleted, a track renamed, a track left out or brought back, or a match dismissed. It is counted once per thing changed, however often it was changed; the splits Find gaps adds are no edit until the user changes one, and the matches Find duplicates finds are no edit.
 _Avoid_: Change, modification, revision

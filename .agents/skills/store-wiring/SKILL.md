@@ -35,6 +35,7 @@ An async result can arrive after the user has moved on. Every press takes a numb
 ## Jobs and browser APIs
 
 - A long-running job is a store with a `status` (idle, running, done, cancelled, failed), its counts, a `failure` and `dismiss`. A `UiDialog` opened from that status ignores Escape while the job runs (`export-tracks.ts` with `ExportDialog.vue`).
+- Work that would freeze the page runs in a Web Worker: a thin `*.worker.ts` entry with the logic in a plain module its specs import, and a small client in `api/` that sends one request and terminates the worker with its answer, or early through an `AbortSignal` that the store aborts when the file starts over, so a stale search stops using the CPU. A store spec replaces the client with a fake that copies the request with `structuredClone` (as a worker does, which refuses a Vue proxy) and runs the same function in-process (`entities/split/api/find-matches-client.ts`, its fake in `entities/split/model/__tests__/find-duplicates.spec.ts`).
 - A browser API the DOM lib lacks gets a minimal typed slice in the widget's `api/` (`api/export-folder.ts`). Its in-memory fake lives in `model/__tests__/` and copies Chrome's behaviour (`fake-folder.ts`).
 
 ## Specs

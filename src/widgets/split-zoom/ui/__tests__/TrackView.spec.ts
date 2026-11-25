@@ -11,6 +11,20 @@ import TrackView from '../TrackView.vue'
 
 enableAutoUnmount(afterEach)
 
+// The worker is replaced by an answer: the third track repeats the first.
+vi.mock('@/entities/split/api/find-matches-client.ts', () => ({
+  findMatchesInWorker: () =>
+    Promise.resolve([
+      {
+        later: 2,
+        earlier: 0,
+        kind: 'full',
+        laterShared: { from: 0, to: 30 },
+        earlierShared: { from: 0, to: 30 },
+      },
+    ]),
+}))
+
 /*
 100 s at 50 ms per window: loud, a 2 s silence from 20 s, loud, a 2 s silence from 70.5 s, loud. The
 splits are at 21 s and 71.5 s, so the second track runs from 21 s to 71.5 s, 50.5 s.
@@ -35,6 +49,23 @@ function setup() {
   const wrapper = mount(TrackView)
   const stretch = trackExtent(split.selectedTrack!)
   return { audition, split, stretch, toggleStretch, backToStretchStart, wrapper }
+}
+
+// 107 s in three tracks of 35 s or more: the third repeats the first, which the worker's answer says. The third is selected.
+async function setupDuplicate() {
+  useSourceFileStore().durationSeconds = 107
+  const split = useSplitStore()
+  const curve = new Float32Array(2140).fill(-10)
+  curve.fill(-70, 700, 740)
+  curve.fill(-70, 1440, 1480)
+  split.open(curve, { windowSeconds: 0.05, durationSeconds: 107 })
+  split.addGapSplits()
+  await split.findDuplicates()
+  split.selectTrack(split.tracks[2]!)
+  const audition = useAuditionStore()
+  const toggleStretch = vi.spyOn(audition, 'toggleStretch').mockImplementation(() => {})
+  const wrapper = mount(TrackView)
+  return { audition, split, toggleStretch, wrapper }
 }
 
 // Keys belong to the page: the view hears them wherever the focus is.
@@ -282,6 +313,96 @@ describe('TrackView', () => {
     })
   })
 
+  describe('C', () => {
+    it('swaps to the same moment in the matched track, and is not a page action', async () => {
+      const { audition, split, toggleStretch } = await setupDuplicate()
+      audition.seekStretch(trackExtent(split.selectedTrack!), 83)
+      const event = new KeyboardEvent('keydown', { key: 'c', bubbles: true, cancelable: true })
+
+      document.dispatchEvent(event)
+      await nextTick()
+
+      expect(split.selectedTrack?.number).toBe(1)
+      expect(audition.stretchPlayheadSeconds(trackExtent(split.selectedTrack!))).toBe(10)
+      expect(event.defaultPrevented).toBe(true)
+      // It was not playing, so it stays paused at the new playhead.
+      expect(toggleStretch).not.toHaveBeenCalled()
+    })
+
+    it('plays on from there when the track was playing', async () => {
+      const { audition, split, toggleStretch } = await setupDuplicate()
+      // A playing track's playhead is the sound's, which a spec has none of: it is at 83 s.
+      const heard = audition.stretchPlayheadSeconds.bind(audition)
+      vi.spyOn(audition, 'stretchPlayheadSeconds').mockImplementation((stretch) =>
+        stretch.startSeconds === split.selectedTrack?.startSeconds &&
+        split.selectedTrack.number === 3
+          ? 83
+          : heard(stretch),
+      )
+      audition.stretchStatus = 'playing'
+
+      await press({ key: 'C' })
+
+      expect(split.selectedTrack?.number).toBe(1)
+      expect(audition.stretchPlayheadSeconds(trackExtent(split.selectedTrack!))).toBe(10)
+      expect(toggleStretch).toHaveBeenCalledExactlyOnceWith(trackExtent(split.selectedTrack!))
+    })
+
+    it('goes back to the track it came from when pressed on the kept copy', async () => {
+      const { audition, split } = await setupDuplicate()
+      audition.seekStretch(trackExtent(split.selectedTrack!), 83)
+      await press({ key: 'c' })
+
+      await press({ key: 'c' })
+
+      expect(split.selectedTrack?.number).toBe(3)
+      expect(audition.stretchPlayheadSeconds(trackExtent(split.selectedTrack!))).toBe(83)
+    })
+
+    it('is left alone on a track with no match, which sounds and selects nothing', async () => {
+      const { split, toggleStretch, wrapper } = await setupDuplicate()
+      split.selectTrack(split.tracks[1]!)
+      const event = new KeyboardEvent('keydown', { key: 'c', bubbles: true, cancelable: true })
+
+      document.dispatchEvent(event)
+      await nextTick()
+
+      expect(split.selectedTrack?.number).toBe(2)
+      expect(event.defaultPrevented).toBe(false)
+      expect(toggleStretch).not.toHaveBeenCalled()
+      expect(wrapper.emitted('acted')).toBeUndefined()
+    })
+
+    it('is left alone when held on a track with no match', async () => {
+      const { split, wrapper } = await setupDuplicate()
+      split.selectTrack(split.tracks[1]!)
+
+      await press({ key: 'c', repeat: true })
+
+      expect(split.selectedTrack?.number).toBe(2)
+      expect(wrapper.emitted('acted')).toBeUndefined()
+    })
+
+    it('is reported to the page once, and a held key swaps once', async () => {
+      const { split, wrapper } = await setupDuplicate()
+
+      await press({ key: 'c' })
+      await press({ key: 'c', repeat: true })
+
+      expect(split.selectedTrack?.number).toBe(1)
+      expect(wrapper.emitted('acted')).toHaveLength(2)
+    })
+
+    it('is left alone with Shift, Ctrl, Cmd or Alt held', async () => {
+      const { split } = await setupDuplicate()
+
+      for (const modifier of ['shiftKey', 'ctrlKey', 'metaKey', 'altKey']) {
+        await press({ key: 'c', [modifier]: true })
+        expect(split.selectedTrack?.number).toBe(3)
+      }
+    })
+  })
+
   describe('X', () => {
     it('leaves the selected track out, and brings it back, and is not a page action', async () => {
       const { split } = setup()
@@ -295,6 +416,30 @@ describe('TrackView', () => {
 
       await press({ key: 'X' })
       expect(split.tracks.map((track) => track.isLeftOut)).toEqual([false, false, false])
+    })
+
+    it('dismisses the match of a duplicate instead of leaving it out by hand', async () => {
+      useSourceFileStore().durationSeconds = 107
+      const split = useSplitStore()
+      // 107 s: three loud stretches of 35 s with a 2 s silence between each two.
+      const curve = new Float32Array(2140).fill(-10)
+      curve.fill(-70, 700, 740)
+      curve.fill(-70, 1440, 1480)
+      split.open(curve, { windowSeconds: 0.05, durationSeconds: 107 })
+      split.addGapSplits()
+      await split.findDuplicates()
+      split.selectTrack(split.tracks[2]!)
+      mount(TrackView)
+      expect(split.tracks[2]?.inclusion).toBe('duplicate')
+
+      await press({ key: 'x' })
+
+      expect(split.tracks[2]).toMatchObject({ inclusion: 'included', isLeftOut: false })
+      expect(split.tracks[2]?.matches).toEqual([])
+      expect(split.editCount).toBe(1)
+
+      await press({ key: 'x' })
+      expect(split.tracks[2]).toMatchObject({ inclusion: 'by-hand', isLeftOut: true })
     })
 
     it('is reported to the page, and leaves the splits, the selection and the sound alone', async () => {

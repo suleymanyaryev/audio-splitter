@@ -1,26 +1,31 @@
 <script setup lang="ts">
 import { computed, useTemplateRef, watch } from 'vue'
-import { Eye, EyeOff, Merge, Trash2 } from 'lucide-vue-next'
+import { Eye, EyeOff, Merge, Trash2, X } from 'lucide-vue-next'
 
+import { matchTooltip, matchWords, type TrackMatch } from '@/entities/split/lib/match-words.ts'
 import { useSplitStore, type Split, type Track } from '@/entities/split/model/split.ts'
 import { releaseFocus } from '@/shared/lib/keyboard/release-focus.ts'
 import { formatDuration } from '@/shared/lib/time/format-duration.ts'
 import { formatHundredths } from '@/shared/lib/time/format-hundredths.ts'
 import UiIconButton from '@/shared/ui/UiIconButton.vue'
+import UiTooltip from '@/shared/ui/UiTooltip.vue'
 import TrackNameField from './TrackNameField.vue'
 
 /*
 The file as a table, in time order: a row for each track with a row for each split between two
 tracks. A track row has its number (a button, so the row can be selected from the keyboard), its
-name (edited in place, `TrackNameField`, muted while the track has no name of its own), its start
-(hundredths, where a split's position is read) and its length (whole seconds), then two buttons: one
-that leaves the track out of the export or brings it back (a left-out row is muted), and a merge
-button that removes the track and merges it with its neighbours (none when it is the only track). A split
-row reads `Split N` where the name goes, its time in the start column, no length and a trash button
-that deletes the split, which merges the tracks either side of it; it has no name field, because
-naming belongs to tracks. The two buttons carry different icons, so one is not taken for the other.
-The box is as tall as the zoom view's 160 px content area and scrolls inside itself, the heading row
-staying in view.
+name (edited in place, `TrackNameField`, muted while the track has no name of its own, with the
+words of each of its matches under it, one line each, "duplicate of 01" while it is the same
+recording as an earlier track and "03 from 1:40" or "part of 03 from 0:30" while it shares part of
+one, a partial match's words with a tooltip of the stretch both share, each a link that selects the
+other track, with a button that dismisses the match), its start (hundredths, where a split's
+position is read) and its length (whole seconds), then two buttons: one that leaves the track out of
+the export or brings it back (a left-out row is muted), and a merge button that removes the track
+and merges it with its neighbours (none when it is the only track). A split row reads `Split N`
+where the name goes, its time in the start column, no length and a trash button that deletes the
+split, which merges the tracks either side of it; it has no name field, because naming belongs to
+tracks. The two buttons carry different icons, so one is not taken for the other. The box is as tall
+as the zoom view's 160 px content area and scrolls inside itself, the heading row staying in view.
 
 A click on a row selects what it shows, a track or a split (the first track included), and the
 marked row, whichever kind it is, follows the selection and is kept in view; focusing a name field
@@ -35,6 +40,12 @@ const list = useTemplateRef('list')
 type Row =
   | { key: string; kind: 'track'; track: Track }
   | { key: string; kind: 'split'; point: Split; number: number }
+
+// The words of a match are a link: it selects the other track and shows the Track view.
+function selectMatched(match: TrackMatch) {
+  const other = split.tracks[match.number - 1]
+  if (other !== undefined) split.selectTrack(other)
+}
 
 function isSplitSelected(point: Split) {
   return split.selectedSplit?.id === point.id
@@ -114,6 +125,35 @@ watch(
                 @start="split.selectTrack(row.track)"
                 @save="split.renameTrack(row.track.startSplit?.id ?? null, $event)"
               />
+              <div
+                v-for="match in row.track.matches"
+                :key="match.number"
+                class="flex items-center gap-1"
+              >
+                <p class="min-w-0 truncate text-xs">
+                  <UiTooltip
+                    :label="matchTooltip(match, split.tracks.length)"
+                    :disabled="match.kind === 'full'"
+                  >
+                    <button
+                      type="button"
+                      class="cursor-pointer underline decoration-hairline underline-offset-2 hover:decoration-current focus-visible:focus-ring"
+                      @click.stop="selectMatched(match)"
+                      @mousedown="releaseFocus"
+                    >
+                      {{ matchWords(match, split.tracks.length) }}
+                    </button>
+                  </UiTooltip>
+                </p>
+                <UiIconButton
+                  size="sm"
+                  :label="`Dismiss the match of track ${row.track.number} with track ${match.number}`"
+                  class="-my-1 shrink-0"
+                  @click.stop="split.dismissMatch(row.track, match)"
+                >
+                  <X class="size-4 shrink-0" />
+                </UiIconButton>
+              </div>
             </td>
             <td class="border-b border-hairline py-1.5 pr-4 whitespace-nowrap">
               {{ formatHundredths(row.track.startSeconds) }}
