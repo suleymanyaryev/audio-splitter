@@ -4541,3 +4541,214 @@ describe('the contrast curve of the split store', () => {
     expect(store.contrastCurve).toBeNull()
   })
 })
+
+/*
+A file of `lengthSeconds` of music at one loudness whose sound changes at each time in `changes`.
+Each stretch of sound raises its own 20 bands (sound 0 the first 20, sound 1 the next, up to 5) by
+`bump` stored levels, so a change from one to the next lowers 20 bands and raises 20 by the same
+amount: 2 × 20 of the 119 bands that count, a contrast of 0.58 × the bump in dB (a level is
+100 / 255 dB) at the change, once a minute of each sound is either side of it. `gapAt` puts a
+silence of `gapSeconds` there, which is a gap and is left out of the contrast.
+*/
+function soundFile(
+  lengthSeconds: number,
+  changes: number[],
+  { bump = 51, gapAt, gapSeconds = 2 }: { bump?: number; gapAt?: number; gapSeconds?: number } = {},
+) {
+  const columns = lengthSeconds * 20
+  const bands = new Uint8Array(columns * SPECTRUM_BAND_COUNT).fill(60)
+  for (let column = 0; column < columns; column++) {
+    const sound = changes.filter((change) => change * 20 <= column).length % 5
+    for (let band = sound * 20; band < sound * 20 + 20; band++) {
+      bands[column * SPECTRUM_BAND_COUNT + band] = 60 + bump
+    }
+  }
+  const curve = curveOf([LOUD, columns])
+  if (gapAt !== undefined) {
+    curve.fill(QUIET, (gapAt - gapSeconds / 2) * 20, (gapAt + gapSeconds / 2) * 20)
+  }
+  return { curve, spectrogram: { bands, bandCount: SPECTRUM_BAND_COUNT, topHz: 22_050 } }
+}
+
+// The store with a sound file opened and contrast switched on.
+function openSoundFile(...fileArguments: Parameters<typeof soundFile>) {
+  const { curve, spectrogram } = soundFile(...fileArguments)
+  const store = useSplitStore()
+  store.open(curve, timing(curve), spectrogram)
+  store.setContrastOn(true)
+  return store
+}
+
+describe('the contrast splits of the split store', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+  })
+
+  describe('the settings', () => {
+    it('start with contrast off at 5.4 dB, and change no split', () => {
+      const { curve, spectrogram } = soundFile(600, [300])
+      const store = useSplitStore()
+      store.open(curve, timing(curve), spectrogram)
+      expect(store.contrastOn).toBe(false)
+      expect(store.contrastThreshold).toBeCloseTo(5.4, 9)
+
+      store.setContrastOn(true)
+      store.setContrastThreshold(7.5)
+
+      expect(store.contrastOn).toBe(true)
+      expect(store.contrastThreshold).toBe(7.5)
+      expect(store.splits).toEqual([])
+    })
+
+    it('hold the threshold to its slider: 3 to 12 dB in tenths', () => {
+      const store = useSplitStore()
+
+      store.setContrastThreshold(2)
+      expect(store.contrastThreshold).toBe(3)
+      store.setContrastThreshold(20)
+      expect(store.contrastThreshold).toBe(12)
+      store.setContrastThreshold(6.04)
+      expect(store.contrastThreshold).toBe(6)
+    })
+
+    it('go back to the built-in ones with the others, and start over with each file', () => {
+      const { curve, spectrogram } = soundFile(600, [300])
+      const store = useSplitStore()
+      store.open(curve, timing(curve), spectrogram)
+      store.setContrastOn(true)
+      store.setContrastThreshold(8)
+
+      store.restoreBuiltIn()
+      expect(store.contrastOn).toBe(false)
+      expect(store.contrastThreshold).toBeCloseTo(5.4, 9)
+
+      store.setContrastOn(true)
+      store.setContrastThreshold(8)
+      store.open(curve, timing(curve), spectrogram)
+      expect(store.contrastOn).toBe(false)
+      expect(store.contrastThreshold).toBeCloseTo(5.4, 9)
+    })
+  })
+
+  describe('Find splits', () => {
+    it('adds none while contrast is off, and what it adds today for the gaps and dips', () => {
+      const { curve, spectrogram } = soundFile(600, [300], { gapAt: 100 })
+      const withContrast = useSplitStore()
+      withContrast.open(curve, timing(curve), spectrogram)
+      const proposals = withContrast.proposedSplits
+
+      setActivePinia(createPinia())
+      const without = useSplitStore()
+      without.open(curve, timing(curve))
+
+      expect(proposals.map((proposal) => proposal.kind)).toEqual(['gap'])
+      expect(proposals).toEqual(without.proposedSplits)
+    })
+
+    it('adds a split at the contrast peak while contrast is on, and counts it', () => {
+      const store = openSoundFile(600, [300])
+
+      expect(store.proposedSplits).toEqual([
+        // 20 bands down and 20 up by 20 dB, of 119: 20 × √(40 / 119) = 11.6 dB.
+        { seconds: 300, kind: 'contrast', contrast: expect.closeTo(11.6, 1) },
+      ])
+      store.findSplits()
+
+      expect(store.splits.map((split) => split.seconds)).toEqual([300])
+    })
+
+    it('adds no split under the threshold, and one at it', () => {
+      const store = openSoundFile(600, [300])
+      const proposal = store.proposedSplits[0]
+      const peak = proposal?.kind === 'contrast' ? proposal.contrast : NaN
+
+      store.setContrastThreshold(Math.ceil(peak * 10) / 10)
+      expect(store.proposedSplits).toEqual([])
+
+      store.setContrastThreshold(Math.floor(peak * 10) / 10)
+      expect(store.proposedSplits).toHaveLength(1)
+    })
+
+    it('makes a likely split from 6.5 dB and a doubtful one under it, never a sure one', () => {
+      // 29 levels of bump read 6.59 dB at the change, 28 read 6.37 dB.
+      const likely = openSoundFile(600, [300], { bump: 29 })
+      likely.findSplits()
+      setActivePinia(createPinia())
+      const doubtful = openSoundFile(600, [300], { bump: 28 })
+      doubtful.findSplits()
+      setActivePinia(createPinia())
+      const strong = openSoundFile(600, [300], { bump: 120 })
+      strong.findSplits()
+
+      expect(likely.splits[0]?.confidence).toEqual({
+        band: 'likely',
+        depth: null,
+        contrast: expect.closeTo(6.59, 1),
+      })
+      expect(doubtful.splits[0]?.confidence).toEqual({
+        band: 'doubtful',
+        depth: null,
+        contrast: expect.closeTo(6.37, 1),
+      })
+      expect(strong.splits[0]?.confidence?.band).toBe('likely')
+    })
+
+    it('is no edit, and its confidence goes when the split is moved', () => {
+      const store = openSoundFile(600, [300])
+      store.findSplits()
+      expect(store.hasEdits).toBe(false)
+
+      store.selectSplit(store.splits[0]!.id)
+      store.moveSplit(store.splits[0]!.id, 301)
+
+      expect(store.splits[0]?.confidence).toBeNull()
+    })
+
+    it('adds two contrast splits 20 s apart', () => {
+      const store = openSoundFile(900, [300, 320])
+
+      expect(store.proposedSplits.map((proposal) => proposal.seconds)).toEqual([300, 320])
+    })
+  })
+
+  describe('the room around a boundary', () => {
+    it('keeps 60 s from a gap, which proposes its own split', () => {
+      const near = openSoundFile(600, [300], { gapAt: 250 })
+      expect(near.proposedSplits.map((proposal) => proposal.kind)).toEqual(['gap'])
+
+      setActivePinia(createPinia())
+      const far = openSoundFile(600, [300], { gapAt: 230 })
+      expect(far.proposedSplits.map((proposal) => proposal.kind)).toEqual(['gap', 'contrast'])
+    })
+
+    it('keeps 60 s from an existing split', () => {
+      const near = openSoundFile(600, [300])
+      near.addSplitAt(341)
+      expect(near.proposedSplits).toEqual([])
+
+      setActivePinia(createPinia())
+      const far = openSoundFile(600, [300])
+      far.addSplitAt(239)
+      expect(far.proposedSplits.map((proposal) => proposal.seconds)).toEqual([300])
+    })
+
+    it('keeps 60 s from the middle of a gap that holds a split, wherever in the gap it is', () => {
+      // The gap runs from 246 s to 254 s, its middle at 250 s. The split is at its start, 60.3 s from
+      // the change at 306.5 s, which is 56.5 s from the middle.
+      const store = openSoundFile(600, [306.5], { gapAt: 250, gapSeconds: 8 })
+      expect(store.proposedSplits.map((proposal) => proposal.kind)).toEqual(['gap'])
+
+      store.addSplitAt(246.2)
+
+      expect(store.proposedSplits).toEqual([])
+    })
+
+    it('keeps 60 s from the ends of the file', () => {
+      expect(openSoundFile(600, [40]).proposedSplits).toEqual([])
+      setActivePinia(createPinia())
+      expect(openSoundFile(600, [560]).proposedSplits).toEqual([])
+      setActivePinia(createPinia())
+      expect(openSoundFile(600, [100]).proposedSplits).toHaveLength(1)
+    })
+  })
+})

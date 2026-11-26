@@ -1,18 +1,19 @@
+import type { ContrastPeak } from '@/shared/lib/audio/contrast.ts'
 import {
   BOUNDARY_SPACING_SECONDS,
+  CONTRAST_ROOM_SECONDS,
   LIMIT_TOLERANCE,
   MINIMUM_DISTANCE_SECONDS,
 } from '../config/split-room.ts'
 import type { Dip } from './find-dips.ts'
 import type { Gap } from './find-gaps.ts'
 
-export interface Proposal {
-  seconds: number
-  // How deep the boundary is, in dB: the gap's depth, or the dip's.
-  depth: number
-  // Which detector proposed it: the middle of a gap, or the deepest point of a dip.
-  kind: 'gap' | 'dip'
-}
+/*
+Which detector proposed a split: the middle of a gap, the deepest point of a dip (with how deep the
+boundary is, in dB), or a contrast peak (with its contrast, in dB).
+*/
+type DepthProposal = { seconds: number; kind: 'gap' | 'dip'; depth: number }
+export type Proposal = DepthProposal | { seconds: number; kind: 'contrast'; contrast: number }
 
 // A gap and its depth, in dB (GLOSSARY.md: Depth).
 interface MeasuredGap extends Gap {
@@ -22,6 +23,8 @@ interface MeasuredGap extends Gap {
 export interface ProposalInput {
   gaps: MeasuredGap[]
   dips: Dip[]
+  // The contrast peaks that reach the contrast threshold: none while contrast is off.
+  contrastPeaks?: ContrastPeak[]
   splitSeconds: number[]
   durationSeconds: number
 }
@@ -34,8 +37,8 @@ function areApart(first: number, second: number, spacing: number) {
 const middleOf = (gap: Gap) => (gap.startSeconds + gap.endSeconds) / 2
 
 /*
-The splits Find splits would add, in time order. Two detectors propose, and a boundary gets one split
-(concept note 13):
+The splits Find splits would add, in time order. Three detectors propose, and a boundary gets one
+split (concept notes 13 and 15):
 
 1. Each gap that has a track on both sides and holds no split proposes its middle, as Find gaps
    did, with the gap's depth.
@@ -44,9 +47,11 @@ The splits Find splits would add, in time order. Two detectors propose, and a bo
    holds a split: that gap is the boundary, wherever in it the split is. The other dips propose
    their own time.
 4. A proposal within 15 s of a split that exists is dropped, and one within 1 s of the file's ends.
+5. A contrast peak proposes its time, unless a gap or dip proposal that stands, the middle of a gap
+   that holds a split or a split that exists is within 60 s. Contrast peaks are 15 s apart already.
 */
 export function proposeSplits(input: ProposalInput): Proposal[] {
-  const { gaps, dips, splitSeconds, durationSeconds } = input
+  const { gaps, dips, contrastPeaks = [], splitSeconds, durationSeconds } = input
   const holdsSplit = (gap: Gap) =>
     splitSeconds.some((seconds) => seconds >= gap.startSeconds && seconds <= gap.endSeconds)
   const innerGaps = gaps.filter((gap) => gap.edge === null)
@@ -56,10 +61,10 @@ export function proposeSplits(input: ProposalInput): Proposal[] {
   is dropped otherwise (so of equal depth the earlier stays). The one it replaces was 15 s or more
   from the one before, and the new one is further still, so it needs no second look.
   */
-  const kept: Proposal[] = []
+  const kept: DepthProposal[] = []
   for (const gap of innerGaps) {
     if (holdsSplit(gap)) continue
-    const proposal: Proposal = { seconds: middleOf(gap), depth: gap.depth, kind: 'gap' }
+    const proposal: DepthProposal = { seconds: middleOf(gap), depth: gap.depth, kind: 'gap' }
     const last = kept.at(-1)
     if (last === undefined || areApart(last.seconds, proposal.seconds, BOUNDARY_SPACING_SECONDS)) {
       kept.push(proposal)
@@ -68,22 +73,33 @@ export function proposeSplits(input: ProposalInput): Proposal[] {
     }
   }
 
-  const boundaries = [
-    ...kept.map((proposal) => proposal.seconds),
-    ...innerGaps.filter((gap) => holdsSplit(gap)).map((gap) => middleOf(gap)),
-  ]
+  const heldMiddles = innerGaps.filter((gap) => holdsSplit(gap)).map((gap) => middleOf(gap))
+  const boundaries = [...kept.map((proposal) => proposal.seconds), ...heldMiddles]
   const dipsAway = dips
     .filter((dip) =>
       boundaries.every((seconds) => areApart(seconds, dip.seconds, BOUNDARY_SPACING_SECONDS)),
     )
-    .map(({ seconds, depth }): Proposal => ({ seconds, depth, kind: 'dip' }))
+    .map(({ seconds, depth }): DepthProposal => ({ seconds, depth, kind: 'dip' }))
 
   const proposals = [...kept, ...dipsAway]
   proposals.sort((first, second) => first.seconds - second.seconds)
-  return proposals.filter(
+  const standing = proposals.filter(
     ({ seconds }) =>
       areApart(seconds, 0, MINIMUM_DISTANCE_SECONDS) &&
       areApart(seconds, durationSeconds, MINIMUM_DISTANCE_SECONDS) &&
       splitSeconds.every((split) => areApart(split, seconds, BOUNDARY_SPACING_SECONDS)),
   )
+
+  const roomAround = [...standing.map(({ seconds }) => seconds), ...heldMiddles, ...splitSeconds]
+  const contrasts = contrastPeaks
+    .filter(
+      ({ seconds }) =>
+        areApart(seconds, 0, MINIMUM_DISTANCE_SECONDS) &&
+        areApart(seconds, durationSeconds, MINIMUM_DISTANCE_SECONDS) &&
+        roomAround.every((other) => areApart(other, seconds, CONTRAST_ROOM_SECONDS)),
+    )
+    .map(({ seconds, contrast }): Proposal => ({ seconds, contrast, kind: 'contrast' }))
+  const all: Proposal[] = [...standing, ...contrasts]
+  all.sort((first, second) => first.seconds - second.seconds)
+  return all
 }

@@ -25,5 +25,13 @@ export const SETTING_STEP = 0.1
 export const DEPTH_MIN_DB = 3
 export const DEPTH_MAX_DB = 30
 
+/*
+The contrast setting starts off and its threshold at 5.4 dB, the value that passed the measurement
+(docs/concepts/15-contrast.md); its slider runs from 3 to 12 dB, in tenths like the others.
+*/
+export const DEFAULT_CONTRAST_DB = 5.4
+export const CONTRAST_MIN_DB = 3
+export const CONTRAST_MAX_DB = 12
+
 // Where the user's default settings are kept between visits: one key, with a version in its value.
 export const DEFAULT_SETTINGS_STORAGE_KEY = 'audio-splitter:default-settings'

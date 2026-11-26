@@ -21,6 +21,7 @@ Versions follow [Semantic Versioning](https://semver.org/) applied to the produc
 ### Added
 
 - A contrast curve under the loudness curve shows how far apart the sound of the minute before each point and the minute after it are, in dB, so a change of track shows even where the loudness never dips, as in a crossfade.
+- A Contrast setting beside the depth, off when a file opens, and its threshold (5.4 dB to start, 3 to 12 dB): while it is on, Find splits also adds a split at each contrast peak that reaches the threshold and keeps a minute from every gap, dip and split and from the file's ends. Such a split is likely from 6.5 dB and doubtful under it, never sure, and its tooltip gives its contrast.
 
 ## [2.1.0] - 2026-11-27
 

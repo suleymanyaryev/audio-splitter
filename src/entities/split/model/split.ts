@@ -1,7 +1,11 @@
 import { computed, ref, shallowRef, watch } from 'vue'
 import { defineStore } from 'pinia'
 
-import { buildContrast } from '@/shared/lib/audio/contrast.ts'
+import {
+  buildContrast,
+  contrastStepSeconds,
+  findContrastPeaks,
+} from '@/shared/lib/audio/contrast.ts'
 import { buildDepth, gapDepth, type DepthProfile } from '@/shared/lib/audio/depth.ts'
 import { median } from '@/shared/lib/audio/median.ts'
 import type { Spectrogram } from '@/shared/lib/audio/spectrogram-builder.ts'
@@ -11,6 +15,9 @@ import {
   type DefaultSettings,
 } from '../api/saved-default-settings.ts'
 import {
+  CONTRAST_MAX_DB,
+  CONTRAST_MIN_DB,
+  DEFAULT_CONTRAST_DB,
   DEFAULT_DEPTH_DB,
   DEFAULT_MINIMUM_GAP_SECONDS,
   DEFAULT_OFFSET_DB,
@@ -22,7 +29,7 @@ import {
 import { LIMIT_TOLERANCE, MINIMUM_DISTANCE_SECONDS } from '../config/split-room.ts'
 import { MAX_TRACK_NAME_LENGTH } from '../config/track-name.ts'
 import { ZOOM_WINDOW_SECONDS } from '../config/zoom-window.ts'
-import { bandOf, type Confidence } from '../lib/confidence-band.ts'
+import { confidenceOf, type Confidence } from '../lib/confidence-band.ts'
 import { findDips } from '../lib/find-dips.ts'
 import { findGaps, type Gap } from '../lib/find-gaps.ts'
 import { proposeSplits } from '../lib/propose-splits.ts'
@@ -169,6 +176,12 @@ export const useSplitStore = defineStore('split', () => {
   const minimumGapLength = ref(DEFAULT_MINIMUM_GAP_SECONDS)
   // How deep a dip must be to propose a split, in dB (GLOSSARY.md: Depth).
   const depthSetting = ref(DEFAULT_DEPTH_DB)
+  /*
+  Whether Find splits also adds a split at each contrast peak, and the contrast a peak must reach, in
+  dB (GLOSSARY.md: Contrast). Off when a file opens: contrast is for files known to be crossfaded.
+  */
+  const contrastOn = ref(false)
+  const contrastThreshold = ref(DEFAULT_CONTRAST_DB)
   // This file's median loudness, which the threshold's distance under it is measured from.
   const medianDecibels = ref<number | null>(null)
   /*
@@ -522,6 +535,8 @@ export const useSplitStore = defineStore('split', () => {
     silenceThreshold.value = thresholdUnder(defaultSettings.value.offsetDb)
     minimumGapLength.value = defaultSettings.value.minimumGapSeconds
     depthSetting.value = defaultSettings.value.depthDb
+    contrastOn.value = false
+    contrastThreshold.value = DEFAULT_CONTRAST_DB
     findGapsAgain()
     // One track, no splits: the zoom window starts at 0:00, so the Split view shows the file's opening seconds.
     clearSplits()
@@ -562,6 +577,19 @@ export const useSplitStore = defineStore('split', () => {
   // The depth setting is held to its slider: it changes only what Find splits would add.
   function setDepthSetting(decibels: number) {
     depthSetting.value = Math.min(Math.max(decibels, DEPTH_MIN_DB), DEPTH_MAX_DB)
+  }
+
+  // Switching contrast on or off changes only what Find splits would add.
+  function setContrastOn(isOn: boolean) {
+    contrastOn.value = isOn
+  }
+
+  // Held to its slider, 3 to 12 dB in tenths, like the other settings; changes only what Find splits would add.
+  function setContrastThreshold(decibels: number) {
+    contrastThreshold.value = Math.min(
+      Math.max(roundToTenth(decibels), CONTRAST_MIN_DB),
+      CONTRAST_MAX_DB,
+    )
   }
 
   // The threshold's distance under this file's median now, rounded to 0.1 dB: what "Save as default" saves.
@@ -606,6 +634,8 @@ export const useSplitStore = defineStore('split', () => {
     silenceThreshold.value = thresholdUnder(BUILT_IN_SETTINGS.offsetDb)
     minimumGapLength.value = BUILT_IN_SETTINGS.minimumGapSeconds
     depthSetting.value = BUILT_IN_SETTINGS.depthDb
+    contrastOn.value = false
+    contrastThreshold.value = DEFAULT_CONTRAST_DB
     findGapsAgain()
   }
 
@@ -637,9 +667,20 @@ export const useSplitStore = defineStore('split', () => {
     }))
   })
 
+  // The contrast peaks that reach the contrast threshold; none while contrast is off.
+  const contrastPeaks = computed(() =>
+    !contrastOn.value || contrastCurve.value === null || timing.value === null
+      ? []
+      : findContrastPeaks(
+          contrastCurve.value,
+          contrastThreshold.value,
+          contrastStepSeconds(timing.value.windowSeconds),
+        ),
+  )
+
   /*
-  The splits "Find splits" would add now (see `proposeSplits`), each with its depth; its length is the
-  button's count. Nothing changes until the button is pressed.
+  The splits "Find splits" would add now (see `proposeSplits`), each with its depth or its contrast;
+  its length is the button's count. Nothing changes until the button is pressed.
   */
   const proposedSplits = computed(() =>
     timing.value === null
@@ -647,6 +688,7 @@ export const useSplitStore = defineStore('split', () => {
       : proposeSplits({
           gaps: measuredGaps.value,
           dips: dips.value,
+          contrastPeaks: contrastPeaks.value,
           splitSeconds: splits.value.map((split) => split.seconds),
           durationSeconds: timing.value.durationSeconds,
         }),
@@ -668,8 +710,8 @@ export const useSplitStore = defineStore('split', () => {
           seconds > track.startSeconds && seconds < track.startSeconds + track.lengthSeconds,
       )
     unlessItDiscards(() => {
-      for (const { seconds, depth } of proposedSplits.value) {
-        insertSplit(seconds, { band: bandOf(depth), depth, contrast: null })
+      for (const proposal of proposedSplits.value) {
+        insertSplit(proposal.seconds, confidenceOf(proposal))
       }
     }, isInside)
   }
@@ -1148,6 +1190,8 @@ export const useSplitStore = defineStore('split', () => {
     silenceThreshold.value = null
     minimumGapLength.value = DEFAULT_MINIMUM_GAP_SECONDS
     depthSetting.value = DEFAULT_DEPTH_DB
+    contrastOn.value = false
+    contrastThreshold.value = DEFAULT_CONTRAST_DB
     medianDecibels.value = null
     gaps.value = []
     splits.value = []
@@ -1175,6 +1219,10 @@ export const useSplitStore = defineStore('split', () => {
     proposedSplits,
     loudnessAround,
     contrastCurve,
+    contrastOn,
+    contrastThreshold,
+    setContrastOn,
+    setContrastThreshold,
     canClearSplits,
     currentOffsetDb: currentOffsetDecibels,
     matchesDefaultSettings,

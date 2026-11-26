@@ -6,3 +6,11 @@ crossfaded file may move them.
 */
 export const SURE_DEPTH_DB = 15
 export const LIKELY_DEPTH_DB = 9
+
+/*
+The contrast, in dB, from which a contrast split is likely; under it, doubtful. It is never sure:
+contrast also hears a change of sound inside a track. On 10 s crossfades a peak from 6.5 dB was real
+87 % of the time, one from 5.4 to 6.5 dB 36 % (docs/concepts/15-contrast.md, "Contrast as a
+confidence").
+*/
+export const LIKELY_CONTRAST_DB = 6.5

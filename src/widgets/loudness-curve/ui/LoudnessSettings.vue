@@ -1,7 +1,9 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 
 import {
+  CONTRAST_MAX_DB,
+  CONTRAST_MIN_DB,
   DEFAULT_DEPTH_DB,
   DEFAULT_MINIMUM_GAP_SECONDS,
   DEFAULT_OFFSET_DB,
@@ -15,6 +17,7 @@ import {
 } from '@/entities/split/config/defaults.ts'
 import { useSplitStore } from '@/entities/split/model/split.ts'
 import UiButton from '@/shared/ui/UiButton.vue'
+import UiSegmentedControl from '@/shared/ui/UiSegmentedControl.vue'
 import UiSlider from '@/shared/ui/UiSlider.vue'
 import UiTooltip from '@/shared/ui/UiTooltip.vue'
 import {
@@ -31,9 +34,10 @@ import ClearSplitsDialog from './ClearSplitsDialog.vue'
 The loudness panel's title row: the three settings of split finding, and the button that turns what
 they show into splits. The threshold covers the curve's drawn range, −60 to 0 dB, in tenths; the
 minimum gap length runs from a few windows to a long pause; the depth, from 3 to 30 dB, is how far
-under its surroundings a dip must fall. Moving any of them changes only what is shown (the gaps, and
-a mark on the curve at each dip), so there is nothing to ask. "Find splits" says how many splits a
-press would add.
+under its surroundings a dip must fall. Contrast, which starts off, adds a third detector for
+crossfaded files: an Off | On control and a threshold from 3 to 12 dB. Moving any of them changes
+only what is shown (the gaps, and a mark on the curve at each dip), so there is nothing to ask.
+"Find splits" says how many splits a press would add.
 "Find duplicates" looks for tracks that are the same recording as an earlier one and changes
 nothing of the user's: it is off until two tracks are 30 s long, busy while it searches, and the
 line beside it says what it found, nothing before the first press, or why the search failed.
@@ -44,6 +48,15 @@ nothing. The row wraps when the panel is too narrow for all of it, so no button 
 */
 const split = useSplitStore()
 const asking = ref(false)
+
+const contrastOptions = [
+  { value: 'off' as const, label: 'Off' },
+  { value: 'on' as const, label: 'On' },
+]
+const contrast = computed({
+  get: () => (split.contrastOn ? 'on' : 'off'),
+  set: (value) => split.setContrastOn(value === 'on'),
+})
 
 function clearSplits() {
   if (split.hasEdits || split.pendingSplits.length > 0) asking.value = true
@@ -88,8 +101,25 @@ function confirmClear() {
       class="w-80"
       @update:model-value="split.setDepthSetting"
     />
+    <UiSegmentedControl v-model="contrast" label="Contrast" :options="contrastOptions" />
+    <UiSlider
+      :model-value="split.contrastThreshold"
+      label="Contrast threshold"
+      :readout="formatDecibels(split.contrastThreshold)"
+      :min="CONTRAST_MIN_DB"
+      :max="CONTRAST_MAX_DB"
+      :step="SETTING_STEP"
+      class="w-80"
+      @update:model-value="split.setContrastThreshold"
+    />
     <div class="flex items-center gap-2">
-      <UiTooltip label="Add a split at each gap and each dip that has none near it">
+      <UiTooltip
+        :label="
+          split.contrastOn
+            ? 'Add a split at each gap, each dip and each contrast peak that has none near it'
+            : 'Add a split at each gap and each dip that has none near it'
+        "
+      >
         <UiButton
           size="sm"
           :disabled="split.proposedSplits.length === 0"
