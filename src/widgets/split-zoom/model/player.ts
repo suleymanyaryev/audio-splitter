@@ -95,9 +95,9 @@ playhead moved before a stretch's first play is kept, and it moves without a new
 window: `seek` sets `currentTime` while the stretch plays and the resting place otherwise (which the
 next play, or a clip still being decoded, starts from).
 
-The status has one owner, the audition or a stretch. Starting one takes the status from the other,
-and a new range, or another selected track, or a selected track whose start or end moved, stops and
-releases whatever is held.
+The status has one owner, the audition or a stretch. Starting one takes the status from the other.
+A new range, or another selected track, or a selected track whose start or end moved, ends only its
+own subject's sound: the sound of another subject plays on.
 
 Every press takes a number, and a clip that arrives for an older number is dropped: a press that
 was stopped, or a selection or range that changed while ffmpeg was working, must never start sound
@@ -121,7 +121,7 @@ export const usePlayerStore = defineStore('player', () => {
   /*
   The one status, and whose it is: the audition or a stretch (the range or a track). Starting one
   takes the status from the other, so at most one of them is not idle. Paused keeps the WAV and the
-  place. `status` and `stretchStatus` are what each reads of it: idle when the other owns it.
+  place. `auditionStatus` and `stretchStatus` are what each reads of it: idle when the other owns it.
   */
   const state = ref<Status>('idle')
   const owner = ref<Owner>('audition')
@@ -333,7 +333,7 @@ export const usePlayerStore = defineStore('player', () => {
   }
 
   /*
-  Ends everything audible, for the page: the export, a view change, a moved selection, leaving. A
+  Ends everything audible, for the page: the export, a view change, leaving. A
   stretch that plays is paused, so its playhead stays where it was; one still being decoded is taken
   back, and a paused one stays paused. The window ahead goes: the export's cuts must not wait
   behind its decode, and playing on decodes it again in time (30 s before the window ends).
@@ -396,7 +396,7 @@ export const usePlayerStore = defineStore('player', () => {
     if (activeSubject.value !== null) restingPlaces[activeSubject.value].value = null
   }
 
-  // The stretch gives way to the audition or to a new range: its sound and its WAV go, its place stays.
+  // The stretch gives way to the audition or to its own subject's reset: its sound and its WAV go, its place stays.
   function letGoOfStretch() {
     if (held !== null && stretchStatus.value === 'playing') {
       restStretchAt(held.stretch, audio.positionSeconds())

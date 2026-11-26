@@ -1535,6 +1535,30 @@ describe('the player store', () => {
       expect(player.playheadSeconds()).toBe(14)
       expect(revokeObjectURL).not.toHaveBeenCalled()
     })
+
+    it('a moved selected split leaves a paused range’s place and WAV', async () => {
+      const { split, player } = await playingRange()
+      audio().currentTime = 4
+      player.toggle()
+
+      split.moveSplit(split.selectedSplit!.id, 21)
+
+      expect(player.status).toBe('paused')
+      expect(player.playheadSeconds()).toBe(14)
+      expect(revokeObjectURL).not.toHaveBeenCalled()
+    })
+
+    it('a new range leaves the audition’s place', async () => {
+      const { split, player } = await playing()
+      audio().currentTime = 2.5
+      player.toggle()
+      split.setRange(10, 30)
+
+      split.setRange(40, 50)
+      split.showView('split')
+
+      expect(player.playheadSeconds()).toBe(20.5)
+    })
   })
 
   describe('the audition, the track and the range, which take the sound from each other', () => {
