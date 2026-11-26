@@ -576,6 +576,22 @@ describe('TrackList', () => {
         vi.useRealTimers()
       })
 
+      it('gives both measures in the tooltip of a dip that contrast agrees with', async () => {
+        vi.useFakeTimers()
+        const { split, wrapper } = mountWithThreeDepths()
+        split.splits[1]!.confidence = { band: 'likely', depth: 5, contrast: 7.2 }
+        await wrapper.vm.$nextTick()
+
+        await splitRows(wrapper)[1]?.find('td:nth-child(2) span').trigger('pointermove')
+        await vi.advanceTimersByTimeAsync(1000)
+
+        expect(document.querySelector('[role="tooltip"]')?.textContent).toBe(
+          '5.0 dB under its surroundings and 7.2 dB of contrast',
+        )
+        wrapper.unmount()
+        vi.useRealTimers()
+      })
+
       it('goes when the split is moved', async () => {
         const { split, wrapper } = mountWithThreeDepths()
         split.selectSplit(split.splits[1]!.id)

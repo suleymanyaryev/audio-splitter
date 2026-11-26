@@ -24,6 +24,8 @@ Versions follow [Semantic Versioning](https://semver.org/) applied to the produc
 - A Contrast setting beside the depth, off when a file opens, and its threshold (5.4 dB to start, 3 to 12 dB): while it is on, Find splits also adds a split at each contrast peak that reaches the threshold and keeps a minute from every gap, dip and split and from the file's ends. Such a split is likely from 6.5 dB and doubtful under it, never sure, and its tooltip gives its contrast.
 - While contrast is on, the contrast curve shows the threshold as a dashed line with a handle that can be dragged up and down, like the depth line, and a diamond at each contrast peak that Find splits would add. The diamonds follow the threshold as it moves.
 - "Save as default" also saves whether contrast is on and its threshold, "Restore built-in" puts contrast back off at 5.4 dB, and every file opened afterwards starts with them. Default settings saved before keep working, with contrast off.
+- While contrast is on, a dip with a contrast peak within 5 s is one band surer, since the two detectors agree, and its tooltip gives both its depth and its contrast.
+- `{` and `}` go through the splits that have a confidence by band, doubtful first, then likely, then sure. Within a band, splits found by contrast come first, least contrast first, then the others, least deep first. With no contrast split the order is as before.
 
 ## [2.1.0] - 2026-11-27
 

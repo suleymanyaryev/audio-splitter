@@ -29,7 +29,7 @@ import {
 import { LIMIT_TOLERANCE, MINIMUM_DISTANCE_SECONDS } from '../config/split-room.ts'
 import { MAX_TRACK_NAME_LENGTH } from '../config/track-name.ts'
 import { ZOOM_WINDOW_SECONDS } from '../config/zoom-window.ts'
-import { confidenceOf, type Confidence } from '../lib/confidence-band.ts'
+import { compareConfidence, confidenceOf, type Confidence } from '../lib/confidence-band.ts'
 import { findDips } from '../lib/find-dips.ts'
 import { findGaps, type Gap } from '../lib/find-gaps.ts'
 import { proposeSplits } from '../lib/propose-splits.ts'
@@ -821,15 +821,15 @@ export const useSplitStore = defineStore('split', () => {
   }
 
   /*
-  The splits that still have a confidence, least deep first (a split with no depth, none yet, first),
-  ties by time (`splits` is in time order and the sort is stable). It is the queue that `{` and `}` walk: a split leaves it when it is
+  The splits that still have a confidence, in the order of review (`compareConfidence`), ties by time
+  (`splits` is in time order and the sort is stable). It is the queue that `{` and `}` walk: a split leaves it when it is
   moved or checked.
   */
   const confidenceOrder = computed(() => {
     const queue = splits.value.filter(
       (split): split is Split & { confidence: Confidence } => split.confidence !== null,
     )
-    queue.sort((first, second) => (first.confidence.depth ?? 0) - (second.confidence.depth ?? 0))
+    queue.sort((first, second) => compareConfidence(first.confidence, second.confidence))
     return queue
   })
 

@@ -33,9 +33,36 @@ export function contrastBandOf(contrast: number): ConfidenceBand {
   return contrast >= LIKELY_CONTRAST_DB ? 'likely' : 'doubtful'
 }
 
-// A proposal's confidence: the band of the measure it was proposed by, and that measure.
+// One band surer: doubtful to likely, likely to sure; sure stays.
+function liftedBand(band: ConfidenceBand): ConfidenceBand {
+  return band === 'doubtful' ? 'likely' : 'sure'
+}
+
+/*
+A proposal's confidence: the band of the measure it was proposed by, and that measure. A dip that a
+contrast peak agrees with is one band surer and keeps both measures.
+*/
 export function confidenceOf(proposal: Proposal): Confidence {
-  return proposal.kind === 'contrast'
-    ? { band: contrastBandOf(proposal.contrast), depth: null, contrast: proposal.contrast }
-    : { band: bandOf(proposal.depth), depth: proposal.depth, contrast: null }
+  if (proposal.kind === 'contrast') {
+    return { band: contrastBandOf(proposal.contrast), depth: null, contrast: proposal.contrast }
+  }
+  const band = bandOf(proposal.depth)
+  const contrast = proposal.contrast ?? null
+  return { band: contrast === null ? band : liftedBand(band), depth: proposal.depth, contrast }
+}
+
+const BAND_RANK: Record<ConfidenceBand, number> = { doubtful: 0, likely: 1, sure: 2 }
+
+/*
+The order of review, for `{` and `}`: by band, doubtful first. Within a band, the splits that only
+contrast proposed come first, least contrast first, then the others, least deep first. Equal splits
+are left to the caller's order (time).
+*/
+export function compareConfidence(first: Confidence, second: Confidence): number {
+  if (first.band !== second.band) return BAND_RANK[first.band] - BAND_RANK[second.band]
+  const isFirstOnlyContrast = first.depth === null
+  if (isFirstOnlyContrast !== (second.depth === null)) return isFirstOnlyContrast ? -1 : 1
+  return isFirstOnlyContrast
+    ? (first.contrast ?? 0) - (second.contrast ?? 0)
+    : (first.depth ?? 0) - (second.depth ?? 0)
 }

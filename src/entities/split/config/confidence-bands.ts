@@ -14,3 +14,10 @@ contrast also hears a change of sound inside a track. On 10 s crossfades a peak 
 confidence").
 */
 export const LIKELY_CONTRAST_DB = 6.5
+
+/*
+A dip with a contrast peak within this many seconds goes up one band while contrast is on: two
+detectors agree on the boundary. On the test mixes a 9 to 15 dB dip with a peak was real 88 % of the
+time, as often as a 15 dB dip alone (docs/concepts/15-contrast.md, "Contrast as a confidence").
+*/
+export const CONTRAST_AGREEMENT_SECONDS = 5

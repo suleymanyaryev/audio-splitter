@@ -1,4 +1,5 @@
 import type { ContrastPeak } from '@/shared/lib/audio/contrast.ts'
+import { CONTRAST_AGREEMENT_SECONDS } from '../config/confidence-bands.ts'
 import {
   BOUNDARY_SPACING_SECONDS,
   CONTRAST_ROOM_SECONDS,
@@ -12,7 +13,11 @@ import type { Gap } from './find-gaps.ts'
 Which detector proposed a split: the middle of a gap, the deepest point of a dip (with how deep the
 boundary is, in dB), or a contrast peak (with its contrast, in dB).
 */
-type DepthProposal = { seconds: number; kind: 'gap' | 'dip'; depth: number }
+/*
+A gap or a dip. A dip with a contrast peak beside it carries that peak's contrast, which is how the
+two agreeing is known (a gap never does).
+*/
+type DepthProposal = { seconds: number; kind: 'gap' | 'dip'; depth: number; contrast?: number }
 export type Proposal = DepthProposal | { seconds: number; kind: 'contrast'; contrast: number }
 
 // A gap and its depth, in dB (GLOSSARY.md: Depth).
@@ -36,6 +41,21 @@ function areApart(first: number, second: number, spacing: number) {
 
 const middleOf = (gap: Gap) => (gap.startSeconds + gap.endSeconds) / 2
 
+// The contrast peak nearest this time, if one is within 5 s of it.
+function nearestPeak(peaks: ContrastPeak[], seconds: number) {
+  let nearest: ContrastPeak | null = null
+  for (const peak of peaks) {
+    const distance = Math.abs(peak.seconds - seconds)
+    if (
+      distance <= CONTRAST_AGREEMENT_SECONDS + LIMIT_TOLERANCE &&
+      (nearest === null || distance < Math.abs(nearest.seconds - seconds))
+    ) {
+      nearest = peak
+    }
+  }
+  return nearest
+}
+
 /*
 The splits Find splits would add, in time order. Three detectors propose, and a boundary gets one
 split (concept notes 13 and 15):
@@ -47,7 +67,8 @@ split (concept notes 13 and 15):
    holds a split: that gap is the boundary, wherever in it the split is. The other dips propose
    their own time.
 4. A proposal within 15 s of a split that exists is dropped, and one within 1 s of the file's ends.
-5. A contrast peak proposes its time, unless a gap or dip proposal that stands, the middle of a gap
+5. A dip with a contrast peak within 5 s carries that peak's contrast: the two agree.
+6. A contrast peak proposes its time, unless a gap or dip proposal that stands, the middle of a gap
    that holds a split or a split that exists is within 60 s. Contrast peaks are 15 s apart already.
 */
 export function proposeSplits(input: ProposalInput): Proposal[] {
@@ -79,7 +100,12 @@ export function proposeSplits(input: ProposalInput): Proposal[] {
     .filter((dip) =>
       boundaries.every((seconds) => areApart(seconds, dip.seconds, BOUNDARY_SPACING_SECONDS)),
     )
-    .map(({ seconds, depth }): DepthProposal => ({ seconds, depth, kind: 'dip' }))
+    .map(({ seconds, depth }): DepthProposal => {
+      const agreeing = nearestPeak(contrastPeaks, seconds)
+      return agreeing === null
+        ? { seconds, depth, kind: 'dip' }
+        : { seconds, depth, kind: 'dip', contrast: agreeing.contrast }
+    })
 
   const proposals = [...kept, ...dipsAway]
   proposals.sort((first, second) => first.seconds - second.seconds)
