@@ -10,14 +10,11 @@ import type { Dip } from './find-dips.ts'
 import type { Gap } from './find-gaps.ts'
 
 /*
-Which detector proposed a split: the middle of a gap, the deepest point of a dip (with how deep the
-boundary is, in dB), or a contrast peak (with its contrast, in dB).
-*/
-/*
-A gap or a dip. A dip with a contrast peak beside it carries that peak's contrast, which is how the
-two agreeing is known (a gap never does).
+A gap or a dip, with how deep the boundary is, in dB. A dip with a contrast peak beside it carries
+that peak's contrast, which is how the two agreeing is known (a gap never does).
 */
 type DepthProposal = { seconds: number; kind: 'gap' | 'dip'; depth: number; contrast?: number }
+// Which detector proposed a split: a gap or a dip, or a contrast peak (with its contrast, in dB).
 export type Proposal = DepthProposal | { seconds: number; kind: 'contrast'; contrast: number }
 
 // A gap and its depth, in dB (GLOSSARY.md: Depth).

@@ -7,8 +7,10 @@ export interface ThresholdDragSource {
   // The current threshold in dB, null before the file opens.
   threshold: () => number | null
   set: (decibels: number) => void
-  // The scale the line is drawn on and dragged by: the loudness curve's by default, and the
-  // contrast lane's for the contrast threshold.
+  /*
+  The scale the line is drawn on and dragged by: the loudness curve's by default, and the contrast
+  lane's for the contrast threshold.
+  */
   lineY?: (value: number, height: number) => number
   valueAt?: (pointerY: number, grabOffset: number, height: number) => number
 }

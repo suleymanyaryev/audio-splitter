@@ -33,7 +33,7 @@ import {
 import ClearSplitsDialog from './ClearSplitsDialog.vue'
 
 /*
-The loudness panel's title row: the three settings of split finding, and the button that turns what
+The loudness panel's title row: the settings of split finding, and the button that turns what
 they show into splits. The threshold covers the curve's drawn range, −60 to 0 dB, in tenths; the
 minimum gap length runs from a few windows to a long pause; the depth, from 3 to 30 dB, is how far
 under its surroundings a dip must fall. Contrast, which starts off, adds a third detector for

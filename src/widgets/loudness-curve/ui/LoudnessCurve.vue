@@ -130,8 +130,10 @@ function drawMovingLine(
   context.setLineDash([])
 }
 
-// DESIGN.md: each dip that Find splits would add, with no gap beside it, is a diamond on the curve,
-// over the split lines.
+/*
+DESIGN.md: each dip that Find splits would add, with no gap beside it, is a diamond on the curve,
+over the split lines.
+*/
 function drawDipMarks(
   context: CanvasRenderingContext2D,
   style: CSSStyleDeclaration,

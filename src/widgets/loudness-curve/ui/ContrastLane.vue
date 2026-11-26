@@ -18,12 +18,17 @@ import {
 } from '../lib/contrast-lane.ts'
 import { drawDiamondMarks } from '../lib/draw-diamond-marks.ts'
 import { mergeLoudness } from '../lib/merge-loudness.ts'
-import { CURVE_LINE_WIDTH, HANDLE_HEIGHT, HANDLE_WIDTH, handleTop } from '../lib/threshold-line.ts'
+import {
+  CURVE_LINE_WIDTH,
+  HANDLE_HEIGHT,
+  HANDLE_WIDTH,
+  LABEL_PLATE_HEIGHT,
+  handleTop,
+} from '../lib/threshold-line.ts'
 import { useThresholdDrag } from '../lib/use-threshold-drag.ts'
 
 // As the loudness curve: the area under the line is filled at 14 % alpha.
 const FILL_ALPHA = 0.14
-const LABEL_PLATE_HEIGHT = 17
 const LABEL_PADDING = 4
 const LABEL = `Contrast, 0 to ${CONTRAST_TOP_DB} dB`
 

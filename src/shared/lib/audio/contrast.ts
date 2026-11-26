@@ -1,5 +1,5 @@
 import { median } from './median.ts'
-import { bandDecibels, type Spectrogram } from './spectrogram-builder.ts'
+import { SPECTRUM_BOTTOM_HZ, bandDecibels, type Spectrogram } from './spectrogram-builder.ts'
 
 /*
 How far apart the sound of the minute before each point and the minute after it are, in dB
@@ -29,9 +29,14 @@ const MINIMUM_SOUND_SECONDS = 2
 
 // How many bands of the spectrogram are kept: those whose top edge is at or under 15 kHz.
 function keptBandCount({ bandCount, topHz }: Spectrogram) {
-  const ratio = topHz / 50
+  const ratio = topHz / SPECTRUM_BOTTOM_HZ
   let kept = 0
-  while (kept < bandCount && 50 * ratio ** ((kept + 1) / bandCount) <= TOP_KEPT_HZ) kept++
+  while (
+    kept < bandCount &&
+    SPECTRUM_BOTTOM_HZ * ratio ** ((kept + 1) / bandCount) <= TOP_KEPT_HZ
+  ) {
+    kept++
+  }
   return kept
 }
 
