@@ -125,7 +125,7 @@ The dashed spot the user clicks in the stretch on show: in the Range view where 
 _Avoid_: Cursor, marker, ghost playhead
 
 **Playhead**:
-The 1 px line that marks the point being heard, or where playback will resume, in each of the three views at all times.
+The 1 px line that marks the point being heard, or where playback will resume, in each of the three views at all times. Each view keeps its own, so showing another view and moving its playhead leaves this one where it was.
 _Avoid_: Cursor, scrubber, position marker
 
 **Play speed**:

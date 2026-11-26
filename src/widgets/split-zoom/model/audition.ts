@@ -4,7 +4,7 @@ import { defineStore } from 'pinia'
 import { FileReplacedError, useSourceFileStore } from '@/entities/source-file/model/source-file.ts'
 import type { TimeRange } from '@/entities/split/lib/range-between.ts'
 import { useSplitStore, type Split } from '@/entities/split/model/split.ts'
-import { decibelsToGain } from '@/shared/lib/audio/decibels-to-gain.ts'
+import { createAudioElement, type Clip, type ReadyClip } from '../api/audio-element.ts'
 import { readSavedPlaySpeed, savePlaySpeed } from '../api/saved-play-speed.ts'
 import { readSavedVolume, saveVolume } from '../api/saved-volume.ts'
 import { MAX_PLAY_SPEED, MIN_PLAY_SPEED } from '../config/play-speed.ts'
@@ -20,13 +20,6 @@ type Subject = 'split' | 'range' | 'track'
 
 // A start and an end in the file: what the player plays besides the audition. The range or a track.
 type Stretch = TimeRange
-
-// What the source-file store gives for a clip.
-interface Clip {
-  wav: Uint8Array
-  startSeconds: number
-  lengthSeconds: number
-}
 
 const isSameStretch = (a: Stretch, b: Stretch) =>
   a.startSeconds === b.startSeconds && a.endSeconds === b.endSeconds
@@ -120,18 +113,20 @@ export const useAuditionStore = defineStore('audition', () => {
   const isActive = computed(() => status.value === 'loading' || status.value === 'playing')
 
   let press = 0
-  /*
-  A hidden element needs no place in the page; it is made on the first press, so loading the
-  page creates no media element.
-  */
-  let element: HTMLAudioElement | undefined
-  let url: string | undefined
-  let clipStartSeconds = 0
-  let clipLengthSeconds = 0
+  // The hidden element and its clip (api/audio-element.ts); the store says when to hold, play and seek.
+  const audio = createAudioElement({
+    ended: () => {
+      if (status.value === 'playing') endAudition()
+      else if (stretchStatus.value === 'playing') void carryOn()
+    },
+    timeUpdate: () => {
+      if (stretchStatus.value === 'playing') void fetchAhead()
+    },
+  })
   // The stretch the held WAV is a window of, and the window, which a press can play again without decoding.
   let held: { stretch: Stretch; window: TimeRange } | null = null
   // The window after the held one, decoded while the held one plays, and the fetch that made it.
-  let upcoming: { url: string; clip: Clip; window: TimeRange } | undefined
+  let upcoming: { ready: ReadyClip; window: TimeRange } | undefined
   let ahead: { done: Promise<void>; stopper: AbortController } | undefined
   // The split the audition's clip is of, kept apart from the selection, which may have moved on.
   let auditionSplitId: number | undefined
@@ -157,17 +152,13 @@ export const useAuditionStore = defineStore('audition', () => {
     isMuted.value = !isMuted.value
   }
 
-  // `volume` is the element's linear gain and `muted` a second switch, so unmuting keeps the level.
-  function applyVolume(target: HTMLAudioElement) {
-    target.volume = decibelsToGain(volumeDecibels.value)
-    target.muted = isMuted.value
-  }
+  audio.setVolume(volumeDecibels.value, isMuted.value)
 
-  // Sync, so sound that is playing changes at once. An element not made yet gets it when it is.
+  // Sync, so sound that is playing changes at once.
   watch(
     [volumeDecibels, isMuted],
     () => {
-      if (element !== undefined) applyVolume(element)
+      audio.setVolume(volumeDecibels.value, isMuted.value)
       saveVolume({ volumeDecibels: volumeDecibels.value, isMuted: isMuted.value })
     },
     { flush: 'sync' },
@@ -183,35 +174,20 @@ export const useAuditionStore = defineStore('audition', () => {
     playSpeed.value = Math.min(Math.max(snapPlaySpeed(speed), MIN_PLAY_SPEED), MAX_PLAY_SPEED)
   }
 
-  /*
-  Loading a source resets the element's rate to its default rate, so both are set: otherwise a new
-  clip, the release of the held one, a seek to a new window and the hand-over would drop to 1.0.
-  */
-  function applyPlaySpeed(target: HTMLAudioElement) {
-    target.preservesPitch = true
-    target.defaultPlaybackRate = playSpeed.value
-    target.playbackRate = playSpeed.value
-  }
+  audio.setPlaySpeed(playSpeed.value)
 
   // Sync, like the volume's: sound that is playing changes at once.
   watch(
     playSpeed,
     () => {
-      if (element !== undefined) applyPlaySpeed(element)
+      audio.setPlaySpeed(playSpeed.value)
       savePlaySpeed(playSpeed.value)
     },
     { flush: 'sync' },
   )
 
   function release() {
-    if (element !== undefined) {
-      element.pause()
-      // Without `load()` the element keeps the old resource open after its src is gone.
-      element.removeAttribute('src')
-      element.load()
-    }
-    if (url !== undefined) URL.revokeObjectURL(url)
-    url = undefined
+    audio.release()
     held = null
     forgetAhead()
   }
@@ -222,7 +198,7 @@ export const useAuditionStore = defineStore('audition', () => {
   */
   function forgetAhead() {
     ahead?.stopper.abort()
-    if (upcoming !== undefined) URL.revokeObjectURL(upcoming.url)
+    if (upcoming !== undefined) audio.discard(upcoming.ready)
     upcoming = undefined
     ahead = undefined
   }
@@ -231,18 +207,6 @@ export const useAuditionStore = defineStore('audition', () => {
   function restingSecondsOf(stretch: Stretch) {
     const place = resting.value
     return place !== null && isSameStretch(place.stretch, stretch) ? place.seconds : null
-  }
-
-  // Where a time in the file is in the held WAV, clamped: a stretch's WAV starts at its start.
-  function offsetOf(seconds: number) {
-    return Math.min(Math.max(seconds - clipStartSeconds, 0), clipLengthSeconds)
-  }
-
-  // Where the sound is in the file, clamped: the element can report a hair past the end.
-  function soundPosition() {
-    return element === undefined
-      ? clipStartSeconds
-      : clipStartSeconds + Math.min(element.currentTime, clipLengthSeconds)
   }
 
   /*
@@ -258,8 +222,8 @@ export const useAuditionStore = defineStore('audition', () => {
   function pauseStretch() {
     // A pause that interrupts a pending `play()` makes it stale, so its rejection is not reported.
     press++
-    if (held !== null) resting.value = { stretch: held.stretch, seconds: soundPosition() }
-    element?.pause()
+    if (held !== null) resting.value = { stretch: held.stretch, seconds: audio.positionSeconds() }
+    audio.pause()
     stretchStatus.value = 'paused'
   }
 
@@ -291,7 +255,7 @@ export const useAuditionStore = defineStore('audition', () => {
 
   function restAuditionHere() {
     if (auditionSplitId !== undefined) {
-      auditionResting.value = { splitId: auditionSplitId, seconds: soundPosition() }
+      auditionResting.value = { splitId: auditionSplitId, seconds: audio.positionSeconds() }
     }
   }
 
@@ -330,7 +294,7 @@ export const useAuditionStore = defineStore('audition', () => {
   // The stretch gives way to the audition or to a new range: its sound and its WAV go, its place stays.
   function letGoOfStretch() {
     if (held !== null && stretchStatus.value === 'playing') {
-      resting.value = { stretch: held.stretch, seconds: soundPosition() }
+      resting.value = { stretch: held.stretch, seconds: audio.positionSeconds() }
     }
     if (held !== null) release()
     stretchStatus.value = 'idle'
@@ -344,22 +308,6 @@ export const useAuditionStore = defineStore('audition', () => {
     const hasMessage = typeof reason === 'object' && reason !== null && 'message' in reason
     const message = String(hasMessage ? reason.message : reason)
     failure.value = `Couldn't play this ${subject}: ${message}`
-  }
-
-  function audioElement() {
-    if (element === undefined) {
-      element = new Audio()
-      applyVolume(element)
-      applyPlaySpeed(element)
-      element.addEventListener('ended', () => {
-        if (status.value === 'playing') endAudition()
-        else if (stretchStatus.value === 'playing') void carryOn()
-      })
-      element.addEventListener('timeupdate', () => {
-        if (stretchStatus.value === 'playing') void fetchAhead()
-      })
-    }
-    return element
   }
 
   async function start(selected: Split) {
@@ -393,7 +341,7 @@ export const useAuditionStore = defineStore('audition', () => {
   async function playAuditionFromPlace(selected: Split, extent: TimeRange, isStale: () => boolean) {
     const place = auditionPlace(selected, extent)
     const from = place !== null && place < extent.endSeconds ? place : extent.startSeconds
-    audioElement().currentTime = offsetOf(from)
+    audio.seek(from)
     status.value = 'playing'
     await playElement(isStale, 'split')
   }
@@ -403,7 +351,7 @@ export const useAuditionStore = defineStore('audition', () => {
     // A pause that interrupts a pending `play()` makes it stale, so its rejection is not reported.
     press++
     restAuditionHere()
-    element?.pause()
+    audio.pause()
     status.value = 'paused'
   }
 
@@ -433,21 +381,16 @@ export const useAuditionStore = defineStore('audition', () => {
     }
   }
 
-  const urlOf = (clip: Clip) =>
-    URL.createObjectURL(new Blob([clip.wav as BlobPart], { type: 'audio/wav' }))
-
   // Makes the clip the one held, dropping the previous ones (note 06: 1.4 MB each) and loading it.
   function hold(clip: Clip) {
-    release()
-    clipStartSeconds = clip.startSeconds
-    clipLengthSeconds = clip.lengthSeconds
-    url = urlOf(clip)
-    audioElement().src = url
+    held = null
+    forgetAhead()
+    audio.hold(clip)
   }
 
   async function playElement(isStale: () => boolean, subject: Subject) {
     try {
-      await audioElement().play()
+      await audio.play()
     } catch (error) {
       // The browser can refuse to start sound (its autoplay policy), and then there is no playback.
       if (!isStale()) fail(error, subject)
@@ -459,7 +402,7 @@ export const useAuditionStore = defineStore('audition', () => {
   once; one whose split moved has none, so it decodes the moved 8 s first, as an idle one does.
   */
   function playAudition(selected: Split) {
-    if (url !== undefined && status.value === 'paused') {
+    if (audio.hasClip() && status.value === 'paused') {
       failure.value = null
       void playAuditionFromPlace(selected, auditionExtent(selected), beginPress())
     } else {
@@ -489,7 +432,7 @@ export const useAuditionStore = defineStore('audition', () => {
     const extent = auditionExtent(selected)
     const target = Math.min(Math.max(seconds, extent.startSeconds), extent.endSeconds)
     if (status.value === 'playing') {
-      audioElement().currentTime = offsetOf(target)
+      audio.seek(target)
     } else {
       auditionResting.value = { splitId: selected.id, seconds: target }
     }
@@ -566,7 +509,7 @@ export const useAuditionStore = defineStore('audition', () => {
       // A playhead moved while the clip was decoded may be outside it: the loop decodes again.
       if (placeNow() === place) break
     }
-    audioElement().currentTime = offsetOf(placeNow())
+    audio.seek(placeNow())
     stretchStatus.value = 'playing'
     await playElement(isStale, subject)
   }
@@ -592,13 +535,13 @@ export const useAuditionStore = defineStore('audition', () => {
     if (stretchStatus.value !== 'playing') {
       resting.value = { stretch: { ...stretch }, seconds: target }
     } else if (held !== null && windowHolds(held.window, stretch, target)) {
-      audioElement().currentTime = offsetOf(target)
+      audio.seek(target)
     } else if (target >= stretch.endSeconds) {
       // The very end of a stretch whose last window is not held: there is nothing to hear after it.
-      audioElement().pause()
+      audio.pause()
       endStretch()
     } else {
-      audioElement().pause()
+      audio.pause()
       release()
       resting.value = { stretch: { ...stretch }, seconds: target }
       void playStretch(stretch)
@@ -613,7 +556,7 @@ export const useAuditionStore = defineStore('audition', () => {
   function fetchAhead() {
     if (ahead !== undefined) return ahead.done
     if (held === null) return Promise.resolve()
-    const window = nextWindow(held.stretch, held.window, soundPosition())
+    const window = nextWindow(held.stretch, held.window, audio.positionSeconds())
     if (window === null) return Promise.resolve()
     const asked = { done: Promise.resolve(), stopper: new AbortController() }
     ahead = asked
@@ -625,7 +568,7 @@ export const useAuditionStore = defineStore('audition', () => {
           asked.stopper.signal,
         )
         // Releasing the windows, or handing over, forgot this fetch: its clip is of no use.
-        if (ahead === asked) upcoming = { url: urlOf(clip), clip, window }
+        if (ahead === asked) upcoming = { ready: audio.prepare(clip), window }
       } catch {
         // Nothing is lost yet: the hand-over decodes the window itself if it is still missing.
       }
@@ -662,7 +605,7 @@ export const useAuditionStore = defineStore('audition', () => {
           subject,
         )
         if (clip === null) return
-        upcoming = { url: urlOf(clip), clip, window: missing }
+        upcoming = { ready: audio.prepare(clip), window: missing }
       }
       place = restingSecondsOf(stretch) ?? place
     }
@@ -673,16 +616,10 @@ export const useAuditionStore = defineStore('audition', () => {
       void playStretch(stretch)
       return
     }
-    const finished = url
     upcoming = undefined
     ahead = undefined
-    url = next.url
-    clipStartSeconds = next.clip.startSeconds
-    clipLengthSeconds = next.clip.lengthSeconds
     held = { stretch, window: next.window }
-    audioElement().src = next.url
-    audioElement().currentTime = offsetOf(place)
-    if (finished !== undefined) URL.revokeObjectURL(finished)
+    audio.handOver(next.ready, place)
     stretchStatus.value = 'playing'
     await playElement(isStale, subject)
   }
@@ -714,7 +651,7 @@ export const useAuditionStore = defineStore('audition', () => {
   */
   function stretchPlayheadSeconds(stretch: Stretch) {
     return stretchStatus.value === 'playing'
-      ? soundPosition()
+      ? audio.positionSeconds()
       : (restingSecondsOf(stretch) ?? stretch.startSeconds)
   }
 
@@ -726,7 +663,7 @@ export const useAuditionStore = defineStore('audition', () => {
   function playheadSeconds() {
     const selected = splitStore.selectedSplit
     if (selected === null) return null
-    if (status.value === 'playing') return soundPosition()
+    if (status.value === 'playing') return audio.positionSeconds()
     const extent = auditionExtent(selected)
     return auditionPlace(selected, extent) ?? extent.startSeconds
   }
@@ -748,7 +685,7 @@ export const useAuditionStore = defineStore('audition', () => {
         pauseAudition()
         release()
       } else if (status.value === 'paused') {
-        if (url !== undefined) release()
+        if (audio.hasClip()) release()
       } else if (status.value === 'loading' || failure.value !== null) {
         stop()
       }
