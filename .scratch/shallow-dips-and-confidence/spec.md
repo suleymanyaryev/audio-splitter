@@ -1,6 +1,6 @@
 # Find splits: gaps and dips, with a confidence per split
 
-Status: ready-for-agent
+Status: resolved
 
 From GitHub issue #16, milestone 6 of the [v2 milestones](../audio-splitter-v2/milestones.md#milestone-6-shallow-dips-with-a-confidence-per-split). The measurement and every decision of the grilling are in [analysis.md](analysis.md) (Decisions 1 to 22). The words are in the glossary: the grilling added **Dip**, **Depth** and **Confidence**, and changed **Split**, **Edit** and **Default settings**. No ADR: every decision is cheap to reverse.
 

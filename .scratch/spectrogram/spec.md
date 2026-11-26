@@ -1,6 +1,6 @@
 # Spectrogram: the tones under the waveform
 
-Status: ready-for-agent
+Status: resolved
 
 From GitHub issue #17, milestone 7 of the [v2 milestones](../audio-splitter-v2/milestones.md#milestone-7-spectrum-view). The decisions come from a grilling on 2026-11-26, listed under [Further Notes](#further-notes). The grilling added **Spectrum** and **Spectrogram** to the glossary. No ADR: concept note 14 records why the spectrum is built in the load loop and kept as bands.
 

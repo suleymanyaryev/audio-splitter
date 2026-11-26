@@ -1,6 +1,6 @@
 # UI polish: a theme switch and the Next to Silence look
 
-Status: ready-for-agent
+Status: resolved
 
 GitHub issue #1. A minor release outside the milestone sets (CHANGELOG.md's version rules: the theme switch is a new capability; nothing the export writes changes). Two parts, the switch, then the new look, built as six tickets under `issues/` (01–02 the switch, 03–06 the look). The "Issue 1" and "Issue 2" headings below name the parts. The look was chosen on 2026-11-22 in impeccable's direction round. Its contract is in `.impeccable/surfaces/src-pages-review.md`, and its sketch is `.impeccable/mocks/decision/assigned.html`. A palette-only spike on the real app confirmed the colours in both themes.
 

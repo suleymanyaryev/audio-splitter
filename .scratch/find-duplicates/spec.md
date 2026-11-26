@@ -1,6 +1,6 @@
 # Find duplicates: matches between tracks that repeat
 
-Status: ready-for-agent
+Status: resolved
 
 From GitHub issue #12, milestone 2 of the [v2 milestones](../audio-splitter-v2/milestones.md#milestone-2-duplicate-tracks). The measurement and every decision of the grilling are in [measurement.md](measurement.md). The words are in the glossary. The grilling added **Match**, **Kept copy**, **Duplicate** and **Partial match**, and changed **Left-out track** and **Edit**. No ADR: every decision is cheap to reverse.
 

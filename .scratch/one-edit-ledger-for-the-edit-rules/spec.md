@@ -1,6 +1,6 @@
 # One edit ledger for the Edit rules
 
-Status: ready-for-agent
+Status: resolved
 
 Candidate 2 of the [architecture review](../code-cleanup-and-readability/architecture-review.md#2-one-edit-ledger-for-the-edit-rules). The grilling settled every decision below. It sharpened **Edit** in the glossary to name the two rules the code already follows. No ADR: every decision is cheap to reverse.
 

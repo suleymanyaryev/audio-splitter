@@ -4,7 +4,7 @@
 
 **Blocked by:** 01 (The visible, stall-tolerant download)
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 Spec: `.scratch/ffmpeg-load-time/spec.md` (stories 8–14, 18–19, 38–41, 43–46)
 

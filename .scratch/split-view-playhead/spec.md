@@ -1,6 +1,6 @@
 # Split view: pause, resume and a movable playhead
 
-Status: ready-for-agent
+Status: resolved
 
 From GitHub issue #2. Vocabulary is in `GLOSSARY.md`. While this was grilled, the glossary's **Audition** and **Playhead** entries changed to what this spec builds: an audition that pauses, resumes and is heard from any point, and a playhead drawn in all three views at all times. Keys follow `docs/adr/0002-keys-belong-to-the-view-on-show.md`.
 

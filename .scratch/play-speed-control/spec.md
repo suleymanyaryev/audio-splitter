@@ -1,6 +1,6 @@
 # Play speed control, 0.5× to 2.0×
 
-Status: ready-for-agent
+Status: resolved
 
 GitHub issue #3. A minor release outside the milestone sets: play speed is a new capability, and nothing an export writes changes. It is also a learning milestone, teaching how speed changes without the pitch changing (resampling against time-stretching). It is built as three tickets under `issues/`: concept note 10 (01), the play speed heard in every view (02), then the play speed remembered across a reload (03). The decisions were settled in a grilling session on 2026-11-22.
 

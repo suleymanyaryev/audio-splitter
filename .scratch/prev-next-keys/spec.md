@@ -1,6 +1,6 @@
 # Previous and next keys for tracks and splits
 
-Status: ready-for-agent
+Status: resolved
 
 GitHub issue #4; its decisions comment matches this spec, except for the testing seam (see Testing Decisions). Vocabulary is in `GLOSSARY.md`, and this work adds no term. The keys belong to the view on show, as ADR 0002 records.
 

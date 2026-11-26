@@ -1,6 +1,6 @@
 # Building blocks for the Range and Track views
 
-Status: ready-for-agent
+Status: resolved
 
 Candidate 4 of the [architecture review](../code-cleanup-and-readability/architecture-review.md#4-a-shared-stretch-view-for-the-range-and-track-views). The grilling turned "one shared stretch view" into building blocks that each view composes. No glossary change: "stretch" stays a code name for the range or the selected track, as the player already uses it. No ADR: every decision is cheap to reverse, and ADR 0002 (keys belong to the view on show) is untouched.
 

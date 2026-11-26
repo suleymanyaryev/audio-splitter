@@ -1,6 +1,6 @@
 # One player interface that knows what is on show
 
-Status: ready-for-agent
+Status: resolved
 
 Candidate 3 of the [architecture review](../code-cleanup-and-readability/architecture-review.md#3-one-player-interface-that-knows-what-is-on-show). The grilling settled every decision below. It sharpened **Playhead** in the glossary: each view keeps its own. No ADR: every decision is cheap to reverse, and ADR 0004 (one element, `playbackRate`) is kept.
 

@@ -15,7 +15,7 @@ The shortcuts dialog's `?` composable becomes a thin caller of this one, and its
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 - [ ] `?` opens the shortcuts dialog from anywhere on the review screen, and doesn't open it while typing in a track name, while another dialog is open, or with Ctrl, Cmd or Alt held (the existing `ReviewPage.spec` and `?` cases stay green)
 - [ ] The composable's spec (taking over the `?` composable's spec) covers each rule: modifiers, typing targets, dialog open, a Tab-focused button keeping Space and Enter but not the arrows, a focused slider keeping arrows and Home/End, a focused radio group keeping arrows, an element inside the caller's root not being treated as such a control, default prevented only when the handler acted, and no calls after unmount

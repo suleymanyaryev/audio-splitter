@@ -1,6 +1,6 @@
 # Track name prefix for exported tracks
 
-Status: ready-for-agent
+Status: resolved
 
 From GitHub issue #5. Vocabulary is in the glossary: while this was grilled, **Track name** changed to "the track name prefix followed by the track's number until the user renames it, then the name as typed", and **Track name prefix** was added. No ADR: dropping the number from a renamed track's file name is a trade-off, but a cheap one to reverse.
 
