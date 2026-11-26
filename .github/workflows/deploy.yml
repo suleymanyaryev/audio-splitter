@@ -14,11 +14,11 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  deploy:
+  # Build and deploy are separate jobs, as in GitHub's Pages template. A failed deploy
+  # can then be re-run alone ("Re-run failed jobs") and reuses the one artifact, where a
+  # whole re-run adds a second "github-pages" artifact that deploy-pages refuses.
+  build:
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -53,5 +53,13 @@ jobs:
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
       - id: deployment
         uses: actions/deploy-pages@v4
