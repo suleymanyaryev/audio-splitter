@@ -147,6 +147,7 @@ const {
   readout,
   show: showReadout,
   hide: hideReadout,
+  follow: followReadout,
 } = useSpectrogramReadout({
   frame: () => frame.value,
   secondsAt: (x, width) => {
@@ -154,6 +155,8 @@ const {
     return axis && zoomXToTime(x, axis.centreSeconds, axis.windowSeconds, width)
   },
 })
+// Another range stretches the view anew under a still pointer.
+watch([() => player.extent?.startSeconds, () => player.extent?.endSeconds], followReadout)
 
 // The drag and the readout both follow the pointer.
 function onFramePointerMove(event: PointerEvent) {

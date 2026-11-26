@@ -868,6 +868,19 @@ describe('TrackView', () => {
 
       expect(wrapper.text()).not.toContain('kHz')
     })
+
+    it('reads again under a still pointer when another track is selected', async () => {
+      // The first track runs 0 to 21 s: 400 px of 1000 is 8.4 s, where the columns read 0 dB.
+      spectrogramAtOneKilohertz(Array.from({ length: 21 }, (_, index) => 160 + index))
+      const { split, wrapper } = setup()
+      const view = measuredWithStrip(wrapper)
+      await hover(view.element, 400, ONE_KILOHERTZ_Y)
+
+      split.selectTrack(split.tracks[0]!)
+      await nextTick()
+
+      expect(wrapper.text()).toContain('1.0 kHz · 0 dB')
+    })
   })
 
   describe('the spectrogram strip', () => {

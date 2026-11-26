@@ -885,6 +885,18 @@ describe('SplitZoom', () => {
 
       expect(wrapper.text()).not.toContain('kHz')
     })
+
+    it('reads again under a still pointer when another split is selected', async () => {
+      // Split 2 is at 71.5 s; the columns around it read 0 dB.
+      spectrogramAtOneKilohertz(Array.from({ length: 21 }, (_, index) => 1420 + index))
+      const { split, wrapper } = mountOnSplit()
+      await hover(wrapper.element, 100, ONE_KILOHERTZ_Y)
+
+      split.selectSplit(split.splits[1]!.id)
+      await nextTick()
+
+      expect(wrapper.text()).toContain('1.0 kHz · 0 dB')
+    })
   })
 
   describe('the spectrogram strip', () => {
@@ -953,6 +965,20 @@ describe('SplitZoom', () => {
       await pointer(wrapper.get('canvas'), 'pointerup', 123.46, { clientY: 240 })
 
       expect(playhead()).toBeCloseTo(23.35, 6)
+    })
+
+    it('keeps its labels over the ground before the file’s start', async () => {
+      const { split } = mountWithSpectrogram()
+      // A split at 5 s: its window, -5 to 15 s, starts 50 px before the file.
+      split.addSplitAt(5)
+      split.selectSplit(split.splits[0]!.id)
+      rects = []
+      await nextTick()
+
+      const ground = rects.findIndex((rect) => rect.x === 0 && rect.width === 50)
+      const firstLabel = rects.findIndex((rect) => rect.height === 17)
+      expect(ground).toBeGreaterThanOrEqual(0)
+      expect(firstLabel).toBeGreaterThan(ground)
     })
 
     it('drags the selected split from the strip, as from the waveform', async () => {

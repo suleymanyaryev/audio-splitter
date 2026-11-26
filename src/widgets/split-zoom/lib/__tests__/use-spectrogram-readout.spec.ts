@@ -78,6 +78,44 @@ describe('useSpectrogramReadout', () => {
     expect(readout.value).toBeNull()
   })
 
+  it('shows nothing past the view’s edges, where a captured drag still reports the pointer', () => {
+    loadTenSeconds()
+    // A view of 2 to 8 s, so the time either side of it is still inside the file.
+    const { readout, show } = useSpectrogramReadout({
+      frame: () => frame,
+      secondsAt: (x, width) => 2 + (x / width) * 6,
+    })
+
+    show(at(-5, 241.28))
+    expect(readout.value).toBeNull()
+
+    show(at(1005, 241.28))
+    expect(readout.value).toBeNull()
+  })
+
+  it('reads again under a still pointer when the view moves, until the pointer leaves', () => {
+    loadTenSeconds()
+    let startSeconds = 0
+    const { readout, show, hide, follow } = useSpectrogramReadout({
+      frame: () => frame,
+      secondsAt: (x, width) => startSeconds + (x / width) * 11,
+    })
+    show(at(300, 241.28))
+
+    // 300 px of 1000 is now 9 s + 3.3 s, past the 10 s file.
+    startSeconds = 9
+    follow()
+    expect(readout.value).toBeNull()
+
+    startSeconds = 0
+    follow()
+    expect(readout.value?.text).toBe('1.0 kHz · −32 dB')
+
+    hide()
+    follow()
+    expect(readout.value).toBeNull()
+  })
+
   it('shows nothing before the load is ready', () => {
     const { readout, show } = useSpectrogramReadout({ frame: () => frame, secondsAt })
 

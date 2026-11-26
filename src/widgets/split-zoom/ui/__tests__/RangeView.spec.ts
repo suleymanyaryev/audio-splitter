@@ -496,6 +496,19 @@ describe('RangeView', () => {
       expect(wrapper.text()).not.toContain('kHz')
     })
 
+    it('reads again under a still pointer when the range changes', async () => {
+      // 400 px of 1000 is 54 s in the range 50 to 60 s, where the columns read 0 dB.
+      spectrogramAtOneKilohertz(Array.from({ length: 21 }, (_, index) => 1070 + index))
+      const { split, wrapper } = setup()
+      const view = measuredWithStrip(wrapper)
+      await hover(view.element, 400, ONE_KILOHERTZ_Y)
+
+      split.setRange(50, 60)
+      await nextTick()
+
+      expect(wrapper.text()).toContain('1.0 kHz · 0 dB')
+    })
+
     it('reads the column under the pointer, not the loudest one the pixel shows', async () => {
       // 10 s on 100 px: a pixel is 0.1 s, two 50 ms columns. The pixel at 70 px covers columns
       // 340 and 341, and shows 341's 0 dB; the pointer is at 17.002 s, in the quieter column 340.

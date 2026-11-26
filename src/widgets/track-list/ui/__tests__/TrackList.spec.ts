@@ -514,7 +514,7 @@ describe('TrackList', () => {
 
     const wrapper = mount(TrackList)
 
-    expect(wrapper.classes()).toEqual(expect.arrayContaining(['h-40', 'overflow-y-auto']))
+    expect(wrapper.classes()).toEqual(expect.arrayContaining(['h-80', 'overflow-y-auto']))
   })
 
   describe('split rows', () => {

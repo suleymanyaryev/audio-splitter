@@ -26,6 +26,7 @@ Versions follow [Semantic Versioning](https://semver.org/) applied to the produc
 ### Changed
 
 - Each view keeps its own playhead, so showing another view and moving its playhead leaves this one where it was: the range resumes where you paused it after a visit to the Track view, and the other way round.
+- The Track list is as tall as the zoom panel's views, which grew to make room for the spectrogram, so it shows twice as many rows before it scrolls.
 
 ### Fixed
 

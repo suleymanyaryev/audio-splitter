@@ -123,10 +123,13 @@ const {
   readout,
   show: showReadout,
   hide: hideReadout,
+  follow: followReadout,
 } = useSpectrogramReadout({
   frame: () => frame.value,
   secondsAt: (x, width) => zoomXToTime(x, split.zoomCentreSeconds, ZOOM_WINDOW_SECONDS, width),
 })
+// A key that selects another split moves the window under a still pointer.
+watch(() => split.zoomCentreSeconds, followReadout)
 
 // The drag and the readout both follow the pointer.
 function onFramePointerMove(event: PointerEvent) {
@@ -262,17 +265,6 @@ function draw() {
     context.fillRect(left, middle - RUN_OUT_WIDTH / 2, right - left, RUN_OUT_WIDTH)
   }
 
-  drawSpectrogramStrip(context, {
-    spectrogram: sourceFile.spectrogram,
-    columnSeconds: sourceFile.loudnessWindowSeconds,
-    startSeconds: windowStart.value,
-    endSeconds: windowEnd.value,
-    top: stripTop,
-    width,
-    height: stripHeight,
-    style,
-  })
-
   // The window is not held inside the file: what lies before 0 s or past the end is empty ground.
   context.fillStyle = style.getPropertyValue('--color-ground')
   const outside = outsideFileSpans(
@@ -284,6 +276,18 @@ function draw() {
   for (const { left, right } of outside) {
     context.fillRect(left, 0, right - left, height)
   }
+
+  // After the ground, which shows through the strip outside the file, so its labels stay on top.
+  drawSpectrogramStrip(context, {
+    spectrogram: sourceFile.spectrogram,
+    columnSeconds: sourceFile.loudnessWindowSeconds,
+    startSeconds: windowStart.value,
+    endSeconds: windowEnd.value,
+    top: stripTop,
+    width,
+    height: stripHeight,
+    style,
+  })
 
   drawAuditionEdges(context, style, centre, width, height)
 

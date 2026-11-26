@@ -18,9 +18,10 @@ export type Readout = {
 /*
 The frequency and level under the pointer while it is over a view's spectrogram strip, the bottom
 half of `frame` (`zoomLayout`): "1.0 kHz · −32 dB" (concept note 14). `secondsAt` is the view's
-own time under a pixel. Over the waveform, outside the file (its last column may run past the end)
-or before the load is ready there is no readout, and `hide` takes it away when the pointer leaves.
-The pointer's other actions are the view's own.
+own time under a pixel. Over the waveform, outside the view or the file (its last column may run
+past the end) or before the load is ready there is no readout, and `hide` takes it away when the
+pointer leaves. When the view moves under a still pointer, `follow` reads it again there, so it is
+never stale. The pointer's other actions are the view's own.
 */
 export function useSpectrogramReadout(options: {
   frame: () => HTMLElement | null
@@ -28,28 +29,28 @@ export function useSpectrogramReadout(options: {
 }) {
   const sourceFile = useSourceFileStore()
   const readout = shallowRef<Readout | null>(null)
+  // The last pointer over the view, until it leaves.
+  let pointer: MouseEvent | undefined
 
-  function hide() {
-    readout.value = null
-  }
-
-  function show(event: MouseEvent) {
+  function readAt(event: MouseEvent): Readout | null {
     const element = options.frame()
     const spectrogram = sourceFile.spectrogram
     const columnSeconds = sourceFile.loudnessWindowSeconds
-    if (!element || !spectrogram || columnSeconds === null) return hide()
+    if (!element || !spectrogram || columnSeconds === null) return null
     const { left, top, width, height } = element.getBoundingClientRect()
     const x = event.clientX - left
     const y = event.clientY - top
+    // A captured drag keeps reporting the pointer past the view's edges.
+    if (x < 0 || x > width) return null
     const { stripTop, stripHeight } = zoomLayout(height)
+    if (y < stripTop || y > height) return null
     const seconds = options.secondsAt(x, width)
     const duration = sourceFile.durationSeconds ?? 0
-    if (seconds === null || seconds < 0 || seconds >= duration) return hide()
-    if (y < stripTop || y > height) return hide()
+    if (seconds === null || seconds < 0 || seconds >= duration) return null
     const hz = yToFrequency(y - stripTop, spectrogram.topHz, stripHeight)
     const decibels = readSpectrogram(spectrogram, columnSeconds, seconds, hz)
-    if (decibels === null) return hide()
-    readout.value = {
+    if (decibels === null) return null
+    return {
       text: formatSpectrogramReadout(hz, decibels),
       x,
       y,
@@ -57,5 +58,19 @@ export function useSpectrogramReadout(options: {
     }
   }
 
-  return { readout, show, hide }
+  function show(event: MouseEvent) {
+    pointer = event
+    readout.value = readAt(event)
+  }
+
+  function hide() {
+    pointer = undefined
+    readout.value = null
+  }
+
+  function follow() {
+    if (pointer) readout.value = readAt(pointer)
+  }
+
+  return { readout, show, hide, follow }
 }
