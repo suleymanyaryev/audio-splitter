@@ -19,7 +19,7 @@ Spec: `.scratch/one-player-interface-that-knows-what-is-on-show/spec.md` (Implem
 - [x] Player spec: on and the change happened plays the new subject; off starts nothing; on but the change refused (first or last, the discard question) starts nothing and leaves the sound as it was; a seek inside the change rests there and plays from it.
 - [x] The view specs for stepping and swapping pass unchanged.
 - [x] No changelog line.
-- [ ] Final tier passes: `pnpm verify`, `pnpm lint`, `pnpm knip`, `pnpm depcruise`, after the code review and its fixes.
+- [x] Final tier passes: `pnpm verify`, `pnpm lint`, `pnpm knip`, `pnpm depcruise`, after the code review and its fixes.
 
 ## Comments
 
