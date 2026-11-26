@@ -238,13 +238,13 @@ The order is the agent's proposal; the user confirmed milestone 1 goes first. Tw
 
 **Includes.**
 
-- A hand-written FFT.
-- A spectrogram the user can look at.
+- A hand-written radix-2 FFT, checked against a plain DFT.
+- A spectrogram strip under the waveform of each of the zoom panel's three views, with a "1.0 kHz · −32 dB" readout under the pointer.
 
-**Open questions.**
+**Status.** Grilled and built on 2026-11-26; spec at [`.scratch/spectrogram/spec.md`](../spectrogram/spec.md), concept note [14](../../docs/concepts/14-the-spectrum.md). Both open questions are settled:
 
-- Where the spectrogram shows: a fourth view of the zoom panel, or a panel of its own.
-- When the spectrum is computed. Today the PCM is dropped after each decode slice; only the loudness curve and one peaks array are kept. A whole-file spectrum must be computed inside the load loop, or decoded again on demand.
+- It shows as a strip under the waveform in the Split, Track and Range views, on the same time axis, not as a fourth view or a panel of its own.
+- It is computed inside the load loop, one spectrum per loudness window, and kept as 128 log bands of one byte (about 28 MB for 3 h), so milestone 8 reads it with no second decode.
 
 ## Milestone 8: Changes of content, for crossfaded tracks
 

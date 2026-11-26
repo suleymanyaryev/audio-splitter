@@ -120,7 +120,9 @@ One spectrum per 50 ms loudness window, so the spectrogram has the same column c
 | 1 h    | 72,000  | 1.2 s               | 9.2 MB  |
 | 3 h    | 216,000 | 3.7 s               | 27.6 MB |
 
-The 3 h m4a loads in 19.2 s today (note 02). The spec estimated about 6 s more from a 26 µs FFT. The measured compute is closer to 4 s. Ticket 05 measures the real load time. 27.6 MB is three times the 8.64 MB of the peaks and thirty times the 0.9 MB loudness curve, still far under the 3.81 GB of samples that note 02 never keeps.
+The 3 h m4a loaded in 19.2 s when note 02 measured it. The spec estimated about 6 s more from a 26 µs FFT; the measured compute is closer to 4 s. 27.6 MB is three times the 8.64 MB of the peaks and thirty times the 0.9 MB loudness curve, still far under the 3.81 GB of samples that note 02 never keeps.
+
+**Measured once built** (2026-11-26, the same Apple M4 Pro as note 02, Chrome, `pnpm dev`, from the file input to the review page, two runs each). Without the spectrum, the same build loads `sample3h.m4a` in 22.2 and 23.1 s today, so the machine is slower than on the day of note 02. With the spectrum, the load takes 26.3 and 28.4 s: **about 4 to 5 s more**, the compute above plus copying each slice into the builder. The page's heap ended at 127 MB, against 111 MB without it.
 
 ## Why in the load loop, and why bands
 
@@ -133,4 +135,8 @@ This stands in for an ADR.
 
 ## Where it lives in the code
 
-Filled in once the milestone is built (ticket 05).
+- [`src/shared/lib/audio/fft.ts`](../../src/shared/lib/audio/fft.ts): the radix-2 FFT, with the twiddles and the bit-reversed order worked out once per size. Its spec checks it against a plain DFT.
+- [`src/shared/lib/audio/spectrogram-builder.ts`](../../src/shared/lib/audio/spectrogram-builder.ts): one column per loudness window. The 2048-sample Hann frame is centred on the window's middle, with zeros past the file's ends and samples carried across slices. The bands sum their steps' power, or take the nearest step, against a full-scale sine's power, one byte each from −100 to 0 dB.
+- [`src/entities/source-file/model/source-file.ts`](../../src/entities/source-file/model/source-file.ts): the store feeds each slice's downmix to the spectrum builder beside the peaks and the loudness curve, and keeps the spectrogram as a third summary.
+- [`src/widgets/split-zoom/lib/draw-spectrogram-strip.ts`](../../src/widgets/split-zoom/lib/draw-spectrogram-strip.ts): the strip under each zoom view's waveform, its labels and the line above it. [`merge-spectrogram.ts`](../../src/widgets/split-zoom/lib/merge-spectrogram.ts) keeps each band's loudest value per pixel, [`spectrogram-shade.ts`](../../src/widgets/split-zoom/lib/spectrogram-shade.ts) maps the 80 dB under the file's loudest band to the theme's colours, and [`spectrogram-axis.ts`](../../src/widgets/split-zoom/lib/spectrogram-axis.ts) maps frequency to height and back.
+- [`src/widgets/split-zoom/lib/use-spectrogram-readout.ts`](../../src/widgets/split-zoom/lib/use-spectrogram-readout.ts): the "1.0 kHz · −32 dB" readout under the pointer, read from the spectrogram before any merge ([`read-spectrogram.ts`](../../src/widgets/split-zoom/lib/read-spectrogram.ts)).
