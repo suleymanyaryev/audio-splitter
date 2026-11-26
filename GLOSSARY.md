@@ -157,5 +157,5 @@ A point where the loudness falls at least the depth setting under the loudness a
 _Avoid_: Shallow gap, valley, trough
 
 **Edit**:
-A thing the user changed by hand since the source file opened: a split moved, added or deleted, a track renamed, a track left out or brought back, a match dismissed, or a split marked checked. It is counted once per thing changed, however often it was changed; the splits Find splits adds are no edit until the user changes one, and the matches Find duplicates finds are no edit.
+A thing the user changed by hand since the source file opened: a split moved, added or deleted, a track renamed, a track left out or brought back, a match dismissed, or a split marked checked. A split is one edit from the first change to it, whatever is done to it after, even a move back; only an added split deleted again leaves none. A track's name or its being left out is one edit only while it differs from how the track came to be, and a dismissed match only while both tracks keep their ends. The splits Find splits adds are no edit until the user changes one, and the matches Find duplicates finds are no edit.
 _Avoid_: Change, modification, revision
