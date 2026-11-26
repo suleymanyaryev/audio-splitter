@@ -8,7 +8,7 @@ Reka's slider focuses its thumb itself during a pointer drag, so stopping the br
 
 **Blocked by:** 02 (Track view and Range view keys), 03 (Split view keys). The kit change stands alone, but these acceptance checks ("the next key acts on the view") only mean something once the views listen on the page.
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 - [ ] Each kit spec (`UiButton`, `UiIconButton`, `UiSegmentedControl`, `UiSlider`) has a case where a mouse press leaves the focus off the control, and a case where a control focused as by Tab keeps its native keys and focus ring
 - [ ] After a pointer drag on a slider thumb ends, the thumb doesn't have the focus

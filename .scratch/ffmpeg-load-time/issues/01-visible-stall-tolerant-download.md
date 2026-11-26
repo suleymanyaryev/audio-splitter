@@ -4,7 +4,7 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 Spec: `.scratch/ffmpeg-load-time/spec.md` (stories 7, 20–37, 42)
 

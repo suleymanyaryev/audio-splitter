@@ -8,7 +8,7 @@ The `canvas-view` skill's keyboard section is rewritten to describe the page-lev
 
 **Blocked by:** 01 (Page-level keys composable)
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 - [ ] Every existing key case in the Split view spec passes with the key dispatched on the document instead of the handle
 - [ ] In `ReviewPage.spec`, after a click on a split's track-list row with the focus on the body, Left moves the selected split 10 ms and Shift+Right 100 ms

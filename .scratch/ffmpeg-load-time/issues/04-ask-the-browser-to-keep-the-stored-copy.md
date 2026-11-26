@@ -4,7 +4,7 @@
 
 **Blocked by:** 03 (Keep the ffmpeg core in the browser)
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 Spec: `.scratch/ffmpeg-load-time/spec.md` (stories 15–17)
 

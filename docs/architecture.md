@@ -41,15 +41,15 @@ An arrow means "may import from". Two slices of one layer never import each othe
 
 All state lives in Pinia setup stores, in memory, except the theme ([below](#the-theme)). Only the volume, the mute flag, the play speed, the default settings and the theme choice are also saved, in `localStorage`.
 
-| Store              | Slice                      | Holds                                                                         |
-| ------------------ | -------------------------- | ----------------------------------------------------------------------------- |
-| `source-file`      | `entities/source-file`     | The file, its analysis, load progress and the ffmpeg session                  |
-| `split`            | `entities/split`           | Settings, proposals, splits and their confidence, track names, matches, selection, edits |
-| `player`           | `widgets/split-zoom`       | The one player: the subject on show, its status, volume and play speed        |
-| `export-tracks`    | `widgets/track-strip`      | The export of every track not left out into a folder                          |
-| `export-single`    | `widgets/track-strip`      | The export of one track or range as a single file                             |
-| `export-lock`      | `widgets/track-strip`      | Which export is running, so the two never overlap                             |
-| `shortcuts-dialog` | `widgets/shortcuts-dialog` | Whether the shortcuts dialog is open                                          |
+| Store              | Slice                      | Holds                                                                                                    |
+| ------------------ | -------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `source-file`      | `entities/source-file`     | The file, its three summaries (peaks, loudness curve, spectrogram), load progress and the ffmpeg session |
+| `split`            | `entities/split`           | Settings, proposals, splits and their confidence, track names, matches, selection, edits                 |
+| `player`           | `widgets/split-zoom`       | The one player: the subject on show, its status, volume and play speed                                   |
+| `export-tracks`    | `widgets/track-strip`      | The export of every track not left out into a folder                                                     |
+| `export-single`    | `widgets/track-strip`      | The export of one track or range as a single file                                                        |
+| `export-lock`      | `widgets/track-strip`      | Which export is running, so the two never overlap                                                        |
+| `shortcuts-dialog` | `widgets/shortcuts-dialog` | Whether the shortcuts dialog is open                                                                     |
 
 ```mermaid
 flowchart LR
@@ -132,7 +132,7 @@ sequenceDiagram
     loop each slice
       store->>session: decodeSlice(i)
       session-->>store: PCM
-      store->>store: downmix, add to peaks and loudness, drop the PCM
+      store->>store: downmix, add to peaks, loudness and spectrogram, drop the PCM
     end
     store->>store: ready, session stays open
   end

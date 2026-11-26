@@ -10,7 +10,7 @@ The "Saved … in …" line clears on a key the view on show acted on, replacing
 
 **Blocked by:** 01 (Page-level keys composable)
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 - [ ] Every existing key case in the Track view and Range view specs passes with the key dispatched on the document instead of the frame
 - [ ] In `ReviewPage.spec`, with the Track view on show and the focus on the body after a click on a track-list row, Space plays the track and Enter adds a pending split at the mark

@@ -16,25 +16,33 @@ import {
 } from '@/shared/lib/canvas/draw-playhead-and-frame.ts'
 import { prepareCanvas } from '@/shared/lib/canvas/prepare-canvas.ts'
 import { useCanvasRedraw } from '@/shared/lib/canvas/use-canvas-redraw.ts'
+import { zoomXToTime } from '@/shared/lib/canvas/zoom-axis.ts'
 import { usePageKeys } from '@/shared/lib/keyboard/use-page-keys.ts'
 import { formatHundredths } from '@/shared/lib/time/format-hundredths.ts'
+import { createSpectrogramStrip } from '../lib/draw-spectrogram-strip.ts'
 import { pointerX } from '../lib/pointer-x.ts'
 import { stepOfKey } from '../lib/step-of-key.ts'
 import { stretchAxis } from '../lib/stretch-axis.ts'
 import { usePlayheadDrag } from '../lib/use-playhead-drag.ts'
 import { usePlayheadSlider } from '../lib/use-playhead-slider.ts'
+import { useSpectrogramReadout } from '../lib/use-spectrogram-readout.ts'
 import { useStretchKeys } from '../lib/use-stretch-keys.ts'
 import { zoomBars } from '../lib/zoom-bars.ts'
 import { landSpansInWindow } from '../lib/zoom-spans.ts'
+import { zoomLayout } from '../lib/zoom-layout.ts'
 import { usePlayerStore } from '../model/player.ts'
 import PlayerFailure from './PlayerFailure.vue'
+import SpectrogramReadout from './SpectrogramReadout.vue'
 
 /*
-The Track view (GLOSSARY.md): the selected track stretched across a 160 px canvas whatever its
+The Track view (GLOSSARY.md): the selected track stretched across the canvas whatever its
 length, in the zoom view's place and at its height, so the page does not jump when the panel
 switches. Like the Range view it draws the peaks the whole-file view already holds, merged over the
 track's buckets, with the lands and the split lines that fall inside the track on the same axis: its
-two end splits sit on the edges, and a track has no split inside it. No split is moved or added
+two end splits sit on the edges, and a track has no split inside it. Under the waveform, as tall
+as it, is the spectrogram strip, each pixel keeping each band's loudest value over its time
+(`lib/draw-spectrogram-strip.ts`); the split lines, the pending splits, the mark and the playhead
+cross it, and the lands stay on the waveform. No split is moved or added
 here, and one is selected only by a double-click on an end split's line.
 
 A 1 px ink playhead is drawn at all times: at the track's start for a new track, then where the
@@ -71,6 +79,7 @@ const split = useSplitStore()
 const player = usePlayerStore()
 const { isStretchKeyActedOn } = useStretchKeys()
 const canvas = useTemplateRef('canvas')
+const drawSpectrogramStrip = createSpectrogramStrip()
 const frame = useTemplateRef('frame')
 
 // The track's start for a new track, then where it is heard or resumes; 0 with no track selected.
@@ -88,8 +97,9 @@ function draw() {
   const style = getComputedStyle(document.documentElement)
   const axis = stretchAxis(extent, width)
   const { centreSeconds, windowSeconds } = axis
-  const middle = height / 2
-  // A sample of ±1 reaches the frame.
+  const { waveHeight, stripTop, stripHeight } = zoomLayout(height)
+  const middle = waveHeight / 2
+  // A sample of ±1 reaches the frame and the line between the two.
   const halfHeight = middle - FRAME_WIDTH
 
   const bars = zoomBars(peaks, centreSeconds, windowSeconds, width, BAR_PITCH)
@@ -101,13 +111,25 @@ function draw() {
     landSpansInWindow(split.gaps, centreSeconds, windowSeconds, width),
     style.getPropertyValue('--color-land'),
     0,
-    height,
+    waveHeight,
   )
+
+  // Under the waveform, on the same axis; the split lines and everything after cross it.
+  drawSpectrogramStrip(context, {
+    spectrogram: sourceFile.spectrogram,
+    columnSeconds: sourceFile.loudnessWindowSeconds,
+    startSeconds: centreSeconds - windowSeconds / 2,
+    endSeconds: centreSeconds + windowSeconds / 2,
+    top: stripTop,
+    width,
+    height: stripHeight,
+    style,
+  })
 
   // The track's end splits are drawn on its edges; every other split is off the canvas.
   const lineXs = split.splits.map((point) => axis.toX(point.seconds))
   drawSplitLines(context, lineXs, style.getPropertyValue('--color-split'), 0, height)
-  drawConfidenceMarks(context, style, split.splits, lineXs, 0, height)
+  drawConfidenceMarks(context, style, split.splits, lineXs, 0, waveHeight)
 
   // Pending splits go over the split lines and under the mark, which can sit on one.
   drawPendingSplits(
@@ -138,6 +160,28 @@ function frameWidth() {
 const { overPlayhead, dragging, tryGrab, onPointerMove, onPointerEnd } = usePlayheadDrag(() =>
   stretchAxis(player.extent, frameWidth()),
 )
+
+// Hovering the strip shows the frequency and level under the pointer, at the time under it.
+const {
+  readout,
+  show: showReadout,
+  hide: hideReadout,
+  follow: followReadout,
+} = useSpectrogramReadout({
+  frame: () => frame.value,
+  secondsAt: (x, width) => {
+    const axis = stretchAxis(player.extent, width)
+    return axis && zoomXToTime(x, axis.centreSeconds, axis.windowSeconds, width)
+  },
+})
+// Another track, or a moved end split, stretches the view anew under a still pointer.
+watch([() => player.extent?.startSeconds, () => player.extent?.endSeconds], followReadout)
+
+// The drag and the readout both follow the pointer.
+function onFramePointerMove(event: PointerEvent) {
+  onPointerMove(event)
+  showReadout(event)
+}
 
 /*
 A press on the playhead drags it; one within 6 px of a pending split selects it; any other lets go
@@ -297,6 +341,7 @@ useCanvasRedraw(canvas, draw)
 watch(
   () => [
     sourceFile.peaks,
+    sourceFile.spectrogram,
     player.extent?.startSeconds,
     player.extent?.endSeconds,
     split.gaps,
@@ -313,7 +358,7 @@ watch(
 </script>
 
 <template>
-  <div class="relative h-40">
+  <div class="relative h-80">
     <!-- A slider must take the focus for a screen reader, but it is no tab stop: the keys reach the view
     wherever the focus is. -->
     <div
@@ -329,13 +374,19 @@ watch(
       :class="{ 'cursor-ew-resize': overPlayhead || dragging }"
       @pointerdown="onPointerDown"
       @dblclick="onDoubleClick"
-      @pointermove="onPointerMove"
+      @pointermove="onFramePointerMove"
+      @pointerleave="hideReadout"
       @pointerup="onPointerEnd"
       @pointercancel="onPointerEnd"
       @lostpointercapture="onPointerEnd"
     >
-      <canvas ref="canvas" class="block size-full" aria-label="Waveform of the track" />
+      <canvas
+        ref="canvas"
+        class="block size-full"
+        aria-label="Waveform and spectrogram of the track"
+      />
     </div>
     <PlayerFailure />
+    <SpectrogramReadout :readout="readout" />
   </div>
 </template>

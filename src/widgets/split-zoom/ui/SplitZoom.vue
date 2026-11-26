@@ -14,22 +14,26 @@ import {
 } from '@/shared/lib/canvas/draw-playhead-and-frame.ts'
 import { prepareCanvas } from '@/shared/lib/canvas/prepare-canvas.ts'
 import { useCanvasRedraw } from '@/shared/lib/canvas/use-canvas-redraw.ts'
-import { zoomTimeToX } from '@/shared/lib/canvas/zoom-axis.ts'
+import { zoomTimeToX, zoomXToTime } from '@/shared/lib/canvas/zoom-axis.ts'
 import { usePageKeys } from '@/shared/lib/keyboard/use-page-keys.ts'
 import { formatHundredths } from '@/shared/lib/time/format-hundredths.ts'
 import { roundToMillisecond } from '@/shared/lib/time/round-to-millisecond.ts'
 import { auditionEdgeRects } from '../lib/audition-edges.ts'
+import { createSpectrogramStrip } from '../lib/draw-spectrogram-strip.ts'
 import { draggedTime } from '../lib/dragged-time.ts'
 import { stepOfKey } from '../lib/step-of-key.ts'
 import { usePlayheadSlider } from '../lib/use-playhead-slider.ts'
+import { useSpectrogramReadout } from '../lib/use-spectrogram-readout.ts'
 import { useSplitDrag } from '../lib/use-split-drag.ts'
 import { zoomBars } from '../lib/zoom-bars.ts'
 import { landSpansInWindow, outsideFileSpans } from '../lib/zoom-spans.ts'
+import { zoomLayout } from '../lib/zoom-layout.ts'
 import { usePlayerStore } from '../model/player.ts'
 import PlayerFailure from './PlayerFailure.vue'
+import SpectrogramReadout from './SpectrogramReadout.vue'
 
 /*
-The Split view: the 20 s around the zoom centre at 160 px, where the selected split is moved. It is
+The Split view: the 20 s around the zoom centre, where the selected split is moved. It is
 the only place a split moves (ticket 13). The wave is the same peaks as the whole-file view, in the
 same bars; each gap is a land at its true width with a flat run-out line through it; the selected
 split is a wider line with a drag handle at its top. The handle is a real element over the canvas so
@@ -53,6 +57,12 @@ A press within reach of the split's line takes the split and never the playhead.
 with the main button moves the playhead to the pointer (rounded to 10 ms, held to the 8 s) and
 drags it along until the release; a playing audition pauses while it is held and plays on from the
 drop (`lib/use-split-drag.ts`). A double-click does nothing here.
+
+Under the waveform, in the same frame and on the same time map, is the spectrogram strip, as tall
+as the waveform (`lib/draw-spectrogram-strip.ts`, concept note 14). The split lines, the playhead
+and the audition's edges cross it; the lands and the confidence marks stay on the waveform. The
+frame takes the pointer, so a press on the strip does what it does on the waveform, and hovering
+the strip shows the frequency and level under the pointer (`lib/use-spectrogram-readout.ts`).
 */
 
 // DESIGN.md: the run-out line is 1 px.
@@ -70,6 +80,7 @@ const sourceFile = useSourceFileStore()
 const split = useSplitStore()
 const player = usePlayerStore()
 const canvas = useTemplateRef('canvas')
+const drawSpectrogramStrip = createSpectrogramStrip()
 const frame = useTemplateRef('frame')
 const handle = useTemplateRef('handle')
 
@@ -107,6 +118,24 @@ const { overLine, dragging, onPointerDown, onPointerMove, onPointerEnd } = useSp
   movePlayhead: player.seek,
   dropPlayhead: player.dropPlayhead,
 })
+
+const {
+  readout,
+  show: showReadout,
+  hide: hideReadout,
+  follow: followReadout,
+} = useSpectrogramReadout({
+  frame: () => frame.value,
+  secondsAt: (x, width) => zoomXToTime(x, split.zoomCentreSeconds, ZOOM_WINDOW_SECONDS, width),
+})
+// A key that selects another split moves the window under a still pointer.
+watch(() => split.zoomCentreSeconds, followReadout)
+
+// The drag and the readout both follow the pointer.
+function onFramePointerMove(event: PointerEvent) {
+  onPointerMove(event)
+  showReadout(event)
+}
 
 function stepPlayhead(direction: -1 | 1, isShifted: boolean) {
   const playhead = player.playheadSeconds()
@@ -218,8 +247,9 @@ function draw() {
 
   const style = getComputedStyle(document.documentElement)
   const centre = split.zoomCentreSeconds
-  const middle = height / 2
-  // A sample of ±1 reaches the frame.
+  const { waveHeight, stripTop, stripHeight } = zoomLayout(height)
+  const middle = waveHeight / 2
+  // A sample of ±1 reaches the frame and the line between the two.
   const halfHeight = middle - FRAME_WIDTH
 
   const bars = zoomBars(peaks, centre, ZOOM_WINDOW_SECONDS, width, BAR_PITCH)
@@ -230,7 +260,7 @@ function draw() {
   const lands = landSpansInWindow(split.gaps, centre, ZOOM_WINDOW_SECONDS, width)
   for (const { left, right } of lands) {
     context.fillStyle = landColor
-    context.fillRect(left, 0, right - left, height)
+    context.fillRect(left, 0, right - left, waveHeight)
     context.fillStyle = style.getPropertyValue('--color-wave')
     context.fillRect(left, middle - RUN_OUT_WIDTH / 2, right - left, RUN_OUT_WIDTH)
   }
@@ -247,6 +277,18 @@ function draw() {
     context.fillRect(left, 0, right - left, height)
   }
 
+  // After the ground, which shows through the strip outside the file, so its labels stay on top.
+  drawSpectrogramStrip(context, {
+    spectrogram: sourceFile.spectrogram,
+    columnSeconds: sourceFile.loudnessWindowSeconds,
+    startSeconds: windowStart.value,
+    endSeconds: windowEnd.value,
+    top: stripTop,
+    width,
+    height: stripHeight,
+    style,
+  })
+
   drawAuditionEdges(context, style, centre, width, height)
 
   const lineXs = split.splits.map((point) =>
@@ -260,7 +302,7 @@ function draw() {
     height,
     split.selectedSplitIndex,
   )
-  drawConfidenceMarks(context, style, split.splits, lineXs, 0, height)
+  drawConfidenceMarks(context, style, split.splits, lineXs, 0, waveHeight)
 
   /*
   The playhead goes over the split lines, which it must stay readable against, and under the
@@ -284,6 +326,7 @@ useCanvasRedraw(canvas, draw)
 watch(
   () => [
     sourceFile.peaks,
+    sourceFile.spectrogram,
     split.gaps,
     split.splits.map((point) => point.seconds),
     // Checking a split takes its mark away and changes nothing else.
@@ -300,10 +343,11 @@ watch(
 <template>
   <div
     ref="frame"
-    class="relative h-40 select-none"
+    class="relative h-80 select-none"
     :class="{ 'cursor-ew-resize': overLine || dragging }"
     @pointerdown="onPointerDown"
-    @pointermove="onPointerMove"
+    @pointermove="onFramePointerMove"
+    @pointerleave="hideReadout"
     @pointerup="onPointerEnd"
     @pointercancel="onPointerEnd"
     @lostpointercapture="onPointerEnd"
@@ -320,7 +364,11 @@ watch(
       :aria-valuetext="player.extent === null ? undefined : formatHundredths(sliderSeconds)"
       class="size-full"
     >
-      <canvas ref="canvas" class="block size-full" aria-label="Zoomed waveform of the split" />
+      <canvas
+        ref="canvas"
+        class="block size-full"
+        aria-label="Zoomed waveform and spectrogram of the split"
+      />
     </div>
     <div
       v-if="split.selectedSplit !== null && handleLeft !== null"
@@ -336,6 +384,7 @@ watch(
       :style="{ left: handleLeft }"
     />
     <PlayerFailure />
+    <SpectrogramReadout :readout="readout" />
     <p
       v-if="split.splits.length === 0"
       role="status"

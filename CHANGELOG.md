@@ -18,9 +18,15 @@ Versions follow [Semantic Versioning](https://semver.org/) applied to the produc
 
 ## [Unreleased]
 
+### Added
+
+- The zoom panel's Split, Track and Range views show a spectrogram under their waveform: which tones sound, low to high, on the same time axis, so a split can be read against how the sound changes as well as how loud it is. In a long track or range, a short loud moment still shows.
+- Hovering the spectrogram shows the frequency and the level under the pointer, as "1.0 kHz · −32 dB", so a tone or the encoder's cut-off can be read off the picture.
+
 ### Changed
 
 - Each view keeps its own playhead, so showing another view and moving its playhead leaves this one where it was: the range resumes where you paused it after a visit to the Track view, and the other way round.
+- The Track list is as tall as the zoom panel's views, which grew to make room for the spectrogram, so it shows twice as many rows before it scrolls.
 
 ### Fixed
 
