@@ -14,7 +14,7 @@ Versions follow [Semantic Versioning](https://semver.org/) applied to the produc
 
 - Each user-visible change adds a line under `## [Unreleased]` in the same commit, in one of Keep a Changelog's groups: Added, Changed, Deprecated, Removed, Fixed, Security. Write what the user notices, not how the code changed. Refactors, tests, tooling and docs get no entry.
 - A release is `pnpm release <patch|minor|major>` on a clean `main` (`--dry-run` to preview). It renames `## [Unreleased]` to `## [X.Y.Z] - YYYY-MM-DD` under a fresh `## [Unreleased]`, updates the links at the bottom, sets `version` in `package.json`, commits and tags `vX.Y.Z` (`scripts/release.ts`). It warns when the groups suggest another level, and prints the push command rather than running it.
-- Pushing a `v*` tag that is on `main` publishes that commit to GitHub Pages (`.github/workflows/deploy.yml`).
+- Pushing a `v*` tag that is on `main` publishes that commit to GitHub Pages (`.github/workflows/deploy.yml`). When its deploy job fails, re-run it with "Re-run failed jobs", not "Re-run all jobs".
 
 ## [Unreleased]
 
