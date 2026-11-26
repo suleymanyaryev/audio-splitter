@@ -17,6 +17,7 @@ import { prepareCanvas } from '@/shared/lib/canvas/prepare-canvas.ts'
 import { useCanvasRedraw } from '@/shared/lib/canvas/use-canvas-redraw.ts'
 import { usePageKeys } from '@/shared/lib/keyboard/use-page-keys.ts'
 import { formatHundredths } from '@/shared/lib/time/format-hundredths.ts'
+import { createSpectrogramStrip } from '../lib/draw-spectrogram-strip.ts'
 import { pointerX } from '../lib/pointer-x.ts'
 import { stretchAxis } from '../lib/stretch-axis.ts'
 import { usePlayheadDrag } from '../lib/use-playhead-drag.ts'
@@ -28,11 +29,13 @@ import { usePlayerStore } from '../model/player.ts'
 import PlayerFailure from './PlayerFailure.vue'
 
 /*
-The Range view (GLOSSARY.md): the range the user dragged out, stretched across a 160 px canvas
+The Range view (GLOSSARY.md): the range the user dragged out, stretched across the canvas
 whatever its length, in the zoom view's place and at its height, so the page does not jump when the
 panel switches. The bars are the peaks the whole-file view already holds, merged over the range's
 buckets, so nothing is decoded; the lands and the split lines that fall inside the range are drawn
-on the same axis. The panel's `Split | Range` control only offers this view while there is a range.
+on the same axis. Under the waveform, as tall as it, is the spectrogram strip, each pixel keeping
+each band's loudest value over its time (`lib/draw-spectrogram-strip.ts`); the split lines, the
+mark and the playhead cross it, and the lands stay on the waveform. The panel's `Split | Range` control only offers this view while there is a range.
 
 A 1 px ink playhead is drawn at all times: at the range's start for a new range, then where the
 range is heard or where it resumes. While the range plays it is drawn on every animation frame. The
@@ -54,6 +57,7 @@ const split = useSplitStore()
 const player = usePlayerStore()
 const { isStretchKeyActedOn } = useStretchKeys()
 const canvas = useTemplateRef('canvas')
+const drawSpectrogramStrip = createSpectrogramStrip()
 const frame = useTemplateRef('frame')
 
 // The range's start for a new range, then where it is heard or resumes; 0 with no range.
@@ -71,8 +75,10 @@ function draw() {
   const style = getComputedStyle(document.documentElement)
   const axis = stretchAxis(extent, width)
   const { centreSeconds, windowSeconds } = axis
-  const middle = height / 2
-  // A sample of ±1 reaches the frame.
+  // The waveform takes the top half, the spectrogram strip the bottom half.
+  const waveHeight = height / 2
+  const middle = waveHeight / 2
+  // A sample of ±1 reaches the frame and the line between the two.
   const halfHeight = middle - FRAME_WIDTH
 
   const bars = zoomBars(peaks, centreSeconds, windowSeconds, width, BAR_PITCH)
@@ -84,8 +90,20 @@ function draw() {
     landSpansInWindow(split.gaps, centreSeconds, windowSeconds, width),
     style.getPropertyValue('--color-land'),
     0,
-    height,
+    waveHeight,
   )
+
+  // Under the waveform, on the same axis; the split lines and everything after cross it.
+  drawSpectrogramStrip(context, {
+    spectrogram: sourceFile.spectrogram,
+    columnSeconds: sourceFile.loudnessWindowSeconds,
+    startSeconds: centreSeconds - windowSeconds / 2,
+    endSeconds: centreSeconds + windowSeconds / 2,
+    top: waveHeight,
+    width,
+    height: height - waveHeight,
+    style,
+  })
 
   // A split on the range's edge is drawn on it; one outside is off the canvas.
   const lineXs = split.splits.map((point) => axis.toX(point.seconds))
@@ -97,7 +115,7 @@ function draw() {
     height,
     split.selectedSplitIndex,
   )
-  drawConfidenceMarks(context, style, split.splits, lineXs, 0, height)
+  drawConfidenceMarks(context, style, split.splits, lineXs, 0, waveHeight)
 
   // The mark is a dashed line, never mistaken for a split line or the playhead, under the latter.
   if (split.markSeconds !== null) {
@@ -186,6 +204,7 @@ useCanvasRedraw(canvas, draw)
 watch(
   () => [
     sourceFile.peaks,
+    sourceFile.spectrogram,
     player.extent?.startSeconds,
     player.extent?.endSeconds,
     split.gaps,
@@ -201,7 +220,7 @@ watch(
 </script>
 
 <template>
-  <div class="relative h-40">
+  <div class="relative h-80">
     <!-- A slider must take the focus for a screen reader, but it is no tab stop: the keys reach the view
     wherever the focus is. -->
     <div
@@ -222,7 +241,11 @@ watch(
       @pointercancel="onPointerEnd"
       @lostpointercapture="onPointerEnd"
     >
-      <canvas ref="canvas" class="block size-full" aria-label="Waveform of the range" />
+      <canvas
+        ref="canvas"
+        class="block size-full"
+        aria-label="Waveform and spectrogram of the range"
+      />
     </div>
     <PlayerFailure />
   </div>

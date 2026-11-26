@@ -741,7 +741,9 @@ describe('ReviewPage', () => {
       expect(split.selectedSplit?.id).toBe(selectedId)
       expect(split.markSeconds).toBe(15)
       expect(split.editCount).toBe(1)
-      expect(wrapper.find('[aria-label="Waveform of the range"]').exists()).toBe(true)
+      expect(wrapper.find('[aria-label="Waveform and spectrogram of the range"]').exists()).toBe(
+        true,
+      )
       // A split within a second of the mark now, so it cannot be added twice.
       expect(addSplitButton(wrapper).attributes('disabled')).toBeDefined()
     })
@@ -877,7 +879,9 @@ describe('ReviewPage', () => {
       expect(viewOption(wrapper, 'Track').attributes('aria-checked')).toBe('true')
       expect(viewOption(wrapper, 'Track').attributes('disabled')).toBeUndefined()
       expect(viewOption(wrapper, 'Range').attributes('disabled')).toBeDefined()
-      expect(wrapper.find('[aria-label="Waveform of the track"]').exists()).toBe(true)
+      expect(wrapper.find('[aria-label="Waveform and spectrogram of the track"]').exists()).toBe(
+        true,
+      )
       expect(panelTitle(wrapper)).toBe('01 · 0:00:00.00 – 0:00:21.00')
     })
 
@@ -899,7 +903,9 @@ describe('ReviewPage', () => {
       expect(
         wrapper.find('[aria-label="Zoomed waveform and spectrogram of the split"]').exists(),
       ).toBe(true)
-      expect(wrapper.find('[aria-label="Waveform of the range"]').exists()).toBe(false)
+      expect(wrapper.find('[aria-label="Waveform and spectrogram of the range"]').exists()).toBe(
+        false,
+      )
       expect(addSplitButton(wrapper).exists()).toBe(true)
       expect(auditionButton(wrapper).exists()).toBe(true)
     })
@@ -930,7 +936,9 @@ describe('ReviewPage', () => {
 
       expect(viewOption(wrapper, 'Range').attributes('aria-checked')).toBe('true')
       expect(viewOption(wrapper, 'Range').attributes('disabled')).toBeUndefined()
-      expect(wrapper.find('[aria-label="Waveform of the range"]').exists()).toBe(true)
+      expect(wrapper.find('[aria-label="Waveform and spectrogram of the range"]').exists()).toBe(
+        true,
+      )
       expect(
         wrapper.find('[aria-label="Zoomed waveform and spectrogram of the split"]').exists(),
       ).toBe(false)
@@ -964,7 +972,9 @@ describe('ReviewPage', () => {
       await viewOption(wrapper, 'Range').trigger('click')
       expect(split.view).toBe('range')
       expect(split.range).toEqual({ startSeconds: 10, endSeconds: 20 })
-      expect(wrapper.find('[aria-label="Waveform of the range"]').exists()).toBe(true)
+      expect(wrapper.find('[aria-label="Waveform and spectrogram of the range"]').exists()).toBe(
+        true,
+      )
     })
 
     it('goes back to Split when a split is selected', async () => {
@@ -986,7 +996,9 @@ describe('ReviewPage', () => {
 
         expect(viewOption(wrapper, 'Track').attributes('aria-checked')).toBe('true')
         expect(viewOption(wrapper, 'Track').attributes('disabled')).toBeUndefined()
-        expect(wrapper.find('[aria-label="Waveform of the track"]').exists()).toBe(true)
+        expect(wrapper.find('[aria-label="Waveform and spectrogram of the track"]').exists()).toBe(
+          true,
+        )
         expect(
           wrapper.find('[aria-label="Zoomed waveform and spectrogram of the split"]').exists(),
         ).toBe(false)
@@ -996,7 +1008,9 @@ describe('ReviewPage', () => {
       it('shows the first track too', async () => {
         const wrapper = await mountPageWithTrack(1)
 
-        expect(wrapper.find('[aria-label="Waveform of the track"]').exists()).toBe(true)
+        expect(wrapper.find('[aria-label="Waveform and spectrogram of the track"]').exists()).toBe(
+          true,
+        )
         expect(panelTitle(wrapper)).toBe('01 · 0:00:00.00 – 0:00:21.00')
       })
 
@@ -1040,7 +1054,9 @@ describe('ReviewPage', () => {
 
         await viewOption(wrapper, 'Track').trigger('click')
 
-        expect(wrapper.find('[aria-label="Waveform of the track"]').exists()).toBe(true)
+        expect(wrapper.find('[aria-label="Waveform and spectrogram of the track"]').exists()).toBe(
+          true,
+        )
         expect(panelTitle(wrapper)).toBe('02 · 0:00:21.00 – 0:01:11.50')
       })
 
@@ -1112,12 +1128,16 @@ describe('ReviewPage', () => {
         const split = useSplitStore()
         split.setRange(10, 20)
         await wrapper.vm.$nextTick()
-        expect(wrapper.find('[aria-label="Waveform of the range"]').exists()).toBe(true)
+        expect(wrapper.find('[aria-label="Waveform and spectrogram of the range"]').exists()).toBe(
+          true,
+        )
 
         await viewOption(wrapper, 'Track').trigger('click')
 
         expect(split.view).toBe('track')
-        expect(wrapper.find('[aria-label="Waveform of the track"]').exists()).toBe(true)
+        expect(wrapper.find('[aria-label="Waveform and spectrogram of the track"]').exists()).toBe(
+          true,
+        )
       })
     })
   })

@@ -20,7 +20,7 @@ Versions follow [Semantic Versioning](https://semver.org/) applied to the produc
 
 ### Added
 
-- The Split view shows a spectrogram under its waveform: which tones sound around the split, low to high, on the same time axis, so a split can be read against how the sound changes as well as how loud it is.
+- The zoom panel's Split, Track and Range views show a spectrogram under their waveform: which tones sound, low to high, on the same time axis, so a split can be read against how the sound changes as well as how loud it is. In a long track or range, a short loud moment still shows.
 
 ### Changed
 

@@ -2,14 +2,19 @@ import { describe, it, expect } from 'vitest'
 
 import { paintSpectrogram } from '../paint-spectrogram.ts'
 
-// Two columns of two bands, band 0 first: column 0 is (255, 0), column 1 is (51, 153).
-const bands = Uint8Array.of(255, 0, 51, 153)
+// Two pixels' worth of two bands, band 0 first: column 0 is (255, 0), column 1 is (51, 153).
+const columnValues = [
+  [255, 0],
+  [51, 153],
+]
 const background: [number, number, number] = [250, 250, 250]
 const text: [number, number, number] = [10, 30, 50]
 
+// Paints one pixel column per entry, the merged values of that column or -1 for none.
 function paint(columns: number[]) {
+  const merged = Int16Array.from(columns.flatMap((column) => columnValues[column] ?? [-1, -1]))
   const pixels = new Uint8ClampedArray(columns.length * 2 * 4)
-  paintSpectrogram(pixels, Int32Array.from(columns), { bands, bandCount: 2 }, 255, background, text)
+  paintSpectrogram(pixels, merged, 2, 255, background, text)
   // One [r, g, b, a] per pixel, row by row from the top.
   return Array.from({ length: pixels.length / 4 }, (_, at) => [
     ...pixels.subarray(at * 4, at * 4 + 4),

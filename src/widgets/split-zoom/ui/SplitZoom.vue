@@ -244,20 +244,16 @@ function draw() {
     context.fillRect(left, middle - RUN_OUT_WIDTH / 2, right - left, RUN_OUT_WIDTH)
   }
 
-  const spectrogram = sourceFile.spectrogram
-  const columnSeconds = sourceFile.loudnessWindowSeconds
-  if (spectrogram && columnSeconds !== null) {
-    drawSpectrogramStrip(context, {
-      spectrogram,
-      columnSeconds,
-      startSeconds: windowStart.value,
-      endSeconds: windowEnd.value,
-      top: waveHeight,
-      width,
-      height: height - waveHeight,
-      style,
-    })
-  }
+  drawSpectrogramStrip(context, {
+    spectrogram: sourceFile.spectrogram,
+    columnSeconds: sourceFile.loudnessWindowSeconds,
+    startSeconds: windowStart.value,
+    endSeconds: windowEnd.value,
+    top: waveHeight,
+    width,
+    height: height - waveHeight,
+    style,
+  })
 
   // The window is not held inside the file: what lies before 0 s or past the end is empty ground.
   context.fillStyle = style.getPropertyValue('--color-ground')
@@ -297,9 +293,6 @@ function draw() {
       drawPlayhead(context, x, style.getPropertyValue('--color-ink'), height)
   }
 
-  // The line between the waveform and the strip is the frame's.
-  context.fillStyle = style.getPropertyValue('--color-ink')
-  context.fillRect(0, waveHeight - FRAME_WIDTH / 2, width, FRAME_WIDTH)
   drawFrame(context, width, height, style.getPropertyValue('--color-ink'))
 }
 

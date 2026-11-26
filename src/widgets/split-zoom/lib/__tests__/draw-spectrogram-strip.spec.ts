@@ -95,6 +95,14 @@ describe('createSpectrogramStrip', () => {
     expect(labels).toEqual(['100 Hz', '1 kHz'])
   })
 
+  it('draws only the line above the strip before the spectrogram is ready', () => {
+    const target = recorder()
+    createSpectrogramStrip()(target.context, { ...view(), spectrogram: null })
+
+    expect(target.calls.map((call) => call.name)).toEqual(['fillRect'])
+    expect(target.calls[0]?.args).toEqual([0, 159.25, 200, 1.5])
+  })
+
   it('paints the strip again only when what it shows changes', () => {
     const strip = createSpectrogramStrip()
 

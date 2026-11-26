@@ -51,6 +51,18 @@ async function doubleClick(view: { element: Element }, clientX: number, button =
   await nextTick()
 }
 
+// A press or a double-click on the canvas, low down where the spectrogram strip is.
+async function onTheStrip(
+  wrapper: { get: (selector: string) => { element: Element } },
+  type: 'pointerdown' | 'dblclick',
+  clientX: number,
+) {
+  const event = new MouseEvent(type, { clientX, clientY: 240, buttons: 1, bubbles: true })
+  Object.defineProperty(event, 'pointerId', { value: 1 })
+  wrapper.get('canvas').element.dispatchEvent(event)
+  await nextTick()
+}
+
 // The view is 1,000 px wide, from the page's left edge: the range's 10 s is 100 px a second.
 function measured(wrapper: ReturnType<typeof setup>['wrapper']) {
   const view = wrapper.get('[role="slider"]')
@@ -74,7 +86,9 @@ describe('RangeView', () => {
 
     expect(view.attributes('aria-label')).toBe('Playhead in the range')
     expect(view.attributes('tabindex')).toBe('-1')
-    expect(view.find('canvas[aria-label="Waveform of the range"]').exists()).toBe(true)
+    expect(view.find('canvas[aria-label="Waveform and spectrogram of the range"]').exists()).toBe(
+      true,
+    )
   })
 
   describe('ARIA', () => {
@@ -410,6 +424,41 @@ describe('RangeView', () => {
       expect(split.markSeconds).toBeCloseTo(15.02, 9)
       expect(split.selectedSplit).toBeNull()
       expect(split.view).toBe('range')
+    })
+  })
+
+  describe('the spectrogram strip', () => {
+    it('places the mark at a press, as the waveform does', async () => {
+      const { split, wrapper } = setup()
+      measured(wrapper)
+
+      await onTheStrip(wrapper, 'pointerdown', 700)
+
+      expect(split.markSeconds).toBe(17)
+    })
+
+    it('moves the playhead at a double-click, as the waveform does', async () => {
+      const { player, wrapper } = setup()
+      measured(wrapper)
+
+      await onTheStrip(wrapper, 'dblclick', 300)
+
+      expect(player.playheadSeconds()).toBe(13)
+    })
+
+    it('selects a split at a double-click on its line and opens the Split view', async () => {
+      const { split, wrapper } = setup((store) => {
+        store.moveZoomTo(15)
+        store.addSplit()
+        store.moveZoomTo(0)
+        store.showView('range')
+      })
+      measured(wrapper)
+
+      await onTheStrip(wrapper, 'dblclick', 505)
+
+      expect(split.selectedSplit?.seconds).toBe(15)
+      expect(split.view).toBe('split')
     })
   })
 

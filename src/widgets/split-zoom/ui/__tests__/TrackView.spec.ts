@@ -108,6 +108,18 @@ async function doubleClick(view: { element: Element }, clientX: number, button =
   await nextTick()
 }
 
+// A press or a double-click on the canvas, low down where the spectrogram strip is.
+async function onTheStrip(
+  wrapper: { get: (selector: string) => { element: Element } },
+  type: 'pointerdown' | 'dblclick',
+  clientX: number,
+) {
+  const event = new MouseEvent(type, { clientX, clientY: 240, buttons: 1, bubbles: true })
+  Object.defineProperty(event, 'pointerId', { value: 1 })
+  wrapper.get('canvas').element.dispatchEvent(event)
+  await nextTick()
+}
+
 // The view is 1,000 px wide, from the page's left edge: the track's 50.5 s is 19.8 px a second.
 function measured(wrapper: ReturnType<typeof setup>['wrapper']) {
   const view = wrapper.get('[role="slider"]')
@@ -135,7 +147,9 @@ describe('TrackView', () => {
 
     expect(view.attributes('aria-label')).toBe('Playhead in the track')
     expect(view.attributes('tabindex')).toBe('-1')
-    expect(view.find('canvas[aria-label="Waveform of the track"]').exists()).toBe(true)
+    expect(view.find('canvas[aria-label="Waveform and spectrogram of the track"]').exists()).toBe(
+      true,
+    )
   })
 
   describe('ARIA', () => {
@@ -783,6 +797,28 @@ describe('TrackView', () => {
       await pointer(view, 'pointerdown', 798)
 
       expect(split.selectedPendingSplit).toBeCloseTo(61.3, 9)
+    })
+  })
+
+  describe('the spectrogram strip', () => {
+    it('places the mark at a press, as the waveform does', async () => {
+      const { split, wrapper } = setup()
+      measured(wrapper)
+
+      // 400 px of 1000 is 40 % of 50.5 s from 21 s.
+      await onTheStrip(wrapper, 'pointerdown', 400)
+
+      expect(split.trackMarkSeconds).toBeCloseTo(41.2, 9)
+    })
+
+    it('moves the playhead at a double-click, as the waveform does', async () => {
+      const { player, wrapper } = setup()
+      measured(wrapper)
+
+      // 600 px of 1000 is 60 % of 50.5 s from 21 s.
+      await onTheStrip(wrapper, 'dblclick', 600)
+
+      expect(player.playheadSeconds()).toBeCloseTo(51.3, 9)
     })
   })
 
