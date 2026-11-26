@@ -164,6 +164,10 @@ _Avoid_: Drop, prominence, dip size
 A point where the loudness falls at least the depth setting under the loudness around it, and falls further than anywhere else within 15 s. It can be short, or never reach the silence threshold, so it finds the track changes a gap misses.
 _Avoid_: Shallow gap, valley, trough
 
+**Contrast**:
+How far apart the sound of the stretch before a point in the source file and the stretch after it are, in decibels, whatever their loudness. A new track usually sounds unlike the one before it, so a crossfade that never dips still has a high contrast.
+_Avoid_: Change, novelty, difference, score
+
 **Edit**:
 A thing the user changed by hand since the source file opened: a split moved, added or deleted, a track renamed, a track left out or brought back, a match dismissed, or a split marked checked. A split is one edit from the first change to it, whatever is done to it after, even a move back; only an added split deleted again leaves none. A track's name or its being left out is one edit only while it differs from how the track came to be, and a dismissed match only while both tracks keep their ends. The splits Find splits adds are no edit until the user changes one, and the matches Find duplicates finds are no edit.
 _Avoid_: Change, modification, revision
