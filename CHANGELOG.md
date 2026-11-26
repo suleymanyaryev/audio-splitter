@@ -24,6 +24,7 @@ Versions follow [Semantic Versioning](https://semver.org/) applied to the produc
 
 ### Fixed
 
+- Enter in the Range and Track views, and Space in the Split view, now act exactly when their button is enabled: with no room at the mark, a pending split selected, or no split to play, the key does nothing and leaves the "Saved…" line in place.
 - The Range view's and the Track view's slider no longer reads below the start of the range or track while it plays, so a range that starts at 12.34 s tells a screen reader 12.34 s, not 12 s, while it plays.
 
 ## [2.0.0] - 2026-11-25

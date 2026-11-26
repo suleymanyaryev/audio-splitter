@@ -321,7 +321,7 @@ const viewOptions = computed(() => [
           size="sm"
           :label="`Back to ${split.view === 'split' ? 'audition' : split.view} start`"
           hint="Home"
-          :disabled="split.view === 'split' && split.selectedSplit === null"
+          :disabled="!player.hasSubject"
           @click="player.backToStart()"
         >
           <SkipBack class="size-4 shrink-0" />
@@ -331,7 +331,7 @@ const viewOptions = computed(() => [
           size="sm"
           :label="playButtonLabel"
           hint="Space"
-          :disabled="split.view === 'split' && split.selectedSplit === null && !player.isActive"
+          :disabled="!player.hasSubject"
           @click="player.toggle()"
         >
           <Square

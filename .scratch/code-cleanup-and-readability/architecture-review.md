@@ -23,7 +23,7 @@ Vocabulary: **module**, **interface** (everything a caller must know), **depth**
 | 2   | One edit ledger for the Edit rules                       | Strong                                                  | split store      |
 | 3   | One player interface that knows what is on show          | Strong (interface), Worth exploring (one state machine) | split-zoom       |
 | 4   | A shared stretch view for the Range and Track views      | Strong                                                  | split-zoom       |
-| 5   | Each action written once, for its key and its button     | Worth exploring                                         | page, split-zoom |
+| 5   | Each action written once, for its key and its button     | Closed: absorbed by 3 and 4                             | page, split-zoom |
 | 6   | One home for per-track data, no first-track special case | Worth exploring                                         | split store      |
 | 7   | Pending splits decide for themselves what discards them  | Worth exploring                                         | split store      |
 
@@ -278,58 +278,13 @@ flowchart TB
 
 ## 5. Each action written once, for its key and its button
 
-**Worth exploring** (moving the title row into the widget: Speculative) · in-process
+**Closed** (2026-11-26): candidates 3 and 4 absorbed it.
 
-**Files:** `src/pages/review/ui/ReviewPage.vue`, `src/widgets/split-zoom/ui/SplitZoom.vue`, `src/widgets/split-zoom/ui/TrackView.vue`, `src/widgets/split-zoom/ui/RangeView.vue`, `src/widgets/track-strip/model/export-single.ts`, `src/widgets/shortcuts-dialog/config/shortcut-sections.ts`
+- Space and Home call `player.toggle()` and `player.backToStart()` from both the key and the button; the player works out what is on show.
+- Keeping sound across a step or a swap is `player.carryOver`.
+- What was left was a handful of one-line calls, and four cases where a key was taken while its button was disabled. Each key now reads its button's own rule: `canAddSplitAtMark`, `canAddPendingSplit` and `player.hasSubject`.
 
-**Before: each action coded as a key and again as a button**
-
-| Action | Key handlers                                | Button              |
-| ------ | ------------------------------------------- | ------------------- |
-| Space  | SplitZoom 160, RangeView 205, TrackView 310 | ReviewPage 248, 383 |
-| Home   | SplitZoom 167, RangeView 213, TrackView 329 | ReviewPage 243      |
-| Enter  | RangeView 194, TrackView 239                | ReviewPage 176–184  |
-| Delete | SplitZoom 178, TrackView 321                | ReviewPage 186–195  |
-
-The hint strings and the rows in `shortcut-sections.ts` are separate again.
-
-"Keep playing across a step" (SplitZoom 138–143, TrackView 260–265, the swap at 290–305) depends on an order callers must know: read whether sound was on, change the split store (whose sync watcher releases the old sound), then call toggle again.
-
-```mermaid
-flowchart TB
-  S((Space)) --> a[SplitZoom 160]
-  S --> b[RangeView 205]
-  S --> c[TrackView 310]
-  B[[Play button]] --> d[ReviewPage 248 / 383]
-  a & b & c & d --> P[(player)]
-  classDef leak stroke:#dc2626,stroke-width:2px;
-  class a,b,c,d leak
-```
-
-**After: the view on show owns one command set**
-
-```mermaid
-flowchart TB
-  S((Space)) --> K
-  B[[Play button]] --> K
-  K[["commands of the view on show<br/>play · back to start · add · delete · step"]] --> P[(player)]
-  classDef deep fill:#0f172a,color:#e2e8f0,stroke:#0f172a;
-  class K deep
-```
-
-**ReviewPage.vue at a glance:** keys `?`, `{`, `}` (93–105); open and reset (107–118); stop before export (120–142); "Saved…" watcher (149–159); export gating (162–170); add and delete by view (176–199); title per view (203–216); play-button labels and `backToStart` by view (219–250); discard dialog and view control (253–270); stop on view change (273–278); template with nine icon buttons gated on the view (294–422). It imports 5 lib files and 6 components from split-zoom, so much of the zoom panel's behaviour lives in the page.
-
-**Problem:** every action is written twice, and the step-while-playing rule is an ordering every caller must repeat.
-
-**Solution:** each view exposes one set of commands that its keys and the page's buttons both call. Stepping while sound plays becomes one player action.
-
-**Wins:**
-
-- Button behaviour is tested in widget specs, not by mounting the whole page
-- `ReviewPage.spec.ts` (3114 lines; "previous and next track keys" alone is about 400) shrinks
-- The ordering rule moves inside one action
-
-**ADRs:** keeps 0002. Moving the title row into split-zoom hits ADR 0001: one widget can't import another, and "Export track/range…" comes from track-strip. The ADR stays; the friction suggests `export-single` may sit in the wrong slice.
+Rejected: one command object per action (`run`, `enabled`, `label`, `hint`) shared by keys and buttons. It abstracts one-line calls, moves labels away from the buttons, and the page keeps a `v-if` and an icon per button anyway. Moving the title row into split-zoom stays blocked by ADR 0001, since "Export track/range…" comes from track-strip.
 
 ---
 

@@ -134,15 +134,21 @@ function isCheckKeyActedOn(event: KeyboardEvent, selected: Split) {
   return true
 }
 
+/*
+Space is taken exactly while the play button is enabled, so with nothing to play it is the
+browser's. A held Space must not start and stop the sound over and over.
+*/
+function isSpaceKeyActedOn(event: KeyboardEvent) {
+  if (!player.hasSubject) return false
+  if (!event.repeat) player.toggle()
+  return true
+}
+
 // Whether the key was the view's: a key it leaves alone is the browser's, and is not reported.
 function isKeyActedOn(event: KeyboardEvent) {
   const step = stepOfKey(event)
   if (step !== null) return isStepKeyActedOn(step)
-  // A held Space must not start and stop the sound over and over.
-  if (event.key === ' ') {
-    if (!event.repeat) player.toggle()
-    return true
-  }
+  if (event.key === ' ') return isSpaceKeyActedOn(event)
   const selected = split.selectedSplit
   if (selected === null) return false
   if (event.code === 'KeyK' && !event.shiftKey) return isCheckKeyActedOn(event, selected)
