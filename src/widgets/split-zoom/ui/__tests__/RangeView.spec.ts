@@ -63,6 +63,41 @@ async function onTheStrip(
   await nextTick()
 }
 
+/*
+A spectrogram of 100 s at 44.1 kHz whose band 62 (955 to 1001 Hz) reads 173 (−32.2 dB) in every
+column, and the rest −100 dB; `loud` columns read 255 (0 dB) there instead.
+*/
+function spectrogramAtOneKilohertz(loud: number[] = []) {
+  const bands = new Uint8Array(2000 * 128)
+  for (let column = 0; column < 2000; column++) {
+    bands[column * 128 + 62] = loud.includes(column) ? 255 : 173
+  }
+  useSourceFileStore().spectrogram = { bands, bandCount: 128, topHz: 22_050 }
+  useSourceFileStore().loudnessWindowSeconds = 0.05
+}
+
+// 1 kHz is 81.28 px down a 160 px strip that starts 160 px down the 320 px view.
+const ONE_KILOHERTZ_Y = 241.28
+
+async function hover(element: Element, clientX: number, clientY: number) {
+  const event = new MouseEvent('pointermove', { clientX, clientY, bubbles: true })
+  Object.defineProperty(event, 'pointerId', { value: 1 })
+  element.dispatchEvent(event)
+  await nextTick()
+}
+
+async function leave(element: Element) {
+  element.dispatchEvent(new MouseEvent('pointerleave'))
+  await nextTick()
+}
+
+// The view measured 1,000 px wide and 320 px tall, from the page's top left corner.
+function measuredWithStrip(wrapper: { get: (selector: string) => { element: Element } }) {
+  const view = wrapper.get('[role="slider"]')
+  vi.spyOn(view.element, 'getBoundingClientRect').mockReturnValue(new DOMRect(0, 0, 1000, 320))
+  return view
+}
+
 // The view is 1,000 px wide, from the page's left edge: the range's 10 s is 100 px a second.
 function measured(wrapper: ReturnType<typeof setup>['wrapper']) {
   const view = wrapper.get('[role="slider"]')
@@ -424,6 +459,54 @@ describe('RangeView', () => {
       expect(split.markSeconds).toBeCloseTo(15.02, 9)
       expect(split.selectedSplit).toBeNull()
       expect(split.view).toBe('range')
+    })
+  })
+
+  describe('the readout under the pointer', () => {
+    beforeEach(() => {
+      spectrogramAtOneKilohertz()
+    })
+
+    it('shows the frequency and level under the pointer on the spectrogram strip', async () => {
+      const { wrapper } = setup()
+      const view = measuredWithStrip(wrapper)
+
+      await hover(view.element, 400, ONE_KILOHERTZ_Y)
+
+      expect(wrapper.text()).toContain('1.0 kHz · −32 dB')
+    })
+
+    it('is gone once the pointer leaves the view', async () => {
+      const { wrapper } = setup()
+      const view = measuredWithStrip(wrapper)
+      await hover(view.element, 400, ONE_KILOHERTZ_Y)
+
+      await leave(view.element)
+
+      expect(wrapper.text()).not.toContain('kHz')
+    })
+
+    it('shows nothing over the waveform', async () => {
+      const { wrapper } = setup()
+      const view = measuredWithStrip(wrapper)
+      await hover(view.element, 400, ONE_KILOHERTZ_Y)
+
+      await hover(view.element, 450, 80)
+
+      expect(wrapper.text()).not.toContain('kHz')
+    })
+
+    it('reads the column under the pointer, not the loudest one the pixel shows', async () => {
+      // 10 s on 100 px: a pixel is 0.1 s, two 50 ms columns. The pixel at 70 px covers columns
+      // 340 and 341, and shows 341's 0 dB; the pointer is at 17.002 s, in the quieter column 340.
+      spectrogramAtOneKilohertz([341])
+      const { wrapper } = setup()
+      const view = wrapper.get('[role="slider"]')
+      vi.spyOn(view.element, 'getBoundingClientRect').mockReturnValue(new DOMRect(0, 0, 100, 320))
+
+      await hover(view.element, 70.02, ONE_KILOHERTZ_Y)
+
+      expect(wrapper.text()).toContain('1.0 kHz · −32 dB')
     })
   })
 

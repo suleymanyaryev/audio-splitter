@@ -16,6 +16,7 @@ import {
 } from '@/shared/lib/canvas/draw-playhead-and-frame.ts'
 import { prepareCanvas } from '@/shared/lib/canvas/prepare-canvas.ts'
 import { useCanvasRedraw } from '@/shared/lib/canvas/use-canvas-redraw.ts'
+import { zoomXToTime } from '@/shared/lib/canvas/zoom-axis.ts'
 import { usePageKeys } from '@/shared/lib/keyboard/use-page-keys.ts'
 import { formatHundredths } from '@/shared/lib/time/format-hundredths.ts'
 import { createSpectrogramStrip } from '../lib/draw-spectrogram-strip.ts'
@@ -24,11 +25,13 @@ import { stepOfKey } from '../lib/step-of-key.ts'
 import { stretchAxis } from '../lib/stretch-axis.ts'
 import { usePlayheadDrag } from '../lib/use-playhead-drag.ts'
 import { usePlayheadSlider } from '../lib/use-playhead-slider.ts'
+import { useSpectrogramReadout } from '../lib/use-spectrogram-readout.ts'
 import { useStretchKeys } from '../lib/use-stretch-keys.ts'
 import { zoomBars } from '../lib/zoom-bars.ts'
 import { landSpansInWindow } from '../lib/zoom-spans.ts'
 import { usePlayerStore } from '../model/player.ts'
 import PlayerFailure from './PlayerFailure.vue'
+import SpectrogramReadout from './SpectrogramReadout.vue'
 
 /*
 The Track view (GLOSSARY.md): the selected track stretched across the canvas whatever its
@@ -156,6 +159,25 @@ function frameWidth() {
 const { overPlayhead, dragging, tryGrab, onPointerMove, onPointerEnd } = usePlayheadDrag(() =>
   stretchAxis(player.extent, frameWidth()),
 )
+
+// Hovering the strip shows the frequency and level under the pointer, at the time under it.
+const {
+  readout,
+  show: showReadout,
+  hide: hideReadout,
+} = useSpectrogramReadout({
+  frame: () => frame.value,
+  secondsAt: (x, width) => {
+    const axis = stretchAxis(player.extent, width)
+    return axis && zoomXToTime(x, axis.centreSeconds, axis.windowSeconds, width)
+  },
+})
+
+// The drag and the readout both follow the pointer.
+function onFramePointerMove(event: PointerEvent) {
+  onPointerMove(event)
+  showReadout(event)
+}
 
 /*
 A press on the playhead drags it; one within 6 px of a pending split selects it; any other lets go
@@ -348,7 +370,8 @@ watch(
       :class="{ 'cursor-ew-resize': overPlayhead || dragging }"
       @pointerdown="onPointerDown"
       @dblclick="onDoubleClick"
-      @pointermove="onPointerMove"
+      @pointermove="onFramePointerMove"
+      @pointerleave="hideReadout"
       @pointerup="onPointerEnd"
       @pointercancel="onPointerEnd"
       @lostpointercapture="onPointerEnd"
@@ -360,5 +383,6 @@ watch(
       />
     </div>
     <PlayerFailure />
+    <SpectrogramReadout :readout="readout" />
   </div>
 </template>

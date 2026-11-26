@@ -10,3 +10,8 @@ export function frequencyToY(hz: number, topHz: number, height: number): number 
   const fraction = Math.log(hz / SPECTRUM_BOTTOM_HZ) / Math.log(topHz / SPECTRUM_BOTTOM_HZ)
   return height * (1 - fraction)
 }
+
+// The inverse of `frequencyToY`: the frequency at `y` from the strip's top.
+export function yToFrequency(y: number, topHz: number, height: number): number {
+  return SPECTRUM_BOTTOM_HZ * (topHz / SPECTRUM_BOTTOM_HZ) ** (1 - y / height)
+}

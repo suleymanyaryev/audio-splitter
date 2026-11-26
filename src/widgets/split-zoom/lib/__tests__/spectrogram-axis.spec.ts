@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 
-import { frequencyToY } from '../spectrogram-axis.ts'
+import { frequencyToY, yToFrequency } from '../spectrogram-axis.ts'
 
 describe('frequencyToY', () => {
   it('puts 50 Hz at the strip’s bottom and half the sample rate at its top', () => {
@@ -22,5 +22,23 @@ describe('frequencyToY', () => {
     expect(frequencyToY(10_000, 22_050, 160)).toBeCloseTo(20.78, 2)
     // At 48 kHz the top is 24 kHz, so 1 kHz sits a little lower.
     expect(frequencyToY(1000, 24_000, 160)).toBeCloseTo(82.36, 2)
+  })
+})
+
+describe('yToFrequency', () => {
+  it('reads 50 Hz at the strip’s bottom and half the sample rate at its top', () => {
+    expect(yToFrequency(160, 22_050, 160)).toBeCloseTo(50, 9)
+    expect(yToFrequency(0, 24_000, 160)).toBeCloseTo(24_000, 6)
+  })
+
+  it('undoes frequencyToY at the labels', () => {
+    for (const hz of [100, 1000, 10_000]) {
+      expect(yToFrequency(frequencyToY(hz, 22_050, 160), 22_050, 160)).toBeCloseTo(hz, 6)
+    }
+  })
+
+  it('reads the octave above at one octave’s height up', () => {
+    // An octave is 18.21 px at 22.05 kHz on 160 px.
+    expect(yToFrequency(frequencyToY(440, 22_050, 160) - 18.2136, 22_050, 160)).toBeCloseTo(880, 1)
   })
 })
