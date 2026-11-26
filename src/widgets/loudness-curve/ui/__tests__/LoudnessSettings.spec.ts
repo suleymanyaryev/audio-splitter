@@ -467,8 +467,26 @@ describe('LoudnessSettings', () => {
       expect(save.attributes('disabled')).toBeUndefined()
       // The median is -10 dB, so one step down is 18.1 dB under it.
       expect(await tooltipOf(save)).toBe(
-        'Save 18.1 dB under the median, 2 s and 15 dB deep as the default',
+        'Save 18.1 dB under the median, 2 s, 15 dB deep and contrast off at 5.4 dB as the default',
       )
+      wrapper.unmount()
+    })
+
+    it('saves contrast with the others: switching it on enables the button and is in its tooltip', async () => {
+      const wrapper = mount(LoudnessSettings, { attachTo: document.body })
+      await flushPromises()
+      expect(buttonNamed(wrapper, 'Save as default').attributes('disabled')).toBeDefined()
+
+      useSplitStore().setContrastOn(true)
+      await flushPromises()
+
+      const save = buttonNamed(wrapper, 'Save as default')
+      expect(save.attributes('disabled')).toBeUndefined()
+      expect(await tooltipOf(save)).toBe(
+        'Save 18 dB under the median, 2 s, 15 dB deep and contrast on at 5.4 dB as the default',
+      )
+      await save.trigger('click')
+      expect(buttonNamed(wrapper, 'Restore built-in').attributes('disabled')).toBeUndefined()
       wrapper.unmount()
     })
 
@@ -484,7 +502,7 @@ describe('LoudnessSettings', () => {
       expect(buttonNamed(wrapper, 'Save as default').attributes('disabled')).toBeDefined()
       expect(buttonNamed(wrapper, 'Restore built-in').attributes('disabled')).toBeUndefined()
       expect(await tooltipOf(buttonNamed(wrapper, 'Restore built-in'))).toBe(
-        'Put the default settings back to 18 dB under the median, 2 s and 15 dB deep',
+        'Put the default settings back to 18 dB under the median, 2 s, 15 dB deep and contrast off at 5.4 dB',
       )
       wrapper.unmount()
     })

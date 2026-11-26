@@ -21,6 +21,11 @@ export function formatSettingDecibels(decibels: number): string {
   return `${Number(decibels.toFixed(1))} dB`
 }
 
+// The contrast setting as a tooltip says it: "contrast off at 5.4 dB", "contrast on at 8 dB".
+export function formatContrastSetting(isOn: boolean, thresholdDecibels: number): string {
+  return `contrast ${isOn ? 'on' : 'off'} at ${formatSettingDecibels(thresholdDecibels)}`
+}
+
 // The threshold's distance from the median in words: "18 dB under the median".
 export function formatOffset(offsetDecibels: number): string {
   const tenths = roundToTenth(offsetDecibels)

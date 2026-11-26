@@ -4,6 +4,7 @@ import { computed, ref } from 'vue'
 import {
   CONTRAST_MAX_DB,
   CONTRAST_MIN_DB,
+  DEFAULT_CONTRAST_DB,
   DEFAULT_DEPTH_DB,
   DEFAULT_MINIMUM_GAP_SECONDS,
   DEFAULT_OFFSET_DB,
@@ -21,6 +22,7 @@ import UiSegmentedControl from '@/shared/ui/UiSegmentedControl.vue'
 import UiSlider from '@/shared/ui/UiSlider.vue'
 import UiTooltip from '@/shared/ui/UiTooltip.vue'
 import {
+  formatContrastSetting,
   formatDecibels,
   formatDuplicateResult,
   formatOffset,
@@ -42,9 +44,9 @@ only what is shown (the gaps, and a mark on the curve at each dip), so there is 
 nothing of the user's: it is off until two tracks are 30 s long, busy while it searches, and the
 line beside it says what it found, nothing before the first press, or why the search failed.
 "Clear splits" starts over: it asks first only when the user has edits or pending splits to lose.
-"Save as default" keeps the three settings for every later file, the threshold as a distance under
-the median, and "Restore built-in" puts the built-in ones back; each is off when it would change
-nothing. The row wraps when the panel is too narrow for all of it, so no button is cut off.
+"Save as default" keeps the settings (contrast on or off and its threshold with them) for every
+later file, the silence threshold as a distance under the median, and "Restore built-in" puts the
+built-in ones back; each is off when it would change nothing. The row wraps when the panel is too narrow for all of it, so no button is cut off.
 */
 const split = useSplitStore()
 const asking = ref(false)
@@ -167,14 +169,14 @@ function confirmClear() {
     </div>
     <div class="flex items-center gap-2">
       <UiTooltip
-        :label="`Save ${formatOffset(split.currentOffsetDb ?? 0)}, ${formatSettingSeconds(split.minimumGapLength)} and ${formatSettingDecibels(split.depthSetting)} deep as the default`"
+        :label="`Save ${formatOffset(split.currentOffsetDb ?? 0)}, ${formatSettingSeconds(split.minimumGapLength)}, ${formatSettingDecibels(split.depthSetting)} deep and ${formatContrastSetting(split.contrastOn, split.contrastThreshold)} as the default`"
       >
         <UiButton size="sm" :disabled="split.matchesDefaultSettings" @click="split.saveAsDefault()">
           Save as default
         </UiButton>
       </UiTooltip>
       <UiTooltip
-        :label="`Put the default settings back to ${formatOffset(DEFAULT_OFFSET_DB)}, ${formatSettingSeconds(DEFAULT_MINIMUM_GAP_SECONDS)} and ${formatSettingDecibels(DEFAULT_DEPTH_DB)} deep`"
+        :label="`Put the default settings back to ${formatOffset(DEFAULT_OFFSET_DB)}, ${formatSettingSeconds(DEFAULT_MINIMUM_GAP_SECONDS)}, ${formatSettingDecibels(DEFAULT_DEPTH_DB)} deep and ${formatContrastSetting(false, DEFAULT_CONTRAST_DB)}`"
       >
         <UiButton
           size="sm"

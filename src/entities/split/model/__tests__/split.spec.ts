@@ -1282,6 +1282,68 @@ describe('the split store', () => {
       expect(store.areDefaultSettingsBuiltIn).toBe(true)
     })
 
+    it('hold contrast too: off at 5.4 dB at first, saved with the others and used by the next file', () => {
+      const store = useSplitStore()
+      openFile(store, loudFile())
+      expect(store.contrastOn).toBe(false)
+      expect(store.contrastThreshold).toBeCloseTo(5.4, 9)
+      expect(store.matchesDefaultSettings).toBe(true)
+
+      store.setContrastOn(true)
+      expect(store.matchesDefaultSettings).toBe(false)
+      store.setContrastThreshold(8.2)
+      store.saveAsDefault()
+      expect(store.matchesDefaultSettings).toBe(true)
+      expect(store.areDefaultSettingsBuiltIn).toBe(false)
+
+      setActivePinia(createPinia())
+      const next = useSplitStore()
+      openFile(next, quietFile())
+      expect(next.contrastOn).toBe(true)
+      expect(next.contrastThreshold).toBeCloseTo(8.2, 9)
+
+      next.restoreBuiltIn()
+      expect(next.contrastOn).toBe(false)
+      expect(next.contrastThreshold).toBeCloseTo(5.4, 9)
+      expect(next.areDefaultSettingsBuiltIn).toBe(true)
+    })
+
+    it('notice a contrast threshold moved while contrast is off as an unsaved change', () => {
+      const store = useSplitStore()
+      openFile(store, loudFile())
+
+      store.setContrastThreshold(7)
+
+      expect(store.matchesDefaultSettings).toBe(false)
+    })
+
+    it('start a version 2 entry, which has no contrast, with contrast off at 5.4 dB', () => {
+      localStorage.setItem(
+        DEFAULT_SETTINGS_STORAGE_KEY,
+        '{"version":2,"offsetDb":12,"minimumGapSeconds":3,"depthDb":9}',
+      )
+
+      const store = useSplitStore()
+      openFile(store, loudFile())
+
+      expect(store.depthSetting).toBe(9)
+      expect(store.contrastOn).toBe(false)
+      expect(store.contrastThreshold).toBeCloseTo(5.4, 9)
+    })
+
+    it('start a version 3 entry with its contrast setting', () => {
+      localStorage.setItem(
+        DEFAULT_SETTINGS_STORAGE_KEY,
+        '{"version":3,"offsetDb":12,"minimumGapSeconds":3,"depthDb":9,"contrastOn":true,"contrastDb":6.5}',
+      )
+
+      const store = useSplitStore()
+      openFile(store, loudFile())
+
+      expect(store.contrastOn).toBe(true)
+      expect(store.contrastThreshold).toBeCloseTo(6.5, 9)
+    })
+
     it('start a version 1 entry, which has no depth, at 15 dB', () => {
       localStorage.setItem(
         DEFAULT_SETTINGS_STORAGE_KEY,
@@ -1321,7 +1383,10 @@ describe('the split store', () => {
       ['text that is no JSON', 'loud'],
       ['an offset off the 0.1 grid', '{"version":1,"offsetDb":18.25,"minimumGapSeconds":2}'],
       ['a minimum gap length out of range', '{"version":1,"offsetDb":12,"minimumGapSeconds":9}'],
-      ['another version', '{"version":3,"offsetDb":12,"minimumGapSeconds":3,"depthDb":9}'],
+      [
+        'another version',
+        '{"version":4,"offsetDb":12,"minimumGapSeconds":3,"depthDb":9,"contrastOn":true,"contrastDb":8}',
+      ],
       ['a depth out of range', '{"version":2,"offsetDb":12,"minimumGapSeconds":3,"depthDb":40}'],
     ])('are the built-in ones for %s', (_, saved) => {
       if (saved !== null) localStorage.setItem(DEFAULT_SETTINGS_STORAGE_KEY, saved)

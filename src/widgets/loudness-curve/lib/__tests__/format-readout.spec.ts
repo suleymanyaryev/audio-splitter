@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 
 import {
+  formatContrastSetting,
   formatDecibels,
   formatDuplicateResult,
   formatOffset,
@@ -72,5 +73,12 @@ describe('formatDuplicateResult', () => {
 
   it('says none were found for none of either', () => {
     expect(formatDuplicateResult(0, 0)).toBe('No duplicates found')
+  })
+})
+
+describe('formatContrastSetting', () => {
+  it('says whether contrast is on and the contrast it must reach, with no trailing zero', () => {
+    expect(formatContrastSetting(false, 5.4)).toBe('contrast off at 5.4 dB')
+    expect(formatContrastSetting(true, 8)).toBe('contrast on at 8 dB')
   })
 })

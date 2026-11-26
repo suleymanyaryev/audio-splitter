@@ -44,6 +44,8 @@ const BUILT_IN_SETTINGS: DefaultSettings = {
   offsetDb: DEFAULT_OFFSET_DB,
   minimumGapSeconds: DEFAULT_MINIMUM_GAP_SECONDS,
   depthDb: DEFAULT_DEPTH_DB,
+  contrastOn: false,
+  contrastDb: DEFAULT_CONTRAST_DB,
 }
 
 // Splits sit on the same 10 ms grid the arrow keys and a drag step in.
@@ -535,8 +537,8 @@ export const useSplitStore = defineStore('split', () => {
     silenceThreshold.value = thresholdUnder(defaultSettings.value.offsetDb)
     minimumGapLength.value = defaultSettings.value.minimumGapSeconds
     depthSetting.value = defaultSettings.value.depthDb
-    contrastOn.value = false
-    contrastThreshold.value = DEFAULT_CONTRAST_DB
+    contrastOn.value = defaultSettings.value.contrastOn
+    contrastThreshold.value = defaultSettings.value.contrastDb
     findGapsAgain()
     // One track, no splits: the zoom window starts at 0:00, so the Split view shows the file's opening seconds.
     clearSplits()
@@ -599,29 +601,35 @@ export const useSplitStore = defineStore('split', () => {
       : roundToTenth(medianDecibels.value - silenceThreshold.value),
   )
 
-  // Whether the three settings are what the default settings would give this file.
+  // Whether the settings are what the default settings would give this file.
   const matchesDefaultSettings = computed(
     () =>
       silenceThreshold.value !== null &&
       roundToTenth(silenceThreshold.value) === thresholdUnder(defaultSettings.value.offsetDb) &&
       roundToTenth(minimumGapLength.value) === defaultSettings.value.minimumGapSeconds &&
-      roundToTenth(depthSetting.value) === defaultSettings.value.depthDb,
+      roundToTenth(depthSetting.value) === defaultSettings.value.depthDb &&
+      contrastOn.value === defaultSettings.value.contrastOn &&
+      roundToTenth(contrastThreshold.value) === defaultSettings.value.contrastDb,
   )
 
   const areDefaultSettingsBuiltIn = computed(
     () =>
       defaultSettings.value.offsetDb === BUILT_IN_SETTINGS.offsetDb &&
       defaultSettings.value.minimumGapSeconds === BUILT_IN_SETTINGS.minimumGapSeconds &&
-      defaultSettings.value.depthDb === BUILT_IN_SETTINGS.depthDb,
+      defaultSettings.value.depthDb === BUILT_IN_SETTINGS.depthDb &&
+      defaultSettings.value.contrastOn === BUILT_IN_SETTINGS.contrastOn &&
+      defaultSettings.value.contrastDb === BUILT_IN_SETTINGS.contrastDb,
   )
 
-  // "Save as default": the current threshold distance, minimum gap length and depth, kept across visits.
+  // "Save as default": the current threshold distance, minimum gap length, depth and contrast setting, kept across visits.
   function saveAsDefault() {
     if (currentOffsetDecibels.value === null) return
     defaultSettings.value = {
       offsetDb: currentOffsetDecibels.value,
       minimumGapSeconds: roundToTenth(minimumGapLength.value),
       depthDb: roundToTenth(depthSetting.value),
+      contrastOn: contrastOn.value,
+      contrastDb: roundToTenth(contrastThreshold.value),
     }
     saveDefaultSettings(defaultSettings.value)
   }
@@ -634,8 +642,8 @@ export const useSplitStore = defineStore('split', () => {
     silenceThreshold.value = thresholdUnder(BUILT_IN_SETTINGS.offsetDb)
     minimumGapLength.value = BUILT_IN_SETTINGS.minimumGapSeconds
     depthSetting.value = BUILT_IN_SETTINGS.depthDb
-    contrastOn.value = false
-    contrastThreshold.value = DEFAULT_CONTRAST_DB
+    contrastOn.value = BUILT_IN_SETTINGS.contrastOn
+    contrastThreshold.value = BUILT_IN_SETTINGS.contrastDb
     findGapsAgain()
   }
 
