@@ -27,6 +27,7 @@ import {
 } from '../lib/threshold-line.ts'
 import { useDepthDrag } from '../lib/use-depth-drag.ts'
 import { useThresholdDrag } from '../lib/use-threshold-drag.ts'
+import ContrastLane from './ContrastLane.vue'
 
 // DESIGN.md: the area under the curve is filled at 14 % alpha.
 const FILL_ALPHA = 0.14
@@ -292,6 +293,7 @@ watch(
       @pointerup="onPointerEnd"
       @pointercancel="onPointerEnd"
     />
+    <ContrastLane />
     <div class="mt-1 flex justify-between text-xs text-muted">
       <span v-for="(time, index) in axisTimes" :key="index">{{ time }}</span>
     </div>

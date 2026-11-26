@@ -18,6 +18,10 @@ Versions follow [Semantic Versioning](https://semver.org/) applied to the produc
 
 ## [Unreleased]
 
+### Added
+
+- A contrast curve under the loudness curve shows how far apart the sound of the minute before each point and the minute after it are, in dB, so a change of track shows even where the loudness never dips, as in a crossfade.
+
 ## [2.1.0] - 2026-11-27
 
 ### Added

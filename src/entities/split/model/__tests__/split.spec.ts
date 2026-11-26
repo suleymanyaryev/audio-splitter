@@ -10,6 +10,7 @@ import {
 } from '../../config/defaults.ts'
 import { MAX_TRACK_NAME_LENGTH } from '../../config/track-name.ts'
 import { ZOOM_WINDOW_SECONDS } from '../../config/zoom-window.ts'
+import { SPECTRUM_BAND_COUNT } from '@/shared/lib/audio/spectrogram-builder.ts'
 import { useSplitStore } from '../split.ts'
 
 const LOUD = -10
@@ -4483,5 +4484,60 @@ describe('the split store', () => {
     expect(store.tracks).toEqual([])
     expect(store.selectedSplit).toBeNull()
     expect(store.zoomCentreSeconds).toBe(10)
+  })
+})
+
+// 400 s of music whose top bands, 20 dB louder, start at 200 s.
+function changingFile() {
+  const columns = 8000
+  const bands = new Uint8Array(columns * SPECTRUM_BAND_COUNT)
+  for (let column = 0; column < columns; column++) {
+    for (let band = 0; band < SPECTRUM_BAND_COUNT; band++) {
+      bands[column * SPECTRUM_BAND_COUNT + band] = column >= 4000 && band < 60 ? 151 : 100
+    }
+  }
+  const curve = curveOf([LOUD, columns])
+  const spectrogram = { bands, bandCount: SPECTRUM_BAND_COUNT, topHz: 22_050 }
+  return { curve, spectrogram }
+}
+
+describe('the contrast curve of the split store', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+  })
+
+  it('is none until a file opens with its spectrogram', () => {
+    const { curve } = changingFile()
+    const store = useSplitStore()
+    expect(store.contrastCurve).toBeNull()
+
+    store.open(curve, timing(curve))
+
+    expect(store.contrastCurve).toBeNull()
+  })
+
+  it('is worked out once, when the file opens, one value every 0.5 s', () => {
+    const { curve, spectrogram } = changingFile()
+    const store = useSplitStore()
+
+    store.open(curve, timing(curve), spectrogram)
+
+    expect(store.contrastCurve).toHaveLength(800)
+    expect(store.contrastCurve?.[400]).toBeCloseTo(9.9995, 3)
+    expect(store.contrastCurve?.[100]).toBeCloseTo(0, 4)
+  })
+
+  it('stays as it is when a setting moves, and goes when the store resets', () => {
+    const { curve, spectrogram } = changingFile()
+    const store = useSplitStore()
+    store.open(curve, timing(curve), spectrogram)
+    const opened = store.contrastCurve
+
+    store.setDepthSetting(20)
+    store.setSilenceThreshold(-40)
+
+    expect(store.contrastCurve).toBe(opened)
+    store.reset()
+    expect(store.contrastCurve).toBeNull()
   })
 })

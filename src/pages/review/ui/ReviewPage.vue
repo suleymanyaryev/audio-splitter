@@ -76,7 +76,7 @@ and this page shows it: "Discard N pending splits?" with Apply first, Discard an
 store's answers. Apply first comes first, so it takes the focus, and Escape cancels.
 
 The page mounts only once the source file is ready (src/app/App.vue), which is when the split store
-opens the file in its loudness curve, once, as one track with its gaps shown, and gets the track name prefix the file starts with:
+opens the file in its loudness curve and spectrogram, once, as one track with its gaps shown, and gets the track name prefix the file starts with:
 its name without the extension and a "-", or none when nothing is left of the name. The split store
 cannot import the source-file store. "New file" unmounts the page, so a new file mounts it again and
 gets its own prefix.
@@ -103,11 +103,15 @@ usePageKeys((event) => {
   return step !== null && split.selectAdjacentByConfidence(step)
 })
 
-const { loudness, loudnessWindowSeconds, durationSeconds } = sourceFile
+const { loudness, loudnessWindowSeconds, durationSeconds, spectrogram } = sourceFile
 const stem = sourceStem(sourceFile.file?.name ?? '')
 split.setTrackNamePrefix(stem === '' ? '' : `${stem}-`)
 if (loudness && loudnessWindowSeconds !== null && durationSeconds !== null) {
-  split.open(loudness, { windowSeconds: loudnessWindowSeconds, durationSeconds })
+  split.open(
+    loudness,
+    { windowSeconds: loudnessWindowSeconds, durationSeconds },
+    spectrogram ?? undefined,
+  )
 }
 onUnmounted(() => {
   // First, so that no clip is left playing over a page that has no split to show.

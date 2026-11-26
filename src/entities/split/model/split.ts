@@ -1,8 +1,10 @@
 import { computed, ref, shallowRef, watch } from 'vue'
 import { defineStore } from 'pinia'
 
+import { buildContrast } from '@/shared/lib/audio/contrast.ts'
 import { buildDepth, gapDepth, type DepthProfile } from '@/shared/lib/audio/depth.ts'
 import { median } from '@/shared/lib/audio/median.ts'
+import type { Spectrogram } from '@/shared/lib/audio/spectrogram-builder.ts'
 import {
   readSavedDefaultSettings,
   saveDefaultSettings,
@@ -120,7 +122,8 @@ export interface CurveTiming {
 The splits of the source file and the tracks between them. This slice cannot import
 `entities/source-file`, so `open` receives the loudness curve as data and keeps a reference to it
 (the page's source-file store owns the array; it is never written to), to find the gaps again when
-one of the two settings moves.
+one of the two settings moves. It also receives the spectrogram, for the contrast curve, and does
+not keep it.
 
 A file opens as one track with no splits, and `clearSplits` brings it back to that. The gaps are separate state, shown on every view and
 found again whenever a setting moves, which changes nothing else. `findSplits` ("Find splits")
@@ -178,6 +181,11 @@ export const useSplitStore = defineStore('split', () => {
   const gaps = ref<Gap[]>([])
   // The depth of every window, worked out when the file opens and never written again.
   const depthProfile = shallowRef<DepthProfile | null>(null)
+  /*
+  The contrast of every 0.5 s of the file, in dB (GLOSSARY.md: Contrast), worked out when the file
+  opens with its spectrogram and never written again; null without one.
+  */
+  const contrastCurve = shallowRef<Float32Array | null>(null)
   const splits = ref<Split[]>([])
   const firstTrackName = ref<string | null>(null)
   // The first track's inclusion lives beside its name, as it has no split to sit on.
@@ -502,10 +510,14 @@ export const useSplitStore = defineStore('split', () => {
   median, rounded to the Slider's 0.1 dB step and held to its range (`thresholdUnder`), so the
   readout, the thumb and the gaps agree.
   */
-  function open(loudness: Float32Array, curveTiming: CurveTiming) {
+  function open(loudness: Float32Array, curveTiming: CurveTiming, spectrogram?: Spectrogram) {
     curve.value = loudness
     timing.value = curveTiming
     depthProfile.value = buildDepth(loudness)
+    contrastCurve.value =
+      spectrogram === undefined
+        ? null
+        : buildContrast(spectrogram, loudness, curveTiming.windowSeconds)
     medianDecibels.value = median(loudness)
     silenceThreshold.value = thresholdUnder(defaultSettings.value.offsetDb)
     minimumGapLength.value = defaultSettings.value.minimumGapSeconds
@@ -1132,6 +1144,7 @@ export const useSplitStore = defineStore('split', () => {
     curve.value = null
     timing.value = null
     depthProfile.value = null
+    contrastCurve.value = null
     silenceThreshold.value = null
     minimumGapLength.value = DEFAULT_MINIMUM_GAP_SECONDS
     depthSetting.value = DEFAULT_DEPTH_DB
@@ -1161,6 +1174,7 @@ export const useSplitStore = defineStore('split', () => {
     gaps,
     proposedSplits,
     loudnessAround,
+    contrastCurve,
     canClearSplits,
     currentOffsetDb: currentOffsetDecibels,
     matchesDefaultSettings,
