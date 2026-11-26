@@ -7,6 +7,11 @@ import { drawConfidenceMarks } from '@/shared/lib/canvas/draw-confidence-marks.t
 import { drawLands, drawSplitLines } from '@/shared/lib/canvas/draw-lands-and-splits.ts'
 import { drawMark } from '@/shared/lib/canvas/draw-mark.ts'
 import { BAR_PITCH, drawPeakBars } from '@/shared/lib/canvas/draw-peak-bars.ts'
+import {
+  drawFrame,
+  drawPlayhead,
+  FRAME_WIDTH,
+} from '@/shared/lib/canvas/draw-playhead-and-frame.ts'
 import { prepareCanvas } from '@/shared/lib/canvas/prepare-canvas.ts'
 import { useCanvasRedraw } from '@/shared/lib/canvas/use-canvas-redraw.ts'
 import { zoomTimeToX } from '@/shared/lib/canvas/zoom-axis.ts'
@@ -20,6 +25,7 @@ import { useRangePress } from '../lib/use-range-press.ts'
 import { zoomBars } from '../lib/zoom-bars.ts'
 import { landSpansInWindow } from '../lib/zoom-spans.ts'
 import { usePlayerStore } from '../model/player.ts'
+import PlayerFailure from './PlayerFailure.vue'
 
 /*
 The Range view (GLOSSARY.md): the range the user dragged out, stretched across a 160 px canvas
@@ -42,10 +48,6 @@ range's start. A held Space, Enter or Shift+Enter is ignored, so it does not sta
 or add splits over and over. A failure to play is said in a line at the bottom of the view.
 */
 
-// DESIGN.md: the whole canvas is framed in 1.5 px ink, as in the zoom view.
-const FRAME_WIDTH = 1.5
-// The playhead is one CSS pixel of ink.
-const PLAYHEAD_WIDTH = 1
 // Left and Right move the playhead 1 s, with Shift 10 s.
 const STEP_SECONDS = 1
 const SHIFT_STEP_SECONDS = 10
@@ -121,13 +123,8 @@ function draw() {
   under the frame, so the frame stays the outermost line of the canvas.
   */
   const x = zoomTimeToX(playheadSeconds(), centreSeconds, windowSeconds, width)
-  context.fillStyle = style.getPropertyValue('--color-ink')
-  // Snapped to a whole CSS pixel so the line is not smeared over two.
-  context.fillRect(Math.round(x - PLAYHEAD_WIDTH / 2), 0, PLAYHEAD_WIDTH, height)
-
-  context.strokeStyle = style.getPropertyValue('--color-ink')
-  context.lineWidth = FRAME_WIDTH
-  context.strokeRect(FRAME_WIDTH / 2, FRAME_WIDTH / 2, width - FRAME_WIDTH, height - FRAME_WIDTH)
+  drawPlayhead(context, x, style.getPropertyValue('--color-ink'), height)
+  drawFrame(context, width, height, style.getPropertyValue('--color-ink'))
 }
 
 function frameWidth() {
@@ -286,12 +283,6 @@ watch(
     >
       <canvas ref="canvas" class="block size-full" aria-label="Waveform of the range" />
     </div>
-    <p
-      v-if="player.failure !== null"
-      role="status"
-      class="pointer-events-none absolute inset-x-0 bottom-3 flex justify-center"
-    >
-      <span class="bg-surface px-3 py-1.5 text-sm text-muted">{{ player.failure }}</span>
-    </p>
+    <PlayerFailure />
   </div>
 </template>

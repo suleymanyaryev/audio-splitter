@@ -7,6 +7,11 @@ import { useSplitStore, type Split } from '@/entities/split/model/split.ts'
 import { drawConfidenceMarks } from '@/shared/lib/canvas/draw-confidence-marks.ts'
 import { drawSplitLines } from '@/shared/lib/canvas/draw-lands-and-splits.ts'
 import { BAR_PITCH, drawPeakBars } from '@/shared/lib/canvas/draw-peak-bars.ts'
+import {
+  drawFrame,
+  drawPlayhead,
+  FRAME_WIDTH,
+} from '@/shared/lib/canvas/draw-playhead-and-frame.ts'
 import { prepareCanvas } from '@/shared/lib/canvas/prepare-canvas.ts'
 import { useCanvasRedraw } from '@/shared/lib/canvas/use-canvas-redraw.ts'
 import { zoomTimeToX } from '@/shared/lib/canvas/zoom-axis.ts'
@@ -21,6 +26,7 @@ import { useSplitDrag } from '../lib/use-split-drag.ts'
 import { zoomBars } from '../lib/zoom-bars.ts'
 import { landSpansInWindow, outsideFileSpans } from '../lib/zoom-spans.ts'
 import { usePlayerStore } from '../model/player.ts'
+import PlayerFailure from './PlayerFailure.vue'
 
 /*
 The Split view: the 20 s around the zoom centre at 160 px, where the selected split is moved. It is
@@ -49,11 +55,8 @@ drags it along until the release; a playing audition pauses while it is held and
 drop (`lib/use-split-drag.ts`). A double-click does nothing here.
 */
 
-// DESIGN.md: the whole canvas is framed in 1.5 px ink; the run-out line is 1 px.
-const FRAME_WIDTH = 1.5
+// DESIGN.md: the run-out line is 1 px.
 const RUN_OUT_WIDTH = 1
-// The playhead is one CSS pixel of ink.
-const PLAYHEAD_WIDTH = 1
 // Arrow keys move 10 ms, one bucket; with Shift, 100 ms.
 const KEY_STEP_SECONDS = 0.01
 const SHIFT_KEY_STEP_SECONDS = 0.1
@@ -271,16 +274,11 @@ function draw() {
   const playhead = player.playheadSeconds()
   if (playhead !== null) {
     const x = zoomTimeToX(playhead, centre, ZOOM_WINDOW_SECONDS, width)
-    if (x >= 0 && x <= width) {
-      context.fillStyle = style.getPropertyValue('--color-ink')
-      // Snapped to a whole CSS pixel so the line is not smeared over two.
-      context.fillRect(Math.round(x - PLAYHEAD_WIDTH / 2), 0, PLAYHEAD_WIDTH, height)
-    }
+    if (x >= 0 && x <= width)
+      drawPlayhead(context, x, style.getPropertyValue('--color-ink'), height)
   }
 
-  context.strokeStyle = style.getPropertyValue('--color-ink')
-  context.lineWidth = FRAME_WIDTH
-  context.strokeRect(FRAME_WIDTH / 2, FRAME_WIDTH / 2, width - FRAME_WIDTH, height - FRAME_WIDTH)
+  drawFrame(context, width, height, style.getPropertyValue('--color-ink'))
 }
 
 // The playhead moves with the audio, which Vue does not see: draw on every frame while it plays.
@@ -352,13 +350,7 @@ watch(
       class="absolute top-0.5 h-2.5 w-3.5 -translate-x-1/2 cursor-ew-resize bg-split focus-visible:focus-ring"
       :style="{ left: handleLeft }"
     />
-    <p
-      v-if="player.failure !== null"
-      role="status"
-      class="pointer-events-none absolute inset-x-0 bottom-3 flex justify-center"
-    >
-      <span class="bg-surface px-3 py-1.5 text-sm text-muted">{{ player.failure }}</span>
-    </p>
+    <PlayerFailure />
     <p
       v-if="split.splits.length === 0"
       role="status"

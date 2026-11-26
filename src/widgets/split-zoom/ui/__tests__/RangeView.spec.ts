@@ -564,13 +564,7 @@ describe('RangeView', () => {
   })
 
   describe('the failure line', () => {
-    it('is not there while nothing failed', () => {
-      const { wrapper } = setup()
-
-      expect(wrapper.find('[role="status"]').exists()).toBe(false)
-    })
-
-    it('says why the range could not be played', async () => {
+    it('shows a failure to play', async () => {
       const { player, wrapper } = setup()
 
       player.failure = "Couldn't play this range: Invalid data found"

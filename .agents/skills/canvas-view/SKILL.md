@@ -11,10 +11,10 @@ The canvases (`widgets/source-waveform`, `widgets/loudness-curve`, `widgets/spli
 - Map time to x with `time-axis.ts` (the whole file) or `zoom-axis.ts` (a window centred on a time). A range reuses the zoom helpers as a centre and a length (`widgets/split-zoom/lib/range-window.ts`).
 - Draw with the shared drawers; `draw-lands-and-splits.ts` owns the land and split-line widths.
 - Colours come from the `--color-*` tokens; sizes and layering follow DESIGN.md "Canvas drawing rules". Read it before drawing anything new.
-- Draw back to front: bars, lands, overlays, split lines, playhead, then the frame last so it stays outermost. Reference: `draw()` in `SplitZoom.vue`.
+- Draw back to front: bars, lands, overlays, split lines, playhead, then the frame last so it stays outermost. `drawPlayhead` and `drawFrame` (`@/shared/lib/canvas/draw-playhead-and-frame.ts`) draw the last two. Reference: `draw()` in `SplitZoom.vue`.
 - Layout maths goes in its own `lib/` file with a spec (`zoom-outline.ts`); the component only measures and paints.
 - Anything that moves without Vue seeing it, such as the audio's `currentTime`, redraws through `usePlayheadFrames` (`widgets/split-zoom/lib/use-playhead-frames.ts`).
-- A view's failure shows as a one-line `role="status"` at the bottom centre, as in `SplitZoom.vue`.
+- A view's failure shows through `<PlayerFailure />` (`widgets/split-zoom/ui/PlayerFailure.vue`), a one-line `role="status"` at the bottom centre of the `relative` view.
 
 ## Pointer
 
