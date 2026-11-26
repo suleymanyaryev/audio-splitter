@@ -39,13 +39,14 @@ range is heard or where it resumes. While the range plays it is drawn on every a
 playhead can be dragged along the range, and any other single press places the mark, a 1 px dashed
 line, even next to a split's line: a double-click moves the playhead there, or, within 6 px of a
 split's line, selects that split and opens the Split view (`onPointerDown` and `onDoubleClick` have
-the order, and `lib/use-playhead-drag.ts` the drag, with the playhead's pause and resume). The view is a slider on the playhead and takes the
-page's keys, wherever the focus is: Left and Right move the playhead 1 s, with Shift 10 s, as in the Track view, and the mark
-has no keys. Enter adds a split at the mark and Shift+Enter one where the playhead is, so a split
-can be put where it is heard while the range plays, and neither stops the sound or leaves the view.
-Space plays or pauses the range, as the panel's button does, and Home takes the playhead back to the
-range's start. A held Space, Enter or Shift+Enter is ignored, so it does not start and stop the sound
-or add splits over and over. A failure to play is said in a line at the bottom of the view.
+the order, and `lib/use-playhead-drag.ts` the drag, with the playhead's pause and resume). The view
+is a slider on the playhead and takes the page's keys, wherever the focus is: Left and Right move
+the playhead 1 s, with Shift 10 s, as in the Track view (`lib/use-stretch-keys.ts` has them, with
+Space and Home), and the mark has no keys. Enter adds a split at the mark and Shift+Enter one where
+the playhead is, so a split can be put where it is heard while the range plays, and neither stops
+the sound or leaves the view. Space plays or pauses the range, as the panel's button does, and Home
+takes the playhead back to the range's start. A held Space, Enter or Shift+Enter is ignored, so it
+does not start and stop the sound or add splits over and over. A failure to play is said in a line at the bottom of the view.
 */
 
 const sourceFile = useSourceFileStore()

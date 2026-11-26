@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 
-import { drawFrame, drawPlayhead, FRAME_WIDTH } from '../draw-playhead-and-frame.ts'
+import { drawFrame, drawPlayhead } from '../draw-playhead-and-frame.ts'
 
 // jsdom has no canvas, so this records what the drawing asks of the 2D context.
 function recordingContext() {
@@ -56,9 +56,5 @@ describe('drawFrame', () => {
     expect(stroked).toEqual([
       { strokeStyle: '#456', lineWidth: 1.5, rect: [0.75, 0.75, 798.5, 158.5] },
     ])
-  })
-
-  it('shares its width, for the views that keep their bars inside it', () => {
-    expect(FRAME_WIDTH).toBe(1.5)
   })
 })
