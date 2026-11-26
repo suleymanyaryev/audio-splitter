@@ -27,12 +27,13 @@ import { useSpectrogramReadout } from '../lib/use-spectrogram-readout.ts'
 import { useSplitDrag } from '../lib/use-split-drag.ts'
 import { zoomBars } from '../lib/zoom-bars.ts'
 import { landSpansInWindow, outsideFileSpans } from '../lib/zoom-spans.ts'
+import { zoomLayout } from '../lib/zoom-layout.ts'
 import { usePlayerStore } from '../model/player.ts'
 import PlayerFailure from './PlayerFailure.vue'
 import SpectrogramReadout from './SpectrogramReadout.vue'
 
 /*
-The Split view: the 20 s around the zoom centre at 160 px, where the selected split is moved. It is
+The Split view: the 20 s around the zoom centre, where the selected split is moved. It is
 the only place a split moves (ticket 13). The wave is the same peaks as the whole-file view, in the
 same bars; each gap is a land at its true width with a flat run-out line through it; the selected
 split is a wider line with a drag handle at its top. The handle is a real element over the canvas so
@@ -243,8 +244,7 @@ function draw() {
 
   const style = getComputedStyle(document.documentElement)
   const centre = split.zoomCentreSeconds
-  // The waveform takes the top half, the spectrogram strip the bottom half.
-  const waveHeight = height / 2
+  const { waveHeight, stripTop, stripHeight } = zoomLayout(height)
   const middle = waveHeight / 2
   // A sample of ±1 reaches the frame and the line between the two.
   const halfHeight = middle - FRAME_WIDTH
@@ -267,9 +267,9 @@ function draw() {
     columnSeconds: sourceFile.loudnessWindowSeconds,
     startSeconds: windowStart.value,
     endSeconds: windowEnd.value,
-    top: waveHeight,
+    top: stripTop,
     width,
-    height: height - waveHeight,
+    height: stripHeight,
     style,
   })
 

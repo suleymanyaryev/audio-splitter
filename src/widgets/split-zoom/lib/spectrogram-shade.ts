@@ -1,4 +1,4 @@
-import { bandDecibels } from '@/shared/lib/audio/spectrum-builder.ts'
+import { bandDecibels } from '@/shared/lib/audio/spectrogram-builder.ts'
 
 // The strip shades the 80 dB under the file's loudest band value; anything quieter is background.
 const SHADE_RANGE_DB = 80
@@ -25,12 +25,12 @@ export function loudestBandValue(bands: Uint8Array): number {
   return loudest
 }
 
-// A colour token's `#rrggbb` as red, green and blue from 0 to 255.
-export function hexToRgb(hex: string): [number, number, number] {
+// Red, green and blue, each from 0 to 255.
+export type Rgb = [number, number, number]
+
+// A colour token's `#rrggbb` as red, green and blue.
+export function hexToRgb(hex: string): Rgb {
   const digits = hex.trim().slice(1)
-  return [0, 2, 4].map((at) => Number.parseInt(digits.slice(at, at + 2), 16)) as [
-    number,
-    number,
-    number,
-  ]
+  const channel = (at: number) => Number.parseInt(digits.slice(at, at + 2), 16)
+  return [channel(0), channel(2), channel(4)]
 }

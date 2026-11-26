@@ -37,6 +37,25 @@ describe('mergeSpectrogram', () => {
     ])
   })
 
+  it('gives a column straddling two pixels to the pixel holding its middle', () => {
+    // 4 columns of 1 s on 4 px of 1.5 s: column 1 (1 to 2 s, middle 1.5 s) belongs to pixel 1.
+    const spectrogram = spectrogramOf([
+      [10, 10],
+      [200, 200],
+      [20, 20],
+      [30, 30],
+    ])
+
+    const merged = mergeSpectrogram(spectrogram, {
+      startSeconds: 0,
+      endSeconds: 6,
+      width: 4,
+      columnSeconds: 1,
+    })
+
+    expect(pixelsOf(merged)).toEqual([[10, 10], [200, 200], [30, 30], null])
+  })
+
   it('keeps a short loud moment in a long stretch', () => {
     // 10 min of 50 ms columns on 600 px: 20 columns a pixel, one of them a drum hit.
     const columns: [number, number][] = Array.from({ length: 12_000 }, () => [40, 40])

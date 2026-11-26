@@ -85,7 +85,7 @@ builder keeps the samples from the next frame's start on (the leftover, as in co
 works out a column once every sample of its frame has arrived; `finish` works out the rest with
 zeros past the end. The slice size therefore never changes the result.
 */
-export function createSpectrumBuilder(sampleRate: number) {
+export function createSpectrogramBuilder(sampleRate: number) {
   const windowSize = Math.round(sampleRate * loudnessWindowSeconds(sampleRate))
   const fft = createFft(FRAME_SIZE)
   const hann = hannWindow()

@@ -29,6 +29,7 @@ import { useSpectrogramReadout } from '../lib/use-spectrogram-readout.ts'
 import { useStretchKeys } from '../lib/use-stretch-keys.ts'
 import { zoomBars } from '../lib/zoom-bars.ts'
 import { landSpansInWindow } from '../lib/zoom-spans.ts'
+import { zoomLayout } from '../lib/zoom-layout.ts'
 import { usePlayerStore } from '../model/player.ts'
 import PlayerFailure from './PlayerFailure.vue'
 import SpectrogramReadout from './SpectrogramReadout.vue'
@@ -36,11 +37,12 @@ import SpectrogramReadout from './SpectrogramReadout.vue'
 /*
 The Track view (GLOSSARY.md): the selected track stretched across the canvas whatever its
 length, in the zoom view's place and at its height, so the page does not jump when the panel
-switches. Under the waveform, as tall as it, is the spectrogram strip, each pixel keeping each
-band's loudest value over its time (`lib/draw-spectrogram-strip.ts`); the split lines, the pending
-splits, the mark and the playhead cross it, and the lands stay on the waveform. Like the Range view it draws the peaks the whole-file view already holds, merged over the
+switches. Like the Range view it draws the peaks the whole-file view already holds, merged over the
 track's buckets, with the lands and the split lines that fall inside the track on the same axis: its
-two end splits sit on the edges, and a track has no split inside it. No split is moved or added
+two end splits sit on the edges, and a track has no split inside it. Under the waveform, as tall
+as it, is the spectrogram strip, each pixel keeping each band's loudest value over its time
+(`lib/draw-spectrogram-strip.ts`); the split lines, the pending splits, the mark and the playhead
+cross it, and the lands stay on the waveform. No split is moved or added
 here, and one is selected only by a double-click on an end split's line.
 
 A 1 px ink playhead is drawn at all times: at the track's start for a new track, then where the
@@ -95,8 +97,7 @@ function draw() {
   const style = getComputedStyle(document.documentElement)
   const axis = stretchAxis(extent, width)
   const { centreSeconds, windowSeconds } = axis
-  // The waveform takes the top half, the spectrogram strip the bottom half.
-  const waveHeight = height / 2
+  const { waveHeight, stripTop, stripHeight } = zoomLayout(height)
   const middle = waveHeight / 2
   // A sample of ±1 reaches the frame and the line between the two.
   const halfHeight = middle - FRAME_WIDTH
@@ -119,9 +120,9 @@ function draw() {
     columnSeconds: sourceFile.loudnessWindowSeconds,
     startSeconds: centreSeconds - windowSeconds / 2,
     endSeconds: centreSeconds + windowSeconds / 2,
-    top: waveHeight,
+    top: stripTop,
     width,
-    height: height - waveHeight,
+    height: stripHeight,
     style,
   })
 

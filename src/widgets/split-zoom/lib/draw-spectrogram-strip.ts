@@ -1,4 +1,4 @@
-import type { Spectrogram } from '@/shared/lib/audio/spectrum-builder.ts'
+import type { Spectrogram } from '@/shared/lib/audio/spectrogram-builder.ts'
 import { CANVAS_FONT } from '@/shared/lib/canvas/canvas-text.ts'
 import { FRAME_WIDTH } from '@/shared/lib/canvas/draw-playhead-and-frame.ts'
 import { mergeSpectrogram } from './merge-spectrogram.ts'
@@ -72,8 +72,8 @@ export function createSpectrogramStrip() {
     const { startSeconds, endSeconds, style } = view
     const width = Math.max(1, Math.round(view.width))
     const background = style.getPropertyValue('--color-surface')
-    const text = style.getPropertyValue('--color-ink')
-    const key = [startSeconds, endSeconds, width, columnSeconds, background, text].join(' ')
+    const ink = style.getPropertyValue('--color-ink')
+    const key = [startSeconds, endSeconds, width, columnSeconds, background, ink].join(' ')
     if (image && paintedFor?.bands === spectrogram.bands && paintedFor.key === key) return image
 
     image ??= document.createElement('canvas')
@@ -89,7 +89,7 @@ export function createSpectrogramStrip() {
       spectrogram.bandCount,
       loudestBandValue(spectrogram.bands),
       hexToRgb(background),
-      hexToRgb(text),
+      hexToRgb(ink),
     )
     context.putImageData(pixels, 0, 0)
     paintedFor = { bands: spectrogram.bands, key }

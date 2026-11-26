@@ -9,7 +9,10 @@ import {
   loudnessWindowSeconds as windowSecondsAt,
 } from '@/shared/lib/audio/loudness-builder.ts'
 import { createPeaksBuilder } from '@/shared/lib/audio/peaks-builder.ts'
-import { createSpectrumBuilder, type Spectrogram } from '@/shared/lib/audio/spectrum-builder.ts'
+import {
+  createSpectrogramBuilder,
+  type Spectrogram,
+} from '@/shared/lib/audio/spectrogram-builder.ts'
 import { cutTrack as cutTrackIn, type TrackCut } from '../api/cut-track.ts'
 import { decodeClip } from '../api/decode-clip.ts'
 import { decodeSlice, sliceCount } from '../api/decode-slice.ts'
@@ -83,7 +86,7 @@ export const useSourceFileStore = defineStore('source-file', () => {
   const loudnessWindowSeconds = ref<number | null>(null)
   /*
   128 log bands from 50 Hz to half the sample rate, one byte each, per loudness window, so column i
-  belongs to the curve's window i (see shared/lib/audio/spectrum-builder.ts and concept note 14).
+  belongs to the curve's window i (see shared/lib/audio/spectrogram-builder.ts and concept note 14).
   */
   const spectrogram = shallowRef<Spectrogram | null>(null)
   const failure = ref<LoadFailure | null>(null)
@@ -191,7 +194,7 @@ export const useSourceFileStore = defineStore('source-file', () => {
       sliceTotal.value = total
       const peaksBuilder = createPeaksBuilder(probed.sampleRate)
       const loudnessBuilder = createLoudnessBuilder(probed.sampleRate)
-      const spectrumBuilder = createSpectrumBuilder(probed.sampleRate)
+      const spectrogramBuilder = createSpectrogramBuilder(probed.sampleRate)
       for (let index = 0; index < total; index++) {
         step = `slice ${index + 1} of ${total}`
         const pcm = await decodeSlice(ffmpeg, index, probed.format)
@@ -199,13 +202,13 @@ export const useSourceFileStore = defineStore('source-file', () => {
         const mono = downmix(pcm, probed.channelCount)
         peaksBuilder.push(mono)
         loudnessBuilder.push(mono)
-        spectrumBuilder.push(mono)
+        spectrogramBuilder.push(mono)
         slicesDone.value = index + 1
       }
       peaks.value = peaksBuilder.finish()
       loudness.value = loudnessBuilder.finish()
       loudnessWindowSeconds.value = windowSecondsAt(probed.sampleRate)
-      spectrogram.value = spectrumBuilder.finish()
+      spectrogram.value = spectrogramBuilder.finish()
       status.value = 'ready'
       isKept = true
       /*

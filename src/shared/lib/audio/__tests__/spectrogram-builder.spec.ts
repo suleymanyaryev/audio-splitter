@@ -1,10 +1,14 @@
 import { describe, it, expect } from 'vitest'
 
 import { createLoudnessBuilder } from '../loudness-builder.ts'
-import { bandDecibels, createSpectrumBuilder, SPECTRUM_BAND_COUNT } from '../spectrum-builder.ts'
+import {
+  bandDecibels,
+  createSpectrogramBuilder,
+  SPECTRUM_BAND_COUNT,
+} from '../spectrogram-builder.ts'
 
 function spectrogramOf(pieces: Float32Array[], sampleRate: number) {
-  const builder = createSpectrumBuilder(sampleRate)
+  const builder = createSpectrogramBuilder(sampleRate)
   for (const piece of pieces) builder.push(piece)
   return builder.finish()
 }
@@ -53,7 +57,7 @@ function loudestBandOf(values: Uint8Array) {
   return values.indexOf(Math.max(...values))
 }
 
-describe('createSpectrumBuilder', () => {
+describe('createSpectrogramBuilder', () => {
   it.each([
     [22_050, 1103 * 7 + 500],
     [44_100, 2205 * 9 + 1],

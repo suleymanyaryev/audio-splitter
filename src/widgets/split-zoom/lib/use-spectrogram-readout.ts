@@ -4,6 +4,7 @@ import { useSourceFileStore } from '@/entities/source-file/model/source-file.ts'
 import { formatSpectrogramReadout } from './format-spectrogram-readout.ts'
 import { readSpectrogram } from './read-spectrogram.ts'
 import { yToFrequency } from './spectrogram-axis.ts'
+import { zoomLayout } from './zoom-layout.ts'
 
 // The readout's text and where the pointer is in the view, in its own pixels.
 export type Readout = {
@@ -16,9 +17,10 @@ export type Readout = {
 
 /*
 The frequency and level under the pointer while it is over a view's spectrogram strip, the bottom
-half of `frame`: "1.0 kHz · −32 dB" (concept note 14). `secondsAt` is the view's own time under a
-pixel. Over the waveform, outside the file or before the load is ready there is no readout, and
-`hide` takes it away when the pointer leaves. The pointer's other actions are the view's own.
+half of `frame` (`zoomLayout`): "1.0 kHz · −32 dB" (concept note 14). `secondsAt` is the view's
+own time under a pixel. Over the waveform, outside the file (its last column may run past the end)
+or before the load is ready there is no readout, and `hide` takes it away when the pointer leaves.
+The pointer's other actions are the view's own.
 */
 export function useSpectrogramReadout(options: {
   frame: () => HTMLElement | null
@@ -39,10 +41,12 @@ export function useSpectrogramReadout(options: {
     const { left, top, width, height } = element.getBoundingClientRect()
     const x = event.clientX - left
     const y = event.clientY - top
-    const stripTop = height / 2
+    const { stripTop, stripHeight } = zoomLayout(height)
     const seconds = options.secondsAt(x, width)
-    if (seconds === null || y < stripTop || y > height) return hide()
-    const hz = yToFrequency(y - stripTop, spectrogram.topHz, height - stripTop)
+    const duration = sourceFile.durationSeconds ?? 0
+    if (seconds === null || seconds < 0 || seconds >= duration) return hide()
+    if (y < stripTop || y > height) return hide()
+    const hz = yToFrequency(y - stripTop, spectrogram.topHz, stripHeight)
     const decibels = readSpectrogram(spectrogram, columnSeconds, seconds, hz)
     if (decibels === null) return hide()
     readout.value = {

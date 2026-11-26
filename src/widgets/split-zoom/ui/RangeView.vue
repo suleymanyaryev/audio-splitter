@@ -27,6 +27,7 @@ import { useSpectrogramReadout } from '../lib/use-spectrogram-readout.ts'
 import { useStretchKeys } from '../lib/use-stretch-keys.ts'
 import { zoomBars } from '../lib/zoom-bars.ts'
 import { landSpansInWindow } from '../lib/zoom-spans.ts'
+import { zoomLayout } from '../lib/zoom-layout.ts'
 import { usePlayerStore } from '../model/player.ts'
 import PlayerFailure from './PlayerFailure.vue'
 import SpectrogramReadout from './SpectrogramReadout.vue'
@@ -38,7 +39,8 @@ panel switches. The bars are the peaks the whole-file view already holds, merged
 buckets, so nothing is decoded; the lands and the split lines that fall inside the range are drawn
 on the same axis. Under the waveform, as tall as it, is the spectrogram strip, each pixel keeping
 each band's loudest value over its time (`lib/draw-spectrogram-strip.ts`); the split lines, the
-mark and the playhead cross it, and the lands stay on the waveform. The panel's `Split | Range` control only offers this view while there is a range.
+mark and the playhead cross it, and the lands stay on the waveform. The panel's `Split | Range`
+control only offers this view while there is a range.
 
 A 1 px ink playhead is drawn at all times: at the range's start for a new range, then where the
 range is heard or where it resumes. While the range plays it is drawn on every animation frame. The
@@ -78,8 +80,7 @@ function draw() {
   const style = getComputedStyle(document.documentElement)
   const axis = stretchAxis(extent, width)
   const { centreSeconds, windowSeconds } = axis
-  // The waveform takes the top half, the spectrogram strip the bottom half.
-  const waveHeight = height / 2
+  const { waveHeight, stripTop, stripHeight } = zoomLayout(height)
   const middle = waveHeight / 2
   // A sample of ±1 reaches the frame and the line between the two.
   const halfHeight = middle - FRAME_WIDTH
@@ -102,9 +103,9 @@ function draw() {
     columnSeconds: sourceFile.loudnessWindowSeconds,
     startSeconds: centreSeconds - windowSeconds / 2,
     endSeconds: centreSeconds + windowSeconds / 2,
-    top: waveHeight,
+    top: stripTop,
     width,
-    height: height - waveHeight,
+    height: stripHeight,
     style,
   })
 
