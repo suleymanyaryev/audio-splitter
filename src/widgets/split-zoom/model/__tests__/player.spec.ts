@@ -1277,7 +1277,6 @@ describe('the player store', () => {
       player.toggle()
 
       split.setRange(10, 30)
-      player.stop()
       split.showView('split')
 
       expect(split.selectedSplit?.seconds).toBeCloseTo(22, 6)
@@ -1292,11 +1291,116 @@ describe('the player store', () => {
 
       player.toggle()
       await flush()
-      player.stop()
-      expect(player.status).toBe('paused')
+      split.showView('split')
+
+      expect(player.playheadSeconds()).toBe(20.5)
+    })
+  })
+
+  describe('the view change', () => {
+    it('lets go of the audition’s WAV and keeps its place', async () => {
+      const { split, player } = await playing()
+      audio().currentTime = 2.5
+
+      split.setRange(10, 30)
+
+      expect(revokeObjectURL).toHaveBeenCalledExactlyOnceWith('blob:clip-1')
+      split.showView('split')
+      expect(player.status).toBe('idle')
+      expect(player.playheadSeconds()).toBe(20.5)
+    })
+
+    it('pauses a playing stretch where it was, with its WAV', async () => {
+      const { split, player } = await playingRange()
+      audio().currentTime = 4
 
       split.showView('split')
-      expect(player.playheadSeconds()).toBe(20.5)
+
+      expect(pause).toHaveBeenCalled()
+      expect(revokeObjectURL).not.toHaveBeenCalled()
+      split.showView('range')
+      expect(player.status).toBe('paused')
+      expect(player.playheadSeconds()).toBe(14)
+    })
+
+    it('leaves a paused stretch paused', async () => {
+      const { split, player } = await playingRange()
+      player.toggle()
+
+      split.showView('split')
+      split.showView('range')
+
+      expect(player.status).toBe('paused')
+    })
+
+    it('takes back a decode, so its clip never plays', async () => {
+      const { split, player } = setUp()
+      split.setRange(10, 30)
+      const pending = deferred<Clip>()
+      clip.mockReturnValueOnce(pending.promise)
+      player.toggle()
+      expect(player.status).toBe('loading')
+
+      split.showView('split')
+      pending.resolve(clipOf(10, 20))
+      await flush()
+
+      split.showView('range')
+      expect(player.status).toBe('idle')
+      expect(play).not.toHaveBeenCalled()
+    })
+
+    it('clears the failure', async () => {
+      const { split, player } = setUp()
+      clip.mockRejectedValueOnce(new Error('Invalid data found'))
+      player.toggle()
+      await flush()
+      expect(player.failure).not.toBeNull()
+
+      split.setRange(10, 30)
+
+      expect(player.failure).toBeNull()
+    })
+  })
+
+  describe('each stop watcher leaves another subject alone', () => {
+    it('a new range leaves a paused track’s place and WAV', async () => {
+      const { split, player } = await playingTrack()
+      audio().currentTime = 8
+      player.toggle()
+
+      split.setRange(40, 50)
+      split.showView('track')
+
+      expect(player.status).toBe('paused')
+      expect(player.playheadSeconds()).toBe(30)
+      expect(revokeObjectURL).not.toHaveBeenCalled()
+    })
+
+    it('another selected track leaves a paused range’s place and WAV', async () => {
+      const { split, player } = await playingRange()
+      audio().currentTime = 4
+      player.toggle()
+
+      split.selectTrack(split.tracks[0]!)
+      split.showView('range')
+
+      expect(player.status).toBe('paused')
+      expect(player.playheadSeconds()).toBe(14)
+      expect(revokeObjectURL).not.toHaveBeenCalled()
+    })
+
+    it('another selected split leaves a paused range’s place and WAV', async () => {
+      const { split, player } = await playingRange()
+      audio().currentTime = 4
+      player.toggle()
+
+      split.selectSplit(split.splits[1]!.id)
+      split.showView('range')
+
+      expect(player.status).toBe('paused')
+      expect(player.playheadSeconds()).toBe(14)
+      expect(revokeObjectURL).not.toHaveBeenCalled()
     })
   })
 
@@ -1595,13 +1699,16 @@ describe('the player store', () => {
       expect(revokeObjectURL).not.toHaveBeenCalled()
     })
 
-    it('stops and lets go of the WAV when a new range is drawn', async () => {
+    it('pauses and keeps its WAV when a new range is drawn, since the view changes', async () => {
       const { split } = await playingTrack()
 
       split.setRange(40, 50)
 
       expect(pause).toHaveBeenCalled()
-      expect(revokeObjectURL).toHaveBeenCalledExactlyOnceWith('blob:clip-1')
+      expect(revokeObjectURL).not.toHaveBeenCalled()
+      split.showView('track')
+      expect(useSplitStore().selectedTrack).not.toBeNull()
+      expect(usePlayerStore().status).toBe('paused')
     })
 
     it('lets go of the WAV when the page resets the store on unmount', async () => {
@@ -1923,14 +2030,15 @@ describe('the player store', () => {
         expect(clip).toHaveBeenLastCalledWith(600, 400, expect.any(AbortSignal))
       })
 
-      it('lets both windows go when a new range is made', async () => {
+      it('lets the window ahead go and pauses the playing one when a new range is made', async () => {
         const { split } = await playingLongTrack()
         timeUpdate(570)
         await flush()
+        expect(heldWavs()).toBe(2)
 
         split.setRange(10, 30)
 
-        expect(heldWavs()).toBe(0)
+        expect(heldWavs()).toBe(1)
       })
 
       describe('when it is not decoded by the hand-over', () => {

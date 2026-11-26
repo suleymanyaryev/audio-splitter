@@ -194,7 +194,7 @@ stateDiagram-v2
 ```
 
 - **A long track plays through a moving window.** At most 10 min is decoded at a time. The next window is decoded while the current one plays, and at most two are held ([`decode-window.ts`](../src/widgets/split-zoom/lib/decode-window.ts), [note 08](concepts/08-listening-to-a-range.md)).
-- **Watchers on the `split` store stop the sound at once** when the split, range or track it belongs to changes. A view change or the export only pauses a stretch, so its playhead stays.
+- **The player's own watchers on the `split` store stop the sound at once.** A change of the split, the range or the track ends that subject only. A view change pauses a stretch where it was and lets go of the audition's clip, so a playhead stays. The export only pauses.
 - **Every press takes a number.** A clip that arrives for an older press is dropped, so stale sound never starts.
 - **The volume and the play speed apply to the element only**, so they never reach an exported file ([note 09](concepts/09-volume-is-gain.md), [note 10](concepts/10-speed-without-pitch.md), [ADR 0004](adr/0004-time-stretching-by-the-browser.md)).
 

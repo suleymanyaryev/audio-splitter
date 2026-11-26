@@ -1069,15 +1069,6 @@ describe('ReviewPage', () => {
         }
       })
 
-      it('stops the sound when the view changes to Split', async () => {
-        const wrapper = await mountPageWithTrack(2)
-        const stop = vi.spyOn(usePlayerStore(), 'stop')
-
-        await viewOption(wrapper, 'Split').trigger('click')
-
-        expect(stop).toHaveBeenCalled()
-      })
-
       it('swaps to the Range view and back to the Track view through the control', async () => {
         const wrapper = await mountPageWithTrack(2)
         const split = useSplitStore()
@@ -1090,25 +1081,6 @@ describe('ReviewPage', () => {
         expect(split.view).toBe('track')
         expect(wrapper.find('[aria-label="Waveform of the track"]').exists()).toBe(true)
       })
-
-      it('stops the audition when the view changes to the Track view', async () => {
-        const wrapper = await mountPageOnSplit()
-        const stop = vi.spyOn(usePlayerStore(), 'stop')
-
-        await wrapper.get('[aria-label^="Select track 3"]').trigger('click')
-
-        expect(stop).toHaveBeenCalled()
-      })
-    })
-
-    it('stops the audition when the view changes', async () => {
-      const wrapper = mountPage()
-      const stop = vi.spyOn(usePlayerStore(), 'stop')
-
-      useSplitStore().setRange(10, 20)
-      await wrapper.vm.$nextTick()
-
-      expect(stop).toHaveBeenCalled()
     })
   })
 

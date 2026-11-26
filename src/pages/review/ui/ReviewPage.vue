@@ -251,14 +251,6 @@ const viewOptions = computed(() => [
   { value: 'track' as const, label: 'Track', disabled: split.selectedTrack === null },
   { value: 'range' as const, label: 'Range', disabled: split.range === null },
 ])
-
-// Sound belongs to the view it was started in: the audition must not play on under the Range view.
-watch(
-  () => split.view,
-  () => {
-    player.stop()
-  },
-)
 </script>
 
 <template>

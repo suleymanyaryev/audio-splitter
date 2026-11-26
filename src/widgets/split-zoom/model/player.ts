@@ -27,16 +27,28 @@ type Subject = 'split' | 'range' | 'track'
 // What is on show, which the verbs act on: who plays it and the playhead's span.
 interface OnShow {
   owner: Owner
+  subject: Subject
   extent: TimeRange
   // The split an audition is of; null for a stretch.
   split: Split | null
 }
 
+// The two subjects a stretch can be.
+type StretchSubject = 'range' | 'track'
+
 // A start and an end in the file: what the player plays besides the audition. The range or a track.
-type Stretch = TimeRange
+interface Stretch extends TimeRange {
+  subject: StretchSubject
+}
 
 const isSameStretch = (a: Stretch, b: Stretch) =>
-  a.startSeconds === b.startSeconds && a.endSeconds === b.endSeconds
+  a.subject === b.subject && a.startSeconds === b.startSeconds && a.endSeconds === b.endSeconds
+
+// The stretch the range or the track on show is.
+const stretchFor = (shown: OnShow): Stretch => ({
+  ...shown.extent,
+  subject: shown.subject === 'track' ? 'track' : 'range',
+})
 
 /*
 The one player. One hidden `<audio>` element (`api/audio-element.ts`) plays a WAV the source-file
@@ -122,13 +134,18 @@ export const usePlayerStore = defineStore('player', () => {
   const onShow = computed<OnShow | null>(() => {
     const { view, selectedSplit, selectedTrack, range } = splitStore
     if (view === 'split' && selectedSplit !== null) {
-      return { owner: 'audition', extent: auditionExtent(selectedSplit), split: selectedSplit }
+      return {
+        owner: 'audition',
+        subject: 'split',
+        extent: auditionExtent(selectedSplit),
+        split: selectedSplit,
+      }
     }
     if (view === 'track' && selectedTrack !== null) {
-      return { owner: 'stretch', extent: trackExtent(selectedTrack), split: null }
+      return { owner: 'stretch', subject: 'track', extent: trackExtent(selectedTrack), split: null }
     }
     return view === 'range' && range !== null
-      ? { owner: 'stretch', extent: { ...range }, split: null }
+      ? { owner: 'stretch', subject: 'range', extent: { ...range }, split: null }
       : null
   })
 
@@ -145,8 +162,10 @@ export const usePlayerStore = defineStore('player', () => {
     set: (next) => {
       const shown = onShow.value
       if (shown === null) return
-      if (next !== 'idle') take(shown.owner, next)
-      else if (owner.value === shown.owner) state.value = 'idle'
+      if (next !== 'idle') {
+        if (shown.owner === 'stretch') activeSubject = stretchFor(shown).subject
+        take(shown.owner, next)
+      } else if (owner.value === shown.owner) state.value = 'idle'
     },
   })
   // Where the audition resumes, in the file, and the split it was made for. A ref, so the view follows it.
@@ -177,6 +196,8 @@ export const usePlayerStore = defineStore('player', () => {
   })
   // The stretch the held WAV is a window of, and the window, which a press can play again without decoding.
   let held: { stretch: Stretch; window: TimeRange } | null = null
+  // The stretch that last played, or is decoding: the one the status belongs to when a stretch owns it.
+  let activeSubject: StretchSubject | null = null
   // The window after the held one, decoded while the held one plays, and the fetch that made it.
   let upcoming: { ready: ReadyClip; window: TimeRange } | undefined
   let ahead: { done: Promise<void>; stopper: AbortController } | undefined
@@ -489,14 +510,6 @@ export const usePlayerStore = defineStore('player', () => {
   }
 
   /*
-  What a failure to play the stretch calls it: the view says which stretch is on show, and a view
-  change stops the sound, so no failure is worded for the wrong one.
-  */
-  function stretchSubject(): Subject {
-    return splitStore.view === 'track' ? 'track' : 'range'
-  }
-
-  /*
   Plays the stretch from the playhead. The first press decodes the window that holds the playhead;
   later ones set the place in it, and a playhead outside the held window decodes another.
   */
@@ -504,7 +517,8 @@ export const usePlayerStore = defineStore('player', () => {
     const isStale = beginPress()
     failure.value = null
     letGoOfAudition()
-    const subject = stretchSubject()
+    const { subject } = stretch
+    activeSubject = subject
     /*
     Where the sound starts. Read when it starts, so a playhead moved while a clip was decoded
     counts. A playhead left at the very end has nothing to play from, so it plays from the start, as
@@ -605,7 +619,7 @@ export const usePlayerStore = defineStore('player', () => {
     }
     const { stretch, window } = held
     const isStale = beginPress()
-    const subject = stretchSubject()
+    const { subject } = stretch
     let place = window.endSeconds
     if (upcoming === undefined) {
       // The place is kept, so a seek made while the window is decoded is heard from.
@@ -651,7 +665,7 @@ export const usePlayerStore = defineStore('player', () => {
     if (status.value === 'loading') stop()
     else if (status.value === 'playing') pauseOnShow(shown)
     else if (shown.split === null) {
-      void playStretch(shown.extent)
+      void playStretch(stretchFor(shown))
     } else {
       playAudition(shown.split)
     }
@@ -675,7 +689,7 @@ export const usePlayerStore = defineStore('player', () => {
     if (shown === null) return
     const target = Math.min(Math.max(seconds, shown.extent.startSeconds), shown.extent.endSeconds)
     if (shown.split === null) {
-      seekStretch(shown.extent, target)
+      seekStretch(stretchFor(shown), target)
     } else {
       seekAudition(shown.split, target)
     }
@@ -703,7 +717,7 @@ export const usePlayerStore = defineStore('player', () => {
     grabbedOwner = null
     if (!canResume) return
     if (shown.split === null) {
-      void playStretch(shown.extent)
+      void playStretch(stretchFor(shown))
     } else {
       playAudition(shown.split)
     }
@@ -720,7 +734,7 @@ export const usePlayerStore = defineStore('player', () => {
     if (status.value === 'playing') return audio.positionSeconds()
     const place =
       shown.split === null
-        ? restingSecondsOf(shown.extent)
+        ? restingSecondsOf(stretchFor(shown))
         : auditionPlace(shown.split, shown.extent)
     return place ?? shown.extent.startSeconds
   }
@@ -735,43 +749,83 @@ export const usePlayerStore = defineStore('player', () => {
   watch(
     () => [splitStore.selectedSplit?.id, splitStore.selectedSplit?.seconds] as const,
     ([id], [previousId]) => {
-      if (id !== previousId) {
-        if (auditionStatus.value !== 'idle' || failure.value !== null) stop()
-        auditionResting.value = null
-      } else if (auditionStatus.value === 'playing') {
-        pauseAudition()
-        release()
-      } else if (auditionStatus.value === 'paused') {
-        if (auditionHoldsWav()) release()
-      } else if (auditionStatus.value === 'loading' || failure.value !== null) {
-        stop()
+      if (id === previousId) {
+        moveAudition()
+      } else {
+        resetAudition()
       }
     },
     { flush: 'sync' },
   )
 
-  // Ends all sound and drops the decoded stretch and its place: the playhead is back at the start.
-  function resetStretch() {
-    takePress()
-    letGoOfStretch()
-    resting.value = null
-    letGoOfAudition()
+  /*
+  The split moved in time: a playing audition pauses where it is and lets go of its WAV, a paused one
+  lets go of it, and a decode is taken back, since the 8 s it was made for moved.
+  */
+  function moveAudition() {
+    switch (auditionStatus.value) {
+      case 'playing': {
+        pauseAudition()
+        release()
+        break
+      }
+      case 'paused': {
+        if (auditionHoldsWav()) release()
+        break
+      }
+      case 'loading': {
+        takePress()
+        letGoOfAudition()
+        failure.value = null
+        break
+      }
+      default: {
+        failure.value = null
+      }
+    }
+  }
+
+  // Ends the audition, if it has the status, and drops its place: the playhead is back at the start.
+  function resetAudition() {
+    if (auditionStatus.value !== 'idle') {
+      takePress()
+      letGoOfAudition()
+    }
+    auditionResting.value = null
     failure.value = null
   }
 
   /*
-  A new range, or none, ends all sound and drops the decoded range: a clip still on its way is stale
-  by the press number, and the playhead is back at the new range's start. Sync, like the watch
-  above, so a clip that arrives right after finds its press gone.
+  Ends a stretch, if it is this subject's, and drops its place and its decoded WAV: the playhead is
+  back at the start. A stretch of the other subject plays on. A clip still on its way is stale by the
+  press number.
   */
-  watch(() => splitStore.range, resetStretch, { flush: 'sync' })
+  function resetStretch(subject: StretchSubject) {
+    if (activeSubject === subject) {
+      if (stretchStatus.value !== 'idle') takePress()
+      letGoOfStretch()
+    }
+    if (resting.value?.stretch.subject === subject) resting.value = null
+    failure.value = null
+  }
+
+  /*
+  A new range, or none, ends the range: the playhead is back at the new range's start. Sync, like
+  the watch above, so a clip that arrives right after finds its press gone.
+  */
+  watch(
+    () => splitStore.range,
+    () => {
+      resetStretch('range')
+    },
+    { flush: 'sync' },
+  )
 
   /*
   The same for the selected track: another track, none, or one whose start or end moved is no longer
   the stretch that was heard. The source is a string, so a split that moves elsewhere, which
-  recomputes the tracks, changes nothing here. In the Range view the stretch is the range, which a
-  track's change leaves alone: a split added at the mark shortens the selected track, and the range
-  plays on.
+  recomputes the tracks, changes nothing here. A track's change leaves the range alone: a split
+  added at the Range view's mark shortens the selected track, and the range plays on.
   */
   watch(
     () => {
@@ -781,7 +835,20 @@ export const usePlayerStore = defineStore('player', () => {
         : `${track.startSplit?.id ?? 'first'}/${track.startSeconds}/${track.lengthSeconds}`
     },
     () => {
-      if (splitStore.view !== 'range') resetStretch()
+      resetStretch('track')
+    },
+    { flush: 'sync' },
+  )
+
+  /*
+  Sound belongs to the view it was started in. A new view pauses a playing stretch where it was,
+  takes back a decode and lets go of the audition's WAV, which keeps its place. Sync, so the sound
+  is already stopped when the view shows.
+  */
+  watch(
+    () => splitStore.view,
+    () => {
+      stop()
     },
     { flush: 'sync' },
   )
