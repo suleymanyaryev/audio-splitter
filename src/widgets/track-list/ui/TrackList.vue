@@ -2,6 +2,7 @@
 import { computed, useTemplateRef, watch } from 'vue'
 import { Eye, EyeOff, Merge, Trash2, X } from 'lucide-vue-next'
 
+import { describeMeasures } from '@/entities/split/lib/confidence-band.ts'
 import { matchTooltip, matchWords, type TrackMatch } from '@/entities/split/lib/match-words.ts'
 import { useSplitStore, type Split, type Track } from '@/entities/split/model/split.ts'
 import { releaseFocus } from '@/shared/lib/keyboard/release-focus.ts'
@@ -209,7 +210,7 @@ watch(
               Split {{ row.number }}
               <UiTooltip
                 v-if="row.point.confidence !== null && row.point.confidence.band !== 'sure'"
-                :label="`${row.point.confidence.depth.toFixed(1)} dB under its surroundings`"
+                :label="describeMeasures(row.point.confidence)"
               >
                 <span
                   class="ml-2 inline-flex items-center gap-1 align-middle text-xs"

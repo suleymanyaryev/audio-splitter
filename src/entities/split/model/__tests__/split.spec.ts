@@ -10,6 +10,8 @@ import {
 } from '../../config/defaults.ts'
 import { MAX_TRACK_NAME_LENGTH } from '../../config/track-name.ts'
 import { ZOOM_WINDOW_SECONDS } from '../../config/zoom-window.ts'
+import { SPECTRUM_BAND_COUNT } from '@/shared/lib/audio/spectrogram-builder.ts'
+import type { Confidence } from '../../lib/confidence-band.ts'
 import { useSplitStore } from '../split.ts'
 
 const LOUD = -10
@@ -274,7 +276,7 @@ function openWithFourDepths() {
 }
 
 const depths = (store: ReturnType<typeof useSplitStore>) =>
-  store.splits.map((split) => split.confidence?.depth.toFixed(0))
+  store.splits.map((split) => split.confidence?.depth?.toFixed(0))
 
 describe('the split store', () => {
   beforeEach(() => {
@@ -739,6 +741,15 @@ describe('the split store', () => {
         expect(store.splits[2]?.confidence?.depth).toBeCloseTo(6, 3)
       })
 
+      it('has its depth and no contrast for a gap or a dip split', () => {
+        const store = openCurve(threeDepths())
+        store.setDepthSetting(3)
+
+        store.findSplits()
+
+        expect(store.splits.map((split) => split.confidence?.contrast)).toEqual([null, null, null])
+      })
+
       it('is none for a split added by hand, from a pending split or from the Range view', () => {
         const curve = farGaps()
         const store = useSplitStore()
@@ -799,7 +810,7 @@ describe('the split store', () => {
         const walked: (string | undefined)[] = []
 
         while (store.selectAdjacentByConfidence(1)) {
-          walked.push(store.selectedSplit?.confidence?.depth.toFixed(0))
+          walked.push(store.selectedSplit?.confidence?.depth?.toFixed(0))
         }
 
         expect(walked).toEqual(['6', '9', '12', '40'])
@@ -809,12 +820,12 @@ describe('the split store', () => {
         const store = openWithFourDepths()
 
         store.selectAdjacentByConfidence(-1)
-        expect(store.selectedSplit?.confidence?.depth.toFixed(0)).toBe('40')
+        expect(store.selectedSplit?.confidence?.depth?.toFixed(0)).toBe('40')
 
         store.moveZoomTo(1)
         store.selectTrack(store.tracks[0]!)
         store.selectAdjacentByConfidence(1)
-        expect(store.selectedSplit?.confidence?.depth.toFixed(0)).toBe('6')
+        expect(store.selectedSplit?.confidence?.depth?.toFixed(0)).toBe('6')
       })
 
       it('goes to the first from a split with no confidence, and opens the Split view', () => {
@@ -826,7 +837,7 @@ describe('the split store', () => {
 
         store.selectAdjacentByConfidence(1)
 
-        expect(store.selectedSplit?.confidence?.depth.toFixed(0)).toBe('6')
+        expect(store.selectedSplit?.confidence?.depth?.toFixed(0)).toBe('6')
         expect(store.view).toBe('split')
       })
 
@@ -835,7 +846,7 @@ describe('the split store', () => {
         store.selectAdjacentByConfidence(1)
 
         expect(store.selectAdjacentByConfidence(-1)).toBe(false)
-        expect(store.selectedSplit?.confidence?.depth.toFixed(0)).toBe('6')
+        expect(store.selectedSplit?.confidence?.depth?.toFixed(0)).toBe('6')
       })
 
       it('breaks a tie by time', () => {
@@ -867,7 +878,7 @@ describe('the split store', () => {
 
         store.selectAdjacentByConfidence(1)
 
-        expect(store.selectedSplit?.confidence?.depth.toFixed(0)).toBe('9')
+        expect(store.selectedSplit?.confidence?.depth?.toFixed(0)).toBe('9')
       })
 
       describe('marking a split checked', () => {
@@ -883,7 +894,7 @@ describe('the split store', () => {
           expect(checked.seconds).toBe(seconds)
           expect(store.editCount).toBe(1)
           store.selectAdjacentByConfidence(1)
-          expect(store.selectedSplit?.confidence?.depth.toFixed(0)).toBe('9')
+          expect(store.selectedSplit?.confidence?.depth?.toFixed(0)).toBe('9')
         })
 
         it('counts once when pressed again, and does nothing for a split with no confidence', () => {
@@ -1272,6 +1283,68 @@ describe('the split store', () => {
       expect(store.areDefaultSettingsBuiltIn).toBe(true)
     })
 
+    it('hold contrast too: off at 5.4 dB at first, saved with the others and used by the next file', () => {
+      const store = useSplitStore()
+      openFile(store, loudFile())
+      expect(store.contrastOn).toBe(false)
+      expect(store.contrastThreshold).toBeCloseTo(5.4, 9)
+      expect(store.matchesDefaultSettings).toBe(true)
+
+      store.setContrastOn(true)
+      expect(store.matchesDefaultSettings).toBe(false)
+      store.setContrastThreshold(8.2)
+      store.saveAsDefault()
+      expect(store.matchesDefaultSettings).toBe(true)
+      expect(store.areDefaultSettingsBuiltIn).toBe(false)
+
+      setActivePinia(createPinia())
+      const next = useSplitStore()
+      openFile(next, quietFile())
+      expect(next.contrastOn).toBe(true)
+      expect(next.contrastThreshold).toBeCloseTo(8.2, 9)
+
+      next.restoreBuiltIn()
+      expect(next.contrastOn).toBe(false)
+      expect(next.contrastThreshold).toBeCloseTo(5.4, 9)
+      expect(next.areDefaultSettingsBuiltIn).toBe(true)
+    })
+
+    it('notice a contrast threshold moved while contrast is off as an unsaved change', () => {
+      const store = useSplitStore()
+      openFile(store, loudFile())
+
+      store.setContrastThreshold(7)
+
+      expect(store.matchesDefaultSettings).toBe(false)
+    })
+
+    it('start a version 2 entry, which has no contrast, with contrast off at 5.4 dB', () => {
+      localStorage.setItem(
+        DEFAULT_SETTINGS_STORAGE_KEY,
+        '{"version":2,"offsetDb":12,"minimumGapSeconds":3,"depthDb":9}',
+      )
+
+      const store = useSplitStore()
+      openFile(store, loudFile())
+
+      expect(store.depthSetting).toBe(9)
+      expect(store.contrastOn).toBe(false)
+      expect(store.contrastThreshold).toBeCloseTo(5.4, 9)
+    })
+
+    it('start a version 3 entry with its contrast setting', () => {
+      localStorage.setItem(
+        DEFAULT_SETTINGS_STORAGE_KEY,
+        '{"version":3,"offsetDb":12,"minimumGapSeconds":3,"depthDb":9,"contrastOn":true,"contrastDb":6.5}',
+      )
+
+      const store = useSplitStore()
+      openFile(store, loudFile())
+
+      expect(store.contrastOn).toBe(true)
+      expect(store.contrastThreshold).toBeCloseTo(6.5, 9)
+    })
+
     it('start a version 1 entry, which has no depth, at 15 dB', () => {
       localStorage.setItem(
         DEFAULT_SETTINGS_STORAGE_KEY,
@@ -1311,7 +1384,10 @@ describe('the split store', () => {
       ['text that is no JSON', 'loud'],
       ['an offset off the 0.1 grid', '{"version":1,"offsetDb":18.25,"minimumGapSeconds":2}'],
       ['a minimum gap length out of range', '{"version":1,"offsetDb":12,"minimumGapSeconds":9}'],
-      ['another version', '{"version":3,"offsetDb":12,"minimumGapSeconds":3,"depthDb":9}'],
+      [
+        'another version',
+        '{"version":4,"offsetDb":12,"minimumGapSeconds":3,"depthDb":9,"contrastOn":true,"contrastDb":8}',
+      ],
       ['a depth out of range', '{"version":2,"offsetDb":12,"minimumGapSeconds":3,"depthDb":40}'],
     ])('are the built-in ones for %s', (_, saved) => {
       if (saved !== null) localStorage.setItem(DEFAULT_SETTINGS_STORAGE_KEY, saved)
@@ -4474,5 +4550,436 @@ describe('the split store', () => {
     expect(store.tracks).toEqual([])
     expect(store.selectedSplit).toBeNull()
     expect(store.zoomCentreSeconds).toBe(10)
+  })
+})
+
+// 400 s of music whose top bands, 20 dB louder, start at 200 s.
+function changingFile() {
+  const columns = 8000
+  const bands = new Uint8Array(columns * SPECTRUM_BAND_COUNT)
+  for (let column = 0; column < columns; column++) {
+    for (let band = 0; band < SPECTRUM_BAND_COUNT; band++) {
+      bands[column * SPECTRUM_BAND_COUNT + band] = column >= 4000 && band < 60 ? 151 : 100
+    }
+  }
+  const curve = curveOf([LOUD, columns])
+  const spectrogram = { bands, bandCount: SPECTRUM_BAND_COUNT, topHz: 22_050 }
+  return { curve, spectrogram }
+}
+
+describe('the contrast curve of the split store', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+  })
+
+  it('is none until a file opens with its spectrogram', () => {
+    const { curve } = changingFile()
+    const store = useSplitStore()
+    expect(store.contrastCurve).toBeNull()
+
+    store.open(curve, timing(curve))
+
+    expect(store.contrastCurve).toBeNull()
+  })
+
+  it('is worked out once, when the file opens, one value every 0.5 s', () => {
+    const { curve, spectrogram } = changingFile()
+    const store = useSplitStore()
+
+    store.open(curve, timing(curve), spectrogram)
+
+    expect(store.contrastCurve).toHaveLength(800)
+    expect(store.contrastCurve?.[400]).toBeCloseTo(9.9995, 3)
+    expect(store.contrastCurve?.[100]).toBeCloseTo(0, 4)
+  })
+
+  it('stays as it is when a setting moves, and goes when the store resets', () => {
+    const { curve, spectrogram } = changingFile()
+    const store = useSplitStore()
+    store.open(curve, timing(curve), spectrogram)
+    const opened = store.contrastCurve
+
+    store.setDepthSetting(20)
+    store.setSilenceThreshold(-40)
+
+    expect(store.contrastCurve).toBe(opened)
+    store.reset()
+    expect(store.contrastCurve).toBeNull()
+  })
+})
+
+/*
+A file of `lengthSeconds` of music at one loudness whose sound changes at each time in `changes`.
+Each stretch of sound raises its own 20 bands (sound 0 the first 20, sound 1 the next, up to 5) by
+`bump` stored levels, so a change from one to the next lowers 20 bands and raises 20 by the same
+amount: 2 × 20 of the 119 bands that count, a contrast of 0.58 × the bump in dB (a level is
+100 / 255 dB) at the change, once a minute of each sound is either side of it. `gapAt` puts a
+silence of `gapSeconds` there, which is a gap and is left out of the contrast; `gapLevel` makes it
+a shallower one. `dipAt` puts a dip of `dipDepth` there.
+*/
+function soundFile(
+  lengthSeconds: number,
+  changes: number[],
+  {
+    bump = 51,
+    gapAt,
+    gapSeconds = 2,
+    gapLevel = QUIET,
+    dipAt,
+    dipDepth = 10,
+  }: {
+    bump?: number
+    gapAt?: number
+    gapSeconds?: number
+    gapLevel?: number
+    dipAt?: number
+    dipDepth?: number
+  } = {},
+) {
+  const columns = lengthSeconds * 20
+  const bands = new Uint8Array(columns * SPECTRUM_BAND_COUNT).fill(60)
+  for (let column = 0; column < columns; column++) {
+    const sound = changes.filter((change) => change * 20 <= column).length % 5
+    for (let band = sound * 20; band < sound * 20 + 20; band++) {
+      bands[column * SPECTRUM_BAND_COUNT + band] = 60 + bump
+    }
+  }
+  const curve = curveOf([LOUD, columns])
+  if (gapAt !== undefined) {
+    curve.fill(gapLevel, (gapAt - gapSeconds / 2) * 20, (gapAt + gapSeconds / 2) * 20)
+  }
+  // A dip is 4 s, `dipDepth` under the music; its proposal is at 298.525 s for `dipAt` 300 (the earlier of its equally deep points).
+  if (dipAt !== undefined) curve.fill(LOUD - dipDepth, (dipAt - 2) * 20, (dipAt + 2) * 20)
+  return { curve, spectrogram: { bands, bandCount: SPECTRUM_BAND_COUNT, topHz: 22_050 } }
+}
+
+// The store with a sound file opened and contrast switched on.
+function openSoundFile(...fileArguments: Parameters<typeof soundFile>) {
+  const { curve, spectrogram } = soundFile(...fileArguments)
+  const store = useSplitStore()
+  store.open(curve, timing(curve), spectrogram)
+  store.setContrastOn(true)
+  return store
+}
+
+// The dips from 3 dB deep propose a split, so the shallow ones of these files do.
+function openWithDip(...fileArguments: Parameters<typeof soundFile>) {
+  const store = openSoundFile(...fileArguments)
+  store.setDepthSetting(3)
+  return store
+}
+
+// A split every 50 s from 100 s, with the confidence the test gives it, and the order `}` walks them in.
+function walkOf(confidences: Confidence[]) {
+  const curve = curveOf([LOUD, 12_000])
+  const store = useSplitStore()
+  store.open(curve, timing(curve))
+  for (const [index, confidence] of confidences.entries()) {
+    store.addSplitAt(50 * (index + 2))
+    store.splits[index]!.confidence = confidence
+  }
+  const walked: number[] = []
+  while (store.selectAdjacentByConfidence(1)) walked.push(store.selectedSplit!.seconds)
+  return walked
+}
+
+describe('the contrast splits of the split store', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+  })
+
+  describe('the settings', () => {
+    it('start with contrast off at 5.4 dB, and change no split', () => {
+      const { curve, spectrogram } = soundFile(600, [300])
+      const store = useSplitStore()
+      store.open(curve, timing(curve), spectrogram)
+      expect(store.contrastOn).toBe(false)
+      expect(store.contrastThreshold).toBeCloseTo(5.4, 9)
+
+      store.setContrastOn(true)
+      store.setContrastThreshold(7.5)
+
+      expect(store.contrastOn).toBe(true)
+      expect(store.contrastThreshold).toBe(7.5)
+      expect(store.splits).toEqual([])
+    })
+
+    it('hold the threshold to its slider: 3 to 12 dB in tenths', () => {
+      const store = useSplitStore()
+
+      store.setContrastThreshold(2)
+      expect(store.contrastThreshold).toBe(3)
+      store.setContrastThreshold(20)
+      expect(store.contrastThreshold).toBe(12)
+      store.setContrastThreshold(6.04)
+      expect(store.contrastThreshold).toBe(6)
+    })
+
+    it('go back to the built-in ones with the others, and start over with each file', () => {
+      const { curve, spectrogram } = soundFile(600, [300])
+      const store = useSplitStore()
+      store.open(curve, timing(curve), spectrogram)
+      store.setContrastOn(true)
+      store.setContrastThreshold(8)
+
+      store.restoreBuiltIn()
+      expect(store.contrastOn).toBe(false)
+      expect(store.contrastThreshold).toBeCloseTo(5.4, 9)
+
+      store.setContrastOn(true)
+      store.setContrastThreshold(8)
+      store.open(curve, timing(curve), spectrogram)
+      expect(store.contrastOn).toBe(false)
+      expect(store.contrastThreshold).toBeCloseTo(5.4, 9)
+    })
+  })
+
+  describe('Find splits', () => {
+    it('adds none while contrast is off, and what it adds today for the gaps and dips', () => {
+      const { curve, spectrogram } = soundFile(600, [300], { gapAt: 100 })
+      const withContrast = useSplitStore()
+      withContrast.open(curve, timing(curve), spectrogram)
+      const proposals = withContrast.proposedSplits
+
+      setActivePinia(createPinia())
+      const without = useSplitStore()
+      without.open(curve, timing(curve))
+
+      expect(proposals.map((proposal) => proposal.kind)).toEqual(['gap'])
+      expect(proposals).toEqual(without.proposedSplits)
+    })
+
+    it('adds a split at the contrast peak while contrast is on, and counts it', () => {
+      const store = openSoundFile(600, [300])
+
+      expect(store.proposedSplits).toEqual([
+        // 20 bands down and 20 up by 20 dB, of 119: 20 × √(40 / 119) = 11.6 dB.
+        { seconds: 300, kind: 'contrast', contrast: expect.closeTo(11.6, 1) },
+      ])
+      store.findSplits()
+
+      expect(store.splits.map((split) => split.seconds)).toEqual([300])
+    })
+
+    it('adds no split under the threshold, and one at it', () => {
+      const store = openSoundFile(600, [300])
+      const proposal = store.proposedSplits[0]
+      const peak = proposal?.kind === 'contrast' ? proposal.contrast : NaN
+
+      store.setContrastThreshold(Math.ceil(peak * 10) / 10)
+      expect(store.proposedSplits).toEqual([])
+
+      store.setContrastThreshold(Math.floor(peak * 10) / 10)
+      expect(store.proposedSplits).toHaveLength(1)
+    })
+
+    it('makes a likely split from 6.5 dB and a doubtful one under it, never a sure one', () => {
+      // 29 levels of bump read 6.59 dB at the change, 28 read 6.37 dB.
+      const likely = openSoundFile(600, [300], { bump: 29 })
+      likely.findSplits()
+      setActivePinia(createPinia())
+      const doubtful = openSoundFile(600, [300], { bump: 28 })
+      doubtful.findSplits()
+      setActivePinia(createPinia())
+      const strong = openSoundFile(600, [300], { bump: 120 })
+      strong.findSplits()
+
+      expect(likely.splits[0]?.confidence).toEqual({
+        band: 'likely',
+        depth: null,
+        contrast: expect.closeTo(6.59, 1),
+      })
+      expect(doubtful.splits[0]?.confidence).toEqual({
+        band: 'doubtful',
+        depth: null,
+        contrast: expect.closeTo(6.37, 1),
+      })
+      expect(strong.splits[0]?.confidence?.band).toBe('likely')
+    })
+
+    it('is no edit, and its confidence goes when the split is moved', () => {
+      const store = openSoundFile(600, [300])
+      store.findSplits()
+      expect(store.hasEdits).toBe(false)
+
+      store.selectSplit(store.splits[0]!.id)
+      store.moveSplit(store.splits[0]!.id, 301)
+
+      expect(store.splits[0]?.confidence).toBeNull()
+    })
+
+    it('adds two contrast splits 20 s apart', () => {
+      const store = openSoundFile(900, [300, 320])
+
+      expect(store.proposedSplits.map((proposal) => proposal.seconds)).toEqual([300, 320])
+    })
+  })
+
+  describe('the room around a boundary', () => {
+    it('keeps 60 s from a gap, which proposes its own split', () => {
+      const near = openSoundFile(600, [300], { gapAt: 250 })
+      expect(near.proposedSplits.map((proposal) => proposal.kind)).toEqual(['gap'])
+
+      setActivePinia(createPinia())
+      const far = openSoundFile(600, [300], { gapAt: 230 })
+      expect(far.proposedSplits.map((proposal) => proposal.kind)).toEqual(['gap', 'contrast'])
+    })
+
+    it('keeps 60 s from a dip, which proposes its own split', () => {
+      // The dip at 300 s proposes its split at 298.525 s: a change at 358 s is 59.475 s from it.
+      const near = openWithDip(600, [358], { dipAt: 300, dipDepth: 10 })
+      expect(near.proposedSplits.map((proposal) => proposal.kind)).toEqual(['dip'])
+
+      setActivePinia(createPinia())
+      const far = openWithDip(600, [360], { dipAt: 300, dipDepth: 10 })
+      expect(far.proposedSplits.map((proposal) => proposal.kind)).toEqual(['dip', 'contrast'])
+    })
+
+    it('keeps 60 s from an existing split', () => {
+      const near = openSoundFile(600, [300])
+      near.addSplitAt(341)
+      expect(near.proposedSplits).toEqual([])
+
+      setActivePinia(createPinia())
+      const far = openSoundFile(600, [300])
+      far.addSplitAt(239)
+      expect(far.proposedSplits.map((proposal) => proposal.seconds)).toEqual([300])
+    })
+
+    it('keeps 60 s from the middle of a gap that holds a split, wherever in the gap it is', () => {
+      // The gap runs from 246 s to 254 s, its middle at 250 s. The split is at its start, 60.3 s from
+      // the change at 306.5 s, which is 56.5 s from the middle.
+      const store = openSoundFile(600, [306.5], { gapAt: 250, gapSeconds: 8 })
+      expect(store.proposedSplits.map((proposal) => proposal.kind)).toEqual(['gap'])
+
+      store.addSplitAt(246.2)
+
+      expect(store.proposedSplits).toEqual([])
+    })
+
+    it('keeps 60 s from the ends of the file', () => {
+      expect(openSoundFile(600, [40]).proposedSplits).toEqual([])
+      setActivePinia(createPinia())
+      expect(openSoundFile(600, [560]).proposedSplits).toEqual([])
+      setActivePinia(createPinia())
+      expect(openSoundFile(600, [100]).proposedSplits).toHaveLength(1)
+    })
+  })
+  describe('a dip with a contrast peak beside it', () => {
+    // The proposal of a 4 s dip at 300 s is at 298.525 s: a change at 303.5 s peaks 4.975 s from it, one at 304.5 s 5.975 s.
+    const dip = { dipAt: 300, dipDepth: 10 }
+
+    it('is one band surer, and keeps its depth and its contrast', () => {
+      const store = openWithDip(600, [303.5], dip)
+      expect(store.proposedSplits.map((proposal) => proposal.kind)).toEqual(['dip'])
+
+      store.findSplits()
+
+      expect(store.splits[0]?.confidence).toEqual({
+        band: 'sure',
+        depth: expect.closeTo(10, 3),
+        contrast: expect.closeTo(11.6, 1),
+      })
+    })
+
+    it('goes from doubtful to likely, and from likely to sure', () => {
+      const doubtful = openWithDip(600, [303.5], { dipAt: 300, dipDepth: 5 })
+      doubtful.findSplits()
+      expect(doubtful.splits[0]?.confidence?.band).toBe('likely')
+
+      setActivePinia(createPinia())
+      const likely = openWithDip(600, [303.5], dip)
+      likely.findSplits()
+      expect(likely.splits[0]?.confidence?.band).toBe('sure')
+    })
+
+    it('is not lifted by a peak 6 s away', () => {
+      const store = openWithDip(600, [304.5], dip)
+
+      expect(store.proposedSplits.map((proposal) => proposal.kind)).toEqual(['dip'])
+      store.findSplits()
+
+      expect(store.splits[0]?.confidence).toEqual({
+        band: 'likely',
+        depth: expect.closeTo(10, 3),
+        contrast: null,
+      })
+    })
+
+    it('is not lifted while contrast is off', () => {
+      const store = openWithDip(600, [303.5], dip)
+      store.setContrastOn(false)
+
+      store.findSplits()
+
+      expect(store.splits[0]?.confidence).toEqual({
+        band: 'likely',
+        depth: expect.closeTo(10, 3),
+        contrast: null,
+      })
+    })
+
+    it('is not lifted by a peak under the threshold', () => {
+      const store = openWithDip(600, [303.5], dip)
+      store.setContrastThreshold(12)
+
+      store.findSplits()
+
+      expect(store.splits[0]?.confidence?.band).toBe('likely')
+    })
+
+    it('is never a gap that is lifted', () => {
+      // A gap only just under a raised threshold is a shallow one, doubtful at 7 dB deep.
+      const store = openSoundFile(600, [303.5], { gapAt: 300, gapLevel: -17 })
+      store.setSilenceThreshold(-15)
+      expect(store.proposedSplits.map((proposal) => proposal.kind)).toEqual(['gap'])
+
+      store.findSplits()
+
+      expect(store.splits[0]?.confidence).toEqual({
+        band: 'doubtful',
+        depth: expect.closeTo(7, 0),
+        contrast: null,
+      })
+    })
+  })
+
+  describe('the order of { and }', () => {
+    it('goes by band, doubtful first, then likely, then sure', () => {
+      const walked = walkOf([
+        { band: 'sure', depth: 20, contrast: null },
+        { band: 'likely', depth: 10, contrast: null },
+        { band: 'doubtful', depth: 5, contrast: null },
+      ])
+
+      expect(walked).toEqual([200, 150, 100])
+    })
+
+    it('puts the contrast splits first within a band, least contrast first, then the others by depth', () => {
+      const walked = walkOf([
+        { band: 'doubtful', depth: 5, contrast: null },
+        { band: 'doubtful', depth: null, contrast: 6 },
+        { band: 'doubtful', depth: null, contrast: 5.5 },
+        { band: 'doubtful', depth: 3, contrast: null },
+        { band: 'likely', depth: null, contrast: 7 },
+        { band: 'likely', depth: 5, contrast: 7.5 },
+        { band: 'likely', depth: 10, contrast: null },
+      ])
+
+      // Doubtful: contrast 5.5 (200 s), 6 (150 s), then depth 3 (250 s), 5 (100 s). Likely: contrast
+      // 7 (300 s), then a lifted dip's depth 5 (350 s), depth 10 (400 s).
+      expect(walked).toEqual([200, 150, 250, 100, 300, 350, 400])
+    })
+
+    it('breaks a tie by time', () => {
+      const walked = walkOf([
+        { band: 'doubtful', depth: null, contrast: 6 },
+        { band: 'doubtful', depth: null, contrast: 6 },
+        { band: 'doubtful', depth: 4, contrast: null },
+        { band: 'doubtful', depth: 4, contrast: null },
+      ])
+
+      expect(walked).toEqual([100, 150, 200, 250])
+    })
   })
 })

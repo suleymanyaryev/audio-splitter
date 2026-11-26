@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest'
 
+import { contrastThresholdFromPointer, contrastY } from '../contrast-lane.ts'
 import { curveY } from '../threshold-line.ts'
 import { useThresholdDrag } from '../use-threshold-drag.ts'
 
@@ -118,5 +119,72 @@ describe('useThresholdDrag', () => {
     drag.onPointerMove(pointerAt(curveY(-45, HEIGHT)).event)
 
     expect(drag.set).not.toHaveBeenCalled()
+  })
+})
+
+// The lane is 80 px tall, with its own scale.
+const LANE_HEIGHT = 80
+
+function laneEvent(canvasY: number) {
+  const setPointerCapture = vi.fn()
+  const event = {
+    clientY: TOP + canvasY,
+    pointerId: 7,
+    currentTarget: {
+      getBoundingClientRect: () => ({ top: TOP, height: LANE_HEIGHT }),
+      setPointerCapture,
+    },
+  } as unknown as PointerEvent
+  return { event, setPointerCapture }
+}
+
+function laneDragOf(initial: number | null) {
+  let threshold = initial
+  const set = vi.fn((decibels: number) => {
+    threshold = decibels
+  })
+  const drag = useThresholdDrag({
+    threshold: () => threshold,
+    set,
+    lineY: contrastY,
+    valueAt: contrastThresholdFromPointer,
+  })
+  return { ...drag, set }
+}
+
+describe('useThresholdDrag on the contrast lane', () => {
+  it('takes hold of the line on the lane’s scale and moves it in tenths of a dB', () => {
+    const drag = laneDragOf(5.4)
+    const { event, setPointerCapture } = laneEvent(contrastY(5.4, LANE_HEIGHT) + 2)
+
+    drag.onPointerDown(event)
+    drag.onPointerMove(laneEvent(contrastY(8, LANE_HEIGHT) + 2).event)
+
+    expect(setPointerCapture).toHaveBeenCalledWith(7)
+    expect(drag.isDragging.value).toBe(true)
+    expect(drag.set).toHaveBeenLastCalledWith(8)
+  })
+
+  it('holds the line to 3 to 12 dB however far the pointer goes', () => {
+    const drag = laneDragOf(5.4)
+    drag.onPointerDown(laneEvent(contrastY(5.4, LANE_HEIGHT)).event)
+
+    drag.onPointerMove(laneEvent(-30).event)
+    expect(drag.set).toHaveBeenLastCalledWith(12)
+
+    drag.onPointerMove(laneEvent(LANE_HEIGHT + 30).event)
+    expect(drag.set).toHaveBeenLastCalledWith(3)
+  })
+
+  it('has no line to take hold of while the threshold is null, as when contrast is off', () => {
+    const drag = laneDragOf(null)
+    const { event, setPointerCapture } = laneEvent(40)
+
+    drag.onPointerDown(event)
+    drag.onPointerMove(laneEvent(10).event)
+
+    expect(setPointerCapture).not.toHaveBeenCalled()
+    expect(drag.set).not.toHaveBeenCalled()
+    expect(drag.overLine.value).toBe(false)
   })
 })

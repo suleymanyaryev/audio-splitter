@@ -49,11 +49,11 @@ A stretch of the source file whose loudness stays under the silence threshold fo
 _Avoid_: Silence, pause, quiet region
 
 **Split**:
-A single point in time where the source file is cut. A split is either detected (added by Find splits, only when the user asks, at the middle of a gap or at a dip, one per boundary) or manual (added by the user). A detected split carries a confidence until the user moves it or marks it checked; otherwise the two are treated the same.
+A single point in time where the source file is cut. A split is either detected (added by Find splits, only when the user asks, at the middle of a gap, at a dip or, when the contrast setting is on, at a contrast peak, one per boundary) or manual (added by the user). A detected split carries a confidence until the user moves it or marks it checked; otherwise the two are treated the same.
 _Avoid_: Candidate, cut point, marker, split point, Find gaps (the button is Find splits)
 
 **Confidence**:
-How sure a detected split is that one track ends there: sure, likely or doubtful, read from the depth at the split. It is set once, when the split is added, and lasts until the user moves the split or marks it checked; a manual split has none.
+How sure a detected split is that one track ends there: sure, likely or doubtful, read from the depth at the split or, for a split at a contrast peak, from its contrast (never sure). A dip with a contrast peak beside it is one band surer. It is set once, when the split is added, and lasts until the user moves the split or marks it checked; a manual split has none.
 _Avoid_: Score, certainty, probability, rating
 
 **Selected split**:
@@ -149,7 +149,7 @@ The loudness, in decibels, under which the source file counts as quiet.
 _Avoid_: Noise floor, cutoff
 
 **Default settings**:
-The silence threshold, as a distance under the source file's median loudness, the minimum gap length and the depth setting that every source file starts with: the ones the user saved, or the built-in ones.
+The silence threshold, as a distance under the source file's median loudness, the minimum gap length, the depth setting, and the contrast setting with its threshold, that every source file starts with: the ones the user saved, or the built-in ones.
 _Avoid_: Preferences, presets, starting values, my defaults
 
 **Minimum gap length**:
@@ -163,6 +163,10 @@ _Avoid_: Drop, prominence, dip size
 **Dip**:
 A point where the loudness falls at least the depth setting under the loudness around it, and falls further than anywhere else within 15 s. It can be short, or never reach the silence threshold, so it finds the track changes a gap misses.
 _Avoid_: Shallow gap, valley, trough
+
+**Contrast**:
+How far apart the sound of the stretch before a point in the source file and the stretch after it are, in decibels, whatever their loudness. A new track usually sounds unlike the one before it, so a crossfade that never dips still has a high contrast. A **contrast peak** is a point whose contrast reaches the contrast setting and is the highest within 15 s on either side; a split Find splits adds there is a contrast split.
+_Avoid_: Change, novelty, difference, score
 
 **Edit**:
 A thing the user changed by hand since the source file opened: a split moved, added or deleted, a track renamed, a track left out or brought back, a match dismissed, or a split marked checked. A split is one edit from the first change to it, whatever is done to it after, even a move back; only an added split deleted again leaves none. A track's name or its being left out is one edit only while it differs from how the track came to be, and a dismissed match only while both tracks keep their ends. The splits Find splits adds are no edit until the user changes one, and the matches Find duplicates finds are no edit.

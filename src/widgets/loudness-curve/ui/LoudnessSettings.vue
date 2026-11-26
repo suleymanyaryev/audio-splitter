@@ -1,7 +1,10 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 
 import {
+  CONTRAST_MAX_DB,
+  CONTRAST_MIN_DB,
+  DEFAULT_CONTRAST_DB,
   DEFAULT_DEPTH_DB,
   DEFAULT_MINIMUM_GAP_SECONDS,
   DEFAULT_OFFSET_DB,
@@ -15,9 +18,11 @@ import {
 } from '@/entities/split/config/defaults.ts'
 import { useSplitStore } from '@/entities/split/model/split.ts'
 import UiButton from '@/shared/ui/UiButton.vue'
+import UiSegmentedControl from '@/shared/ui/UiSegmentedControl.vue'
 import UiSlider from '@/shared/ui/UiSlider.vue'
 import UiTooltip from '@/shared/ui/UiTooltip.vue'
 import {
+  formatContrastSetting,
   formatDecibels,
   formatDuplicateResult,
   formatOffset,
@@ -28,22 +33,32 @@ import {
 import ClearSplitsDialog from './ClearSplitsDialog.vue'
 
 /*
-The loudness panel's title row: the three settings of split finding, and the button that turns what
+The loudness panel's title row: the settings of split finding, and the button that turns what
 they show into splits. The threshold covers the curve's drawn range, −60 to 0 dB, in tenths; the
 minimum gap length runs from a few windows to a long pause; the depth, from 3 to 30 dB, is how far
-under its surroundings a dip must fall. Moving any of them changes only what is shown (the gaps, and
-a mark on the curve at each dip), so there is nothing to ask. "Find splits" says how many splits a
-press would add.
+under its surroundings a dip must fall. Contrast, which starts off, adds a third detector for
+crossfaded files: an Off | On control and a threshold from 3 to 12 dB. Moving any of them changes
+only what is shown (the gaps, and a mark on the curve at each dip), so there is nothing to ask.
+"Find splits" says how many splits a press would add.
 "Find duplicates" looks for tracks that are the same recording as an earlier one and changes
 nothing of the user's: it is off until two tracks are 30 s long, busy while it searches, and the
 line beside it says what it found, nothing before the first press, or why the search failed.
 "Clear splits" starts over: it asks first only when the user has edits or pending splits to lose.
-"Save as default" keeps the three settings for every later file, the threshold as a distance under
-the median, and "Restore built-in" puts the built-in ones back; each is off when it would change
-nothing. The row wraps when the panel is too narrow for all of it, so no button is cut off.
+"Save as default" keeps the settings (contrast on or off and its threshold with them) for every
+later file, the silence threshold as a distance under the median, and "Restore built-in" puts the
+built-in ones back; each is off when it would change nothing. The row wraps when the panel is too narrow for all of it, so no button is cut off.
 */
 const split = useSplitStore()
 const asking = ref(false)
+
+const contrastOptions = [
+  { value: 'off' as const, label: 'Off' },
+  { value: 'on' as const, label: 'On' },
+]
+const contrast = computed({
+  get: () => (split.contrastOn ? 'on' : 'off'),
+  set: (value) => split.setContrastOn(value === 'on'),
+})
 
 function clearSplits() {
   if (split.hasEdits || split.pendingSplits.length > 0) asking.value = true
@@ -88,8 +103,25 @@ function confirmClear() {
       class="w-80"
       @update:model-value="split.setDepthSetting"
     />
+    <UiSegmentedControl v-model="contrast" label="Contrast" :options="contrastOptions" />
+    <UiSlider
+      :model-value="split.contrastThreshold"
+      label="Contrast threshold"
+      :readout="formatDecibels(split.contrastThreshold)"
+      :min="CONTRAST_MIN_DB"
+      :max="CONTRAST_MAX_DB"
+      :step="SETTING_STEP"
+      class="w-80"
+      @update:model-value="split.setContrastThreshold"
+    />
     <div class="flex items-center gap-2">
-      <UiTooltip label="Add a split at each gap and each dip that has none near it">
+      <UiTooltip
+        :label="
+          split.contrastOn
+            ? 'Add a split at each gap, each dip and each contrast peak that has none near it'
+            : 'Add a split at each gap and each dip that has none near it'
+        "
+      >
         <UiButton
           size="sm"
           :disabled="split.proposedSplits.length === 0"
@@ -137,14 +169,14 @@ function confirmClear() {
     </div>
     <div class="flex items-center gap-2">
       <UiTooltip
-        :label="`Save ${formatOffset(split.currentOffsetDb ?? 0)}, ${formatSettingSeconds(split.minimumGapLength)} and ${formatSettingDecibels(split.depthSetting)} deep as the default`"
+        :label="`Save ${formatOffset(split.currentOffsetDb ?? 0)}, ${formatSettingSeconds(split.minimumGapLength)}, ${formatSettingDecibels(split.depthSetting)} deep and ${formatContrastSetting(split.contrastOn, split.contrastThreshold)} as the default`"
       >
         <UiButton size="sm" :disabled="split.matchesDefaultSettings" @click="split.saveAsDefault()">
           Save as default
         </UiButton>
       </UiTooltip>
       <UiTooltip
-        :label="`Put the default settings back to ${formatOffset(DEFAULT_OFFSET_DB)}, ${formatSettingSeconds(DEFAULT_MINIMUM_GAP_SECONDS)} and ${formatSettingDecibels(DEFAULT_DEPTH_DB)} deep`"
+        :label="`Put the default settings back to ${formatOffset(DEFAULT_OFFSET_DB)}, ${formatSettingSeconds(DEFAULT_MINIMUM_GAP_SECONDS)}, ${formatSettingDecibels(DEFAULT_DEPTH_DB)} deep and ${formatContrastSetting(false, DEFAULT_CONTRAST_DB)}`"
       >
         <UiButton
           size="sm"

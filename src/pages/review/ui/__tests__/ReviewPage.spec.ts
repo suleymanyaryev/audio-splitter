@@ -4,6 +4,7 @@ import { createPinia, setActivePinia } from 'pinia'
 import { DOMWrapper, enableAutoUnmount, flushPromises, mount } from '@vue/test-utils'
 import { useSourceFileStore } from '@/entities/source-file/model/source-file.ts'
 import { useSplitStore } from '@/entities/split/model/split.ts'
+import { SPECTRUM_BAND_COUNT } from '@/shared/lib/audio/spectrogram-builder.ts'
 import { useShortcutsDialogStore } from '@/widgets/shortcuts-dialog/model/shortcuts-dialog.ts'
 import { trackExtent } from '@/widgets/split-zoom/lib/track-extent.ts'
 import { usePlayerStore } from '@/widgets/split-zoom/model/player.ts'
@@ -379,6 +380,31 @@ describe('ReviewPage', () => {
       expect(split.view).toBe('track')
       expect(split.gaps).toHaveLength(2)
       expect(wrapper.text()).toContain('Tracks (1)')
+    })
+
+    it('gives the split store the spectrogram, which draws the contrast lane under the loudness curve', () => {
+      const sourceFile = useSourceFileStore()
+      sourceFile.spectrogram = {
+        bands: new Uint8Array(2000 * SPECTRUM_BAND_COUNT).fill(100),
+        bandCount: SPECTRUM_BAND_COUNT,
+        topHz: 22_050,
+      }
+
+      const wrapper = mountOpenedPage()
+
+      expect(useSplitStore().contrastCurve).toHaveLength(200)
+      expect(wrapper.find('canvas[aria-label="Contrast curve of the whole file"]').exists()).toBe(
+        true,
+      )
+    })
+
+    it('has no contrast lane for a file with no spectrogram', () => {
+      const wrapper = mountOpenedPage()
+
+      expect(useSplitStore().contrastCurve).toBeNull()
+      expect(wrapper.find('canvas[aria-label="Contrast curve of the whole file"]').exists()).toBe(
+        false,
+      )
     })
 
     it('adds a split in each gap when Find splits is pressed, and keeps the view', async () => {

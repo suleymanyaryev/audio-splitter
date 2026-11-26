@@ -44,7 +44,7 @@ All state lives in Pinia setup stores, in memory, except the theme ([below](#the
 | Store              | Slice                      | Holds                                                                                                    |
 | ------------------ | -------------------------- | -------------------------------------------------------------------------------------------------------- |
 | `source-file`      | `entities/source-file`     | The file, its three summaries (peaks, loudness curve, spectrogram), load progress and the ffmpeg session |
-| `split`            | `entities/split`           | Settings, proposals, splits and their confidence, track names, matches, selection, edits                 |
+| `split`            | `entities/split`           | Settings, contrast curve, proposals, splits and their confidence, track names, matches, selection, edits |
 | `player`           | `widgets/split-zoom`       | The one player: the subject on show, its status, volume and play speed                                   |
 | `export-tracks`    | `widgets/track-strip`      | The export of every track not left out into a folder                                                     |
 | `export-single`    | `widgets/track-strip`      | The export of one track or range as a single file                                                        |
@@ -61,8 +61,8 @@ flowchart LR
   exportLock[("export-lock")]
   reviewPage["ReviewPage"]
 
-  sourceFile -- "loudness curve, on mount" --> reviewPage
-  reviewPage -- "open(curve), prefix" --> split
+  sourceFile -- "loudness curve, spectrogram, on mount" --> reviewPage
+  reviewPage -- "open(curve, spectrogram), prefix" --> split
   split -- "selection, range, view" --> player
   player -- "clip" --> sourceFile
   split -- "tracks and names" --> exporter
@@ -73,7 +73,7 @@ flowchart LR
   exporterSingle -- "take, release" --> exportLock
 ```
 
-- **`split` can't import `source-file`.** `ReviewPage` hands it the loudness curve and the track name prefix once, on mount. The file opens as one track with no splits. `split` works out how deep every window falls under its surroundings once, and "Find splits" turns the gaps and the dips into splits, one per boundary.
+- **`split` can't import `source-file`.** `ReviewPage` hands it the loudness curve, the spectrogram and the track name prefix once, on mount. The file opens as one track with no splits. `split` works out how deep every window falls under its surroundings and the contrast of every 0.5 s once, and "Find splits" turns the gaps, the dips and, while the contrast setting is on, the contrast peaks into splits, one per boundary.
 - **Widgets read the entity stores directly.** They never go through another widget.
 - **Tracks are derived from the splits**, never stored. Deleting a split merges the tracks either side of it.
 - **Matches are stored as found, and whether one holds is derived.** A match keeps both tracks' ends, so an edit never has to find it: it is live while both tracks still have them.

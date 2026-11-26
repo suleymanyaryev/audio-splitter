@@ -1076,7 +1076,7 @@ describe('TrackView', () => {
       const { split } = setup()
       // The gaps give sure splits, which have no mark: the second track's first is made doubtful.
       const start = split.splits[0]!
-      start.confidence = { band: 'doubtful', depth: 5 }
+      start.confidence = { band: 'doubtful', depth: 5, contrast: null }
       await nextTick()
       expect(marksPerDraw.at(-1)).toBe(1)
       const draws = marksPerDraw.length

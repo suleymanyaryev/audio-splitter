@@ -9,6 +9,7 @@ import {
 } from '@/entities/split/config/defaults.ts'
 import type { FoundMatch } from '@/entities/split/lib/find-matches.ts'
 import { useSplitStore } from '@/entities/split/model/split.ts'
+import { SPECTRUM_BAND_COUNT } from '@/shared/lib/audio/spectrogram-builder.ts'
 import LoudnessSettings from '../LoudnessSettings.vue'
 
 /*
@@ -118,6 +119,34 @@ function findSplitsButton(wrapper: ReturnType<typeof mount>) {
     .find((candidate) => candidate.text().startsWith('Find splits'))
   if (!button) throw new Error('no Find splits button')
   return button
+}
+
+/*
+10 minutes of one loudness whose sound changes at 5:00: 20 of the 119 bands that count go down
+and 20 up by 20 dB, a contrast of 11.6 dB there (concept note 15).
+*/
+function openWithOneChange() {
+  const columns = 12_000
+  const bands = new Uint8Array(columns * SPECTRUM_BAND_COUNT).fill(60)
+  for (let column = 0; column < columns; column++) {
+    const first = column < columns / 2 ? 0 : 20
+    bands.fill(111, column * SPECTRUM_BAND_COUNT + first, column * SPECTRUM_BAND_COUNT + first + 20)
+  }
+  const curve = new Float32Array(columns).fill(-10)
+  useSplitStore().open(
+    curve,
+    { windowSeconds: 0.05, durationSeconds: 600 },
+    { bands, bandCount: SPECTRUM_BAND_COUNT, topHz: 22_050 },
+  )
+}
+
+const option = (wrapper: ReturnType<typeof mount>, name: 'Off' | 'On') => {
+  const found = wrapper
+    .get('[role="radiogroup"][aria-label="Contrast"]')
+    .findAll('[role="radio"]')
+    .find((candidate) => candidate.text() === name)
+  if (!found) throw new Error(`no ${name} option`)
+  return found
 }
 
 describe('LoudnessSettings', () => {
@@ -249,7 +278,7 @@ describe('LoudnessSettings', () => {
 
       expect(
         wrapper
-          .findAll('button')
+          .findAll('button:not([role="radio"])')
           .map((button) => button.text())
           .slice(0, 2),
       ).toEqual(['Find splits (0)', 'Find duplicates'])
@@ -438,8 +467,26 @@ describe('LoudnessSettings', () => {
       expect(save.attributes('disabled')).toBeUndefined()
       // The median is -10 dB, so one step down is 18.1 dB under it.
       expect(await tooltipOf(save)).toBe(
-        'Save 18.1 dB under the median, 2 s and 15 dB deep as the default',
+        'Save 18.1 dB under the median, 2 s, 15 dB deep and contrast off at 5.4 dB as the default',
       )
+      wrapper.unmount()
+    })
+
+    it('saves contrast with the others: switching it on enables the button and is in its tooltip', async () => {
+      const wrapper = mount(LoudnessSettings, { attachTo: document.body })
+      await flushPromises()
+      expect(buttonNamed(wrapper, 'Save as default').attributes('disabled')).toBeDefined()
+
+      useSplitStore().setContrastOn(true)
+      await flushPromises()
+
+      const save = buttonNamed(wrapper, 'Save as default')
+      expect(save.attributes('disabled')).toBeUndefined()
+      expect(await tooltipOf(save)).toBe(
+        'Save 18 dB under the median, 2 s, 15 dB deep and contrast on at 5.4 dB as the default',
+      )
+      await save.trigger('click')
+      expect(buttonNamed(wrapper, 'Restore built-in').attributes('disabled')).toBeUndefined()
       wrapper.unmount()
     })
 
@@ -455,7 +502,7 @@ describe('LoudnessSettings', () => {
       expect(buttonNamed(wrapper, 'Save as default').attributes('disabled')).toBeDefined()
       expect(buttonNamed(wrapper, 'Restore built-in').attributes('disabled')).toBeUndefined()
       expect(await tooltipOf(buttonNamed(wrapper, 'Restore built-in'))).toBe(
-        'Put the default settings back to 18 dB under the median, 2 s and 15 dB deep',
+        'Put the default settings back to 18 dB under the median, 2 s, 15 dB deep and contrast off at 5.4 dB',
       )
       wrapper.unmount()
     })
@@ -512,6 +559,77 @@ describe('LoudnessSettings', () => {
       expect(document.querySelector('[role="alertdialog"]')).toBeNull()
       expect(split.minimumGapLength).toBeCloseTo(DEFAULT_MINIMUM_GAP_SECONDS + 0.1, 9)
       expect(split.tracks.map((track) => track.name)).toEqual(['Opener', 'Closer'])
+      wrapper.unmount()
+    })
+  })
+
+  describe('contrast', () => {
+    it('has an Off | On control, off to start, beside the depth', () => {
+      const wrapper = mount(LoudnessSettings)
+
+      expect(option(wrapper, 'Off').attributes('aria-checked')).toBe('true')
+      expect(option(wrapper, 'On').attributes('aria-checked')).toBe('false')
+      const labels = wrapper
+        .findAll('[aria-label]')
+        .map((element) => element.attributes('aria-label'))
+      expect(labels.indexOf('Contrast')).toBeGreaterThan(labels.indexOf('Depth'))
+    })
+
+    it('switches contrast on through the store, which changes no split', async () => {
+      openWithOneChange()
+      const wrapper = mount(LoudnessSettings, { attachTo: document.body })
+      await flushPromises()
+
+      await option(wrapper, 'On').trigger('click')
+
+      const split = useSplitStore()
+      expect(split.contrastOn).toBe(true)
+      expect(option(wrapper, 'On').attributes('aria-checked')).toBe('true')
+      expect(split.splits).toEqual([])
+      wrapper.unmount()
+    })
+
+    it('puts the contrast splits in the Find splits count only while it is on', async () => {
+      openWithOneChange()
+      const wrapper = mount(LoudnessSettings, { attachTo: document.body })
+      await flushPromises()
+      expect(findSplitsButton(wrapper).text()).toBe('Find splits (0)')
+
+      await option(wrapper, 'On').trigger('click')
+      expect(findSplitsButton(wrapper).text()).toBe('Find splits (1)')
+
+      await option(wrapper, 'Off').trigger('click')
+      expect(findSplitsButton(wrapper).text()).toBe('Find splits (0)')
+      wrapper.unmount()
+    })
+
+    it('reads out the contrast threshold, and moves it in tenths of a dB through the store', async () => {
+      const wrapper = mount(LoudnessSettings, { attachTo: document.body })
+      await flushPromises()
+      expect(wrapper.text()).toContain('Contrast threshold')
+      expect(wrapper.text()).toContain('5.4 dB')
+
+      await wrapper
+        .get('[aria-label="Contrast threshold"]')
+        .trigger('keydown', { key: 'ArrowRight' })
+
+      expect(useSplitStore().contrastThreshold).toBeCloseTo(5.5, 9)
+      expect(wrapper.text()).toContain('5.5 dB')
+      wrapper.unmount()
+    })
+
+    it('follows the threshold live: above the peak, a press would add nothing', async () => {
+      openWithOneChange()
+      const wrapper = mount(LoudnessSettings, { attachTo: document.body })
+      await flushPromises()
+      await option(wrapper, 'On').trigger('click')
+      expect(findSplitsButton(wrapper).text()).toBe('Find splits (1)')
+
+      // End takes the slider to its top, 12 dB, over the peak's 11.6 dB.
+      await wrapper.get('[aria-label="Contrast threshold"]').trigger('keydown', { key: 'End' })
+
+      expect(useSplitStore().contrastThreshold).toBe(12)
+      expect(findSplitsButton(wrapper).text()).toBe('Find splits (0)')
       wrapper.unmount()
     })
   })
