@@ -152,6 +152,11 @@ export const usePlayerStore = defineStore('player', () => {
 
   // The playhead's span: the audition's 8 s, the track's ends or the range; null with nothing on show.
   const extent = computed(() => onShow.value?.extent ?? null)
+  /*
+  Whether there is anything on show to play: the play and "Back to … start" buttons are enabled,
+  and Space and Home are taken, exactly while there is.
+  */
+  const hasSubject = computed(() => onShow.value !== null)
 
   /*
   The status of what is on show: idle while the other owner holds it. Writable because the view
@@ -889,6 +894,7 @@ export const usePlayerStore = defineStore('player', () => {
     isActive,
     failure,
     extent,
+    hasSubject,
     volumeDecibels,
     isMuted,
     playSpeed,

@@ -461,6 +461,19 @@ describe('TrackView', () => {
       expect(split.pendingSplits).toEqual([30])
     })
 
+    it('is left to the browser while "Add pending split" would be disabled', async () => {
+      const { split } = setup()
+      split.placeTrackMark(30)
+      await press({ key: 'Enter' })
+      split.placeTrackMark(40)
+      const event = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true })
+
+      document.dispatchEvent(event)
+
+      expect(split.pendingSplits).toEqual([30])
+      expect(event.defaultPrevented).toBe(false)
+    })
+
     it('ignores the auto-repeat of a held key, so one press adds one', async () => {
       const { split } = setup()
       split.placeTrackMark(30)

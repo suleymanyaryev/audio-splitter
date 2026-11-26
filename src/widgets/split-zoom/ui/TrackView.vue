@@ -247,8 +247,11 @@ function isSwapKeyActedOn(event: KeyboardEvent) {
 function isOtherKeyActedOn(event: KeyboardEvent) {
   switch (event.key) {
     case 'Enter': {
-      // With no mark, Enter has nothing to add a pending split at; Shift+Enter always has the playhead.
-      if (!event.shiftKey && split.trackMarkSeconds === null) return false
+      /*
+      Enter is taken exactly while "Add pending split" is enabled: a mark, room at it, and no pending
+      split selected. Shift+Enter always has the playhead.
+      */
+      if (!event.shiftKey && !split.canAddPendingSplit) return false
       if (!event.repeat) addPendingSplitFromKey(event.shiftKey)
       return true
     }

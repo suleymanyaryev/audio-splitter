@@ -691,6 +691,18 @@ describe('SplitZoom', () => {
       expect(space.defaultPrevented).toBe(true)
     })
 
+    it('is left to the browser with no split selected, as the play button is disabled', () => {
+      const { split } = setup()
+      split.moveZoomTo(40)
+      const toggle = vi.spyOn(usePlayerStore(), 'toggle').mockImplementation(() => {})
+
+      const space = new KeyboardEvent('keydown', { key: ' ', cancelable: true })
+      document.dispatchEvent(space)
+
+      expect(toggle).not.toHaveBeenCalled()
+      expect(space.defaultPrevented).toBe(false)
+    })
+
     it('does not toggle again while the key is held down', () => {
       setup()
       const toggle = vi.spyOn(usePlayerStore(), 'toggle').mockImplementation(() => {})

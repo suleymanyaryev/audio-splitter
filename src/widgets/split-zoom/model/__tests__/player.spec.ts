@@ -281,10 +281,11 @@ describe('the player store', () => {
   })
 
   describe('with nothing on show', () => {
-    it('has no extent and no playhead', () => {
+    it('has no subject, no extent and no playhead', () => {
       const { player } = setUpNothing()
 
       expect(player.status).toBe('idle')
+      expect(player.hasSubject).toBe(false)
       expect(player.extent).toBeNull()
       expect(player.playheadSeconds()).toBeNull()
     })
@@ -325,6 +326,7 @@ describe('the player store', () => {
       it('starts idle, with nothing failed and the playhead at the start of its extent', () => {
         const { player } = subject.setUp()
 
+        expect(player.hasSubject).toBe(true)
         expect(player.status).toBe('idle')
         expect(player.isActive).toBe(false)
         expect(player.failure).toBeNull()

@@ -149,11 +149,12 @@ function onDoubleClick(event: MouseEvent) {
 
 /*
 Enter adds a split at the mark, and Shift+Enter one where the playhead is, so a split goes where the
-sound is heard. With no mark, Enter has nothing to add a split at and is left alone; Shift+Enter
-always has the playhead. A held key adds one split, not one per repeat.
+sound is heard. Enter is taken exactly while the "Add split" button is enabled: with no mark, or no
+room at it, it is left alone. Shift+Enter always has the playhead. A held key adds one split, not
+one per repeat.
 */
 function addSplitFromKey(event: KeyboardEvent) {
-  if (!event.shiftKey && split.markSeconds === null) return false
+  if (!event.shiftKey && !split.canAddSplitAtMark) return false
   if (event.repeat) return true
   if (event.shiftKey) split.addSplitAt(playheadSeconds())
   else split.addSplitAtMark()

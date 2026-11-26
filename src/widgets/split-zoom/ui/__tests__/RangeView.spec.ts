@@ -196,6 +196,19 @@ describe('RangeView', () => {
       expect(split.splits).toEqual([])
     })
 
+    it('is left to the browser while "Add split" would be disabled: no room at the mark', async () => {
+      const { split } = setup((store) => {
+        store.addSplitAt(15)
+        store.placeMark(15.5)
+      })
+      const event = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true })
+
+      document.dispatchEvent(event)
+
+      expect(split.splits.map((point) => point.seconds)).toEqual([15])
+      expect(event.defaultPrevented).toBe(false)
+    })
+
     it('ignores the auto-repeat of a held key', async () => {
       const { split } = setup((store) => {
         store.placeMark(15)
