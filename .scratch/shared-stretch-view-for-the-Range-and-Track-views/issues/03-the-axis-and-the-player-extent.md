@@ -12,13 +12,21 @@ The Range view and the Track view read their span from `player.extent` for the a
 
 **Blocked by:** None (can start immediately).
 
-Status: open
+Status: resolved
 
 Spec: `.scratch/shared-stretch-view-for-the-Range-and-Track-views/spec.md` (Implementation Decisions: the axis, the extent; Testing Decisions).
 
-- [ ] A pure spec for the axis: both directions, the 10 ms rounding, the centre and length.
-- [ ] Neither view calls the range-window or zoom-axis helpers directly, nor keeps an `axis()` of its own.
-- [ ] The Range view no longer reads `split.range` for its span or its slider bounds.
-- [ ] The Track view no longer imports the track-extent helper.
-- [ ] The Range and Track view specs pass unchanged.
-- [ ] No changelog line.
+- [x] A pure spec for the axis: both directions, the 10 ms rounding, the centre and length.
+- [x] Neither view calls the range-window or zoom-axis helpers directly, nor keeps an `axis()` of its own.
+- [x] The Range view no longer reads `split.range` for its span or its slider bounds.
+- [x] The Track view no longer imports the track-extent helper.
+- [x] The Range and Track view specs pass unchanged.
+- [x] No changelog line.
+
+## Comments
+
+- Status was `open`; taken as ready, as in ticket 01.
+- `stretchAxis(extent, width)` also accepts a null extent and then returns null ("with nothing on show there is no axis"), so a view's press callbacks and, in ticket 04, the drag's axis getter can pass `player.extent` without a guard. Its centre and length are named `centreSeconds` and `windowSeconds`, as the zoom helpers' parameters are.
+- The Track view's `C` check "a track is selected" now reads `player.extent === null`: the extent is null exactly when no track is on show.
+- The view specs passed unchanged; the axis is specced on its own, purely.
+- The canvas-view skill's line on mapping time to x now names `stretchAxis`.

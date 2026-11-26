@@ -14,12 +14,10 @@ import {
 } from '@/shared/lib/canvas/draw-playhead-and-frame.ts'
 import { prepareCanvas } from '@/shared/lib/canvas/prepare-canvas.ts'
 import { useCanvasRedraw } from '@/shared/lib/canvas/use-canvas-redraw.ts'
-import { zoomTimeToX } from '@/shared/lib/canvas/zoom-axis.ts'
 import { usePageKeys } from '@/shared/lib/keyboard/use-page-keys.ts'
 import { formatHundredths } from '@/shared/lib/time/format-hundredths.ts'
 import { roundToMillisecond } from '@/shared/lib/time/round-to-millisecond.ts'
-import { draggedTime } from '../lib/dragged-time.ts'
-import { rangeWindow } from '../lib/range-window.ts'
+import { stretchAxis } from '../lib/stretch-axis.ts'
 import { usePlayheadSlider } from '../lib/use-playhead-slider.ts'
 import { useRangePress } from '../lib/use-range-press.ts'
 import { zoomBars } from '../lib/zoom-bars.ts'
@@ -65,13 +63,14 @@ function playheadSeconds() {
 
 function draw() {
   const peaks = sourceFile.peaks
-  const range = split.range
-  const prepared = peaks && range && canvas.value ? prepareCanvas(canvas.value) : null
-  if (!peaks || !range || !prepared) return
+  const extent = player.extent
+  const prepared = peaks && extent && canvas.value ? prepareCanvas(canvas.value) : null
+  if (!peaks || !extent || !prepared) return
   const { context, width, height } = prepared
 
   const style = getComputedStyle(document.documentElement)
-  const { centreSeconds, windowSeconds } = rangeWindow(range)
+  const axis = stretchAxis(extent, width)
+  const { centreSeconds, windowSeconds } = axis
   const middle = height / 2
   // A sample of ±1 reaches the frame.
   const halfHeight = middle - FRAME_WIDTH
@@ -89,9 +88,7 @@ function draw() {
   )
 
   // A split on the range's edge is drawn on it; one outside is off the canvas.
-  const lineXs = split.splits.map((point) =>
-    zoomTimeToX(point.seconds, centreSeconds, windowSeconds, width),
-  )
+  const lineXs = split.splits.map((point) => axis.toX(point.seconds))
   drawSplitLines(
     context,
     lineXs,
@@ -104,16 +101,14 @@ function draw() {
 
   // The mark is a dashed line, never mistaken for a split line or the playhead, under the latter.
   if (split.markSeconds !== null) {
-    const x = zoomTimeToX(split.markSeconds, centreSeconds, windowSeconds, width)
-    drawMark(context, x, style.getPropertyValue('--color-ink'), height)
+    drawMark(context, axis.toX(split.markSeconds), style.getPropertyValue('--color-ink'), height)
   }
 
   /*
   The playhead goes over the split lines and the mark, which it must stay readable against, and
   under the frame, so the frame stays the outermost line of the canvas.
   */
-  const x = zoomTimeToX(playheadSeconds(), centreSeconds, windowSeconds, width)
-  drawPlayhead(context, x, style.getPropertyValue('--color-ink'), height)
+  drawPlayhead(context, axis.toX(playheadSeconds()), style.getPropertyValue('--color-ink'), height)
   drawFrame(context, width, height, style.getPropertyValue('--color-ink'))
 }
 
@@ -121,34 +116,15 @@ function frameWidth() {
   return frame.value?.getBoundingClientRect().width ?? 0
 }
 
-// The range's map onto the view's current width, for the pointer; null without a range.
-function axis() {
-  const range = split.range
-  return range === null ? null : { ...rangeWindow(range), width: frameWidth() }
-}
-
 const { overPlayhead, dragging, onPointerDown, onPointerMove, onPointerEnd, onDoubleClick } =
   useRangePress({
-    playheadX: () => {
-      const map = axis()
-      return map === null
-        ? null
-        : zoomTimeToX(playheadSeconds(), map.centreSeconds, map.windowSeconds, map.width)
-    },
+    playheadX: () => stretchAxis(player.extent, frameWidth())?.toX(playheadSeconds()) ?? null,
     splitXs: () => {
-      const map = axis()
-      return map === null
-        ? []
-        : split.splits.map((point) =>
-            zoomTimeToX(point.seconds, map.centreSeconds, map.windowSeconds, map.width),
-          )
+      const axis = stretchAxis(player.extent, frameWidth())
+      return axis === null ? [] : split.splits.map((point) => axis.toX(point.seconds))
     },
-    seconds: (x) => {
-      const map = axis()
-      // Without a range there is nothing to point at, so this is not asked. Rounded to 10 ms, as a
-      // dragged split is, so a mark or a split made from a click lands on the same grid.
-      return map === null ? 0 : draggedTime(x, 0, map.centreSeconds, map.windowSeconds, map.width)
-    },
+    // Without a range there is nothing to point at, so this is not asked.
+    seconds: (x) => stretchAxis(player.extent, frameWidth())?.toSeconds(x) ?? 0,
     grab: () => {
       player.grabPlayhead()
     },
@@ -231,7 +207,8 @@ useCanvasRedraw(canvas, draw)
 watch(
   () => [
     sourceFile.peaks,
-    split.range,
+    player.extent?.startSeconds,
+    player.extent?.endSeconds,
     split.gaps,
     split.splits.map((point) => point.seconds),
     // Checking a split takes its mark away and changes nothing else.
@@ -253,8 +230,8 @@ watch(
       role="slider"
       tabindex="-1"
       aria-label="Playhead in the range"
-      :aria-valuemin="split.range?.startSeconds"
-      :aria-valuemax="split.range?.endSeconds"
+      :aria-valuemin="player.extent?.startSeconds"
+      :aria-valuemax="player.extent?.endSeconds"
       :aria-valuenow="sliderSeconds"
       :aria-valuetext="formatHundredths(sliderSeconds)"
       class="size-full select-none"

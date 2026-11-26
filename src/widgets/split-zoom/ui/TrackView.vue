@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, useTemplateRef, watch } from 'vue'
+import { useTemplateRef, watch } from 'vue'
 
 import { useSourceFileStore } from '@/entities/source-file/model/source-file.ts'
 import { useSplitStore } from '@/entities/split/model/split.ts'
@@ -15,14 +15,11 @@ import {
 } from '@/shared/lib/canvas/draw-playhead-and-frame.ts'
 import { prepareCanvas } from '@/shared/lib/canvas/prepare-canvas.ts'
 import { useCanvasRedraw } from '@/shared/lib/canvas/use-canvas-redraw.ts'
-import { zoomTimeToX } from '@/shared/lib/canvas/zoom-axis.ts'
 import { usePageKeys } from '@/shared/lib/keyboard/use-page-keys.ts'
 import { formatHundredths } from '@/shared/lib/time/format-hundredths.ts'
 import { roundToMillisecond } from '@/shared/lib/time/round-to-millisecond.ts'
-import { draggedTime } from '../lib/dragged-time.ts'
-import { rangeWindow } from '../lib/range-window.ts'
 import { stepOfKey } from '../lib/step-of-key.ts'
-import { trackExtent } from '../lib/track-extent.ts'
+import { stretchAxis } from '../lib/stretch-axis.ts'
 import { usePlayheadSlider } from '../lib/use-playhead-slider.ts'
 import { useRangePress } from '../lib/use-range-press.ts'
 import { zoomBars } from '../lib/zoom-bars.ts'
@@ -77,11 +74,6 @@ const player = usePlayerStore()
 const canvas = useTemplateRef('canvas')
 const frame = useTemplateRef('frame')
 
-// What the view draws, and what the player plays: the whole selected track.
-const extent = computed(() =>
-  split.selectedTrack === null ? null : trackExtent(split.selectedTrack),
-)
-
 // The track's start for a new track, then where it is heard or resumes; 0 with no track selected.
 function playheadSeconds() {
   return player.playheadSeconds() ?? 0
@@ -89,13 +81,14 @@ function playheadSeconds() {
 
 function draw() {
   const peaks = sourceFile.peaks
-  const track = extent.value
-  const prepared = peaks && track && canvas.value ? prepareCanvas(canvas.value) : null
-  if (!peaks || !track || !prepared) return
+  const extent = player.extent
+  const prepared = peaks && extent && canvas.value ? prepareCanvas(canvas.value) : null
+  if (!peaks || !extent || !prepared) return
   const { context, width, height } = prepared
 
   const style = getComputedStyle(document.documentElement)
-  const { centreSeconds, windowSeconds } = rangeWindow(track)
+  const axis = stretchAxis(extent, width)
+  const { centreSeconds, windowSeconds } = axis
   const middle = height / 2
   // A sample of ±1 reaches the frame.
   const halfHeight = middle - FRAME_WIDTH
@@ -113,16 +106,14 @@ function draw() {
   )
 
   // The track's end splits are drawn on its edges; every other split is off the canvas.
-  const lineXs = split.splits.map((point) =>
-    zoomTimeToX(point.seconds, centreSeconds, windowSeconds, width),
-  )
+  const lineXs = split.splits.map((point) => axis.toX(point.seconds))
   drawSplitLines(context, lineXs, style.getPropertyValue('--color-split'), 0, height)
   drawConfidenceMarks(context, style, split.splits, lineXs, 0, height)
 
   // Pending splits go over the split lines and under the mark, which can sit on one.
   drawPendingSplits(
     context,
-    split.pendingSplits.map((seconds) => zoomTimeToX(seconds, centreSeconds, windowSeconds, width)),
+    split.pendingSplits.map((seconds) => axis.toX(seconds)),
     style.getPropertyValue('--color-ink'),
     height,
     split.selectedPendingSplit === null
@@ -132,24 +123,17 @@ function draw() {
 
   // The mark is a dashed line under the playhead, which must stay readable against it.
   if (split.trackMarkSeconds !== null) {
-    const markX = zoomTimeToX(split.trackMarkSeconds, centreSeconds, windowSeconds, width)
+    const markX = axis.toX(split.trackMarkSeconds)
     drawMark(context, markX, style.getPropertyValue('--color-ink'), height)
   }
 
   // The playhead goes over the split lines and the mark, and under the frame, the outermost line.
-  const x = zoomTimeToX(playheadSeconds(), centreSeconds, windowSeconds, width)
-  drawPlayhead(context, x, style.getPropertyValue('--color-ink'), height)
+  drawPlayhead(context, axis.toX(playheadSeconds()), style.getPropertyValue('--color-ink'), height)
   drawFrame(context, width, height, style.getPropertyValue('--color-ink'))
 }
 
 function frameWidth() {
   return frame.value?.getBoundingClientRect().width ?? 0
-}
-
-// The track's map onto the view's current width, for the pointer; null without a track.
-function axis() {
-  const track = extent.value
-  return track === null ? null : { ...rangeWindow(track), width: frameWidth() }
 }
 
 /*
@@ -158,26 +142,15 @@ mark; a double-click moves the playhead, or selects the end split whose line is 
 */
 const { overPlayhead, dragging, onPointerDown, onPointerMove, onPointerEnd, onDoubleClick } =
   useRangePress({
-    playheadX: () => {
-      const map = axis()
-      return map === null
-        ? null
-        : zoomTimeToX(playheadSeconds(), map.centreSeconds, map.windowSeconds, map.width)
-    },
+    playheadX: () => stretchAxis(player.extent, frameWidth())?.toX(playheadSeconds()) ?? null,
     splitXs: () => {
-      const map = axis()
-      return map === null
+      const axis = stretchAxis(player.extent, frameWidth())
+      return axis === null
         ? []
-        : split.selectedTrackEndSplits.map((point) =>
-            zoomTimeToX(point.seconds, map.centreSeconds, map.windowSeconds, map.width),
-          )
+        : split.selectedTrackEndSplits.map((point) => axis.toX(point.seconds))
     },
-    seconds: (x) => {
-      const map = axis()
-      // Without a track there is nothing to point at, so this is not asked. Rounded to 10 ms, as the
-      // Range view's times are, so a click and a drag land on the same grid.
-      return map === null ? 0 : draggedTime(x, 0, map.centreSeconds, map.windowSeconds, map.width)
-    },
+    // Without a track there is nothing to point at, so this is not asked.
+    seconds: (x) => stretchAxis(player.extent, frameWidth())?.toSeconds(x) ?? 0,
     grab: () => {
       player.grabPlayhead()
     },
@@ -192,12 +165,8 @@ const { overPlayhead, dragging, onPointerDown, onPointerMove, onPointerEnd, onDo
       if (selected !== undefined) split.selectSplit(selected.id)
     },
     pendingXs: () => {
-      const map = axis()
-      return map === null
-        ? []
-        : split.pendingSplits.map((seconds) =>
-            zoomTimeToX(seconds, map.centreSeconds, map.windowSeconds, map.width),
-          )
+      const axis = stretchAxis(player.extent, frameWidth())
+      return axis === null ? [] : split.pendingSplits.map((seconds) => axis.toX(seconds))
     },
     selectPending: (index) => {
       const selected = split.pendingSplits[index]
@@ -263,7 +232,7 @@ left alone, as it is for a held key when there is no target. Shift is a modifier
 Shift+C is left alone, and a held key swaps once.
 */
 function isSwapKeyActedOn(event: KeyboardEvent) {
-  if (extent.value === null || event.shiftKey) return false
+  if (player.extent === null || event.shiftKey) return false
   const playhead = playheadSeconds()
   // A held key is taken, so the page does not act on it, only when there is somewhere to swap to.
   if (event.repeat) return split.swapTarget(playhead) !== null
@@ -340,8 +309,8 @@ useCanvasRedraw(canvas, draw)
 watch(
   () => [
     sourceFile.peaks,
-    extent.value?.startSeconds,
-    extent.value?.endSeconds,
+    player.extent?.startSeconds,
+    player.extent?.endSeconds,
     split.gaps,
     split.splits.map((point) => point.seconds),
     // Checking a split takes its mark away and changes nothing else.
