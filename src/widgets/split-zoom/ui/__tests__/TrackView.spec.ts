@@ -93,18 +93,18 @@ held from the press to the release, as a move during a drag reports it.
 */
 async function pointer(
   view: { element: Element },
-  type: 'pointerdown' | 'pointermove' | 'pointerup',
+  type: 'pointerdown' | 'pointermove' | 'pointerup' | 'pointercancel' | 'lostpointercapture',
   clientX: number,
 ) {
-  const buttons = type === 'pointerup' ? 0 : 1
+  const buttons = type === 'pointerdown' || type === 'pointermove' ? 1 : 0
   const event = new MouseEvent(type, { clientX, buttons, bubbles: true })
   Object.defineProperty(event, 'pointerId', { value: 1 })
   view.element.dispatchEvent(event)
   await nextTick()
 }
 
-async function doubleClick(view: { element: Element }, clientX: number) {
-  view.element.dispatchEvent(new MouseEvent('dblclick', { clientX, bubbles: true }))
+async function doubleClick(view: { element: Element }, clientX: number, button = 0) {
+  view.element.dispatchEvent(new MouseEvent('dblclick', { clientX, button, bubbles: true }))
   await nextTick()
 }
 
@@ -723,6 +723,18 @@ describe('TrackView', () => {
       expect(split.trackMarkSeconds).toBe(30)
     })
 
+    it('7 px from one places the mark instead, and selects nothing', async () => {
+      const { split, wrapper } = setup()
+      split.addPendingSplit(41.2, false)
+      const view = measured(wrapper)
+
+      // The pending split is at x = 400; 407 px is 41.55 s on the 10 ms grid.
+      await pointer(view, 'pointerdown', 407)
+
+      expect(split.selectedPendingSplit).toBeNull()
+      expect(split.trackMarkSeconds).toBeCloseTo(41.55, 9)
+    })
+
     it('takes the playhead before a pending split under the same press', async () => {
       const { player, split, wrapper } = setup()
       const grab = vi.spyOn(player, 'grabPlayhead')
@@ -782,6 +794,30 @@ describe('TrackView', () => {
       await doubleClick(view, 400)
 
       expect(seek).toHaveBeenCalledExactlyOnceWith(41.2)
+    })
+
+    it('on a pending split moves the playhead, and selects no pending split', async () => {
+      const { player, split, wrapper } = setup()
+      split.addPendingSplit(41.2, false)
+      const view = measured(wrapper)
+
+      await doubleClick(view, 400)
+
+      expect(player.playheadSeconds()).toBeCloseTo(41.2, 9)
+      expect(split.selectedPendingSplit).toBeNull()
+    })
+
+    it('with another button than the main one moves nothing and selects nothing', async () => {
+      const { player, split, wrapper } = setup()
+      const seek = vi.spyOn(player, 'seek')
+      const view = measured(wrapper)
+
+      await doubleClick(view, 400, 2)
+      await doubleClick(view, 995, 2)
+
+      expect(seek).not.toHaveBeenCalled()
+      expect(split.selectedSplit).toBeNull()
+      expect(split.view).toBe('track')
     })
 
     it('within 6 px of the end split’s line selects that split and opens the Split view', async () => {
@@ -865,6 +901,18 @@ describe('TrackView', () => {
       expect(seek).toHaveBeenLastCalledWith(46.25)
       expect(player.playheadSeconds()).toBe(46.25)
       expect(drop).toHaveBeenCalledExactlyOnceWith()
+    })
+
+    it.each(['pointercancel', 'lostpointercapture'] as const)('lets go on %s', async (type) => {
+      const { player, wrapper } = setup()
+      const drop = vi.spyOn(player, 'dropPlayhead')
+      const view = measured(wrapper)
+
+      await pointer(view, 'pointerdown', 4)
+      await pointer(view, type, 4)
+
+      expect(drop).toHaveBeenCalledOnce()
+      expect(view.classes()).not.toContain('cursor-ew-resize')
     })
   })
 

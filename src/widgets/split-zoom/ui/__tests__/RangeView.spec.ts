@@ -36,18 +36,18 @@ held from the press to the release, as a move during a drag reports it.
 */
 async function pointer(
   view: { element: Element },
-  type: 'pointerdown' | 'pointermove' | 'pointerup',
+  type: 'pointerdown' | 'pointermove' | 'pointerup' | 'pointercancel' | 'lostpointercapture',
   clientX: number,
 ) {
-  const buttons = type === 'pointerup' ? 0 : 1
+  const buttons = type === 'pointerdown' || type === 'pointermove' ? 1 : 0
   const event = new MouseEvent(type, { clientX, buttons, bubbles: true })
   Object.defineProperty(event, 'pointerId', { value: 1 })
   view.element.dispatchEvent(event)
   await nextTick()
 }
 
-async function doubleClick(view: { element: Element }, clientX: number) {
-  view.element.dispatchEvent(new MouseEvent('dblclick', { clientX, bubbles: true }))
+async function doubleClick(view: { element: Element }, clientX: number, button = 0) {
+  view.element.dispatchEvent(new MouseEvent('dblclick', { clientX, button, bubbles: true }))
   await nextTick()
 }
 
@@ -330,6 +330,18 @@ describe('RangeView', () => {
       expect(player.playheadSeconds()).toBe(15)
       expect(drop).toHaveBeenCalledOnce()
     })
+
+    it.each(['pointercancel', 'lostpointercapture'] as const)('lets go on %s', async (type) => {
+      const { player, wrapper } = setup()
+      const drop = vi.spyOn(player, 'dropPlayhead')
+      const view = measured(wrapper)
+
+      await pointer(view, 'pointerdown', 4)
+      await pointer(view, type, 4)
+
+      expect(drop).toHaveBeenCalledOnce()
+      expect(view.classes()).not.toContain('cursor-ew-resize')
+    })
   })
 
   describe('a press', () => {
@@ -410,6 +422,24 @@ describe('RangeView', () => {
       await doubleClick(view, 300)
 
       expect(seek).toHaveBeenCalledExactlyOnceWith(13)
+    })
+
+    it('with another button than the main one moves nothing and selects nothing', async () => {
+      const { player, split, wrapper } = setup((store) => {
+        store.moveZoomTo(15)
+        store.addSplit()
+        store.moveZoomTo(0)
+        store.showView('range')
+      })
+      const seek = vi.spyOn(player, 'seek')
+      const view = measured(wrapper)
+
+      await doubleClick(view, 300, 2)
+      await doubleClick(view, 505, 2)
+
+      expect(seek).not.toHaveBeenCalled()
+      expect(split.selectedSplit).toBeNull()
+      expect(split.view).toBe('range')
     })
 
     it('within 6 px of a split’s line selects that split and opens the Split view', async () => {
