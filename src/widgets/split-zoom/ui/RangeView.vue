@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, useTemplateRef, watch } from 'vue'
+import { useTemplateRef, watch } from 'vue'
 
 import { useSourceFileStore } from '@/entities/source-file/model/source-file.ts'
 import { useSplitStore } from '@/entities/split/model/split.ts'
@@ -20,7 +20,7 @@ import { formatHundredths } from '@/shared/lib/time/format-hundredths.ts'
 import { roundToMillisecond } from '@/shared/lib/time/round-to-millisecond.ts'
 import { draggedTime } from '../lib/dragged-time.ts'
 import { rangeWindow } from '../lib/range-window.ts'
-import { usePlayheadFrames } from '../lib/use-playhead-frames.ts'
+import { usePlayheadSlider } from '../lib/use-playhead-slider.ts'
 import { useRangePress } from '../lib/use-range-press.ts'
 import { zoomBars } from '../lib/zoom-bars.ts'
 import { landSpansInWindow } from '../lib/zoom-spans.ts'
@@ -62,16 +62,6 @@ const frame = useTemplateRef('frame')
 function playheadSeconds() {
   return player.playheadSeconds() ?? 0
 }
-
-/*
-The slider's value. While the range plays the playhead follows the audio, which Vue does not see,
-so each frame copies it here to the whole second: a screen reader hears a new value once a second,
-not on every frame. Otherwise it is the resting place, which Vue does see, to the hundredth.
-*/
-const heardSeconds = ref(0)
-const sliderSeconds = computed(() =>
-  player.status === 'playing' ? heardSeconds.value : playheadSeconds(),
-)
 
 function draw() {
   const peaks = sourceFile.peaks
@@ -233,13 +223,8 @@ usePageKeys(isKeyActedOn, {
   },
 })
 
-usePlayheadFrames(
-  () => player.status === 'playing',
-  () => {
-    heardSeconds.value = Math.floor(playheadSeconds())
-    draw()
-  },
-)
+// The slider's value, and the redraws that keep the playhead moving while the range plays.
+const sliderSeconds = usePlayheadSlider(draw)
 
 useCanvasRedraw(canvas, draw)
 

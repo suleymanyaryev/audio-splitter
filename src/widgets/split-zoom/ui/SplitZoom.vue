@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, useTemplateRef, watch } from 'vue'
+import { computed, useTemplateRef, watch } from 'vue'
 
 import { useSourceFileStore } from '@/entities/source-file/model/source-file.ts'
 import { ZOOM_WINDOW_SECONDS } from '@/entities/split/config/zoom-window.ts'
@@ -21,7 +21,7 @@ import { roundToMillisecond } from '@/shared/lib/time/round-to-millisecond.ts'
 import { auditionEdgeRects } from '../lib/audition-edges.ts'
 import { draggedTime } from '../lib/dragged-time.ts'
 import { stepOfKey } from '../lib/step-of-key.ts'
-import { usePlayheadFrames } from '../lib/use-playhead-frames.ts'
+import { usePlayheadSlider } from '../lib/use-playhead-slider.ts'
 import { useSplitDrag } from '../lib/use-split-drag.ts'
 import { zoomBars } from '../lib/zoom-bars.ts'
 import { landSpansInWindow, outsideFileSpans } from '../lib/zoom-spans.ts'
@@ -83,17 +83,6 @@ const handleLeft = computed(() => {
   const fraction = (selected.seconds - windowStart.value) / ZOOM_WINDOW_SECONDS
   return fraction < 0 || fraction > 1 ? null : `${Math.round(fraction * 10_000) / 100}%`
 })
-
-/*
-The playhead slider's value. While the audition plays the playhead follows the audio, which Vue does
-not see, so each frame copies it here to the whole second: a screen reader hears a new value once
-a second, not on every frame. Otherwise it is the resting place, which Vue does see, to the
-hundredth.
-*/
-const heardSeconds = ref(0)
-const sliderSeconds = computed(() =>
-  player.status === 'playing' ? heardSeconds.value : (player.playheadSeconds() ?? 0),
-)
 
 function frameWidth() {
   return frame.value?.getBoundingClientRect().width ?? 0
@@ -281,18 +270,8 @@ function draw() {
   drawFrame(context, width, height, style.getPropertyValue('--color-ink'))
 }
 
-// The playhead moves with the audio, which Vue does not see: draw on every frame while it plays.
-usePlayheadFrames(
-  () => player.status === 'playing',
-  () => {
-    // Floored, but never below the slider's minimum, the extent's start, which can be fractional.
-    heardSeconds.value = Math.max(
-      player.extent?.startSeconds ?? 0,
-      Math.floor(player.playheadSeconds() ?? 0),
-    )
-    draw()
-  },
-)
+// The slider's value, and the redraws that keep the playhead moving while the audition plays.
+const sliderSeconds = usePlayheadSlider(draw)
 
 useCanvasRedraw(canvas, draw)
 

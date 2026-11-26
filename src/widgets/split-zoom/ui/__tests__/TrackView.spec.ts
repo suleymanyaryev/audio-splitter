@@ -160,29 +160,6 @@ describe('TrackView', () => {
       expect(view.attributes('aria-valuetext')).toBe('0:00:30.26')
     })
 
-    it('follows the sound while the track plays, to the whole second, frame by frame', async () => {
-      const frames: FrameRequestCallback[] = []
-      vi.spyOn(globalThis, 'requestAnimationFrame').mockImplementation((callback) => {
-        frames.push(callback)
-        return frames.length
-      })
-      vi.spyOn(globalThis, 'cancelAnimationFrame').mockImplementation(() => {})
-      const { player, wrapper } = setup()
-      const heard = vi.spyOn(player, 'playheadSeconds').mockReturnValue(33.7)
-      player.status = 'playing'
-      await nextTick()
-
-      frames.at(-1)?.(0)
-      await nextTick()
-      const view = wrapper.get('[role="slider"]')
-      expect(view.attributes('aria-valuenow')).toBe('33')
-      heard.mockReturnValue(34.2)
-      frames.at(-1)?.(0)
-      await nextTick()
-      expect(view.attributes('aria-valuenow')).toBe('34')
-      expect(view.attributes('aria-valuetext')).toBe('0:00:34.00')
-    })
-
     it('ends at the end of a track longer than 10 min, which the player plays in full', () => {
       useSourceFileStore().durationSeconds = 1000
       const split = useSplitStore()

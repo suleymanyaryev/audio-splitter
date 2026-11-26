@@ -99,28 +99,29 @@ describe('RangeView', () => {
       expect(view.attributes('aria-valuenow')).toBe('14.256')
       expect(view.attributes('aria-valuetext')).toBe('0:00:14.26')
     })
+  })
 
-    it('follows the sound while the range plays, to the whole second, frame by frame', async () => {
+  describe('the slider while the range starts between whole seconds', () => {
+    it('never reads under the start of the range while it plays', async () => {
       const frames: FrameRequestCallback[] = []
       vi.spyOn(globalThis, 'requestAnimationFrame').mockImplementation((callback) => {
         frames.push(callback)
         return frames.length
       })
       vi.spyOn(globalThis, 'cancelAnimationFrame').mockImplementation(() => {})
-      const { player, wrapper } = setup()
-      const heard = vi.spyOn(player, 'playheadSeconds').mockReturnValue(13.7)
+      const { player, wrapper } = setup((split) => {
+        split.setRange(12.34, 20)
+      })
+      vi.spyOn(player, 'playheadSeconds').mockReturnValue(12.5)
       player.status = 'playing'
       await nextTick()
 
       frames.at(-1)?.(0)
       await nextTick()
+
       const view = wrapper.get('[role="slider"]')
-      expect(view.attributes('aria-valuenow')).toBe('13')
-      heard.mockReturnValue(14.2)
-      frames.at(-1)?.(0)
-      await nextTick()
-      expect(view.attributes('aria-valuenow')).toBe('14')
-      expect(view.attributes('aria-valuetext')).toBe('0:00:14.00')
+      expect(view.attributes('aria-valuenow')).toBe('12.34')
+      expect(view.attributes('aria-valuetext')).toBe('0:00:12.34')
     })
   })
 
