@@ -16,13 +16,22 @@ The 10-callback press composable and its spec are removed. Nothing changes for t
 
 **Blocked by:** 03
 
-Status: open
+Status: resolved
 
 Spec: `.scratch/shared-stretch-view-for-the-Range-and-Track-views/spec.md` (Implementation Decisions: the playhead drag, the press and the double-click stay in each view; Testing Decisions; Further Notes: the canvas-view skill).
 
-- [ ] A spec for the drag, written red first, in a host component with the fake pointer events the old press spec uses. It covers grab at 6 px and not at 7 px, the primary button only, the offset, a move with no button, release, cancel, lost capture, a press while held, and `overPlayhead`. The old spec's drag cases move here.
-- [ ] The old press composable and its spec are gone, and knip is clean.
-- [ ] The drag cases leave the Range and Track view specs, except one wiring case each ("a press on the playhead drags it").
-- [ ] The views' own press and double-click cases pass unchanged.
-- [ ] The canvas-view skill's pointer section says a drag goes in a `use-*-drag.ts` composable (the playhead drag as the example). What a press or a double-click means is written in the view, which asks the drag first. The fixed-order example is the Track view's pointer-down.
-- [ ] No changelog line.
+- [x] A spec for the drag, written red first, in a host component with the fake pointer events the old press spec uses. It covers grab at 6 px and not at 7 px, the primary button only, the offset, a move with no button, release, cancel, lost capture, a press while held, and `overPlayhead`. The old spec's drag cases move here.
+- [x] The old press composable and its spec are gone, and knip is clean.
+- [x] The drag cases leave the Range and Track view specs, except one wiring case each ("a press on the playhead drags it").
+- [x] The views' own press and double-click cases pass unchanged.
+- [x] The canvas-view skill's pointer section says a drag goes in a `use-*-drag.ts` composable (the playhead drag as the example). What a press or a double-click means is written in the view, which asks the drag first. The fixed-order example is the Track view's pointer-down.
+- [x] No changelog line.
+
+## Comments
+
+- Status was `open`; taken as ready, as in ticket 01.
+- `usePlayheadDrag(axis)` takes a getter returning `StretchAxis | null` (null with nothing on show, so no grab) and talks to the player store itself. `StretchAxis` is now an exported type of `stretch-axis.ts`.
+- A view's pointer-down checks the primary button itself before `tryGrab`, so a secondary-button press places no mark; `tryGrab` checks it too, for any other caller.
+- The deleted press spec's cases went: drag cases to `use-playhead-drag.spec.ts`, press and double-click meanings stay in the view specs (already there), the hit-test cases stay with `hit-test-split.spec.ts`. Two view cases were added for what only the old spec covered: a press on the playhead or with another button places no mark.
+- The views keep one wiring case for the drag each; the resize-cursor check is folded into it.
+- The canvas-view skill's pointer section and the concept note 08's links to the code are updated.

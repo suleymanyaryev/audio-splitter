@@ -3,6 +3,7 @@ import { useTemplateRef, watch } from 'vue'
 
 import { useSourceFileStore } from '@/entities/source-file/model/source-file.ts'
 import { useSplitStore } from '@/entities/split/model/split.ts'
+import { hitTestSplit } from '@/shared/lib/canvas/hit-test-split.ts'
 import { drawConfidenceMarks } from '@/shared/lib/canvas/draw-confidence-marks.ts'
 import { drawLands, drawSplitLines } from '@/shared/lib/canvas/draw-lands-and-splits.ts'
 import { drawMark } from '@/shared/lib/canvas/draw-mark.ts'
@@ -17,9 +18,10 @@ import { useCanvasRedraw } from '@/shared/lib/canvas/use-canvas-redraw.ts'
 import { usePageKeys } from '@/shared/lib/keyboard/use-page-keys.ts'
 import { formatHundredths } from '@/shared/lib/time/format-hundredths.ts'
 import { roundToMillisecond } from '@/shared/lib/time/round-to-millisecond.ts'
+import { pointerX } from '../lib/pointer-x.ts'
 import { stretchAxis } from '../lib/stretch-axis.ts'
+import { usePlayheadDrag } from '../lib/use-playhead-drag.ts'
 import { usePlayheadSlider } from '../lib/use-playhead-slider.ts'
-import { useRangePress } from '../lib/use-range-press.ts'
 import { zoomBars } from '../lib/zoom-bars.ts'
 import { landSpansInWindow } from '../lib/zoom-spans.ts'
 import { usePlayerStore } from '../model/player.ts'
@@ -36,8 +38,8 @@ A 1 px ink playhead is drawn at all times: at the range's start for a new range,
 range is heard or where it resumes. While the range plays it is drawn on every animation frame. The
 playhead can be dragged along the range, and any other single press places the mark, a 1 px dashed
 line, even next to a split's line: a double-click moves the playhead there, or, within 6 px of a
-split's line, selects that split and opens the Split view (`lib/use-range-press.ts` has the order,
-and the playhead's pause and resume for a drag). The view is a slider on the playhead and takes the
+split's line, selects that split and opens the Split view (`onPointerDown` and `onDoubleClick` have
+the order, and `lib/use-playhead-drag.ts` the drag, with the playhead's pause and resume). The view is a slider on the playhead and takes the
 page's keys, wherever the focus is: Left and Right move the playhead 1 s, with Shift 10 s, as in the Track view, and the mark
 has no keys. Enter adds a split at the mark and Shift+Enter one where the playhead is, so a split
 can be put where it is heard while the range plays, and neither stops the sound or leaves the view.
@@ -116,32 +118,36 @@ function frameWidth() {
   return frame.value?.getBoundingClientRect().width ?? 0
 }
 
-const { overPlayhead, dragging, onPointerDown, onPointerMove, onPointerEnd, onDoubleClick } =
-  useRangePress({
-    playheadX: () => stretchAxis(player.extent, frameWidth())?.toX(playheadSeconds()) ?? null,
-    splitXs: () => {
-      const axis = stretchAxis(player.extent, frameWidth())
-      return axis === null ? [] : split.splits.map((point) => axis.toX(point.seconds))
-    },
-    // Without a range there is nothing to point at, so this is not asked.
-    seconds: (x) => stretchAxis(player.extent, frameWidth())?.toSeconds(x) ?? 0,
-    grab: () => {
-      player.grabPlayhead()
-    },
-    move: (seconds) => {
-      player.seek(seconds)
-    },
-    drop: () => {
-      player.dropPlayhead()
-    },
-    selectSplit: (index) => {
-      const selected = split.splits[index]
-      if (selected !== undefined) split.selectSplit(selected.id)
-    },
-    placeMark: (seconds) => {
-      split.placeMark(seconds)
-    },
-  })
+const { overPlayhead, dragging, tryGrab, onPointerMove, onPointerEnd } = usePlayheadDrag(() =>
+  stretchAxis(player.extent, frameWidth()),
+)
+
+// A press on the playhead drags it; any other places the mark, even next to a split's line.
+function onPointerDown(event: PointerEvent) {
+  // Only the primary button: a right-click opens the browser's menu, not a mark.
+  if (event.button !== 0) return
+  if (tryGrab(event)) return
+  const axis = stretchAxis(player.extent, frameWidth())
+  if (axis !== null) split.placeMark(axis.toSeconds(pointerX(event)))
+}
+
+// A double-click on a split's line selects that split, and anywhere else moves the playhead there.
+function onDoubleClick(event: MouseEvent) {
+  if (event.button !== 0) return
+  const axis = stretchAxis(player.extent, frameWidth())
+  if (axis === null) return
+  const x = pointerX(event)
+  const line = hitTestSplit(
+    x,
+    split.splits.map((point) => axis.toX(point.seconds)),
+  )
+  if (line === null) {
+    player.seek(axis.toSeconds(x))
+    return
+  }
+  const selected = split.splits[line]
+  if (selected !== undefined) split.selectSplit(selected.id)
+}
 
 function moveBy(direction: -1 | 1, isShifted: boolean) {
   const step = isShifted ? SHIFT_STEP_SECONDS : STEP_SECONDS

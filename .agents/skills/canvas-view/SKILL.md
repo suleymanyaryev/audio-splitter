@@ -19,10 +19,10 @@ The canvases (`widgets/source-waveform`, `widgets/loudness-curve`, `widgets/spli
 ## Pointer
 
 - Position, hit test and pointer-to-value are pure maths in `lib/` (`widgets/split-zoom/lib/dragged-time.ts`, which rounds to the 10 ms grid).
-- Pointer handlers go in a `use-*-drag.ts` or `use-*-press.ts` composable that the component spreads onto the element (`widgets/source-waveform/lib/use-range-drag.ts`).
+- A drag goes in a `use-*-drag.ts` composable that the component spreads onto the element (`widgets/split-zoom/lib/use-playhead-drag.ts`, `widgets/source-waveform/lib/use-range-drag.ts`). What a press or a double-click means is the view's own, written in the view, which asks the drag first (`tryGrab`).
 - A drag captures the pointer on press, so it carries on past the canvas edge, and ends on `lostpointercapture` too. It keeps the offset it was grabbed at, so the line doesn't jump.
 - A press that moves under 4 px is a click. A click within 6 px of a split line hits it (`hitTestSplit`).
-- When one press can mean several things, test them in a fixed order and take the first match (`widgets/split-zoom/lib/use-range-press.ts`).
+- When one press can mean several things, test them in a fixed order and take the first match (`onPointerDown` in `TrackView.vue`).
 - A drag through the replace guard ends when its `set` returns false (`LoudnessCurve.vue`).
 
 ## Keyboard

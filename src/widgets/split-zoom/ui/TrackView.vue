@@ -3,6 +3,7 @@ import { useTemplateRef, watch } from 'vue'
 
 import { useSourceFileStore } from '@/entities/source-file/model/source-file.ts'
 import { useSplitStore } from '@/entities/split/model/split.ts'
+import { hitTestSplit } from '@/shared/lib/canvas/hit-test-split.ts'
 import { drawConfidenceMarks } from '@/shared/lib/canvas/draw-confidence-marks.ts'
 import { drawLands, drawSplitLines } from '@/shared/lib/canvas/draw-lands-and-splits.ts'
 import { drawMark } from '@/shared/lib/canvas/draw-mark.ts'
@@ -18,10 +19,11 @@ import { useCanvasRedraw } from '@/shared/lib/canvas/use-canvas-redraw.ts'
 import { usePageKeys } from '@/shared/lib/keyboard/use-page-keys.ts'
 import { formatHundredths } from '@/shared/lib/time/format-hundredths.ts'
 import { roundToMillisecond } from '@/shared/lib/time/round-to-millisecond.ts'
+import { pointerX } from '../lib/pointer-x.ts'
 import { stepOfKey } from '../lib/step-of-key.ts'
 import { stretchAxis } from '../lib/stretch-axis.ts'
+import { usePlayheadDrag } from '../lib/use-playhead-drag.ts'
 import { usePlayheadSlider } from '../lib/use-playhead-slider.ts'
-import { useRangePress } from '../lib/use-range-press.ts'
 import { zoomBars } from '../lib/zoom-bars.ts'
 import { landSpansInWindow } from '../lib/zoom-spans.ts'
 import { usePlayerStore } from '../model/player.ts'
@@ -42,7 +44,7 @@ within 6 px of the playhead takes hold of it and drags it along the track; a pre
 pending split selects it; any other press places the mark and lets go of the selected pending split,
 even next to an end split, so pointing never moves the playhead. A double-click moves the playhead
 there, or, within 6 px of one of the track's two end split lines, selects that split and opens the
-Split view (`lib/use-range-press.ts` has the order).
+Split view (`onPointerDown` and `onDoubleClick` have the order, and `lib/use-playhead-drag.ts` the drag).
 
 The pending splits (GLOSSARY.md) of the track are drawn over the split lines in a look nothing else
 has (`shared/lib/canvas/draw-pending-splits.ts`), the selected one heavier. The view is a slider on
@@ -136,48 +138,52 @@ function frameWidth() {
   return frame.value?.getBoundingClientRect().width ?? 0
 }
 
+const { overPlayhead, dragging, tryGrab, onPointerMove, onPointerEnd } = usePlayheadDrag(() =>
+  stretchAxis(player.extent, frameWidth()),
+)
+
 /*
-The Range view's press: a press within 6 px of the playhead drags it, any other places the track's
-mark; a double-click moves the playhead, or selects the end split whose line is within 6 px.
+A press on the playhead drags it; one within 6 px of a pending split selects it; any other lets go
+of the selected pending split and places the track's mark, even next to an end split's line.
 */
-const { overPlayhead, dragging, onPointerDown, onPointerMove, onPointerEnd, onDoubleClick } =
-  useRangePress({
-    playheadX: () => stretchAxis(player.extent, frameWidth())?.toX(playheadSeconds()) ?? null,
-    splitXs: () => {
-      const axis = stretchAxis(player.extent, frameWidth())
-      return axis === null
-        ? []
-        : split.selectedTrackEndSplits.map((point) => axis.toX(point.seconds))
-    },
-    // Without a track there is nothing to point at, so this is not asked.
-    seconds: (x) => stretchAxis(player.extent, frameWidth())?.toSeconds(x) ?? 0,
-    grab: () => {
-      player.grabPlayhead()
-    },
-    move: (seconds) => {
-      player.seek(seconds)
-    },
-    drop: () => {
-      player.dropPlayhead()
-    },
-    selectSplit: (index) => {
-      const selected = split.selectedTrackEndSplits[index]
-      if (selected !== undefined) split.selectSplit(selected.id)
-    },
-    pendingXs: () => {
-      const axis = stretchAxis(player.extent, frameWidth())
-      return axis === null ? [] : split.pendingSplits.map((seconds) => axis.toX(seconds))
-    },
-    selectPending: (index) => {
-      const selected = split.pendingSplits[index]
-      if (selected !== undefined) split.selectPendingSplit(selected)
-    },
-    placeMark: (seconds) => {
-      // Any press that is not on a pending split lets go of the selected one.
-      split.deselectPendingSplit()
-      split.placeTrackMark(seconds)
-    },
-  })
+function onPointerDown(event: PointerEvent) {
+  // Only the primary button: a right-click opens the browser's menu, not a mark.
+  if (event.button !== 0) return
+  if (tryGrab(event)) return
+  const axis = stretchAxis(player.extent, frameWidth())
+  if (axis === null) return
+  const x = pointerX(event)
+  const pending = hitTestSplit(
+    x,
+    split.pendingSplits.map((seconds) => axis.toX(seconds)),
+  )
+  const selected = pending === null ? undefined : split.pendingSplits[pending]
+  if (selected === undefined) {
+    split.deselectPendingSplit()
+    split.placeTrackMark(axis.toSeconds(x))
+  } else {
+    split.selectPendingSplit(selected)
+  }
+}
+
+// A double-click on an end split's line selects that split, and anywhere else moves the playhead there.
+function onDoubleClick(event: MouseEvent) {
+  if (event.button !== 0) return
+  const axis = stretchAxis(player.extent, frameWidth())
+  if (axis === null) return
+  const x = pointerX(event)
+  const ends = split.selectedTrackEndSplits
+  const line = hitTestSplit(
+    x,
+    ends.map((point) => axis.toX(point.seconds)),
+  )
+  if (line === null) {
+    player.seek(axis.toSeconds(x))
+    return
+  }
+  const selected = ends[line]
+  if (selected !== undefined) split.selectSplit(selected.id)
+}
 
 function moveBy(direction: -1 | 1, isShifted: boolean) {
   const step = isShifted ? SHIFT_STEP_SECONDS : STEP_SECONDS

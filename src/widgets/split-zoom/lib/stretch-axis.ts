@@ -24,7 +24,7 @@ export function stretchAxis(extent: TimeRange | null, width: number): StretchAxi
   }
 }
 
-interface StretchAxis {
+export interface StretchAxis {
   centreSeconds: number
   windowSeconds: number
   toX: (seconds: number) => number

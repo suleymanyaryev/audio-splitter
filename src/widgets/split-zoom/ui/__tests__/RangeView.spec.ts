@@ -417,51 +417,17 @@ describe('RangeView', () => {
       const view = measured(wrapper)
 
       await pointer(view, 'pointerdown', 4)
+      // The resize cursor shows while the playhead is held.
+      expect(view.classes()).toContain('cursor-ew-resize')
       await pointer(view, 'pointermove', 504)
       await pointer(view, 'pointerup', 504)
+      expect(view.classes()).not.toContain('cursor-ew-resize')
 
       expect(grab).toHaveBeenCalledOnce()
       // Grabbed 4 px right of the line, so the line stays 4 px left of the pointer.
       expect(seek).toHaveBeenLastCalledWith(15)
       expect(player.playheadSeconds()).toBe(15)
       expect(drop).toHaveBeenCalledOnce()
-    })
-
-    it('holds the playhead to the range when the pointer goes past its ends', async () => {
-      const { player, wrapper } = setup()
-      const view = measured(wrapper)
-
-      await pointer(view, 'pointerdown', 0)
-      await pointer(view, 'pointermove', 1400)
-      expect(player.playheadSeconds()).toBe(20)
-
-      await pointer(view, 'pointermove', -300)
-      expect(player.playheadSeconds()).toBe(10)
-    })
-
-    it('does not take hold of the playhead from a press away from it', async () => {
-      const { player, wrapper } = setup()
-      const grab = vi.spyOn(player, 'grabPlayhead')
-      const view = measured(wrapper)
-
-      await pointer(view, 'pointerdown', 300)
-      await pointer(view, 'pointermove', 600)
-
-      expect(grab).not.toHaveBeenCalled()
-      expect(player.playheadSeconds()).toBe(10)
-    })
-
-    it('shows the resize cursor over the playhead and while it is dragged', async () => {
-      const { wrapper } = setup()
-      const view = measured(wrapper)
-
-      expect(view.classes()).not.toContain('cursor-ew-resize')
-
-      await pointer(view, 'pointermove', 3)
-      expect(view.classes()).toContain('cursor-ew-resize')
-
-      await pointer(view, 'pointermove', 400)
-      expect(view.classes()).not.toContain('cursor-ew-resize')
     })
   })
 
@@ -476,6 +442,20 @@ describe('RangeView', () => {
       expect(split.markSeconds).toBe(17)
       expect(toggleRange).not.toHaveBeenCalled()
       expect(stop).not.toHaveBeenCalled()
+    })
+
+    it('places no mark where it takes hold of the playhead, or with another button than the main one', async () => {
+      const { split, wrapper } = setup()
+      const view = measured(wrapper)
+
+      await pointer(view, 'pointerdown', 4)
+      await pointer(view, 'pointerup', 4)
+      const secondary = new MouseEvent('pointerdown', { clientX: 700, button: 2, buttons: 2 })
+      Object.defineProperty(secondary, 'pointerId', { value: 1 })
+      view.element.dispatchEvent(secondary)
+      await nextTick()
+
+      expect(split.markSeconds).toBeNull()
     })
 
     it('rounds the mark to 10 ms, as a dragged split is', async () => {

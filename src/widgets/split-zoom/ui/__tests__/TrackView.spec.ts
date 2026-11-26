@@ -724,6 +724,20 @@ describe('TrackView', () => {
       expect(toggleSpy).not.toHaveBeenCalled()
     })
 
+    it('places no mark where it takes hold of the playhead, or with another button than the main one', async () => {
+      const { split, wrapper } = setup()
+      const view = measured(wrapper)
+
+      await pointer(view, 'pointerdown', 4)
+      await pointer(view, 'pointerup', 4)
+      const secondary = new MouseEvent('pointerdown', { clientX: 700, button: 2, buttons: 2 })
+      Object.defineProperty(secondary, 'pointerId', { value: 1 })
+      view.element.dispatchEvent(secondary)
+      await nextTick()
+
+      expect(split.trackMarkSeconds).toBeNull()
+    })
+
     it('rounds the mark to 10 ms, as the Range view’s is', async () => {
       const { split, wrapper } = setup()
       const view = measured(wrapper)
@@ -911,39 +925,17 @@ describe('TrackView', () => {
       const view = measured(wrapper)
 
       await pointer(view, 'pointerdown', 4)
+      // The resize cursor shows while the playhead is held.
+      expect(view.classes()).toContain('cursor-ew-resize')
       await pointer(view, 'pointermove', 504)
       await pointer(view, 'pointerup', 504)
+      expect(view.classes()).not.toContain('cursor-ew-resize')
 
       expect(grab).toHaveBeenCalledOnce()
       // Grabbed 4 px right of the line, so the line stays 4 px left of the pointer.
       expect(seek).toHaveBeenLastCalledWith(46.25)
       expect(player.playheadSeconds()).toBe(46.25)
       expect(drop).toHaveBeenCalledExactlyOnceWith()
-    })
-
-    it('holds the playhead to the track when the pointer goes past its ends', async () => {
-      const { player, wrapper } = setup()
-      const view = measured(wrapper)
-
-      await pointer(view, 'pointerdown', 0)
-      await pointer(view, 'pointermove', 1400)
-      expect(player.playheadSeconds()).toBe(71.5)
-
-      await pointer(view, 'pointermove', -300)
-      expect(player.playheadSeconds()).toBe(21)
-    })
-
-    it('shows the resize cursor over the playhead and while it is dragged', async () => {
-      const { wrapper } = setup()
-      const view = measured(wrapper)
-
-      expect(view.classes()).not.toContain('cursor-ew-resize')
-
-      await pointer(view, 'pointermove', 3)
-      expect(view.classes()).toContain('cursor-ew-resize')
-
-      await pointer(view, 'pointermove', 400)
-      expect(view.classes()).not.toContain('cursor-ew-resize')
     })
   })
 
