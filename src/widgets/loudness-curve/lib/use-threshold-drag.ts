@@ -7,6 +7,10 @@ export interface ThresholdDragSource {
   // The current threshold in dB, null before the file opens.
   threshold: () => number | null
   set: (decibels: number) => void
+  // The scale the line is drawn on and dragged by: the loudness curve's by default, and the
+  // contrast lane's for the contrast threshold.
+  lineY?: (value: number, height: number) => number
+  valueAt?: (pointerY: number, grabOffset: number, height: number) => number
 }
 
 /*
@@ -16,7 +20,12 @@ the line does not jump), the canvas keeps the pointer while the drag lasts, and 
 threshold in tenths of a dB through `set`. With no drag on, a move only says whether the pointer
 is over the line, for the cursor.
 */
-export function useThresholdDrag({ threshold, set }: ThresholdDragSource) {
+export function useThresholdDrag({
+  threshold,
+  set,
+  lineY: yOf = curveY,
+  valueAt = thresholdFromPointer,
+}: ThresholdDragSource) {
   // The pointer is on the line, or dragging it: the cursor says the line moves up and down.
   const overLine = ref(false)
   // While a drag is on: how far under the line the pointer took hold of it.
@@ -24,7 +33,7 @@ export function useThresholdDrag({ threshold, set }: ThresholdDragSource) {
 
   function lineY(height: number): number | null {
     const decibels = threshold()
-    return decibels === null ? null : curveY(decibels, height)
+    return decibels === null ? null : yOf(decibels, height)
   }
 
   function onPointerDown(event: PointerEvent) {
@@ -42,7 +51,7 @@ export function useThresholdDrag({ threshold, set }: ThresholdDragSource) {
       overLine.value = line !== null && isOnThresholdLine(y, line)
       return
     }
-    const decibels = thresholdFromPointer(y, grabOffset.value, height)
+    const decibels = valueAt(y, grabOffset.value, height)
     if (decibels !== threshold()) set(decibels)
   }
 

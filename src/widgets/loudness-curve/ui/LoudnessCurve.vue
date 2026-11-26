@@ -12,7 +12,8 @@ import { prepareCanvas } from '@/shared/lib/canvas/prepare-canvas.ts'
 import { timeToX } from '@/shared/lib/canvas/time-axis.ts'
 import { useCanvasRedraw } from '@/shared/lib/canvas/use-canvas-redraw.ts'
 import { formatDuration } from '@/shared/lib/time/format-duration.ts'
-import { DIP_MARK_OUTLINE_WIDTH, DIP_MARK_SIZE, dipMarks } from '../lib/dip-marks.ts'
+import { dipMarks } from '../lib/dip-marks.ts'
+import { drawDiamondMarks } from '../lib/draw-diamond-marks.ts'
 import { formatDecibels } from '../lib/format-readout.ts'
 import { mergeLoudness } from '../lib/merge-loudness.ts'
 import { isOnPanel, movingLineColumns } from '../lib/moving-line.ts'
@@ -129,11 +130,8 @@ function drawMovingLine(
   context.setLineDash([])
 }
 
-/*
-DESIGN.md: each dip that Find splits would add, with no gap beside it, is an 8 px `ink` diamond on
-the curve, ringed in the surface colour so it reads over the line and the fill. It is no split,
-so it is never rust.
-*/
+// DESIGN.md: each dip that Find splits would add, with no gap beside it, is a diamond on the curve,
+// over the split lines.
 function drawDipMarks(
   context: CanvasRenderingContext2D,
   style: CSSStyleDeclaration,
@@ -149,24 +147,7 @@ function drawDipMarks(
     width,
     height,
   )
-  const half = DIP_MARK_SIZE / 2
-  context.fillStyle = style.getPropertyValue('--color-ink')
-  context.strokeStyle = style.getPropertyValue('--color-surface')
-  context.lineWidth = DIP_MARK_OUTLINE_WIDTH
-  // One diamond around the origin, moved to each mark.
-  const diamond = new Path2D()
-  diamond.moveTo(0, -half)
-  diamond.lineTo(half, 0)
-  diamond.lineTo(0, half)
-  diamond.lineTo(-half, 0)
-  diamond.closePath()
-  for (const { x, y } of marks) {
-    context.save()
-    context.translate(x, y)
-    context.stroke(diamond)
-    context.fill(diamond)
-    context.restore()
-  }
+  drawDiamondMarks(context, style, marks)
 }
 
 function drawThreshold(

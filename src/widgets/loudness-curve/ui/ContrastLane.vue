@@ -4,14 +4,22 @@ import { useTemplateRef, watch } from 'vue'
 import { useSourceFileStore } from '@/entities/source-file/model/source-file.ts'
 import { useSplitStore } from '@/entities/split/model/split.ts'
 import { CANVAS_FONT } from '@/shared/lib/canvas/canvas-text.ts'
+import { DASH_PATTERN } from '@/shared/lib/canvas/dash-pattern.ts'
 import { drawLands, drawSplitLines } from '@/shared/lib/canvas/draw-lands-and-splits.ts'
 import { landSpans } from '@/shared/lib/canvas/land-spans.ts'
 import { prepareCanvas } from '@/shared/lib/canvas/prepare-canvas.ts'
 import { timeToX } from '@/shared/lib/canvas/time-axis.ts'
 import { useCanvasRedraw } from '@/shared/lib/canvas/use-canvas-redraw.ts'
-import { CONTRAST_TOP_DB, contrastY } from '../lib/contrast-lane.ts'
+import {
+  CONTRAST_TOP_DB,
+  contrastMarks,
+  contrastThresholdFromPointer,
+  contrastY,
+} from '../lib/contrast-lane.ts'
+import { drawDiamondMarks } from '../lib/draw-diamond-marks.ts'
 import { mergeLoudness } from '../lib/merge-loudness.ts'
-import { CURVE_LINE_WIDTH } from '../lib/threshold-line.ts'
+import { CURVE_LINE_WIDTH, HANDLE_HEIGHT, HANDLE_WIDTH, handleTop } from '../lib/threshold-line.ts'
+import { useThresholdDrag } from '../lib/use-threshold-drag.ts'
 
 // As the loudness curve: the area under the line is filled at 14 % alpha.
 const FILL_ALPHA = 0.14
@@ -23,6 +31,18 @@ const sourceFile = useSourceFileStore()
 const split = useSplitStore()
 const canvas = useTemplateRef('canvas')
 
+/*
+Dragging the contrast threshold line is the slider's move: it changes what Find splits would add and
+nothing else. The line is on while contrast is. It shares no canvas with the loudness curve's lines,
+so there is no other line to win where the pointer is.
+*/
+const thresholdDrag = useThresholdDrag({
+  threshold: () => (split.contrastOn ? split.contrastThreshold : null),
+  set: split.setContrastThreshold,
+  lineY: contrastY,
+  valueAt: contrastThresholdFromPointer,
+})
+
 // One point per column, at the column's centre.
 function traceCurve(context: CanvasRenderingContext2D, columns: Float32Array, height: number) {
   context.beginPath()
@@ -31,6 +51,29 @@ function traceCurve(context: CanvasRenderingContext2D, columns: Float32Array, he
     if (column === 0) context.moveTo(0.5, y)
     else context.lineTo(column + 0.5, y)
   }
+}
+
+/*
+DESIGN.md: the contrast threshold is a 1.5 px `ink` line dashed like the other lines, with an 18 × 10 px
+handle at the right edge.
+*/
+function drawThreshold(
+  context: CanvasRenderingContext2D,
+  style: CSSStyleDeclaration,
+  width: number,
+  height: number,
+) {
+  const y = contrastY(split.contrastThreshold, height)
+  context.strokeStyle = style.getPropertyValue('--color-ink')
+  context.fillStyle = style.getPropertyValue('--color-ink')
+  context.lineWidth = CURVE_LINE_WIDTH
+  context.setLineDash(DASH_PATTERN)
+  context.beginPath()
+  context.moveTo(0, y)
+  context.lineTo(width, y)
+  context.stroke()
+  context.setLineDash([])
+  context.fillRect(width - HANDLE_WIDTH, handleTop(y, height), HANDLE_WIDTH, HANDLE_HEIGHT)
 }
 
 /*
@@ -85,6 +128,23 @@ function draw() {
     split.selectedSplitIndex,
   )
 
+  // The marks and the threshold are for contrast while it is on; the curve is always there.
+  if (split.contrastOn) {
+    const peaks = split.proposedSplits.filter((proposal) => proposal.kind === 'contrast')
+    drawDiamondMarks(
+      context,
+      style,
+      contrastMarks(
+        peaks.map((peak) => peak.seconds),
+        duration,
+        columns,
+        width,
+        height,
+      ),
+    )
+    drawThreshold(context, style, width, height)
+  }
+
   context.font = CANVAS_FONT
   context.textBaseline = 'middle'
   context.fillStyle = style.getPropertyValue('--color-surface')
@@ -102,6 +162,9 @@ watch(
     split.gaps,
     split.splits.map((point) => point.seconds),
     split.selectedSplit?.id,
+    split.contrastOn,
+    split.contrastThreshold,
+    split.proposedSplits,
   ],
   draw,
 )
@@ -112,6 +175,11 @@ watch(
     v-if="split.contrastCurve !== null"
     ref="canvas"
     class="mt-2 block h-20 w-full"
+    :class="{ 'cursor-ns-resize': thresholdDrag.overLine.value || thresholdDrag.isDragging.value }"
     aria-label="Contrast curve of the whole file"
+    @pointerdown="thresholdDrag.onPointerDown"
+    @pointermove="thresholdDrag.onPointerMove"
+    @pointerup="thresholdDrag.onPointerEnd"
+    @pointercancel="thresholdDrag.onPointerEnd"
   />
 </template>
