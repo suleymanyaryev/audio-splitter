@@ -6,15 +6,20 @@ The audition's rules (8 s extent, pause and keep the place on a move, drop the W
 
 **Blocked by:** 01.
 
-Status: open
+Status: resolved
 
 Spec: `.scratch/one-player-interface-that-knows-what-is-on-show/spec.md` (Implementation Decisions: one status with an owner, press numbers).
 
-- [ ] One status and one owner replace the two status refs inside the store.
-- [ ] `status` and `stretchStatus` are still returned, read from the owner, with the same values in every case as today.
-- [ ] No site sets both statuses by hand; `fail`, `decode`'s file-replaced branch and `start` act on the owner.
-- [ ] One function takes every press number; no direct `press++` remains.
-- [ ] The audition's paused-with-WAV check reads the owner.
-- [ ] The audition's and the stretch's rules stay separate functions; no flag merges them.
-- [ ] The store spec and every view and page spec pass unchanged.
-- [ ] No changelog line.
+- [x] One status and one owner replace the two status refs inside the store.
+- [x] `status` and `stretchStatus` are still returned, read from the owner, with the same values in every case as today.
+- [x] No site sets both statuses by hand; `fail`, `decode`'s file-replaced branch and `start` act on the owner.
+- [x] One function takes every press number; no direct `press++` remains.
+- [x] The audition's paused-with-WAV check reads the owner.
+- [x] The audition's and the stretch's rules stay separate functions; no flag merges them.
+- [x] The store spec and every view and page spec pass unchanged.
+- [x] No changelog line.
+
+## Comments
+
+- `status` and `stretchStatus` are writable computeds read from the owner, because the view specs assign them directly and must pass unchanged. A write takes the status for that subject; `idle` ends it only when the subject owns it. Ticket 03 removes them.
+- "The audition still holds its WAV" is `auditionHoldsWav()`: the owner is the audition and the element has a clip. A paused audition whose split moved is still `paused` but holds none, so the owner alone cannot answer it.

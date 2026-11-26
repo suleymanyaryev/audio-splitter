@@ -15,6 +15,11 @@ import { snapPlaySpeed } from '../lib/snap-play-speed.ts'
 // How far the audition reaches either side of the split.
 const REACH_SECONDS = 4
 
+// Who holds the one status: the audition across the selected split, or a stretch (the range or a track).
+type Owner = 'audition' | 'stretch'
+
+type Status = 'idle' | 'loading' | 'playing' | 'paused'
+
 // What a failure says could not be played.
 type Subject = 'split' | 'range' | 'track'
 
@@ -48,8 +53,8 @@ another split, none, or deleting the selected one; these also end the audition. 
 pauses a playing audition where the sound was and lets go of the WAV, whose 8 s moved: the place is
 held into the moved extent when it is read, and the next play decodes the moved 8 s and starts there.
 
-Playing a stretch (docs/concepts/08-listening-to-a-range.md) is a second state, `stretchStatus`,
-which adds `paused`. A stretch is a start and an end the caller hands in with every call: the range
+Playing a stretch (docs/concepts/08-listening-to-a-range.md) is the other owner of the one status
+(`stretchStatus` is what it reads of it). A stretch is a start and an end the caller hands in with every call: the range
 (the Range view's button and Space key call `toggleStretch(range)`) or the selected track (the Track
 view's, with its whole extent). The player reads the split store only to word a failure (`stretchSubject`)
 and to stop when the range or the selected track changes. A stretch of 10 min or less is one window,
@@ -70,9 +75,9 @@ its stretch too, so a view of another stretch never draws it, and a playhead mov
 stretch's first play is kept. The playhead moves without a new decode inside the window:
 `seekStretch` sets `currentTime` while the stretch plays and the resting place otherwise (which the
 next play, or a clip still being decoded, starts from), and a drag of it pauses a playing stretch
-(`grabPlayhead`) and plays it on from the drop (`dropPlayhead`). The audition and the stretch stop
-each other, and a new range, or another selected track, or a selected track whose start or end
-moved, stops and releases whatever is held.
+(`grabPlayhead`) and plays it on from the drop (`dropPlayhead`). Starting the audition or a
+stretch takes the status from the other, and a new range, or another selected track, or a selected
+track whose start or end moved, stops and releases whatever is held.
 
 Every press takes a number, and a clip that arrives for an older number is dropped: a press that
 was stopped, or a selection or range that changed while ffmpeg was working, must never start sound
@@ -93,12 +98,31 @@ export const useAuditionStore = defineStore('audition', () => {
   const sourceFile = useSourceFileStore()
   const splitStore = useSplitStore()
 
-  // The audition's state: paused keeps its WAV and its place, as the stretch's does.
-  const status = ref<'idle' | 'loading' | 'playing' | 'paused'>('idle')
+  /*
+  What a subject reads of the one status. Writable because the view specs set it: a write is a take
+  of the status for that subject, and idle only ends it when it is that subject's.
+  */
+  function readOf(subject: Owner) {
+    return computed<Status>({
+      get: () => (owner.value === subject ? state.value : 'idle'),
+      set: (next) => {
+        if (next !== 'idle') take(subject, next)
+        else if (owner.value === subject) state.value = 'idle'
+      },
+    })
+  }
+
+  /*
+  The one status, and whose it is: the audition or a stretch (the range or a track). Starting one
+  takes the status from the other, so at most one of them is not idle. Paused keeps the WAV and the
+  place. `status` and `stretchStatus` are what each reads of it: idle when the other owns it.
+  */
+  const state = ref<Status>('idle')
+  const owner = ref<Owner>('audition')
+  const status = readOf('audition')
+  const stretchStatus = readOf('stretch')
   // Where the audition resumes, in the file, and the split it was made for. A ref, so the view follows it.
   const auditionResting = ref<{ splitId: number; seconds: number } | null>(null)
-  // The stretch's: it can also be paused, with its WAV and its place kept.
-  const stretchStatus = ref<'idle' | 'loading' | 'playing' | 'paused'>('idle')
   /*
   Where a stretch resumes, or null for its start: a ref, so a view that draws it can follow it. It
   names its stretch, so the playhead of another stretch is not drawn at a place in this one.
@@ -210,21 +234,38 @@ export const useAuditionStore = defineStore('audition', () => {
   }
 
   /*
+  Every new press, pause and stop takes a number here. A pause that interrupts a pending `play()`
+  makes it stale, so its rejection is not reported.
+  */
+  const takePress = () => ++press
+
+  /*
   Takes a new press number and returns its guard: true once a later press (or a stop) took over, so
   a clip that arrives for this one must be dropped.
   */
   function beginPress() {
-    const thisPress = ++press
+    const thisPress = takePress()
     return () => thisPress !== press
   }
 
+  /*
+  Starts or goes on with a subject's status and makes it the owner: the status is taken from the
+  other. Stopping and pausing set `state` itself, since they act on whoever owns it.
+  */
+  function take(subject: Owner, next: Exclude<Status, 'idle'>) {
+    owner.value = subject
+    state.value = next
+  }
+
+  // The audition still holds its WAV: paused as it was, and not let go of for a split that moved.
+  const auditionHoldsWav = () => owner.value === 'audition' && audio.hasClip()
+
   // Stops the sound and keeps the stretch's place and its WAV, so a press resumes at once.
   function pauseStretch() {
-    // A pause that interrupts a pending `play()` makes it stale, so its rejection is not reported.
-    press++
+    takePress()
     if (held !== null) resting.value = { stretch: held.stretch, seconds: audio.positionSeconds() }
     audio.pause()
-    stretchStatus.value = 'paused'
+    state.value = 'paused'
   }
 
   /*
@@ -234,9 +275,9 @@ export const useAuditionStore = defineStore('audition', () => {
   behind its decode, and playing on decodes it again in time (30 s before the window ends).
   */
   function stop() {
-    press++
+    takePress()
     if (stretchStatus.value === 'playing') pauseStretch()
-    else if (stretchStatus.value === 'loading') stretchStatus.value = 'idle'
+    else if (stretchStatus.value === 'loading') state.value = 'idle'
     forgetAhead()
     letGoOfAudition()
     failure.value = null
@@ -250,7 +291,7 @@ export const useAuditionStore = defineStore('audition', () => {
     if (status.value === 'idle') return
     if (status.value === 'playing') restAuditionHere()
     release()
-    status.value = 'idle'
+    state.value = 'idle'
   }
 
   function restAuditionHere() {
@@ -261,10 +302,10 @@ export const useAuditionStore = defineStore('audition', () => {
 
   // The audition played to its end: back at its start, with nothing held.
   function endAudition() {
-    press++
+    takePress()
     auditionResting.value = null
     release()
-    status.value = 'idle'
+    state.value = 'idle'
   }
 
   // The selected split's 8 s: 4 s either side, held to the file's start and end.
@@ -287,7 +328,7 @@ export const useAuditionStore = defineStore('audition', () => {
 
   // The stretch played to its end: back at its start, with its WAV kept for the next press.
   function endStretch() {
-    stretchStatus.value = 'idle'
+    state.value = 'idle'
     resting.value = null
   }
 
@@ -297,13 +338,12 @@ export const useAuditionStore = defineStore('audition', () => {
       resting.value = { stretch: held.stretch, seconds: audio.positionSeconds() }
     }
     if (held !== null) release()
-    stretchStatus.value = 'idle'
+    if (stretchStatus.value !== 'idle') state.value = 'idle'
   }
 
   function fail(reason: unknown, subject: Subject) {
     release()
-    status.value = 'idle'
-    stretchStatus.value = 'idle'
+    state.value = 'idle'
     // A DOMException (what `play()` rejects with) is no `Error` in every realm, but it has a message.
     const hasMessage = typeof reason === 'object' && reason !== null && 'message' in reason
     const message = String(hasMessage ? reason.message : reason)
@@ -316,7 +356,7 @@ export const useAuditionStore = defineStore('audition', () => {
     failure.value = null
     letGoOfStretch()
     auditionSplitId = selected.id
-    status.value = 'loading'
+    take('audition', 'loading')
 
     /*
     The request reaches 4 s past the split even where the file ends sooner: ffmpeg cuts the clip
@@ -342,17 +382,16 @@ export const useAuditionStore = defineStore('audition', () => {
     const place = auditionPlace(selected, extent)
     const from = place !== null && place < extent.endSeconds ? place : extent.startSeconds
     audio.seek(from)
-    status.value = 'playing'
+    take('audition', 'playing')
     await playElement(isStale, 'split')
   }
 
   // A pause keeps the WAV, and the place is where the sound stopped.
   function pauseAudition() {
-    // A pause that interrupts a pending `play()` makes it stale, so its rejection is not reported.
-    press++
+    takePress()
     restAuditionHere()
     audio.pause()
-    status.value = 'paused'
+    state.value = 'paused'
   }
 
   /*
@@ -372,8 +411,7 @@ export const useAuditionStore = defineStore('audition', () => {
     } catch (error) {
       if (isStale()) return null
       if (error instanceof FileReplacedError) {
-        status.value = 'idle'
-        stretchStatus.value = 'idle'
+        state.value = 'idle'
       } else {
         fail(error, subject)
       }
@@ -402,7 +440,7 @@ export const useAuditionStore = defineStore('audition', () => {
   once; one whose split moved has none, so it decodes the moved 8 s first, as an idle one does.
   */
   function playAudition(selected: Split) {
-    if (audio.hasClip() && status.value === 'paused') {
+    if (auditionHoldsWav() && status.value === 'paused') {
       failure.value = null
       void playAuditionFromPlace(selected, auditionExtent(selected), beginPress())
     } else {
@@ -495,7 +533,7 @@ export const useAuditionStore = defineStore('audition', () => {
     for (let place = placeNow(); !holdsPlace(place); place = placeNow()) {
       // A WAV decoded for another stretch, or another part of this one, is no use here.
       if (held !== null) release()
-      stretchStatus.value = 'loading'
+      take('stretch', 'loading')
       const window = decodeWindow(stretch, place)
       const clip = await decode(
         window.startSeconds,
@@ -510,7 +548,7 @@ export const useAuditionStore = defineStore('audition', () => {
       if (placeNow() === place) break
     }
     audio.seek(placeNow())
-    stretchStatus.value = 'playing'
+    take('stretch', 'playing')
     await playElement(isStale, subject)
   }
 
@@ -593,7 +631,7 @@ export const useAuditionStore = defineStore('audition', () => {
     if (upcoming === undefined) {
       // The place is kept, so a seek made while the window is decoded is heard from.
       resting.value = { stretch: { ...stretch }, seconds: place }
-      stretchStatus.value = 'loading'
+      take('stretch', 'loading')
       await fetchAhead()
       if (isStale()) return
       if (upcoming === undefined) {
@@ -620,7 +658,7 @@ export const useAuditionStore = defineStore('audition', () => {
     ahead = undefined
     held = { stretch, window: next.window }
     audio.handOver(next.ready, place)
-    stretchStatus.value = 'playing'
+    take('stretch', 'playing')
     await playElement(isStale, subject)
   }
 
@@ -685,7 +723,7 @@ export const useAuditionStore = defineStore('audition', () => {
         pauseAudition()
         release()
       } else if (status.value === 'paused') {
-        if (audio.hasClip()) release()
+        if (auditionHoldsWav()) release()
       } else if (status.value === 'loading' || failure.value !== null) {
         stop()
       }
@@ -695,7 +733,7 @@ export const useAuditionStore = defineStore('audition', () => {
 
   // Ends all sound and drops the decoded stretch and its place: the playhead is back at the start.
   function resetStretch() {
-    press++
+    takePress()
     letGoOfStretch()
     resting.value = null
     letGoOfAudition()
