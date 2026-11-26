@@ -137,6 +137,8 @@ With 4 s crossfades the boundaries are 7.9 dB deep and more; with 10 s, 4.3 to a
 
 On `sample1.m4a` the music's own dips were 13 dB at most. Here dips of 15 to 20 dB come every few minutes, some closer than tracks usually are. They cannot be scored, because there is no track list. The only truth is the ear, so the build ends with listening to the 22 dips of 15 dB and more, one by one, and counting how many are track changes. That calibrates the bands for crossfades. It is not a pass or a fail.
 
+This listening was dropped (note 15): the user listened to `sample-crossfade.mp3` and it blends throughout, so no boundary can be heard in it. The 15 dB and 9 dB cut-offs stay as set here.
+
 ## What it does not find
 
 - **A change with no dip**: a crossfade that keeps the level up, or a new track that starts as the last one stops. Only the sound changes, and the spectrum of a later milestone is needed to see it.

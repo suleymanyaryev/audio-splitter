@@ -4,7 +4,7 @@ Note 13 found the track changes that dip: the loudness falls under the loudness 
 
 ## The words
 
-- **The stretch before, the stretch after**: the 60 s on each side of a point, without the windows under the silence threshold.
+- **The stretch before, the stretch after**: the 60 s on each side of a point, without the quiet windows: those under the file's median loudness minus 18 dB, the built-in silence threshold, not the user's slider. So the contrast curve depends on no setting.
 - **Mean spectrum**: each band's power averaged over a stretch, then back in dB. It says what the stretch sounds like as a whole.
 - **Shape**: a mean spectrum with its overall level taken out. Two stretches with the same instruments, one louder, have the same shape.
 - **Contrast**: how far apart the shapes of the stretch before and the stretch after are, in dB (GLOSSARY.md).
@@ -158,4 +158,9 @@ It also hears what is not a boundary: a change of sound inside a track. That is 
 
 ## Where it lives in the code
 
-Filled in when the milestone's build is done.
+- [`src/shared/lib/audio/contrast.ts`](../../src/shared/lib/audio/contrast.ts): the contrast curve, one value per 0.5 s. Running sums of each band's power over 0.5 s blocks of loud windows give both stretches' means; bands over 15 kHz and quiet windows are left out; a side with under 2 s of sound scores 0. Its other function finds the peaks: at or over the threshold, the highest within ±15 s, a full minute from both ends.
+- [`src/entities/split/model/split.ts`](../../src/entities/split/model/split.ts): `open` builds the contrast curve once from the spectrogram, beside the depth profile. The contrast setting and its threshold start off at 5.4 dB; the peaks feed `proposedSplits` only while it is on.
+- [`src/entities/split/lib/propose-splits.ts`](../../src/entities/split/lib/propose-splits.ts): a contrast peak proposes its time unless a gap or dip proposal that stands, the middle of a gap that holds a split or a split is within 60 s; a dip with a peak within 5 s carries its contrast.
+- [`src/entities/split/config/confidence-bands.ts`](../../src/entities/split/config/confidence-bands.ts) and [`confidence-band.ts`](../../src/entities/split/lib/confidence-band.ts): the 6.5 dB cut-off, the 5 s agreement, the lift of a dip by one band, and the order of `{` and `}`.
+- [`src/entities/split/api/saved-default-settings.ts`](../../src/entities/split/api/saved-default-settings.ts): the contrast setting in the default settings, version 3.
+- [`src/widgets/loudness-curve/ui/ContrastLane.vue`](../../src/widgets/loudness-curve/ui/ContrastLane.vue) and [`contrast-lane.ts`](../../src/widgets/loudness-curve/lib/contrast-lane.ts): the lane under the loudness curve, its 0 to 15 dB scale, the threshold line with its drag and the marks at the contrast splits Find splits would add.
