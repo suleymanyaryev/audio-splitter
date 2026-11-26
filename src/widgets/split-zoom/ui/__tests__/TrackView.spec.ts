@@ -197,55 +197,6 @@ describe('TrackView', () => {
     })
   })
 
-  describe('Left and Right', () => {
-    it('move the playhead 1 s, and 10 s with Shift', async () => {
-      const { player } = setup()
-
-      await press({ key: 'ArrowRight' })
-      expect(player.playheadSeconds()).toBe(22)
-
-      await press({ key: 'ArrowRight', shiftKey: true })
-      expect(player.playheadSeconds()).toBe(32)
-
-      await press({ key: 'ArrowLeft' })
-      expect(player.playheadSeconds()).toBe(31)
-
-      await press({ key: 'ArrowLeft', shiftKey: true })
-      expect(player.playheadSeconds()).toBe(21)
-    })
-
-    it('hold the playhead inside the track, and are not a page scroll', async () => {
-      const { player } = setup()
-      const event = new KeyboardEvent('keydown', {
-        key: 'ArrowLeft',
-        bubbles: true,
-        cancelable: true,
-      })
-
-      document.dispatchEvent(event)
-      expect(player.playheadSeconds()).toBe(21)
-      expect(event.defaultPrevented).toBe(true)
-
-      await press({ key: 'ArrowRight', shiftKey: true })
-      await press({ key: 'ArrowRight', shiftKey: true })
-      await press({ key: 'ArrowRight', shiftKey: true })
-      await press({ key: 'ArrowRight', shiftKey: true })
-      await press({ key: 'ArrowRight', shiftKey: true })
-      await press({ key: 'ArrowRight', shiftKey: true })
-      expect(player.playheadSeconds()).toBe(71.5)
-    })
-
-    it('leave playback and the splits alone', async () => {
-      const { split, toggleSpy } = setup()
-
-      await press({ key: 'ArrowRight' })
-
-      expect(toggleSpy).not.toHaveBeenCalled()
-      expect(split.splits).toHaveLength(2)
-      expect(split.selectedTrack?.number).toBe(2)
-    })
-  })
-
   describe('a key with Ctrl, Cmd or Alt held', () => {
     it('is left to the browser', () => {
       const { player, toggleSpy, backToStartSpy } = setup()
@@ -277,28 +228,6 @@ describe('TrackView', () => {
       document.dispatchEvent(event)
 
       expect(toggleSpy).toHaveBeenCalledExactlyOnceWith()
-      expect(event.defaultPrevented).toBe(true)
-    })
-
-    it('ignores the auto-repeat of a held key', async () => {
-      const { toggleSpy } = setup()
-
-      await press({ key: ' ' })
-      await press({ key: ' ', repeat: true })
-      await press({ key: ' ', repeat: true })
-
-      expect(toggleSpy).toHaveBeenCalledTimes(1)
-    })
-  })
-
-  describe('Home', () => {
-    it('moves the playhead to the track’s start, and is not a page scroll', () => {
-      const { backToStartSpy } = setup()
-      const event = new KeyboardEvent('keydown', { key: 'Home', bubbles: true, cancelable: true })
-
-      document.dispatchEvent(event)
-
-      expect(backToStartSpy).toHaveBeenCalledExactlyOnceWith()
       expect(event.defaultPrevented).toBe(true)
     })
   })

@@ -146,71 +146,6 @@ describe('RangeView', () => {
     })
   })
 
-  describe('Left and Right', () => {
-    it('move the playhead 1 s, and 10 s with Shift', async () => {
-      const { player } = setup()
-      player.seek(12)
-
-      await press({ key: 'ArrowRight' })
-      expect(player.playheadSeconds()).toBe(13)
-
-      await press({ key: 'ArrowLeft' })
-      await press({ key: 'ArrowLeft' })
-      expect(player.playheadSeconds()).toBe(11)
-
-      await press({ key: 'ArrowRight', shiftKey: true })
-      expect(player.playheadSeconds()).toBe(20)
-    })
-
-    it('do not drift: ten steps of 1 s from a hundredth make exactly ten seconds on', async () => {
-      const { player } = setup()
-      player.seek(10.01)
-
-      for (let step = 0; step < 9; step++) await press({ key: 'ArrowRight' })
-
-      expect(player.playheadSeconds()).toBeCloseTo(19.01, 9)
-    })
-
-    it('hold the playhead inside the range', async () => {
-      const { player } = setup()
-      player.seek(19.5)
-
-      await press({ key: 'ArrowRight' })
-      expect(player.playheadSeconds()).toBe(20)
-
-      await press({ key: 'ArrowLeft', shiftKey: true })
-      await press({ key: 'ArrowLeft', shiftKey: true })
-      expect(player.playheadSeconds()).toBe(10)
-    })
-
-    it('leave the mark and the playback alone, and are not a page scroll', async () => {
-      const { split, toggleRange } = setup((store) => {
-        store.placeMark(15)
-      })
-      const event = new KeyboardEvent('keydown', {
-        key: 'ArrowRight',
-        bubbles: true,
-        cancelable: true,
-      })
-
-      document.dispatchEvent(event)
-
-      expect(split.markSeconds).toBe(15)
-      expect(toggleRange).not.toHaveBeenCalled()
-      expect(event.defaultPrevented).toBe(true)
-    })
-
-    it('move the playhead of a range that plays, by the sound’s place', async () => {
-      const { player } = setup()
-      const seek = vi.spyOn(player, 'seek')
-      vi.spyOn(player, 'playheadSeconds').mockReturnValue(14.37)
-
-      await press({ key: 'ArrowRight' })
-
-      expect(seek).toHaveBeenCalledExactlyOnceWith(15.37)
-    })
-  })
-
   describe('a key with Ctrl, Cmd or Alt held', () => {
     it('is left to the browser', async () => {
       const { split, toggleRange, backToRangeStart } = setup((store) => {
@@ -370,40 +305,6 @@ describe('RangeView', () => {
       document.dispatchEvent(event)
 
       expect(toggleRange).toHaveBeenCalledTimes(1)
-      expect(event.defaultPrevented).toBe(true)
-    })
-
-    it('ignores the auto-repeat of a held key', async () => {
-      const { toggleRange } = setup()
-
-      await press({ key: ' ' })
-      await press({ key: ' ', repeat: true })
-      await press({ key: ' ', repeat: true })
-
-      expect(toggleRange).toHaveBeenCalledTimes(1)
-    })
-
-    it('leaves other keys alone', async () => {
-      const { split, toggleRange } = setup((store) => {
-        store.placeMark(15)
-      })
-
-      await press({ key: 'a' })
-
-      expect(toggleRange).not.toHaveBeenCalled()
-      expect(split.splits).toEqual([])
-      expect(split.markSeconds).toBe(15)
-    })
-  })
-
-  describe('Home', () => {
-    it('moves the playhead to the range’s start, and is not a page scroll', async () => {
-      const { backToRangeStart } = setup()
-      const event = new KeyboardEvent('keydown', { key: 'Home', bubbles: true, cancelable: true })
-
-      document.dispatchEvent(event)
-
-      expect(backToRangeStart).toHaveBeenCalledTimes(1)
       expect(event.defaultPrevented).toBe(true)
     })
   })

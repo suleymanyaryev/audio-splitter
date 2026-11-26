@@ -17,11 +17,11 @@ import { prepareCanvas } from '@/shared/lib/canvas/prepare-canvas.ts'
 import { useCanvasRedraw } from '@/shared/lib/canvas/use-canvas-redraw.ts'
 import { usePageKeys } from '@/shared/lib/keyboard/use-page-keys.ts'
 import { formatHundredths } from '@/shared/lib/time/format-hundredths.ts'
-import { roundToMillisecond } from '@/shared/lib/time/round-to-millisecond.ts'
 import { pointerX } from '../lib/pointer-x.ts'
 import { stretchAxis } from '../lib/stretch-axis.ts'
 import { usePlayheadDrag } from '../lib/use-playhead-drag.ts'
 import { usePlayheadSlider } from '../lib/use-playhead-slider.ts'
+import { useStretchKeys } from '../lib/use-stretch-keys.ts'
 import { zoomBars } from '../lib/zoom-bars.ts'
 import { landSpansInWindow } from '../lib/zoom-spans.ts'
 import { usePlayerStore } from '../model/player.ts'
@@ -48,13 +48,10 @@ range's start. A held Space, Enter or Shift+Enter is ignored, so it does not sta
 or add splits over and over. A failure to play is said in a line at the bottom of the view.
 */
 
-// Left and Right move the playhead 1 s, with Shift 10 s.
-const STEP_SECONDS = 1
-const SHIFT_STEP_SECONDS = 10
-
 const sourceFile = useSourceFileStore()
 const split = useSplitStore()
 const player = usePlayerStore()
+const { isStretchKeyActedOn } = useStretchKeys()
 const canvas = useTemplateRef('canvas')
 const frame = useTemplateRef('frame')
 
@@ -149,11 +146,6 @@ function onDoubleClick(event: MouseEvent) {
   if (selected !== undefined) split.selectSplit(selected.id)
 }
 
-function moveBy(direction: -1 | 1, isShifted: boolean) {
-  const step = isShifted ? SHIFT_STEP_SECONDS : STEP_SECONDS
-  player.seek(roundToMillisecond(playheadSeconds() + direction * step))
-}
-
 /*
 Enter adds a split at the mark, and Shift+Enter one where the playhead is, so a split goes where the
 sound is heard. With no mark, Enter has nothing to add a split at and is left alone; Shift+Enter
@@ -169,28 +161,7 @@ function addSplitFromKey(event: KeyboardEvent) {
 
 // Whether the key was the view's: a key it leaves alone is the browser's, and is not reported.
 function isKeyActedOn(event: KeyboardEvent) {
-  switch (event.key) {
-    case ' ': {
-      // A held key must not start and stop the sound over and over.
-      if (!event.repeat) player.toggle()
-      return true
-    }
-    case 'Enter': {
-      return addSplitFromKey(event)
-    }
-    case 'Home': {
-      player.backToStart()
-      return true
-    }
-    case 'ArrowLeft':
-    case 'ArrowRight': {
-      moveBy(event.key === 'ArrowLeft' ? -1 : 1, event.shiftKey)
-      return true
-    }
-    default: {
-      return false
-    }
-  }
+  return isStretchKeyActedOn(event) || (event.key === 'Enter' && addSplitFromKey(event))
 }
 
 /*

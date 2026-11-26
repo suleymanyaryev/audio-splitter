@@ -33,6 +33,7 @@ Keys belong to the view on show, not to a focused element (ADR 0002).
 - Arrow keys step by a small amount, and with Shift by a larger one. A key that adds, deletes or toggles ignores `event.repeat`.
 - A control a mouse press lands on takes `@mousedown="releaseFocus"`, so the keys stay with the view.
 - Focus stays where the user put it. A view that must tell the page a key was used emits `acted`.
+- Space, Home, Left and Right of a stretch view are `useStretchKeys()` (`widgets/split-zoom/lib/use-stretch-keys.ts`): the view's `isKeyActedOn` asks it first, then its own keys.
 - Reference: `isKeyActedOn` in `RangeView.vue`.
 
 ## Specs

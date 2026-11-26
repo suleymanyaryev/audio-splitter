@@ -18,12 +18,12 @@ import { prepareCanvas } from '@/shared/lib/canvas/prepare-canvas.ts'
 import { useCanvasRedraw } from '@/shared/lib/canvas/use-canvas-redraw.ts'
 import { usePageKeys } from '@/shared/lib/keyboard/use-page-keys.ts'
 import { formatHundredths } from '@/shared/lib/time/format-hundredths.ts'
-import { roundToMillisecond } from '@/shared/lib/time/round-to-millisecond.ts'
 import { pointerX } from '../lib/pointer-x.ts'
 import { stepOfKey } from '../lib/step-of-key.ts'
 import { stretchAxis } from '../lib/stretch-axis.ts'
 import { usePlayheadDrag } from '../lib/use-playhead-drag.ts'
 import { usePlayheadSlider } from '../lib/use-playhead-slider.ts'
+import { useStretchKeys } from '../lib/use-stretch-keys.ts'
 import { zoomBars } from '../lib/zoom-bars.ts'
 import { landSpansInWindow } from '../lib/zoom-spans.ts'
 import { usePlayerStore } from '../model/player.ts'
@@ -66,13 +66,10 @@ The player plays the whole track, however long: a track over 10 min is heard thr
 moves along it (`model/player.ts`), which this view does not see.
 */
 
-// Left and Right move the playhead 1 s, with Shift 10 s.
-const STEP_SECONDS = 1
-const SHIFT_STEP_SECONDS = 10
-
 const sourceFile = useSourceFileStore()
 const split = useSplitStore()
 const player = usePlayerStore()
+const { isStretchKeyActedOn } = useStretchKeys()
 const canvas = useTemplateRef('canvas')
 const frame = useTemplateRef('frame')
 
@@ -185,11 +182,6 @@ function onDoubleClick(event: MouseEvent) {
   if (selected !== undefined) split.selectSplit(selected.id)
 }
 
-function moveBy(direction: -1 | 1, isShifted: boolean) {
-  const step = isShifted ? SHIFT_STEP_SECONDS : STEP_SECONDS
-  player.seek(roundToMillisecond(playheadSeconds() + direction * step))
-}
-
 /*
 A held key adds one only (the caller sees to it). Shift: where the playhead is, so a tap along a
 playing track is taken whatever is selected; otherwise at the mark.
@@ -216,6 +208,7 @@ function isStepKeyActedOn(step: -1 | 1) {
 
 // Whether the key was the view's: a key it leaves alone is the browser's, and is not reported.
 function isKeyActedOn(event: KeyboardEvent) {
+  if (isStretchKeyActedOn(event)) return true
   const step = stepOfKey(event)
   return step === null ? isOtherKeyActedOn(event) : isStepKeyActedOn(step)
 }
@@ -250,14 +243,9 @@ function isSwapKeyActedOn(event: KeyboardEvent) {
   })
 }
 
-// The view's other keys: Space, Enter, Delete, Escape, Home, X, C and the arrows.
+// The view's other keys: Enter, Delete, Backspace, Escape, X and C.
 function isOtherKeyActedOn(event: KeyboardEvent) {
   switch (event.key) {
-    case ' ': {
-      // A held key must not start and stop the sound over and over.
-      if (!event.repeat) player.toggle()
-      return true
-    }
     case 'Enter': {
       // With no mark, Enter has nothing to add a pending split at; Shift+Enter always has the playhead.
       if (!event.shiftKey && split.trackMarkSeconds === null) return false
@@ -272,10 +260,6 @@ function isOtherKeyActedOn(event: KeyboardEvent) {
       actOnSelectedPendingSplit(event.key)
       return true
     }
-    case 'Home': {
-      player.backToStart()
-      return true
-    }
     case 'x':
     case 'X': {
       return isLeftOutKeyActedOn(event)
@@ -283,11 +267,6 @@ function isOtherKeyActedOn(event: KeyboardEvent) {
     case 'c':
     case 'C': {
       return isSwapKeyActedOn(event)
-    }
-    case 'ArrowLeft':
-    case 'ArrowRight': {
-      moveBy(event.key === 'ArrowLeft' ? -1 : 1, event.shiftKey)
-      return true
     }
     default: {
       return false
