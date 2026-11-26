@@ -18,6 +18,10 @@ Versions follow [Semantic Versioning](https://semver.org/) applied to the produc
 
 ## [Unreleased]
 
+### Changed
+
+- Each view keeps its own playhead, so showing another view and moving its playhead leaves this one where it was: the range resumes where you paused it after a visit to the Track view, and the other way round.
+
 ## [2.0.0] - 2026-11-25
 
 ### Added

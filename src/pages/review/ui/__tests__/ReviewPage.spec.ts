@@ -1069,6 +1069,20 @@ describe('ReviewPage', () => {
         }
       })
 
+      it('leaves the range’s playhead where it was after a visit to the Track view', async () => {
+        const wrapper = await mountPageWithRange()
+        const player = usePlayerStore()
+        player.seek(14)
+        await wrapper.vm.$nextTick()
+        expect(playheadInRange(wrapper).getAttribute('aria-valuenow')).toBe('14')
+
+        await wrapper.get('[aria-label^="Select track 3"]').trigger('click')
+        player.seek(useSplitStore().selectedTrack!.startSeconds + 1)
+        await viewOption(wrapper, 'Range').trigger('click')
+
+        expect(playheadInRange(wrapper).getAttribute('aria-valuenow')).toBe('14')
+      })
+
       it('swaps to the Range view and back to the Track view through the control', async () => {
         const wrapper = await mountPageWithTrack(2)
         const split = useSplitStore()

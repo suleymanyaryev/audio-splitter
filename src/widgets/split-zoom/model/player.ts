@@ -75,7 +75,7 @@ lets go of the WAV, whose 8 s moved: the place is held into the moved extent whe
 the next play decodes the moved 8 s and starts there.
 
 A stretch (docs/concepts/08-listening-to-a-range.md) is the range or the selected track, a start and
-an end. Its failure is worded "range" or "track" from the view (`stretchSubject`). A stretch of
+an end. Its failure is worded "range" or "track" from its subject. A stretch of
 10 min or less is one window, decoded once and kept, tied to the stretch it was decoded for: a
 pause only stops the element and keeps the place, so playing again sets `currentTime` inside the
 WAV (exact, where a compressed file is not) and plays at once, while a different stretch releases
@@ -88,9 +88,11 @@ ahead once the playhead is 30 s from its end (on `timeupdate`), and when the win
 element is pointed at the next one and plays on, so the hand-over is no decode wait. At most two
 windows are held, the playing one and the one ahead.
 
-A stretch's resting place is the stretch's start for a new stretch and after it has ended, and is
-tied to its stretch too, so a view of another stretch never draws it. A playhead moved before a
-stretch's first play is kept, and it moves without a new decode inside the window: `seek` sets
+The range and the track each keep their own resting place, which is the stretch's start for a new
+stretch and after it has ended, and is tied to its stretch, so a view of another range or track
+never draws it. A subject's place stays while another plays and while another view is shown. A
+playhead moved before a stretch's first play is kept, and it moves without a new decode inside the
+window: `seek` sets
 `currentTime` while the stretch plays and the resting place otherwise (which the next play, or a
 clip still being decoded, starts from).
 
@@ -171,10 +173,14 @@ export const usePlayerStore = defineStore('player', () => {
   // Where the audition resumes, in the file, and the split it was made for. A ref, so the view follows it.
   const auditionResting = ref<{ splitId: number; seconds: number } | null>(null)
   /*
-  Where a stretch resumes, or null for its start: a ref, so a view that draws it can follow it. It
-  names its stretch, so the playhead of another stretch is not drawn at a place in this one.
+  Where the range and the track resume, or null for their start: refs, so a view that draws one can
+  follow it. Each names its stretch, so the playhead of another range or track is not drawn at a
+  place in this one, and each subject keeps its own while another plays or another view is shown.
   */
-  const resting = ref<{ stretch: Stretch; seconds: number } | null>(null)
+  const restingPlaces = {
+    range: ref<{ stretch: Stretch; seconds: number } | null>(null),
+    track: ref<{ stretch: Stretch; seconds: number } | null>(null),
+  }
   /*
   One line for the page to show, or null. A new press, a stop, a selection change and a new range
   clear it.
@@ -276,8 +282,13 @@ export const usePlayerStore = defineStore('player', () => {
 
   // The place `stretch` resumes from, or null when it has none and starts at its start.
   function restingSecondsOf(stretch: Stretch) {
-    const place = resting.value
+    const place = restingPlaces[stretch.subject].value
     return place !== null && isSameStretch(place.stretch, stretch) ? place.seconds : null
+  }
+
+  // Keeps where `stretch` resumes, in its own subject's place.
+  function restStretchAt(stretch: Stretch, seconds: number) {
+    restingPlaces[stretch.subject].value = { stretch: { ...stretch }, seconds }
   }
 
   /*
@@ -310,7 +321,7 @@ export const usePlayerStore = defineStore('player', () => {
   // Stops the sound and keeps the stretch's place and its WAV, so a press resumes at once.
   function pauseStretch() {
     takePress()
-    if (held !== null) resting.value = { stretch: held.stretch, seconds: audio.positionSeconds() }
+    if (held !== null) restStretchAt(held.stretch, audio.positionSeconds())
     audio.pause()
     state.value = 'paused'
   }
@@ -376,13 +387,13 @@ export const usePlayerStore = defineStore('player', () => {
   // The stretch played to its end: back at its start, with its WAV kept for the next press.
   function endStretch() {
     state.value = 'idle'
-    resting.value = null
+    if (activeSubject !== null) restingPlaces[activeSubject].value = null
   }
 
   // The stretch gives way to the audition or to a new range: its sound and its WAV go, its place stays.
   function letGoOfStretch() {
     if (held !== null && stretchStatus.value === 'playing') {
-      resting.value = { stretch: held.stretch, seconds: audio.positionSeconds() }
+      restStretchAt(held.stretch, audio.positionSeconds())
     }
     if (held !== null) release()
     if (stretchStatus.value !== 'idle') state.value = 'idle'
@@ -564,7 +575,7 @@ export const usePlayerStore = defineStore('player', () => {
   function seekStretch(stretch: Stretch, seconds: number) {
     const target = Math.min(Math.max(seconds, stretch.startSeconds), stretch.endSeconds)
     if (stretchStatus.value !== 'playing') {
-      resting.value = { stretch: { ...stretch }, seconds: target }
+      restStretchAt(stretch, target)
     } else if (held !== null && windowHolds(held.window, stretch, target)) {
       audio.seek(target)
     } else if (target >= stretch.endSeconds) {
@@ -574,7 +585,7 @@ export const usePlayerStore = defineStore('player', () => {
     } else {
       audio.pause()
       release()
-      resting.value = { stretch: { ...stretch }, seconds: target }
+      restStretchAt(stretch, target)
       void playStretch(stretch)
     }
   }
@@ -623,7 +634,7 @@ export const usePlayerStore = defineStore('player', () => {
     let place = window.endSeconds
     if (upcoming === undefined) {
       // The place is kept, so a seek made while the window is decoded is heard from.
-      resting.value = { stretch: { ...stretch }, seconds: place }
+      restStretchAt(stretch, place)
       take('stretch', 'loading')
       await fetchAhead()
       if (isStale()) return
@@ -805,7 +816,7 @@ export const usePlayerStore = defineStore('player', () => {
       if (stretchStatus.value !== 'idle') takePress()
       letGoOfStretch()
     }
-    if (resting.value?.stretch.subject === subject) resting.value = null
+    restingPlaces[subject].value = null
     failure.value = null
   }
 

@@ -1363,6 +1363,56 @@ describe('the player store', () => {
     })
   })
 
+  describe('one resting place per subject', () => {
+    it('keeps the range’s place when the Track view’s playhead is moved, and resumes there', async () => {
+      const { split, player } = await playingRange()
+      audio().currentTime = 4
+      player.toggle()
+
+      split.selectTrack(split.tracks[1]!)
+      player.seek(30)
+      expect(player.playheadSeconds()).toBe(30)
+      split.showView('range')
+
+      expect(player.status).toBe('paused')
+      expect(player.playheadSeconds()).toBe(14)
+      player.toggle()
+      await flush()
+      expect(audio().currentTime).toBe(4)
+      expect(clip).toHaveBeenCalledOnce()
+    })
+
+    it('keeps the track’s place when the Range view’s playhead is moved, and resumes there', async () => {
+      const { split, player } = await playingTrack()
+      audio().currentTime = 8
+      player.toggle()
+
+      split.setRange(10, 30)
+      player.seek(15)
+      expect(player.playheadSeconds()).toBe(15)
+      split.showView('track')
+
+      expect(player.status).toBe('paused')
+      expect(player.playheadSeconds()).toBe(30)
+      player.toggle()
+      await flush()
+      expect(audio().currentTime).toBe(8)
+      expect(clip).toHaveBeenCalledOnce()
+    })
+
+    it('keeps a track’s place and a range’s of the same span apart', async () => {
+      // The range of 22 s to 42 s is the second track's span.
+      const { split, player } = setUp()
+      split.selectTrack(split.tracks[1]!)
+      player.seek(30)
+      split.setRange(22, 42)
+
+      expect(player.playheadSeconds()).toBe(22)
+      split.showView('track')
+      expect(player.playheadSeconds()).toBe(30)
+    })
+  })
+
   describe('each stop watcher leaves another subject alone', () => {
     it('a new range leaves a paused track’s place and WAV', async () => {
       const { split, player } = await playingTrack()

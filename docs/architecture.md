@@ -157,7 +157,7 @@ stateDiagram-v2
 
 The `player` store is the one player. The `source-file` store decodes a stretch of the file to WAV, and a hidden `<audio>` element plays it, behind `api/audio-element.ts`, which the store tells when to hold, play and seek. A WAV seeks exactly, which a compressed file does not ([note 06](concepts/06-seeking-compressed-audio.md)).
 
-The player acts on the subject on show, which it reads from the split store: the audition of the selected split in the Split view, the selected track in the Track view, the range in the Range view, or nothing. There are two kinds of listening, the audition and a stretch (the range or a track), and one status with one owner between them. Starting one takes the status from the other.
+Each subject keeps its own resting place, tied to its identity (the audition's to its split, a track's and the range's to their ends), so playing or moving the playhead in one view never moves another's. The player acts on the subject on show, which it reads from the split store: the audition of the selected split in the Split view, the selected track in the Track view, the range in the Range view, or nothing. There are two kinds of listening, the audition and a stretch (the range or a track), and one status with one owner between them. Starting one takes the status from the other.
 
 **The audition** plays the 8 s across the selected split, its extent: the split ±4 s, held to the file. It can pause and resume without decoding again. Its playhead is always known while a split is selected: the sound while it plays, else the resting place, else the extent's start.
 
