@@ -8,7 +8,7 @@ The import rules are in AGENTS.md "Code layout" and enforced by `pnpm lint`; thi
 ## Placing state
 
 - **Entity store** (`entities/source-file`, `entities/split`): state that more than one widget reads, about the file or the splits.
-- **Widget-owned store** (`widgets/split-zoom/model/audition.ts`, `widgets/track-strip/model/export-tracks.ts`): state that belongs to one behaviour, which the page and other widgets only start or stop.
+- **Widget-owned store** (`widgets/split-zoom/model/player.ts`, `widgets/track-strip/model/export-tracks.ts`): state that belongs to one behaviour, which the page and other widgets only start or stop.
 - Pinia setup stores, in memory. A setting kept between visits stays in its store, which reads and writes `localStorage` through an `api/` module beside it (`widgets/split-zoom/api/saved-volume.ts`, `saved-play-speed.ts`).
 - A concept large enough to crowd its store gets a plain composable in the store's `model/`, which the store calls once in its setup and keeps private, so widgets still go through the store (`entities/split/model/matches.ts`). It is fed refs and getters, not the store, and its spec feeds it plain refs.
 - The theme (`shared/lib/theme/theme.ts`) is the one plain module state, because the kit and the canvases in `shared` read it and a store would belong to a slice above them.
@@ -30,7 +30,7 @@ The import rules are in AGENTS.md "Code layout" and enforced by `pnpm lint`; thi
 
 ## Sound
 
-There is one player, `widgets/split-zoom/model/audition.ts`. Anything new that plays goes through it, and anything that should silence it calls `stop()`.
+There is one player, `widgets/split-zoom/model/player.ts`. Anything new that plays goes through it, and anything that should silence it calls `stop()`.
 
 An async result can arrive after the user has moved on. Every press takes a number and a result for an older number is dropped; `flush: 'sync'` watchers on the split store stop the player at once. Use the same guard for any new async work a user action starts. Work the player starts by itself (`fetchAhead`) keeps its own token and aborts its `AbortSignal` on release, so its ffmpeg call stops holding the queue.
 

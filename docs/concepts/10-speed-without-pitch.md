@@ -11,7 +11,7 @@ This milestone adds a play speed, 0.5× to 2.0×, to the player. The control is 
 - **Time-stretching**: changing how long the sound lasts while keeping its pitch. The samples are not just replayed at another rate: the sound is rebuilt from pieces of itself.
 - **WSOLA** (waveform-similarity overlap-add): the time-stretching method used by ffmpeg's `atempo` and by Chrome, explained below.
 - **Play speed** (GLOSSARY.md): how fast the source is heard against real time. Avoid "rate", which is the sample rate here.
-- **Stretch** (in the player's code, `toggleStretch`): a piece of the source file the player plays, the range or the selected track. It has nothing to do with time-stretching: one word for two unrelated things.
+- **Stretch** (the player’s own word for it): a piece of the source file the player plays, the range or the selected track. It has nothing to do with time-stretching: one word for two unrelated things.
 
 ## Worked example: `samples/sample1.m4a`
 
@@ -101,7 +101,7 @@ At 0.5×, a double-click at 1:41 of the same track, outside the window held (600
 
 ## Where it lives in the code
 
-- [`src/widgets/split-zoom/model/audition.ts`](../../src/widgets/split-zoom/model/audition.ts): the one player. It owns the play speed (`playSpeed`), changed by `setPlaySpeed` (a tenth a step, held to the range). A synchronous watcher applies it to the element and saves it; `audioElement()` applies it when the element is made. Applying sets `preservesPitch` and both `defaultPlaybackRate` and `playbackRate`, because loading a source resets the rate to the default rate.
+- [`src/widgets/split-zoom/model/player.ts`](../../src/widgets/split-zoom/model/player.ts): the one player. It owns the play speed (`playSpeed`), changed by `setPlaySpeed` (a tenth a step, held to the range). A synchronous watcher applies it to the element and saves it; `api/audio-element.ts` applies it when the element is made. Applying sets `preservesPitch` and both `defaultPlaybackRate` and `playbackRate`, because loading a source resets the rate to the default rate.
 - [`src/widgets/split-zoom/api/saved-play-speed.ts`](../../src/widgets/split-zoom/api/saved-play-speed.ts) and [`src/widgets/split-zoom/config/play-speed.ts`](../../src/widgets/split-zoom/config/play-speed.ts): the first reads and writes the one `localStorage` entry, a JSON object with the speed, and gives 1.0× for a value that is not what it writes or for storage that throws. The second holds 0.5, 2.0, 0.1 and 1.0, the slider's range, step and default, and the storage key.
 - [`src/widgets/split-zoom/ui/PlaySpeedControl.vue`](../../src/widgets/split-zoom/ui/PlaySpeedControl.vue): the button that reads the speed and resets it to 1.0×, and the slider (named "Play speed"), which [`ReviewPage.vue`](../../src/pages/review/ui/ReviewPage.vue) puts just before the volume control in the zoom panel's title row, in all three views.
 - [ADR 0004](../adr/0004-time-stretching-by-the-browser.md): why the stretch is the browser's, and what it needs from the player.

@@ -5,8 +5,7 @@ import { nextTick } from 'vue'
 import { enableAutoUnmount, mount } from '@vue/test-utils'
 import { useSourceFileStore } from '@/entities/source-file/model/source-file.ts'
 import { useSplitStore } from '@/entities/split/model/split.ts'
-import { trackExtent } from '../../lib/track-extent.ts'
-import { useAuditionStore } from '../../model/audition.ts'
+import { usePlayerStore } from '../../model/player.ts'
 import TrackView from '../TrackView.vue'
 
 enableAutoUnmount(afterEach)
@@ -36,6 +35,21 @@ function curveWithTwoGaps() {
   return curve
 }
 
+/*
+The player's toggle, replaced, and its carryOver with it: a sound that was on is played on through
+the spy, as the real carryOver does through the real toggle (the player spec covers that).
+*/
+function spyOnToggle(player: ReturnType<typeof usePlayerStore>) {
+  const toggle = vi.spyOn(player, 'toggle').mockImplementation(() => {})
+  vi.spyOn(player, 'carryOver').mockImplementation((isChanged) => {
+    const wasOn = player.isActive
+    const hasChanged = isChanged()
+    if (wasOn && hasChanged) player.toggle()
+    return hasChanged
+  })
+  return toggle
+}
+
 // The second track is selected before the view mounts.
 function setup() {
   useSourceFileStore().durationSeconds = 100
@@ -43,12 +57,11 @@ function setup() {
   split.open(curveWithTwoGaps(), { windowSeconds: 0.05, durationSeconds: 100 })
   split.findSplits()
   split.selectTrack(split.tracks[1]!)
-  const audition = useAuditionStore()
-  const toggleStretch = vi.spyOn(audition, 'toggleStretch').mockImplementation(() => {})
-  const backToStretchStart = vi.spyOn(audition, 'backToStretchStart').mockImplementation(() => {})
+  const player = usePlayerStore()
+  const toggleSpy = spyOnToggle(player)
+  const backToStartSpy = vi.spyOn(player, 'backToStart').mockImplementation(() => {})
   const wrapper = mount(TrackView)
-  const stretch = trackExtent(split.selectedTrack!)
-  return { audition, split, stretch, toggleStretch, backToStretchStart, wrapper }
+  return { player, split, toggleSpy, backToStartSpy, wrapper }
 }
 
 // 107 s in three tracks of 35 s or more: the third repeats the first, which the worker's answer says. The third is selected.
@@ -62,10 +75,10 @@ async function setupDuplicate() {
   split.findSplits()
   await split.findDuplicates()
   split.selectTrack(split.tracks[2]!)
-  const audition = useAuditionStore()
-  const toggleStretch = vi.spyOn(audition, 'toggleStretch').mockImplementation(() => {})
+  const player = usePlayerStore()
+  const toggleSpy = spyOnToggle(player)
   const wrapper = mount(TrackView)
-  return { audition, split, toggleStretch, wrapper }
+  return { player, split, toggleSpy, wrapper }
 }
 
 // Keys belong to the page: the view hears them wherever the focus is.
@@ -137,9 +150,9 @@ describe('TrackView', () => {
     })
 
     it('follows the playhead, with hundredths', async () => {
-      const { audition, stretch, wrapper } = setup()
+      const { player, wrapper } = setup()
 
-      audition.seekStretch(stretch, 30.256)
+      player.seek(30.256)
       await nextTick()
 
       const view = wrapper.get('[role="slider"]')
@@ -154,9 +167,9 @@ describe('TrackView', () => {
         return frames.length
       })
       vi.spyOn(globalThis, 'cancelAnimationFrame').mockImplementation(() => {})
-      const { audition, wrapper } = setup()
-      const heard = vi.spyOn(audition, 'stretchPlayheadSeconds').mockReturnValue(33.7)
-      audition.stretchStatus = 'playing'
+      const { player, wrapper } = setup()
+      const heard = vi.spyOn(player, 'playheadSeconds').mockReturnValue(33.7)
+      player.status = 'playing'
       await nextTick()
 
       frames.at(-1)?.(0)
@@ -209,23 +222,23 @@ describe('TrackView', () => {
 
   describe('Left and Right', () => {
     it('move the playhead 1 s, and 10 s with Shift', async () => {
-      const { audition, stretch } = setup()
+      const { player } = setup()
 
       await press({ key: 'ArrowRight' })
-      expect(audition.stretchPlayheadSeconds(stretch)).toBe(22)
+      expect(player.playheadSeconds()).toBe(22)
 
       await press({ key: 'ArrowRight', shiftKey: true })
-      expect(audition.stretchPlayheadSeconds(stretch)).toBe(32)
+      expect(player.playheadSeconds()).toBe(32)
 
       await press({ key: 'ArrowLeft' })
-      expect(audition.stretchPlayheadSeconds(stretch)).toBe(31)
+      expect(player.playheadSeconds()).toBe(31)
 
       await press({ key: 'ArrowLeft', shiftKey: true })
-      expect(audition.stretchPlayheadSeconds(stretch)).toBe(21)
+      expect(player.playheadSeconds()).toBe(21)
     })
 
     it('hold the playhead inside the track, and are not a page scroll', async () => {
-      const { audition, stretch } = setup()
+      const { player } = setup()
       const event = new KeyboardEvent('keydown', {
         key: 'ArrowLeft',
         bubbles: true,
@@ -233,7 +246,7 @@ describe('TrackView', () => {
       })
 
       document.dispatchEvent(event)
-      expect(audition.stretchPlayheadSeconds(stretch)).toBe(21)
+      expect(player.playheadSeconds()).toBe(21)
       expect(event.defaultPrevented).toBe(true)
 
       await press({ key: 'ArrowRight', shiftKey: true })
@@ -242,15 +255,15 @@ describe('TrackView', () => {
       await press({ key: 'ArrowRight', shiftKey: true })
       await press({ key: 'ArrowRight', shiftKey: true })
       await press({ key: 'ArrowRight', shiftKey: true })
-      expect(audition.stretchPlayheadSeconds(stretch)).toBe(71.5)
+      expect(player.playheadSeconds()).toBe(71.5)
     })
 
     it('leave playback and the splits alone', async () => {
-      const { split, toggleStretch } = setup()
+      const { split, toggleSpy } = setup()
 
       await press({ key: 'ArrowRight' })
 
-      expect(toggleStretch).not.toHaveBeenCalled()
+      expect(toggleSpy).not.toHaveBeenCalled()
       expect(split.splits).toHaveLength(2)
       expect(split.selectedTrack?.number).toBe(2)
     })
@@ -258,7 +271,7 @@ describe('TrackView', () => {
 
   describe('a key with Ctrl, Cmd or Alt held', () => {
     it('is left to the browser', () => {
-      const { audition, stretch, toggleStretch, backToStretchStart } = setup()
+      const { player, toggleSpy, backToStartSpy } = setup()
 
       for (const modifier of ['ctrlKey', 'metaKey', 'altKey']) {
         for (const key of ['ArrowLeft', 'ArrowRight', 'Home', ' ']) {
@@ -273,94 +286,91 @@ describe('TrackView', () => {
         }
       }
 
-      expect(audition.stretchPlayheadSeconds(stretch)).toBe(21)
-      expect(toggleStretch).not.toHaveBeenCalled()
-      expect(backToStretchStart).not.toHaveBeenCalled()
+      expect(player.playheadSeconds()).toBe(21)
+      expect(toggleSpy).not.toHaveBeenCalled()
+      expect(backToStartSpy).not.toHaveBeenCalled()
     })
   })
 
   describe('Space', () => {
     it('plays or pauses the track, and is not a page scroll', () => {
-      const { stretch, toggleStretch } = setup()
+      const { toggleSpy } = setup()
       const event = new KeyboardEvent('keydown', { key: ' ', bubbles: true, cancelable: true })
 
       document.dispatchEvent(event)
 
-      expect(toggleStretch).toHaveBeenCalledExactlyOnceWith(stretch)
+      expect(toggleSpy).toHaveBeenCalledExactlyOnceWith()
       expect(event.defaultPrevented).toBe(true)
     })
 
     it('ignores the auto-repeat of a held key', async () => {
-      const { toggleStretch } = setup()
+      const { toggleSpy } = setup()
 
       await press({ key: ' ' })
       await press({ key: ' ', repeat: true })
       await press({ key: ' ', repeat: true })
 
-      expect(toggleStretch).toHaveBeenCalledTimes(1)
+      expect(toggleSpy).toHaveBeenCalledTimes(1)
     })
   })
 
   describe('Home', () => {
     it('moves the playhead to the track’s start, and is not a page scroll', () => {
-      const { stretch, backToStretchStart } = setup()
+      const { backToStartSpy } = setup()
       const event = new KeyboardEvent('keydown', { key: 'Home', bubbles: true, cancelable: true })
 
       document.dispatchEvent(event)
 
-      expect(backToStretchStart).toHaveBeenCalledExactlyOnceWith(stretch)
+      expect(backToStartSpy).toHaveBeenCalledExactlyOnceWith()
       expect(event.defaultPrevented).toBe(true)
     })
   })
 
   describe('C', () => {
     it('swaps to the same moment in the matched track, and is not a page action', async () => {
-      const { audition, split, toggleStretch } = await setupDuplicate()
-      audition.seekStretch(trackExtent(split.selectedTrack!), 83)
+      const { player, split, toggleSpy } = await setupDuplicate()
+      player.seek(83)
       const event = new KeyboardEvent('keydown', { key: 'c', bubbles: true, cancelable: true })
 
       document.dispatchEvent(event)
       await nextTick()
 
       expect(split.selectedTrack?.number).toBe(1)
-      expect(audition.stretchPlayheadSeconds(trackExtent(split.selectedTrack!))).toBe(10)
+      expect(player.playheadSeconds()).toBe(10)
       expect(event.defaultPrevented).toBe(true)
       // It was not playing, so it stays paused at the new playhead.
-      expect(toggleStretch).not.toHaveBeenCalled()
+      expect(toggleSpy).not.toHaveBeenCalled()
     })
 
     it('plays on from there when the track was playing', async () => {
-      const { audition, split, toggleStretch } = await setupDuplicate()
+      const { player, split, toggleSpy } = await setupDuplicate()
       // A playing track's playhead is the sound's, which a spec has none of: it is at 83 s.
-      const heard = audition.stretchPlayheadSeconds.bind(audition)
-      vi.spyOn(audition, 'stretchPlayheadSeconds').mockImplementation((stretch) =>
-        stretch.startSeconds === split.selectedTrack?.startSeconds &&
-        split.selectedTrack.number === 3
-          ? 83
-          : heard(stretch),
+      const heard = player.playheadSeconds.bind(player)
+      vi.spyOn(player, 'playheadSeconds').mockImplementation(() =>
+        split.selectedTrack?.number === 3 ? 83 : heard(),
       )
-      audition.stretchStatus = 'playing'
+      player.status = 'playing'
 
       await press({ key: 'C' })
 
       expect(split.selectedTrack?.number).toBe(1)
-      expect(audition.stretchPlayheadSeconds(trackExtent(split.selectedTrack!))).toBe(10)
-      expect(toggleStretch).toHaveBeenCalledExactlyOnceWith(trackExtent(split.selectedTrack!))
+      expect(player.playheadSeconds()).toBe(10)
+      expect(toggleSpy).toHaveBeenCalledExactlyOnceWith()
     })
 
     it('goes back to the track it came from when pressed on the kept copy', async () => {
-      const { audition, split } = await setupDuplicate()
-      audition.seekStretch(trackExtent(split.selectedTrack!), 83)
+      const { player, split } = await setupDuplicate()
+      player.seek(83)
       await press({ key: 'c' })
 
       await press({ key: 'c' })
 
       expect(split.selectedTrack?.number).toBe(3)
-      expect(audition.stretchPlayheadSeconds(trackExtent(split.selectedTrack!))).toBe(83)
+      expect(player.playheadSeconds()).toBe(83)
     })
 
     it('is left alone on a track with no match, which sounds and selects nothing', async () => {
-      const { split, toggleStretch, wrapper } = await setupDuplicate()
+      const { split, toggleSpy, wrapper } = await setupDuplicate()
       split.selectTrack(split.tracks[1]!)
       const event = new KeyboardEvent('keydown', { key: 'c', bubbles: true, cancelable: true })
 
@@ -369,7 +379,7 @@ describe('TrackView', () => {
 
       expect(split.selectedTrack?.number).toBe(2)
       expect(event.defaultPrevented).toBe(false)
-      expect(toggleStretch).not.toHaveBeenCalled()
+      expect(toggleSpy).not.toHaveBeenCalled()
       expect(wrapper.emitted('acted')).toBeUndefined()
     })
 
@@ -443,7 +453,7 @@ describe('TrackView', () => {
     })
 
     it('is reported to the page, and leaves the splits, the selection and the sound alone', async () => {
-      const { split, wrapper, toggleStretch } = setup()
+      const { split, wrapper, toggleSpy } = setup()
       const before = split.splits.map((point) => point.seconds)
 
       await press({ key: 'x' })
@@ -451,7 +461,7 @@ describe('TrackView', () => {
       expect(wrapper.emitted('acted')).toHaveLength(1)
       expect(split.splits.map((point) => point.seconds)).toEqual(before)
       expect(split.selectedTrack?.number).toBe(2)
-      expect(toggleStretch).not.toHaveBeenCalled()
+      expect(toggleSpy).not.toHaveBeenCalled()
     })
 
     it('ignores the auto-repeat of a held key, so one press toggles once', async () => {
@@ -558,22 +568,22 @@ describe('TrackView', () => {
     })
 
     it('leaves the splits, the playhead and the playback alone', async () => {
-      const { audition, split, stretch, toggleStretch } = setup()
+      const { player, split, toggleSpy } = setup()
       split.placeTrackMark(30)
 
       await press({ key: 'Enter' })
 
       expect(split.splits).toHaveLength(2)
       expect(split.editCount).toBe(0)
-      expect(audition.stretchPlayheadSeconds(stretch)).toBe(21)
-      expect(toggleStretch).not.toHaveBeenCalled()
+      expect(player.playheadSeconds()).toBe(21)
+      expect(toggleSpy).not.toHaveBeenCalled()
     })
   })
 
   describe('Shift+Enter', () => {
     it('adds a pending split where the playhead is, without selecting it', async () => {
-      const { audition, split, stretch } = setup()
-      audition.seekStretch(stretch, 40.004)
+      const { player, split } = setup()
+      player.seek(40.004)
       await nextTick()
       const event = new KeyboardEvent('keydown', {
         key: 'Enter',
@@ -590,13 +600,13 @@ describe('TrackView', () => {
     })
 
     it('takes every tap along the track, and is never blocked by a selection', async () => {
-      const { audition, split, stretch } = setup()
+      const { player, split } = setup()
       split.placeTrackMark(30)
       await press({ key: 'Enter' })
       expect(split.selectedPendingSplit).toBe(30)
 
       for (const seconds of [35, 45, 55]) {
-        audition.seekStretch(stretch, seconds)
+        player.seek(seconds)
         await nextTick()
         await press({ key: 'Enter', shiftKey: true })
       }
@@ -606,15 +616,15 @@ describe('TrackView', () => {
     })
 
     it('is refused within 1 s of another pending split or of the track’s ends', async () => {
-      const { audition, split, stretch } = setup()
+      const { player, split } = setup()
 
       await press({ key: 'Enter', shiftKey: true })
       expect(split.pendingSplits).toEqual([])
 
-      audition.seekStretch(stretch, 40)
+      player.seek(40)
       await nextTick()
       await press({ key: 'Enter', shiftKey: true })
-      audition.seekStretch(stretch, 40.5)
+      player.seek(40.5)
       await nextTick()
       await press({ key: 'Enter', shiftKey: true })
 
@@ -622,11 +632,11 @@ describe('TrackView', () => {
     })
 
     it('ignores the auto-repeat of a held key, so one press adds one', async () => {
-      const { audition, split, stretch } = setup()
-      audition.seekStretch(stretch, 40)
+      const { player, split } = setup()
+      player.seek(40)
       await nextTick()
       await press({ key: 'Enter', shiftKey: true })
-      audition.seekStretch(stretch, 50)
+      player.seek(50)
       await nextTick()
 
       await press({ key: 'Enter', shiftKey: true, repeat: true })
@@ -635,16 +645,16 @@ describe('TrackView', () => {
     })
 
     it('leaves the mark, the playback and the view as they are', async () => {
-      const { audition, split, stretch, toggleStretch } = setup()
+      const { player, split, toggleSpy } = setup()
       split.placeTrackMark(30)
-      audition.seekStretch(stretch, 40)
+      player.seek(40)
       await nextTick()
 
       await press({ key: 'Enter', shiftKey: true })
 
       expect(split.trackMarkSeconds).toBe(30)
       expect(split.view).toBe('track')
-      expect(toggleStretch).not.toHaveBeenCalled()
+      expect(toggleSpy).not.toHaveBeenCalled()
     })
   })
 
@@ -698,7 +708,7 @@ describe('TrackView', () => {
 
   describe('Delete and Backspace', () => {
     it('do nothing with no pending split selected: no split goes, no track goes, the key is left alone', () => {
-      const { audition, split, stretch, toggleStretch } = setup()
+      const { player, split, toggleSpy } = setup()
       const deleteSplit = vi.spyOn(split, 'deleteSplit')
 
       for (const key of ['Delete', 'Backspace']) {
@@ -710,22 +720,22 @@ describe('TrackView', () => {
       expect(deleteSplit).not.toHaveBeenCalled()
       expect(split.splits).toHaveLength(2)
       expect(split.selectedTrack?.number).toBe(2)
-      expect(audition.stretchPlayheadSeconds(stretch)).toBe(21)
-      expect(toggleStretch).not.toHaveBeenCalled()
+      expect(player.playheadSeconds()).toBe(21)
+      expect(toggleSpy).not.toHaveBeenCalled()
     })
 
     it('leave other keys alone too', async () => {
-      const { toggleStretch } = setup()
+      const { toggleSpy } = setup()
 
       await press({ key: 'a' })
 
-      expect(toggleStretch).not.toHaveBeenCalled()
+      expect(toggleSpy).not.toHaveBeenCalled()
     })
   })
 
   describe('a press', () => {
     it('places the mark where it lands, leaving the playhead and playback alone', async () => {
-      const { audition, split, stretch, toggleStretch, wrapper } = setup()
+      const { player, split, toggleSpy, wrapper } = setup()
       const view = measured(wrapper)
 
       // 400 px of 1000 is 40 % of 50.5 s from 21 s.
@@ -733,8 +743,8 @@ describe('TrackView', () => {
       await pointer(view, 'pointerup', 400)
 
       expect(split.trackMarkSeconds).toBeCloseTo(41.2, 9)
-      expect(audition.stretchPlayheadSeconds(stretch)).toBe(21)
-      expect(toggleStretch).not.toHaveBeenCalled()
+      expect(player.playheadSeconds()).toBe(21)
+      expect(toggleSpy).not.toHaveBeenCalled()
     })
 
     it('rounds the mark to 10 ms, as the Range view’s is', async () => {
@@ -748,10 +758,10 @@ describe('TrackView', () => {
     })
 
     it('near an end split places the mark there, and selects no split', async () => {
-      const { audition, split, stretch, wrapper } = setup()
-      const grab = vi.spyOn(audition, 'grabPlayhead')
+      const { player, split, wrapper } = setup()
+      const grab = vi.spyOn(player, 'grabPlayhead')
       const view = measured(wrapper)
-      audition.seekStretch(stretch, 40)
+      player.seek(40)
       await nextTick()
 
       await pointer(view, 'pointerdown', 997)
@@ -760,7 +770,7 @@ describe('TrackView', () => {
       expect(grab).not.toHaveBeenCalled()
       // 3 px short of the end split's line, which is 71.5 s: the mark goes there, no split does.
       expect(split.trackMarkSeconds).toBeCloseTo(71.35, 9)
-      expect(audition.stretchPlayheadSeconds(stretch)).toBeCloseTo(40, 9)
+      expect(player.playheadSeconds()).toBeCloseTo(40, 9)
       expect(split.selectedSplit).toBeNull()
       expect(split.selectedTrack?.number).toBe(2)
       expect(split.view).toBe('track')
@@ -794,8 +804,8 @@ describe('TrackView', () => {
     })
 
     it('takes the playhead before a pending split under the same press', async () => {
-      const { audition, split, wrapper } = setup()
-      const grab = vi.spyOn(audition, 'grabPlayhead')
+      const { player, split, wrapper } = setup()
+      const grab = vi.spyOn(player, 'grabPlayhead')
       split.addPendingSplit(22, false)
       const view = measured(wrapper)
 
@@ -833,25 +843,25 @@ describe('TrackView', () => {
 
   describe('a double-click', () => {
     it('moves the playhead there, and not the mark', async () => {
-      const { audition, split, stretch, wrapper } = setup()
+      const { player, split, wrapper } = setup()
       split.placeTrackMark(30)
       const view = measured(wrapper)
 
       await doubleClick(view, 400)
 
-      expect(audition.stretchPlayheadSeconds(stretch)).toBeCloseTo(41.2, 9)
+      expect(player.playheadSeconds()).toBeCloseTo(41.2, 9)
       expect(split.trackMarkSeconds).toBe(30)
       expect(split.view).toBe('track')
     })
 
     it('moves the playhead through the player’s seek, which a playing track plays on from', async () => {
-      const { audition, stretch, wrapper } = setup()
-      const seek = vi.spyOn(audition, 'seekStretch')
+      const { player, wrapper } = setup()
+      const seek = vi.spyOn(player, 'seek')
       const view = measured(wrapper)
 
       await doubleClick(view, 400)
 
-      expect(seek).toHaveBeenCalledExactlyOnceWith(stretch, 41.2)
+      expect(seek).toHaveBeenCalledExactlyOnceWith(41.2)
     })
 
     it('within 6 px of the end split’s line selects that split and opens the Split view', async () => {
@@ -892,14 +902,14 @@ describe('TrackView', () => {
     })
 
     it('7 px from an end split’s line moves the playhead instead', async () => {
-      const { audition, split, stretch, wrapper } = setup()
+      const { player, split, wrapper } = setup()
       const view = measured(wrapper)
 
       await doubleClick(view, 993)
 
       expect(split.selectedSplit).toBeNull()
       expect(split.view).toBe('track')
-      expect(audition.stretchPlayheadSeconds(stretch)).toBeCloseTo(71.15, 9)
+      expect(player.playheadSeconds()).toBeCloseTo(71.15, 9)
     })
 
     it('takes no split that lies outside the track, though the view draws all', async () => {
@@ -917,10 +927,10 @@ describe('TrackView', () => {
 
   describe('dragging the playhead', () => {
     it('takes hold of the playhead at the track’s start, moves it with the pointer and lets go', async () => {
-      const { audition, stretch, wrapper } = setup()
-      const grab = vi.spyOn(audition, 'grabPlayhead')
-      const seek = vi.spyOn(audition, 'seekStretch')
-      const drop = vi.spyOn(audition, 'dropPlayhead')
+      const { player, wrapper } = setup()
+      const grab = vi.spyOn(player, 'grabPlayhead')
+      const seek = vi.spyOn(player, 'seek')
+      const drop = vi.spyOn(player, 'dropPlayhead')
       const view = measured(wrapper)
 
       await pointer(view, 'pointerdown', 4)
@@ -929,21 +939,21 @@ describe('TrackView', () => {
 
       expect(grab).toHaveBeenCalledOnce()
       // Grabbed 4 px right of the line, so the line stays 4 px left of the pointer.
-      expect(seek).toHaveBeenLastCalledWith(stretch, 46.25)
-      expect(audition.stretchPlayheadSeconds(stretch)).toBe(46.25)
-      expect(drop).toHaveBeenCalledExactlyOnceWith(stretch)
+      expect(seek).toHaveBeenLastCalledWith(46.25)
+      expect(player.playheadSeconds()).toBe(46.25)
+      expect(drop).toHaveBeenCalledExactlyOnceWith()
     })
 
     it('holds the playhead to the track when the pointer goes past its ends', async () => {
-      const { audition, stretch, wrapper } = setup()
+      const { player, wrapper } = setup()
       const view = measured(wrapper)
 
       await pointer(view, 'pointerdown', 0)
       await pointer(view, 'pointermove', 1400)
-      expect(audition.stretchPlayheadSeconds(stretch)).toBe(71.5)
+      expect(player.playheadSeconds()).toBe(71.5)
 
       await pointer(view, 'pointermove', -300)
-      expect(audition.stretchPlayheadSeconds(stretch)).toBe(21)
+      expect(player.playheadSeconds()).toBe(21)
     })
 
     it('shows the resize cursor over the playhead and while it is dragged', async () => {
@@ -1009,9 +1019,9 @@ describe('TrackView', () => {
     })
 
     it('says why the track could not be played', async () => {
-      const { audition, wrapper } = setup()
+      const { player, wrapper } = setup()
 
-      audition.failure = "Couldn't play this track: Invalid data found"
+      player.failure = "Couldn't play this track: Invalid data found"
       await wrapper.vm.$nextTick()
 
       expect(wrapper.get('[role="status"]').text()).toBe(

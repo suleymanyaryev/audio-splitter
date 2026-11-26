@@ -52,6 +52,6 @@ That is 1.4 to 1.5 MB, dropped when the next press replaces it. (ffmpeg writes a
 
 - [`src/entities/source-file/api/decode-clip.ts`](../../src/entities/source-file/api/decode-clip.ts): the clip command above, for a split time: start at `max(0, S − 4)`, up to 1 s of pre-roll, `-t 8`, `pcm_s16le` to WAV. It returns the bytes and the clip's start time.
 - [`src/entities/source-file/model/source-file.ts`](../../src/entities/source-file/model/source-file.ts): keeps the ffmpeg session open after the load, so a press does not load the core again. Each clip is one call and counts toward the 20-call reload budget (note 02).
-- [`src/widgets/split-zoom/model/audition.ts`](../../src/widgets/split-zoom/model/audition.ts): the hidden `<audio>` element on the clip's blob URL; play, stop by itself at the end, and stop when the split moves, is deselected or another is selected.
+- [`src/widgets/split-zoom/model/player.ts`](../../src/widgets/split-zoom/model/player.ts): the hidden `<audio>` element on the clip's blob URL; play, stop by itself at the end, and stop when the split moves, is deselected or another is selected.
 - [`src/widgets/split-zoom/ui/SplitZoom.vue`](../../src/widgets/split-zoom/ui/SplitZoom.vue): Space in the Split view plays and stops, wherever the focus is; the 1 px ink playhead, drawn from `currentTime` on each animation frame.
 - [`src/pages/review/ui/ReviewPage.vue`](../../src/pages/review/ui/ReviewPage.vue): the "Play across split" button, reading "Stop" while it plays.

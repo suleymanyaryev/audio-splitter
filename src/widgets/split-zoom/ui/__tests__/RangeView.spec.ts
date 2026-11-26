@@ -5,7 +5,7 @@ import { nextTick } from 'vue'
 import { enableAutoUnmount, mount } from '@vue/test-utils'
 import { useSourceFileStore } from '@/entities/source-file/model/source-file.ts'
 import { useSplitStore } from '@/entities/split/model/split.ts'
-import { useAuditionStore } from '../../model/audition.ts'
+import { usePlayerStore } from '../../model/player.ts'
 import RangeView from '../RangeView.vue'
 
 enableAutoUnmount(afterEach)
@@ -17,11 +17,11 @@ function setup(prepare: (split: ReturnType<typeof useSplitStore>) => void = () =
   split.open(new Float32Array(2000).fill(-10), { windowSeconds: 0.05, durationSeconds: 100 })
   split.setRange(10, 20)
   prepare(split)
-  const audition = useAuditionStore()
-  const toggleRange = vi.spyOn(audition, 'toggleStretch').mockImplementation(() => {})
-  const backToRangeStart = vi.spyOn(audition, 'backToStretchStart').mockImplementation(() => {})
+  const player = usePlayerStore()
+  const toggleRange = vi.spyOn(player, 'toggle').mockImplementation(() => {})
+  const backToRangeStart = vi.spyOn(player, 'backToStart').mockImplementation(() => {})
   const wrapper = mount(RangeView)
-  return { audition, split, toggleRange, backToRangeStart, wrapper }
+  return { player, split, toggleRange, backToRangeStart, wrapper }
 }
 
 // Keys belong to the page: the view hears them wherever the focus is.
@@ -89,10 +89,10 @@ describe('RangeView', () => {
     })
 
     it('follows the playhead, with hundredths, and not the mark', async () => {
-      const { audition, split, wrapper } = setup()
+      const { player, split, wrapper } = setup()
 
       split.placeMark(18)
-      audition.seekStretch(split.range!, 14.256)
+      player.seek(14.256)
       await nextTick()
 
       const view = wrapper.get('[role="slider"]')
@@ -107,9 +107,9 @@ describe('RangeView', () => {
         return frames.length
       })
       vi.spyOn(globalThis, 'cancelAnimationFrame').mockImplementation(() => {})
-      const { audition, wrapper } = setup()
-      const heard = vi.spyOn(audition, 'stretchPlayheadSeconds').mockReturnValue(13.7)
-      audition.stretchStatus = 'playing'
+      const { player, wrapper } = setup()
+      const heard = vi.spyOn(player, 'playheadSeconds').mockReturnValue(13.7)
+      player.status = 'playing'
       await nextTick()
 
       frames.at(-1)?.(0)
@@ -147,39 +147,39 @@ describe('RangeView', () => {
 
   describe('Left and Right', () => {
     it('move the playhead 1 s, and 10 s with Shift', async () => {
-      const { audition, split } = setup()
-      audition.seekStretch(split.range!, 12)
+      const { player } = setup()
+      player.seek(12)
 
       await press({ key: 'ArrowRight' })
-      expect(audition.stretchPlayheadSeconds(split.range!)).toBe(13)
+      expect(player.playheadSeconds()).toBe(13)
 
       await press({ key: 'ArrowLeft' })
       await press({ key: 'ArrowLeft' })
-      expect(audition.stretchPlayheadSeconds(split.range!)).toBe(11)
+      expect(player.playheadSeconds()).toBe(11)
 
       await press({ key: 'ArrowRight', shiftKey: true })
-      expect(audition.stretchPlayheadSeconds(split.range!)).toBe(20)
+      expect(player.playheadSeconds()).toBe(20)
     })
 
     it('do not drift: ten steps of 1 s from a hundredth make exactly ten seconds on', async () => {
-      const { audition, split } = setup()
-      audition.seekStretch(split.range!, 10.01)
+      const { player } = setup()
+      player.seek(10.01)
 
       for (let step = 0; step < 9; step++) await press({ key: 'ArrowRight' })
 
-      expect(audition.stretchPlayheadSeconds(split.range!)).toBeCloseTo(19.01, 9)
+      expect(player.playheadSeconds()).toBeCloseTo(19.01, 9)
     })
 
     it('hold the playhead inside the range', async () => {
-      const { audition, split } = setup()
-      audition.seekStretch(split.range!, 19.5)
+      const { player } = setup()
+      player.seek(19.5)
 
       await press({ key: 'ArrowRight' })
-      expect(audition.stretchPlayheadSeconds(split.range!)).toBe(20)
+      expect(player.playheadSeconds()).toBe(20)
 
       await press({ key: 'ArrowLeft', shiftKey: true })
       await press({ key: 'ArrowLeft', shiftKey: true })
-      expect(audition.stretchPlayheadSeconds(split.range!)).toBe(10)
+      expect(player.playheadSeconds()).toBe(10)
     })
 
     it('leave the mark and the playback alone, and are not a page scroll', async () => {
@@ -200,13 +200,13 @@ describe('RangeView', () => {
     })
 
     it('move the playhead of a range that plays, by the sound’s place', async () => {
-      const { audition, split } = setup()
-      const seek = vi.spyOn(audition, 'seekStretch')
-      vi.spyOn(audition, 'stretchPlayheadSeconds').mockReturnValue(14.37)
+      const { player } = setup()
+      const seek = vi.spyOn(player, 'seek')
+      vi.spyOn(player, 'playheadSeconds').mockReturnValue(14.37)
 
       await press({ key: 'ArrowRight' })
 
-      expect(seek).toHaveBeenCalledExactlyOnceWith(split.range, 15.37)
+      expect(seek).toHaveBeenCalledExactlyOnceWith(15.37)
     })
   })
 
@@ -276,10 +276,10 @@ describe('RangeView', () => {
 
   describe('Shift and Enter', () => {
     it('add a split where the playhead is, and keep the mark, the view and the selection', async () => {
-      const { audition, split } = setup((store) => {
+      const { player, split } = setup((store) => {
         store.placeMark(12)
       })
-      audition.seekStretch(split.range!, 16.4)
+      player.seek(16.4)
       const event = new KeyboardEvent('keydown', {
         key: 'Enter',
         shiftKey: true,
@@ -297,9 +297,9 @@ describe('RangeView', () => {
     })
 
     it('add it on the 10 ms grid, wherever the sound is', async () => {
-      const { audition } = setup()
+      const { player } = setup()
       const split = useSplitStore()
-      vi.spyOn(audition, 'stretchPlayheadSeconds').mockReturnValue(16.4371)
+      vi.spyOn(player, 'playheadSeconds').mockReturnValue(16.4371)
 
       await press({ key: 'Enter', shiftKey: true })
 
@@ -307,24 +307,24 @@ describe('RangeView', () => {
     })
 
     it('do not stop the sound, pause it or move the playhead', async () => {
-      const { audition, split, toggleRange } = setup()
-      const stop = vi.spyOn(audition, 'stop')
-      const seek = vi.spyOn(audition, 'seekStretch')
-      audition.stretchStatus = 'playing'
-      vi.spyOn(audition, 'stretchPlayheadSeconds').mockReturnValue(16.4)
+      const { player, split, toggleRange } = setup()
+      const stop = vi.spyOn(player, 'stop')
+      const seek = vi.spyOn(player, 'seek')
+      player.status = 'playing'
+      vi.spyOn(player, 'playheadSeconds').mockReturnValue(16.4)
 
       await press({ key: 'Enter', shiftKey: true })
 
       expect(split.splits).toHaveLength(1)
-      expect(audition.stretchStatus).toBe('playing')
+      expect(player.status).toBe('playing')
       expect(stop).not.toHaveBeenCalled()
       expect(seek).not.toHaveBeenCalled()
       expect(toggleRange).not.toHaveBeenCalled()
     })
 
     it('add several splits in one listen, a second apart or more', async () => {
-      const { audition, split } = setup()
-      const heard = vi.spyOn(audition, 'stretchPlayheadSeconds')
+      const { player, split } = setup()
+      const heard = vi.spyOn(player, 'playheadSeconds')
 
       for (const seconds of [11, 12.5, 12.9, 15]) {
         heard.mockReturnValue(seconds)
@@ -335,8 +335,8 @@ describe('RangeView', () => {
     })
 
     it('ignore the auto-repeat of a held key', async () => {
-      const { audition, split } = setup()
-      const heard = vi.spyOn(audition, 'stretchPlayheadSeconds')
+      const { player, split } = setup()
+      const heard = vi.spyOn(player, 'playheadSeconds')
 
       heard.mockReturnValue(11)
       await press({ key: 'Enter', shiftKey: true })
@@ -347,10 +347,10 @@ describe('RangeView', () => {
     })
 
     it('add nothing within a second of a split or of the file’s ends', async () => {
-      const { audition, split } = setup((store) => {
+      const { player, split } = setup((store) => {
         store.addSplitAt(15)
       })
-      const heard = vi.spyOn(audition, 'stretchPlayheadSeconds')
+      const heard = vi.spyOn(player, 'playheadSeconds')
 
       for (const seconds of [15.5, 14.5, 0.5, 99.5]) {
         heard.mockReturnValue(seconds)
@@ -409,10 +409,10 @@ describe('RangeView', () => {
 
   describe('dragging the playhead', () => {
     it('takes hold of the playhead at the range’s start, moves it with the pointer and lets go', async () => {
-      const { audition, split, wrapper } = setup()
-      const grab = vi.spyOn(audition, 'grabPlayhead')
-      const seek = vi.spyOn(audition, 'seekStretch')
-      const drop = vi.spyOn(audition, 'dropPlayhead')
+      const { player, wrapper } = setup()
+      const grab = vi.spyOn(player, 'grabPlayhead')
+      const seek = vi.spyOn(player, 'seek')
+      const drop = vi.spyOn(player, 'dropPlayhead')
       const view = measured(wrapper)
 
       await pointer(view, 'pointerdown', 4)
@@ -421,33 +421,33 @@ describe('RangeView', () => {
 
       expect(grab).toHaveBeenCalledOnce()
       // Grabbed 4 px right of the line, so the line stays 4 px left of the pointer.
-      expect(seek).toHaveBeenLastCalledWith(split.range, 15)
-      expect(audition.stretchPlayheadSeconds(split.range!)).toBe(15)
+      expect(seek).toHaveBeenLastCalledWith(15)
+      expect(player.playheadSeconds()).toBe(15)
       expect(drop).toHaveBeenCalledOnce()
     })
 
     it('holds the playhead to the range when the pointer goes past its ends', async () => {
-      const { audition, split, wrapper } = setup()
+      const { player, wrapper } = setup()
       const view = measured(wrapper)
 
       await pointer(view, 'pointerdown', 0)
       await pointer(view, 'pointermove', 1400)
-      expect(audition.stretchPlayheadSeconds(split.range!)).toBe(20)
+      expect(player.playheadSeconds()).toBe(20)
 
       await pointer(view, 'pointermove', -300)
-      expect(audition.stretchPlayheadSeconds(split.range!)).toBe(10)
+      expect(player.playheadSeconds()).toBe(10)
     })
 
     it('does not take hold of the playhead from a press away from it', async () => {
-      const { audition, split, wrapper } = setup()
-      const grab = vi.spyOn(audition, 'grabPlayhead')
+      const { player, wrapper } = setup()
+      const grab = vi.spyOn(player, 'grabPlayhead')
       const view = measured(wrapper)
 
       await pointer(view, 'pointerdown', 300)
       await pointer(view, 'pointermove', 600)
 
       expect(grab).not.toHaveBeenCalled()
-      expect(audition.stretchPlayheadSeconds(split.range!)).toBe(10)
+      expect(player.playheadSeconds()).toBe(10)
     })
 
     it('shows the resize cursor over the playhead and while it is dragged', async () => {
@@ -466,9 +466,9 @@ describe('RangeView', () => {
 
   describe('a press', () => {
     it('places the mark where it lands, leaving playback alone', async () => {
-      const { audition, split, toggleRange, wrapper } = setup()
+      const { player, split, toggleRange, wrapper } = setup()
       const view = measured(wrapper)
-      const stop = vi.spyOn(audition, 'stop')
+      const stop = vi.spyOn(player, 'stop')
 
       await pointer(view, 'pointerdown', 700)
 
@@ -508,26 +508,26 @@ describe('RangeView', () => {
 
   describe('a double-click', () => {
     it('moves the playhead there, and not the mark', async () => {
-      const { audition, split, wrapper } = setup((store) => {
+      const { player, split, wrapper } = setup((store) => {
         store.placeMark(12)
       })
       const view = measured(wrapper)
 
       await doubleClick(view, 700)
 
-      expect(audition.stretchPlayheadSeconds(split.range!)).toBe(17)
+      expect(player.playheadSeconds()).toBe(17)
       expect(split.markSeconds).toBe(12)
       expect(split.view).toBe('range')
     })
 
     it('moves the playhead through the player’s seek, which a playing range plays on from', async () => {
-      const { audition, split, wrapper } = setup()
-      const seek = vi.spyOn(audition, 'seekStretch')
+      const { player, wrapper } = setup()
+      const seek = vi.spyOn(player, 'seek')
       const view = measured(wrapper)
 
       await doubleClick(view, 300)
 
-      expect(seek).toHaveBeenCalledExactlyOnceWith(split.range, 13)
+      expect(seek).toHaveBeenCalledExactlyOnceWith(13)
     })
 
     it('within 6 px of a split’s line selects that split and opens the Split view', async () => {
@@ -547,7 +547,7 @@ describe('RangeView', () => {
     })
 
     it('7 px from a split’s line moves the playhead instead', async () => {
-      const { audition, split, wrapper } = setup((store) => {
+      const { player, split, wrapper } = setup((store) => {
         store.moveZoomTo(15)
         store.addSplit()
         store.moveZoomTo(0)
@@ -559,7 +559,7 @@ describe('RangeView', () => {
 
       expect(split.selectedSplit).toBeNull()
       expect(split.view).toBe('range')
-      expect(audition.stretchPlayheadSeconds(split.range!)).toBeCloseTo(15.07, 9)
+      expect(player.playheadSeconds()).toBeCloseTo(15.07, 9)
     })
   })
 
@@ -571,9 +571,9 @@ describe('RangeView', () => {
     })
 
     it('says why the range could not be played', async () => {
-      const { audition, wrapper } = setup()
+      const { player, wrapper } = setup()
 
-      audition.failure = "Couldn't play this range: Invalid data found"
+      player.failure = "Couldn't play this range: Invalid data found"
       await wrapper.vm.$nextTick()
 
       expect(wrapper.get('[role="status"]').text()).toBe(

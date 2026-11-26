@@ -45,7 +45,7 @@ All state lives in Pinia setup stores, in memory, except the theme ([below](#the
 | ------------------ | -------------------------- | ----------------------------------------------------------------------------- |
 | `source-file`      | `entities/source-file`     | The file, its analysis, load progress and the ffmpeg session                  |
 | `split`            | `entities/split`           | Settings, proposals, splits and their confidence, track names, matches, selection, edits |
-| `audition`         | `widgets/split-zoom`       | The one player: what plays, its status, volume and play speed                 |
+| `player`           | `widgets/split-zoom`       | The one player: the subject on show, its status, volume and play speed        |
 | `export-tracks`    | `widgets/track-strip`      | The export of every track not left out into a folder                          |
 | `export-single`    | `widgets/track-strip`      | The export of one track or range as a single file                             |
 | `export-lock`      | `widgets/track-strip`      | Which export is running, so the two never overlap                             |
@@ -55,7 +55,7 @@ All state lives in Pinia setup stores, in memory, except the theme ([below](#the
 flowchart LR
   sourceFile[("source-file")]
   split[("split")]
-  audition[("audition")]
+  player[("player")]
   exporter[("export-tracks")]
   exporterSingle[("export-single")]
   exportLock[("export-lock")]
@@ -63,8 +63,8 @@ flowchart LR
 
   sourceFile -- "loudness curve, on mount" --> reviewPage
   reviewPage -- "open(curve), prefix" --> split
-  split -- "selection, range, view" --> audition
-  audition -- "clip" --> sourceFile
+  split -- "selection, range, view" --> player
+  player -- "clip" --> sourceFile
   split -- "tracks and names" --> exporter
   split -- "one track" --> exporterSingle
   exporter -- "cutTrack" --> sourceFile
@@ -155,9 +155,9 @@ stateDiagram-v2
 
 ## Player
 
-The `audition` store is the one player. The `source-file` store decodes a stretch of the file to WAV, and a hidden `<audio>` element plays it. A WAV seeks exactly, which a compressed file does not ([note 06](concepts/06-seeking-compressed-audio.md)).
+The `player` store is the one player. The `source-file` store decodes a stretch of the file to WAV, and a hidden `<audio>` element plays it, behind `api/audio-element.ts`, which the store tells when to hold, play and seek. A WAV seeks exactly, which a compressed file does not ([note 06](concepts/06-seeking-compressed-audio.md)).
 
-There are two kinds of listening. Starting one stops the other.
+Each subject keeps its own resting place, tied to its identity (the audition's to its split, a track's and the range's to their ends), so playing or moving the playhead in one view never moves another's. The player acts on the subject on show, which it reads from the split store: the audition of the selected split in the Split view, the selected track in the Track view, the range in the Range view, or nothing. There are two kinds of listening, the audition and a stretch (the range or a track), and one status with one owner between them. Starting one takes the status from the other.
 
 **The audition** plays the 8 s across the selected split, its extent: the split ±4 s, held to the file. It can pause and resume without decoding again. Its playhead is always known while a split is selected: the sound while it plays, else the resting place, else the extent's start.
 
@@ -174,7 +174,7 @@ stateDiagram-v2
   loading --> idle: pressed again, a view change or the export, split moved or changed, or failed
 ```
 
-"Split changed" is another split selected, none, or the selected one deleted. When the resting place is kept or cleared is in the header comment of `src/widgets/split-zoom/model/audition.ts`.
+"Split changed" is another split selected, none, or the selected one deleted. When the resting place is kept or cleared is in the header comment of `src/widgets/split-zoom/model/player.ts`.
 
 **The stretch** plays a range or the selected track. It can pause, resume and seek without decoding again.
 
@@ -194,7 +194,7 @@ stateDiagram-v2
 ```
 
 - **A long track plays through a moving window.** At most 10 min is decoded at a time. The next window is decoded while the current one plays, and at most two are held ([`decode-window.ts`](../src/widgets/split-zoom/lib/decode-window.ts), [note 08](concepts/08-listening-to-a-range.md)).
-- **Watchers on the `split` store stop the sound at once** when the split, range or track it belongs to changes. A view change or the export only pauses a stretch, so its playhead stays.
+- **The player's own watchers on the `split` store stop the sound at once.** A change of the split, the range or the track ends that subject only. A view change pauses a stretch where it was and lets go of the audition's clip, so a playhead stays. The export stops the sound the same way.
 - **Every press takes a number.** A clip that arrives for an older press is dropped, so stale sound never starts.
 - **The volume and the play speed apply to the element only**, so they never reach an exported file ([note 09](concepts/09-volume-is-gain.md), [note 10](concepts/10-speed-without-pitch.md), [ADR 0004](adr/0004-time-stretching-by-the-browser.md)).
 

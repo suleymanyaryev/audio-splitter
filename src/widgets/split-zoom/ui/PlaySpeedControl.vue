@@ -9,7 +9,7 @@ import {
   PLAY_SPEED_STEP,
 } from '../config/play-speed.ts'
 import { formatPlaySpeed } from '../lib/format-play-speed.ts'
-import { useAuditionStore } from '../model/audition.ts'
+import { usePlayerStore } from '../model/player.ts'
 
 /*
 Just before the volume control in the zoom panel's title row, in all three views: how fast the
@@ -17,7 +17,7 @@ player plays, with the pitch kept (docs/concepts/10-speed-without-pitch.md). The
 play speed; this only shows and sets it. The button shows the speed and brings it back to 1.0, and
 is always on, as there is nothing to guard.
 */
-const audition = useAuditionStore()
+const player = usePlayerStore()
 </script>
 
 <template>
@@ -26,22 +26,22 @@ const audition = useAuditionStore()
       <UiButton
         size="sm"
         class="min-w-11 justify-center px-1.5"
-        :aria-label="`Reset play speed, now ${formatPlaySpeed(audition.playSpeed)}`"
-        @click="audition.setPlaySpeed(DEFAULT_PLAY_SPEED)"
+        :aria-label="`Reset play speed, now ${formatPlaySpeed(player.playSpeed)}`"
+        @click="player.setPlaySpeed(DEFAULT_PLAY_SPEED)"
       >
-        {{ formatPlaySpeed(audition.playSpeed) }}
+        {{ formatPlaySpeed(player.playSpeed) }}
       </UiButton>
     </UiTooltip>
     <UiSlider
       compact
       class="w-16"
       label="Play speed"
-      :model-value="audition.playSpeed"
-      :readout="formatPlaySpeed(audition.playSpeed)"
+      :model-value="player.playSpeed"
+      :readout="formatPlaySpeed(player.playSpeed)"
       :min="MIN_PLAY_SPEED"
       :max="MAX_PLAY_SPEED"
       :step="PLAY_SPEED_STEP"
-      @update:model-value="audition.setPlaySpeed"
+      @update:model-value="player.setPlaySpeed"
     />
   </div>
 </template>

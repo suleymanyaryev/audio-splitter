@@ -22,7 +22,7 @@ import { usePlayheadFrames } from '../lib/use-playhead-frames.ts'
 import { useRangePress } from '../lib/use-range-press.ts'
 import { zoomBars } from '../lib/zoom-bars.ts'
 import { landSpansInWindow } from '../lib/zoom-spans.ts'
-import { useAuditionStore } from '../model/audition.ts'
+import { usePlayerStore } from '../model/player.ts'
 
 /*
 The Track view (GLOSSARY.md): the selected track stretched across a 160 px canvas whatever its
@@ -58,7 +58,7 @@ and stop the sound, add pending splits or step over and over. A failure to play 
 the bottom of the view.
 
 The player plays the whole track, however long: a track over 10 min is heard through a window that
-moves along it (`model/audition.ts`), which this view does not see.
+moves along it (`model/player.ts`), which this view does not see.
 */
 
 // DESIGN.md: the whole canvas is framed in 1.5 px ink, as in the zoom view.
@@ -71,7 +71,7 @@ const SHIFT_STEP_SECONDS = 10
 
 const sourceFile = useSourceFileStore()
 const split = useSplitStore()
-const audition = useAuditionStore()
+const player = usePlayerStore()
 const canvas = useTemplateRef('canvas')
 const frame = useTemplateRef('frame')
 
@@ -82,7 +82,7 @@ const extent = computed(() =>
 
 // The track's start for a new track, then where it is heard or resumes; 0 with no track selected.
 function playheadSeconds() {
-  return extent.value === null ? 0 : audition.stretchPlayheadSeconds(extent.value)
+  return player.playheadSeconds() ?? 0
 }
 
 /*
@@ -92,7 +92,7 @@ not on every frame. Otherwise it is the resting place, which Vue does see, to th
 */
 const heardSeconds = ref(0)
 const sliderSeconds = computed(() =>
-  audition.stretchStatus === 'playing' ? heardSeconds.value : playheadSeconds(),
+  player.status === 'playing' ? heardSeconds.value : playheadSeconds(),
 )
 
 function draw() {
@@ -192,13 +192,13 @@ const { overPlayhead, dragging, onPointerDown, onPointerMove, onPointerEnd, onDo
       return map === null ? 0 : draggedTime(x, 0, map.centreSeconds, map.windowSeconds, map.width)
     },
     grab: () => {
-      audition.grabPlayhead()
+      player.grabPlayhead()
     },
     move: (seconds) => {
-      if (extent.value !== null) audition.seekStretch(extent.value, seconds)
+      player.seek(seconds)
     },
     drop: () => {
-      if (extent.value !== null) audition.dropPlayhead(extent.value)
+      player.dropPlayhead()
     },
     selectSplit: (index) => {
       const selected = split.selectedTrackEndSplits[index]
@@ -224,12 +224,8 @@ const { overPlayhead, dragging, onPointerDown, onPointerMove, onPointerEnd, onDo
   })
 
 function moveBy(direction: -1 | 1, isShifted: boolean) {
-  if (extent.value === null) return
   const step = isShifted ? SHIFT_STEP_SECONDS : STEP_SECONDS
-  audition.seekStretch(
-    extent.value,
-    roundToMillisecond(audition.stretchPlayheadSeconds(extent.value) + direction * step),
-  )
+  player.seek(roundToMillisecond(playheadSeconds() + direction * step))
 }
 
 /*
@@ -247,21 +243,13 @@ function actOnSelectedPendingSplit(key: string) {
   else split.deleteSelectedPendingSplit()
 }
 
-// Whether the track is heard or about to be: what a step or a swap keeps on in the next track.
-function isSoundOn() {
-  return audition.stretchStatus === 'playing' || audition.stretchStatus === 'loading'
-}
-
 /*
 Whether the key stepped: at the first or last track, or over the discard question, it did not, and
-then nothing starts; the question's answer steps later, from the dialog. Whether sound was on is
-read before the step, which makes the player let go of the old track (`model/audition.ts`).
+then nothing starts; the question's answer steps later, from the dialog. The player carries a sound
+that was on over to the new track.
 */
 function isStepKeyActedOn(step: -1 | 1) {
-  const wasOn = isSoundOn()
-  const hasStepped = split.selectAdjacentTrack(step)
-  if (hasStepped && wasOn && extent.value !== null) audition.toggleStretch(extent.value)
-  return hasStepped
+  return player.carryOver(() => split.selectAdjacentTrack(step))
 }
 
 // Whether the key was the view's: a key it leaves alone is the browser's, and is not reported.
@@ -288,20 +276,16 @@ left alone, as it is for a held key when there is no target. Shift is a modifier
 Shift+C is left alone, and a held key swaps once.
 */
 function isSwapKeyActedOn(event: KeyboardEvent) {
-  const track = extent.value
-  if (track === null || event.shiftKey) return false
-  const playhead = audition.stretchPlayheadSeconds(track)
+  if (extent.value === null || event.shiftKey) return false
+  const playhead = playheadSeconds()
   // A held key is taken, so the page does not act on it, only when there is somewhere to swap to.
   if (event.repeat) return split.swapTarget(playhead) !== null
-  const wasOn = isSoundOn()
-  const target = split.swapTrack(playhead)
-  // The selection moved, so the extent is the new track's.
-  const swapped = extent.value
-  if (target === null || swapped === null) return false
-  // The player let go of the old track when the selection moved; the new one rests at the moment.
-  audition.seekStretch(swapped, target.seconds)
-  if (wasOn) audition.toggleStretch(swapped)
-  return true
+  return player.carryOver(() => {
+    const target = split.swapTrack(playhead)
+    // The player let go of the old track when the selection moved; the new one rests at the moment.
+    if (target !== null) player.seek(target.seconds)
+    return target !== null
+  })
 }
 
 // The view's other keys: Space, Enter, Delete, Escape, Home, X, C and the arrows.
@@ -309,7 +293,7 @@ function isOtherKeyActedOn(event: KeyboardEvent) {
   switch (event.key) {
     case ' ': {
       // A held key must not start and stop the sound over and over.
-      if (!event.repeat && extent.value !== null) audition.toggleStretch(extent.value)
+      if (!event.repeat) player.toggle()
       return true
     }
     case 'Enter': {
@@ -327,7 +311,7 @@ function isOtherKeyActedOn(event: KeyboardEvent) {
       return true
     }
     case 'Home': {
-      if (extent.value !== null) audition.backToStretchStart(extent.value)
+      player.backToStart()
       return true
     }
     case 'x':
@@ -362,7 +346,7 @@ usePageKeys(isKeyActedOn, {
 })
 
 usePlayheadFrames(
-  () => audition.stretchStatus === 'playing',
+  () => player.status === 'playing',
   () => {
     heardSeconds.value = Math.floor(playheadSeconds())
     draw()
@@ -398,8 +382,8 @@ watch(
       role="slider"
       tabindex="-1"
       aria-label="Playhead in the track"
-      :aria-valuemin="extent?.startSeconds"
-      :aria-valuemax="extent?.endSeconds"
+      :aria-valuemin="player.extent?.startSeconds"
+      :aria-valuemax="player.extent?.endSeconds"
       :aria-valuenow="sliderSeconds"
       :aria-valuetext="formatHundredths(sliderSeconds)"
       class="size-full select-none"
@@ -414,11 +398,11 @@ watch(
       <canvas ref="canvas" class="block size-full" aria-label="Waveform of the track" />
     </div>
     <p
-      v-if="audition.failure !== null"
+      v-if="player.failure !== null"
       role="status"
       class="pointer-events-none absolute inset-x-0 bottom-3 flex justify-center"
     >
-      <span class="bg-surface px-3 py-1.5 text-sm text-muted">{{ audition.failure }}</span>
+      <span class="bg-surface px-3 py-1.5 text-sm text-muted">{{ player.failure }}</span>
     </p>
   </div>
 </template>
