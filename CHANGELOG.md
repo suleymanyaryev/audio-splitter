@@ -18,6 +18,8 @@ Versions follow [Semantic Versioning](https://semver.org/) applied to the produc
 
 ## [Unreleased]
 
+## [2.2.0] - 2026-11-27
+
 ### Added
 
 - A contrast curve under the loudness curve shows how far apart the sound of the minute before each point and the minute after it are, in dB, so a change of track shows even where the loudness never dips, as in a crossfade.
@@ -190,7 +192,8 @@ The first release: milestones 0 to 7.
 - A question before a setting change ("Replace your edits?") or "New file" ("Discard your edits?") throws edits away.
 - "Export to folder…": every track written by stream copy, without re-encoding, into a new subfolder named after the source file (`name (2)/` the second time). Files are named `01.m4a` or `01 Name.m4a` and tagged with title, track number and album. Cancel keeps the tracks already written.
 
-[unreleased]: https://github.com/suleymanyaryev/audio-splitter/compare/v2.1.0...HEAD
+[unreleased]: https://github.com/suleymanyaryev/audio-splitter/compare/v2.2.0...HEAD
+[2.2.0]: https://github.com/suleymanyaryev/audio-splitter/compare/v2.1.0...v2.2.0
 [2.1.0]: https://github.com/suleymanyaryev/audio-splitter/compare/v2.0.0...v2.1.0
 [2.0.0]: https://github.com/suleymanyaryev/audio-splitter/compare/v1.4.0...v2.0.0
 [1.4.0]: https://github.com/suleymanyaryev/audio-splitter/compare/v1.3.0...v1.4.0
