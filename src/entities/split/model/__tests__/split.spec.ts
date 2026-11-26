@@ -274,7 +274,7 @@ function openWithFourDepths() {
 }
 
 const depths = (store: ReturnType<typeof useSplitStore>) =>
-  store.splits.map((split) => split.confidence?.depth.toFixed(0))
+  store.splits.map((split) => split.confidence?.depth?.toFixed(0))
 
 describe('the split store', () => {
   beforeEach(() => {
@@ -739,6 +739,15 @@ describe('the split store', () => {
         expect(store.splits[2]?.confidence?.depth).toBeCloseTo(6, 3)
       })
 
+      it('has its depth and no contrast for a gap or a dip split', () => {
+        const store = openCurve(threeDepths())
+        store.setDepthSetting(3)
+
+        store.findSplits()
+
+        expect(store.splits.map((split) => split.confidence?.contrast)).toEqual([null, null, null])
+      })
+
       it('is none for a split added by hand, from a pending split or from the Range view', () => {
         const curve = farGaps()
         const store = useSplitStore()
@@ -799,7 +808,7 @@ describe('the split store', () => {
         const walked: (string | undefined)[] = []
 
         while (store.selectAdjacentByConfidence(1)) {
-          walked.push(store.selectedSplit?.confidence?.depth.toFixed(0))
+          walked.push(store.selectedSplit?.confidence?.depth?.toFixed(0))
         }
 
         expect(walked).toEqual(['6', '9', '12', '40'])
@@ -809,12 +818,12 @@ describe('the split store', () => {
         const store = openWithFourDepths()
 
         store.selectAdjacentByConfidence(-1)
-        expect(store.selectedSplit?.confidence?.depth.toFixed(0)).toBe('40')
+        expect(store.selectedSplit?.confidence?.depth?.toFixed(0)).toBe('40')
 
         store.moveZoomTo(1)
         store.selectTrack(store.tracks[0]!)
         store.selectAdjacentByConfidence(1)
-        expect(store.selectedSplit?.confidence?.depth.toFixed(0)).toBe('6')
+        expect(store.selectedSplit?.confidence?.depth?.toFixed(0)).toBe('6')
       })
 
       it('goes to the first from a split with no confidence, and opens the Split view', () => {
@@ -826,7 +835,7 @@ describe('the split store', () => {
 
         store.selectAdjacentByConfidence(1)
 
-        expect(store.selectedSplit?.confidence?.depth.toFixed(0)).toBe('6')
+        expect(store.selectedSplit?.confidence?.depth?.toFixed(0)).toBe('6')
         expect(store.view).toBe('split')
       })
 
@@ -835,7 +844,7 @@ describe('the split store', () => {
         store.selectAdjacentByConfidence(1)
 
         expect(store.selectAdjacentByConfidence(-1)).toBe(false)
-        expect(store.selectedSplit?.confidence?.depth.toFixed(0)).toBe('6')
+        expect(store.selectedSplit?.confidence?.depth?.toFixed(0)).toBe('6')
       })
 
       it('breaks a tie by time', () => {
@@ -867,7 +876,7 @@ describe('the split store', () => {
 
         store.selectAdjacentByConfidence(1)
 
-        expect(store.selectedSplit?.confidence?.depth.toFixed(0)).toBe('9')
+        expect(store.selectedSplit?.confidence?.depth?.toFixed(0)).toBe('9')
       })
 
       describe('marking a split checked', () => {
@@ -883,7 +892,7 @@ describe('the split store', () => {
           expect(checked.seconds).toBe(seconds)
           expect(store.editCount).toBe(1)
           store.selectAdjacentByConfidence(1)
-          expect(store.selectedSplit?.confidence?.depth.toFixed(0)).toBe('9')
+          expect(store.selectedSplit?.confidence?.depth?.toFixed(0)).toBe('9')
         })
 
         it('counts once when pressed again, and does nothing for a split with no confidence', () => {

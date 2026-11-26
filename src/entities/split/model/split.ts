@@ -657,7 +657,7 @@ export const useSplitStore = defineStore('split', () => {
       )
     unlessItDiscards(() => {
       for (const { seconds, depth } of proposedSplits.value) {
-        insertSplit(seconds, { band: bandOf(depth), depth })
+        insertSplit(seconds, { band: bandOf(depth), depth, contrast: null })
       }
     }, isInside)
   }
@@ -759,15 +759,15 @@ export const useSplitStore = defineStore('split', () => {
   }
 
   /*
-  The splits that still have a confidence, least deep first, ties by time (`splits` is in time
-  order and the sort is stable). It is the queue that `{` and `}` walk: a split leaves it when it is
+  The splits that still have a confidence, least deep first (a split with no depth, none yet, first),
+  ties by time (`splits` is in time order and the sort is stable). It is the queue that `{` and `}` walk: a split leaves it when it is
   moved or checked.
   */
   const confidenceOrder = computed(() => {
     const queue = splits.value.filter(
       (split): split is Split & { confidence: Confidence } => split.confidence !== null,
     )
-    queue.sort((first, second) => first.confidence.depth - second.confidence.depth)
+    queue.sort((first, second) => (first.confidence.depth ?? 0) - (second.confidence.depth ?? 0))
     return queue
   })
 
