@@ -39,9 +39,9 @@ export function useSpectrogramReadout(options: {
     if (!element || !spectrogram || columnSeconds === null) return null
     const { left, top, width, height } = element.getBoundingClientRect()
     const x = event.clientX - left
-    const y = event.clientY - top
     // A captured drag keeps reporting the pointer past the view's edges.
     if (x < 0 || x > width) return null
+    const y = event.clientY - top
     const { stripTop, stripHeight } = zoomLayout(height)
     if (y < stripTop || y > height) return null
     const seconds = options.secondsAt(x, width)
