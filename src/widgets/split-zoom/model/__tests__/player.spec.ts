@@ -1363,6 +1363,83 @@ describe('the player store', () => {
     })
   })
 
+  describe('carryOver', () => {
+    it('plays the new track on across a step when sound was on', async () => {
+      const { split, player } = await playingTrack()
+      clip.mockClear()
+
+      player.carryOver(() => split.selectAdjacentTrack(1))
+      await flush()
+
+      expect(split.selectedTrack?.startSeconds).toBeCloseTo(42, 6)
+      expect(player.status).toBe('playing')
+      expect(clip).toHaveBeenCalledOnce()
+    })
+
+    it('plays the new audition on across a step to the next split when sound was on', async () => {
+      const { split, player } = await playing()
+      clip.mockClear()
+
+      player.carryOver(() => split.selectAdjacentSplit(1))
+      await flush()
+
+      expect(split.selectedSplit?.seconds).toBeCloseTo(42, 6)
+      expect(player.status).toBe('playing')
+      expect(clip).toHaveBeenCalledExactlyOnceWith(38, 8)
+    })
+
+    it('starts nothing when sound was off', async () => {
+      const { split, player } = setUpTrack()
+
+      player.carryOver(() => split.selectAdjacentTrack(1))
+      await flush()
+
+      expect(player.status).toBe('idle')
+      expect(clip).not.toHaveBeenCalled()
+    })
+
+    it('counts a paused subject as off: the step lets go of it and starts nothing', async () => {
+      const { split, player } = await playingTrack()
+      player.toggle()
+      clip.mockClear()
+
+      player.carryOver(() => split.selectAdjacentTrack(1))
+      await flush()
+
+      expect(player.status).toBe('idle')
+      expect(player.playheadSeconds()).toBeCloseTo(42, 6)
+      expect(clip).not.toHaveBeenCalled()
+    })
+
+    it('starts nothing and leaves the sound as it was when the change was refused', async () => {
+      const { player } = await playingTrack()
+      clip.mockClear()
+      play.mockClear()
+
+      player.carryOver(() => false)
+      await flush()
+
+      expect(player.status).toBe('playing')
+      expect(clip).not.toHaveBeenCalled()
+      expect(play).not.toHaveBeenCalled()
+    })
+
+    it('rests where a seek inside the change put it, and plays from there', async () => {
+      const { split, player } = await playingTrack()
+
+      player.carryOver(() => {
+        split.selectAdjacentTrack(1)
+        player.seek(50)
+        return true
+      })
+      expect(player.playheadSeconds()).toBe(50)
+      await flush()
+
+      expect(player.status).toBe('playing')
+      expect(audio().currentTime).toBe(8)
+    })
+  })
+
   describe('one resting place per subject', () => {
     it('keeps the range’s place when the Track view’s playhead is moved, and resumes there', async () => {
       const { split, player } = await playingRange()

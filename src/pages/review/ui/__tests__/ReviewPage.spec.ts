@@ -316,9 +316,20 @@ matches the code.
 const NEXT = { key: ']', code: 'BracketRight' }
 const PREVIOUS = { key: '[', code: 'BracketLeft' }
 
-// The player's play action, spied on and replaced, as the playback cases do.
+/*
+The player's play action, spied on and replaced, as the playback cases do, and its carryOver with
+it: a sound that was on is played on through the spy, as the real carryOver does through the real
+toggle (the player spec covers that).
+*/
 function spyOnToggle() {
-  return vi.spyOn(usePlayerStore(), 'toggle').mockImplementation(() => {})
+  const player = usePlayerStore()
+  const toggle = vi.spyOn(player, 'toggle').mockImplementation(() => {})
+  vi.spyOn(player, 'carryOver').mockImplementation((isChanged) => {
+    const wasOn = player.isActive
+    const hasChanged = isChanged()
+    if (wasOn && hasChanged) player.toggle()
+  })
+  return toggle
 }
 
 // The second split selected, as a click on its row does, on a page that is on the Split view.

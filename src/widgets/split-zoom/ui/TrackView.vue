@@ -243,20 +243,17 @@ function actOnSelectedPendingSplit(key: string) {
   else split.deleteSelectedPendingSplit()
 }
 
-// Whether the track is heard or about to be: what a step or a swap keeps on in the next track.
-function isSoundOn() {
-  return player.isActive
-}
-
 /*
 Whether the key stepped: at the first or last track, or over the discard question, it did not, and
-then nothing starts; the question's answer steps later, from the dialog. Whether sound was on is
-read before the step, which makes the player let go of the old track (`model/player.ts`).
+then nothing starts; the question's answer steps later, from the dialog. The player carries a sound
+that was on over to the new track.
 */
 function isStepKeyActedOn(step: -1 | 1) {
-  const wasOn = isSoundOn()
-  const hasStepped = split.selectAdjacentTrack(step)
-  if (hasStepped && wasOn) player.toggle()
+  let hasStepped = false
+  player.carryOver(() => {
+    hasStepped = split.selectAdjacentTrack(step)
+    return hasStepped
+  })
   return hasStepped
 }
 
@@ -288,13 +285,15 @@ function isSwapKeyActedOn(event: KeyboardEvent) {
   const playhead = playheadSeconds()
   // A held key is taken, so the page does not act on it, only when there is somewhere to swap to.
   if (event.repeat) return split.swapTarget(playhead) !== null
-  const wasOn = isSoundOn()
-  const target = split.swapTrack(playhead)
-  if (target === null) return false
-  // The player let go of the old track when the selection moved; the new one rests at the moment.
-  player.seek(target.seconds)
-  if (wasOn) player.toggle()
-  return true
+  let hasSwapped = false
+  player.carryOver(() => {
+    const target = split.swapTrack(playhead)
+    // The player let go of the old track when the selection moved; the new one rests at the moment.
+    if (target !== null) player.seek(target.seconds)
+    hasSwapped = target !== null
+    return hasSwapped
+  })
+  return hasSwapped
 }
 
 // The view's other keys: Space, Enter, Delete, Escape, Home, X, C and the arrows.

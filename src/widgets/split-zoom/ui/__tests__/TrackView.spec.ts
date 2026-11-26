@@ -35,6 +35,20 @@ function curveWithTwoGaps() {
   return curve
 }
 
+/*
+The player's toggle, replaced, and its carryOver with it: a sound that was on is played on through
+the spy, as the real carryOver does through the real toggle (the player spec covers that).
+*/
+function spyOnToggle(player: ReturnType<typeof usePlayerStore>) {
+  const toggle = vi.spyOn(player, 'toggle').mockImplementation(() => {})
+  vi.spyOn(player, 'carryOver').mockImplementation((isChanged) => {
+    const wasOn = player.isActive
+    const hasChanged = isChanged()
+    if (wasOn && hasChanged) player.toggle()
+  })
+  return toggle
+}
+
 // The second track is selected before the view mounts.
 function setup() {
   useSourceFileStore().durationSeconds = 100
@@ -43,7 +57,7 @@ function setup() {
   split.findSplits()
   split.selectTrack(split.tracks[1]!)
   const player = usePlayerStore()
-  const toggleSpy = vi.spyOn(player, 'toggle').mockImplementation(() => {})
+  const toggleSpy = spyOnToggle(player)
   const backToStartSpy = vi.spyOn(player, 'backToStart').mockImplementation(() => {})
   const wrapper = mount(TrackView)
   return { player, split, toggleSpy, backToStartSpy, wrapper }
@@ -61,7 +75,7 @@ async function setupDuplicate() {
   await split.findDuplicates()
   split.selectTrack(split.tracks[2]!)
   const player = usePlayerStore()
-  const toggleSpy = vi.spyOn(player, 'toggle').mockImplementation(() => {})
+  const toggleSpy = spyOnToggle(player)
   const wrapper = mount(TrackView)
   return { player, split, toggleSpy, wrapper }
 }

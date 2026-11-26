@@ -706,6 +706,19 @@ export const usePlayerStore = defineStore('player', () => {
     }
   }
 
+  /*
+  Keeps sound going across a change of selection (a step to another split or track, a swap): whether
+  sound was on is read before `change`, which makes the player let go of the old subject, and the
+  new subject plays from its own place only if `change` happened (it returns false at the first or
+  last track, or when the discard question holds it). A paused subject counts as off, so a step lets
+  go of it and starts nothing.
+  */
+  function carryOver(isChanged: () => boolean) {
+    const wasOn = isActive.value
+    const hasChanged = isChanged()
+    if (wasOn && hasChanged) toggle()
+  }
+
   function backToStart() {
     if (extent.value !== null) seek(extent.value.startSeconds)
   }
@@ -880,6 +893,7 @@ export const usePlayerStore = defineStore('player', () => {
     backToStart,
     grabPlayhead,
     dropPlayhead,
+    carryOver,
     stop,
     playheadSeconds,
   }

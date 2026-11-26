@@ -125,15 +125,15 @@ function stepPlayhead(direction: -1 | 1, isShifted: boolean) {
 
 /*
 Whether the key stepped: at the first or last split, or over the discard question, it did not, and
-an audition that is on goes on untouched. An audition that was on, playing or still decoded, starts
-again across the new split; a paused one is let go of with the old split and rests at the new
-split's start, and with none on, none starts. Whether it was on is read before the step, which ends
-the old audition (`model/player.ts`).
+an audition that is on goes on untouched. The player carries a sound that was on over to the new
+split.
 */
 function isStepKeyActedOn(step: -1 | 1) {
-  const wasOn = player.isActive
-  const hasStepped = split.selectAdjacentSplit(step)
-  if (hasStepped && wasOn) player.toggle()
+  let hasStepped = false
+  player.carryOver(() => {
+    hasStepped = split.selectAdjacentSplit(step)
+    return hasStepped
+  })
   return hasStepped
 }
 
