@@ -1437,20 +1437,13 @@ describe('the split store', () => {
       expect(store.tracks[1]?.placeName).toBe('Interlude')
     })
 
-    it('counts as one edit for the track, and bringing it back takes the edit away', () => {
+    it('counts as one edit', () => {
       const store = loadedStore()
 
       store.toggleLeftOut(store.splits[0]!.id)
+
       expect(store.editCount).toBe(1)
       expect(store.hasEdits).toBe(true)
-
-      store.toggleLeftOut(null)
-      expect(store.editCount).toBe(2)
-
-      store.toggleLeftOut(store.splits[0]!.id)
-      expect(store.editCount).toBe(1)
-      store.toggleLeftOut(null)
-      expect(store.editCount).toBe(0)
     })
 
     it('keeps its state with the track when a split moves', () => {
@@ -1464,16 +1457,13 @@ describe('the split store', () => {
       expect(store.tracks[1]?.startSeconds).toBe(23)
     })
 
-    it('takes the state with a deleted split, and its edit with it', () => {
+    it('takes the state with a deleted split', () => {
       const store = loadedStore()
       store.toggleLeftOut(store.splits[0]!.id)
-      expect(store.editCount).toBe(1)
 
       store.deleteSplit(store.splits[0]!.id)
 
       expect(inclusions(store)).toEqual(['included', 'included'])
-      // The split was detected, so its delete is one edit; the left-out edit went with it.
-      expect(store.editCount).toBe(1)
     })
 
     it('leaves "Remove track" merging the track into its neighbours, as it does', () => {
@@ -1592,19 +1582,6 @@ describe('the split store', () => {
         store.findSplits()
         expect(store.editCount).toBe(2)
       })
-
-      it('lets the user bring back one of the two, as one edit', () => {
-        const store = withSecondTrackLeftOut()
-        store.addSplitAt(30)
-        const edits = store.editCount
-
-        store.toggleLeftOut(store.splits[1]!.id)
-        expect(inclusions(store)).toEqual(['included', 'by-hand', 'included', 'included'])
-        expect(store.editCount).toBe(edits + 1)
-
-        store.toggleLeftOut(store.splits[1]!.id)
-        expect(store.editCount).toBe(edits)
-      })
     })
 
     describe('deleting the split between two tracks', () => {
@@ -1669,32 +1646,6 @@ describe('the split store', () => {
         expect(inclusions(store)).toEqual(['included', 'by-hand', 'included'])
       })
 
-      it('moves the next track’s left-out edit with its state, and drops the first track’s own', () => {
-        const store = fourTracks(['included', 'included', 'included', 'included'])
-        store.toggleLeftOut(store.splits[0]!.id)
-        // One edit: track 2 left out.
-        expect(store.editCount).toBe(1)
-
-        // Removing track 1 deletes the detected split at 22 s: one edit for the delete, and the
-        // left-out edit stays one edit, now for the file's start.
-        store.removeTrack(store.tracks[0]!)
-        expect(store.editCount).toBe(2)
-
-        // Bringing the first track back takes that edit away.
-        store.toggleLeftOut(null)
-        expect(store.editCount).toBe(1)
-      })
-
-      it('takes a left-out first track’s edit away when the next track’s state replaces it', () => {
-        const store = fourTracks(['by-hand', 'included', 'included', 'included'])
-        expect(store.editCount).toBe(1)
-
-        store.removeTrack(store.tracks[0]!)
-
-        // Only the delete of the detected split is left: the first track is included, as it opened.
-        expect(store.editCount).toBe(1)
-      })
-
       it('counts a left-out file start as an edit when the next track took its state from a cut', () => {
         const store = fourTracks(['by-hand', 'included', 'included', 'included'])
         // A split added inside the left-out track 1 makes two left-out tracks, the new one no edit.
@@ -1709,12 +1660,10 @@ describe('the split store', () => {
 
         store.removeTrack(store.tracks[0]!)
 
-        // The file's start is left out, which the file did not open with: that stays an edit, and
-        // bringing it back takes it away.
+        // The file's start is left out, which the file did not open with: that is an edit.
         expect(inclusions(store)).toEqual(['by-hand', 'included', 'included', 'included'])
-        const edits = store.editCount
-        store.toggleLeftOut(null)
-        expect(store.editCount).toBe(edits - 1)
+        // The added split went with its edit: the file's start is the only edit left.
+        expect(store.editCount).toBe(1)
       })
     })
   })
@@ -2518,105 +2467,14 @@ describe('the split store', () => {
         expect(store.tracks[1]!.name).toBe('D')
         expect(store.tracks[1]!.number).toBe(2)
       })
-    })
 
-    describe('the edit count', () => {
-      it('counts each detected split it deletes: two in the middle, one at an edge', () => {
-        const curve = threeFarGapsCurve()
-        const store = useSplitStore()
-        store.open(curve, timing(curve))
-        store.findSplits()
-
-        store.removeTrack(store.tracks[1]!)
-        expect(store.editCount).toBe(2)
-
-        store.removeTrack(store.tracks[1]!)
-        expect(store.editCount).toBe(3)
-      })
-
-      it('takes the added edit back for an added split, and counts a detected one', () => {
-        const curve = threeFarGapsCurve()
-        const store = useSplitStore()
-        store.open(curve, timing(curve))
-        store.findSplits()
-        store.moveZoomTo(52)
-        store.addSplit()
-        expect(store.editCount).toBe(1)
-
-        // Track 3 runs from the detected split at 42 s to the added one at 52 s.
-        store.removeTrack(store.tracks[2]!)
-
-        expect(store.splits.map((split) => split.seconds)).toEqual([
-          expect.closeTo(22, 9),
-          expect.closeTo(62, 9),
-        ])
-        expect(store.editCount).toBe(1)
-      })
-
-      it('counts nothing for a track between two added splits', () => {
-        const curve = threeFarGapsCurve()
-        const store = useSplitStore()
-        store.open(curve, timing(curve))
-        store.findSplits()
-        store.moveZoomTo(30)
-        store.addSplit()
-        store.moveZoomTo(36)
-        store.addSplit()
-        expect(store.editCount).toBe(2)
-
-        store.removeTrack(store.tracks[2]!)
-
-        expect(store.splits).toHaveLength(3)
-        expect(store.editCount).toBe(0)
-      })
-
-      it('drops the moved and the renamed edits of the splits it deletes', () => {
-        const store = namedFourTracks()
-        store.selectSplit(store.splits[0]!.id)
-        store.moveSplit(store.splits[0]!.id, 23)
-        // A, B, C and D are four renamed tracks, and split 1 moved: five edits.
-        expect(store.editCount).toBe(5)
-
-        store.removeTrack(store.tracks[1]!)
-
-        // Splits 1 and 2 are deleted (two edits) with B's and C's rename and split 1's move
-        // gone: what is left is A, D and the two deletions.
-        expect(store.editCount).toBe(4)
-      })
-
-      it('counts the file’s start as renamed while the first track holds a name after the removal', () => {
+      it('counts the file’s start as renamed while it holds the next track’s name', () => {
         const store = namedFourTracks()
 
         store.removeTrack(store.tracks[0]!)
 
         // The deleted split, the file's start (now B), C and D.
         expect(store.editCount).toBe(4)
-      })
-
-      it('counts no rename for the file’s start when the first track is left unnamed', () => {
-        const curve = threeFarGapsCurve()
-        const store = useSplitStore()
-        store.open(curve, timing(curve))
-        store.findSplits()
-        store.renameTrack(null, 'A')
-        expect(store.editCount).toBe(1)
-
-        store.removeTrack(store.tracks[0]!)
-
-        // The deleted split only: the next track had no name to move to the file's start.
-        expect(store.editCount).toBe(1)
-      })
-
-      it('counts a rename for the file’s start when the removed first track had none', () => {
-        const curve = threeFarGapsCurve()
-        const store = useSplitStore()
-        store.open(curve, timing(curve))
-        store.findSplits()
-        store.renameTrack(store.splits[0]!.id, 'B')
-
-        store.removeTrack(store.tracks[0]!)
-
-        expect(store.editCount).toBe(2)
       })
     })
 
@@ -2971,18 +2829,15 @@ describe('the split store', () => {
       expect(store.editCount).toBe(1)
     })
 
-    it('counts a renamed track once, however often it is renamed', () => {
+    it('counts a renamed track', () => {
       const curve = twoGaps()
       const store = useSplitStore()
       store.open(curve, timing(curve))
       store.findSplits()
 
       store.renameTrack(store.splits[0]!.id, 'Intro')
-      store.renameTrack(store.splits[0]!.id, 'Intro 2')
-      expect(store.editCount).toBe(1)
 
-      store.renameTrack(null, 'Opening')
-      expect(store.editCount).toBe(2)
+      expect(store.editCount).toBe(1)
     })
 
     it('does not count a rename that leaves the stored name as it was', () => {
@@ -2999,51 +2854,6 @@ describe('the split store', () => {
       store.renameTrack(store.splits[0]!.id, 'Intro')
       store.renameTrack(store.splits[0]!.id, ' Intro ')
       expect(store.editCount).toBe(1)
-    })
-
-    it('takes back the edit of a track renamed to its detected name, the number', () => {
-      const curve = twoGaps()
-      const store = useSplitStore()
-      store.open(curve, timing(curve))
-      store.findSplits()
-      store.renameTrack(store.splits[0]!.id, 'Intro')
-      store.renameTrack(null, 'Opening')
-
-      store.renameTrack(store.splits[0]!.id, '')
-      expect(store.editCount).toBe(1)
-
-      store.renameTrack(null, '  ')
-      expect(store.editCount).toBe(0)
-    })
-
-    it('drops the rename of the track of a deleted split, and counts the deletion', () => {
-      const curve = twoGaps()
-      const store = useSplitStore()
-      store.open(curve, timing(curve))
-      store.findSplits()
-      store.renameTrack(store.splits[0]!.id, 'Intro')
-      store.renameTrack(store.splits[1]!.id, 'Encore')
-      expect(store.editCount).toBe(2)
-
-      store.deleteSplit(store.splits[0]!.id)
-
-      // The deletion and the rename of the track that is left.
-      expect(store.editCount).toBe(2)
-    })
-
-    it('drops the rename of an added split with it', () => {
-      const curve = farGaps()
-      const store = useSplitStore()
-      store.open(curve, timing(curve))
-      store.findSplits()
-      store.moveZoomTo(31.5)
-      store.addSplit()
-      store.renameTrack(store.selectedSplit!.id, 'Hidden')
-      expect(store.editCount).toBe(2)
-
-      store.deleteSplit(store.selectedSplit!.id)
-
-      expect(store.editCount).toBe(0)
     })
 
     it('starts again at 0 when a new file is detected', () => {

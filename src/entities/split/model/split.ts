@@ -143,7 +143,7 @@ track 1, ready to play. The zoom window is
 `ZOOM_WINDOW_SECONDS` wide around `zoomCentreSeconds`: selecting a split centres it there and
 nothing else moves it except `moveZoomTo`. A split can only be moved inside the window, which never follows the move. A split
 is added at the window's centre, and `editCount` says how many things the user changed since the
-file opened. The splits Find splits adds are no edit; moving or deleting one is.
+file opened (GLOSSARY.md: Edit). The splits Find splits adds are no edit until one is changed.
 
 The matches of "Find duplicates" (GLOSSARY.md: Match) live in the matches module (`matches.ts`),
 which the store feeds the track ends. A track with a live full match with an earlier track is a
@@ -212,15 +212,11 @@ export const useSplitStore = defineStore('split', () => {
   let nextSplitId = 0
   /*
   What the user changed since the file opened, counted as things changed, not actions: a split
-  moved ten times is one edit. The split edits live in the edit ledger (`edit-ledger.ts`), which
-  the actions report to. The track edits are still sets here, keyed by the split where the track
-  starts (null for the file's start). A detected split (one Find splits added) is no edit until it
-  is moved or deleted.
+  moved ten times is one edit. The edit ledger (`edit-ledger.ts`) holds the rules, and the actions
+  report what they did to it. A detected split (one Find splits added) is no edit until it is
+  changed.
   */
   const ledger = useEditLedger()
-  const renamedKeys = ref(new Set<number | null>())
-  // The tracks the user left out or brought back, keyed like a rename; a second toggle takes it back.
-  const inclusionKeys = ref(new Set<number | null>())
 
   // The index in `splits` of the selected split, or null when no split is selected.
   const selectedSplitIndex = computed(() => {
@@ -421,19 +417,7 @@ export const useSplitStore = defineStore('split', () => {
     return selectedTrackEndSplits.value.some((split) => split.id === id)
   }
 
-  function clearEdits() {
-    ledger.clear()
-    renamedKeys.value.clear()
-    inclusionKeys.value.clear()
-  }
-
-  const editCount = computed(
-    () =>
-      ledger.count.value +
-      renamedKeys.value.size +
-      inclusionKeys.value.size +
-      matches.liveDismissalCount.value,
-  )
+  const editCount = computed(() => ledger.count.value + matches.liveDismissalCount.value)
 
   // How many tracks the export writes: the ones not left out. With none, the export refuses.
   const exportTrackCount = computed(() => tracks.value.filter((track) => !track.isLeftOut).length)
@@ -543,7 +527,7 @@ export const useSplitStore = defineStore('split', () => {
     splits.value = []
     firstTrackName.value = null
     firstTrackInclusion.value = 'included'
-    clearEdits()
+    ledger.clear()
     matches.drop()
     trackMarkSeconds.value = null
     clearPending()
@@ -981,7 +965,7 @@ export const useSplitStore = defineStore('split', () => {
   The new split is unnamed, so its track takes its prefixed number from its place. It takes the
   inclusion of the track it cuts, whichever way it is added, so cutting a left-out track makes two
   left-out tracks; that is no edit. A split the user adds is one edit; a detected one, which Find
-  splits gives a confidence, is none until it is moved or deleted.
+  splits gives a confidence, is none until it is changed.
   */
   function insertSplit(seconds: number, confidence: Confidence | null = null) {
     const found = splits.value.findIndex((candidate) => candidate.seconds > seconds)
@@ -1049,9 +1033,6 @@ export const useSplitStore = defineStore('split', () => {
     const wasTrackStart = current?.kind === 'track' && current.startSplitId === id
     splits.value.splice(index, 1)
     ledger.splitDeleted(id)
-    // The track edits stay here until the ledger takes them.
-    renamedKeys.value.delete(id)
-    inclusionKeys.value.delete(id)
     // The selected track starts at the deleted split: the merged track starts at the one before it.
     if (wasTrackStart) {
       selection.value = { kind: 'track', startSplitId: splits.value[index - 1]?.id ?? null }
@@ -1072,8 +1053,9 @@ export const useSplitStore = defineStore('split', () => {
   the track lands on the split after it, or, for the last track, on the split before it.
   The removed track's name and inclusion go with its start split. The next track's belonged to the
   end split, so when the first track is removed, which has no start split to keep them on, they move
-  to the file's start (`renameTrack` counts the name's edit, and a left-out start is one edit). Any other merged track keeps the earlier track's, as a deleted split does. The only track
-  is refused, as is one whose start split is gone, so a stale `Track` removes nothing.
+  to the file's start, which reports what it now has (`startInherited`). Any other merged track
+  keeps the earlier track's, as a deleted split does. The only track is refused, as is one whose
+  start split is gone, so a stale `Track` removes nothing.
   */
   function removeTrack(track: Track) {
     const startIndex =
@@ -1092,19 +1074,10 @@ export const useSplitStore = defineStore('split', () => {
       const inheritedInclusion = end?.inclusion ?? 'included'
       if (end !== undefined) removeSplit(end.id)
       if (start !== undefined) removeSplit(start.id)
-      if (start !== undefined) {
-        return
-      }
-
-      renameTrack(null, inheritedName ?? '')
+      if (start !== undefined) return
+      firstTrackName.value = inheritedName
       firstTrackInclusion.value = inheritedInclusion
-      /*
-      A file opens with its first track included, so the file's start is an edit exactly while it
-      is left out, as a name is while it is set. Carrying the next track's edit flag instead would
-      miss a state it took from a cut, which has no edit of its own.
-      */
-      inclusionKeys.value.delete(null)
-      if (inheritedInclusion === 'by-hand') inclusionKeys.value.add(null)
+      ledger.startInherited(inheritedName !== null, inheritedInclusion === 'by-hand')
     }, isDiscarding)
   }
 
@@ -1121,9 +1094,7 @@ export const useSplitStore = defineStore('split', () => {
     if (stored === current) return
     if (split === null) firstTrackName.value = stored
     else split.name = stored
-    // A file opens with every track unnamed, so a track named back to its default is no edit.
-    if (stored === null) renamedKeys.value.delete(startSplitId)
-    else renamedKeys.value.add(startSplitId)
+    ledger.trackNamed(startSplitId, stored !== null)
   }
 
   /*
@@ -1149,7 +1120,7 @@ export const useSplitStore = defineStore('split', () => {
     const next: StoredInclusion = current === 'included' ? 'by-hand' : 'included'
     if (point === null) firstTrackInclusion.value = next
     else point.inclusion = next
-    if (!inclusionKeys.value.delete(startSplitId)) inclusionKeys.value.add(startSplitId)
+    ledger.leftOutToggled(startSplitId)
   }
 
   // Kept as typed, a separator or a space at its end included, up to a track name's length.
@@ -1170,7 +1141,7 @@ export const useSplitStore = defineStore('split', () => {
     firstTrackName.value = null
     firstTrackInclusion.value = 'included'
     trackNamePrefix.value = ''
-    clearEdits()
+    ledger.clear()
     matches.drop()
     selection.value = null
     zoomCentreSeconds.value = ZOOM_WINDOW_SECONDS / 2

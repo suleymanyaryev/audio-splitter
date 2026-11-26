@@ -12,19 +12,28 @@ Removing the first track stops calling the rename action for its side effect on 
 
 **Blocked by:** 01 (The edit ledger takes the split edits).
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 Spec: `.scratch/one-edit-ledger-for-the-edit-rules/spec.md` (Implementation Decisions, Testing Decisions).
 
-- [ ] The ledger's operations gain track named, left out toggled and start inherited.
-- [ ] Rename reports "track named"; a rename that leaves the stored name as it was reports nothing.
-- [ ] Leave out reports "left out toggled". Bringing a duplicate back still dismisses its match through the matches module, and reports a toggle only when the track was also left out by hand.
-- [ ] A track cut from a left-out track is left out with no edit, as before.
-- [ ] "Split deleted" drops the rename and left-out edits keyed by that split; the removal of a split writes no edit by hand.
-- [ ] Removing the first track does not call the rename action, and reports "start inherited".
-- [ ] No action writes the rename or left-out edits by hand.
-- [ ] The ledger spec gains the track rules: a rename several times, a rename taken back, a second toggle, a split deleted with its track's rename and left-out edits, and "start inherited" in each of its four combinations.
-- [ ] Those cases leave the store spec, including the "edit count" block inside removing a track. The store spec keeps one wiring case for rename, one for leave out, the cut from a left-out track, and removing the first track. No case is in both specs.
-- [ ] The store-wiring skill's section on the user's edits gains one line: a new kind of edit is an operation of the edit ledger, and actions report it rather than write the edits.
-- [ ] Every widget and page spec, and the find-duplicates store spec, passes unchanged.
-- [ ] No changelog line: nothing the user sees changes.
+- [x] The ledger's operations gain track named, left out toggled and start inherited.
+- [x] Rename reports "track named"; a rename that leaves the stored name as it was reports nothing.
+- [x] Leave out reports "left out toggled". Bringing a duplicate back still dismisses its match through the matches module, and reports a toggle only when the track was also left out by hand.
+- [x] A track cut from a left-out track is left out with no edit, as before.
+- [x] "Split deleted" drops the rename and left-out edits keyed by that split; the removal of a split writes no edit by hand.
+- [x] Removing the first track does not call the rename action, and reports "start inherited".
+- [x] No action writes the rename or left-out edits by hand.
+- [x] The ledger spec gains the track rules: a rename several times, a rename taken back, a second toggle, a split deleted with its track's rename and left-out edits, and "start inherited" in each of its four combinations.
+- [x] Those cases leave the store spec, including the "edit count" block inside removing a track. The store spec keeps one wiring case for rename, one for leave out, the cut from a left-out track, and removing the first track. No case is in both specs.
+- [x] The store-wiring skill's section on the user's edits gains one line: a new kind of edit is an operation of the edit ledger, and actions report it rather than write the edits.
+- [x] Every widget and page spec, and the find-duplicates store spec, passes unchanged.
+- [x] No changelog line: nothing the user sees changes.
+- [x] Final tier passes (code-review and its grouped fixes done, then `pnpm verify`, `pnpm lint`, `pnpm knip`, `pnpm depcruise`).
+
+## Comments
+
+- The ticket had no `Final tier passes` box, though it is the last ticket; the box above was added so the final tier has a place to be recorded.
+- The `/implement` skill refused the Skill tool (`disable-model-invocation`), so its file was followed by hand, as the goal allows.
+- Code review (standards and spec axes) found leftover rule cases in the store spec, stale "moved or deleted" comments and a `clearEdits` pass-through. All three were fixed in this commit, not as separate fix commits, because the review ran before the ticket's commit.
+- Kept in the store spec on purpose: the added-split cases that go through pending-split apply and `addSplitAt` (different callers of insert), and the cut-from-a-left-out-track case that removes the first track (the one wiring case for "start inherited" with a left-out state).
+- Left alone as judgement calls: a named `TrackKey` type, and the length of the ledger's header comment.

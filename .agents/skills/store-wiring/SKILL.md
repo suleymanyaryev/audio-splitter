@@ -26,6 +26,7 @@ The import rules are in AGENTS.md "Code layout" and enforced by `pnpm lint`; thi
 
 - Anything that would drop the user's work asks first: replacing edits goes through the replace guard (`widgets/loudness-curve/lib/use-replace-guard.ts`), and a `split` action that would drop pending splits goes through `unlessItDiscards` in `entities/split/model/split.ts`.
 - A change counts as an edit only when the value really changed (`TrackNameField.vue`).
+- A new kind of edit is an operation of the edit ledger (`entities/split/model/edit-ledger.ts`); an action reports it there and never writes the edits itself.
 
 ## Sound
 
