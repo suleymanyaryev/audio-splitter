@@ -2457,6 +2457,8 @@ describe('the split store', () => {
 
         expect(store.firstTrackName).toBeNull()
         expect(trackNames(store)).toEqual(['01', '02', '03'])
+        // The deleted split only: the next track had no name to move to the file's start.
+        expect(store.editCount).toBe(1)
       })
 
       it('keeps the names of the tracks that were not merged', () => {
@@ -2854,6 +2856,21 @@ describe('the split store', () => {
       store.renameTrack(store.splits[0]!.id, 'Intro')
       store.renameTrack(store.splits[0]!.id, ' Intro ')
       expect(store.editCount).toBe(1)
+    })
+
+    it('takes back the edit of a track renamed to its detected name, the number', () => {
+      const curve = twoGaps()
+      const store = useSplitStore()
+      store.open(curve, timing(curve))
+      store.findSplits()
+      store.renameTrack(store.splits[0]!.id, 'Intro')
+      store.renameTrack(null, 'Opening')
+
+      store.renameTrack(store.splits[0]!.id, '')
+      expect(store.editCount).toBe(1)
+
+      store.renameTrack(null, '  ')
+      expect(store.editCount).toBe(0)
     })
 
     it('starts again at 0 when a new file is detected', () => {
