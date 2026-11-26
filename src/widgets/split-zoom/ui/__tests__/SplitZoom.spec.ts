@@ -5,7 +5,7 @@ import { nextTick } from 'vue'
 import { enableAutoUnmount, mount, type VueWrapper } from '@vue/test-utils'
 import { useSourceFileStore } from '@/entities/source-file/model/source-file.ts'
 import { useSplitStore } from '@/entities/split/model/split.ts'
-import { useAuditionStore } from '../../model/audition.ts'
+import { usePlayerStore } from '../../model/player.ts'
 import SplitZoom from '../SplitZoom.vue'
 
 /*
@@ -50,7 +50,7 @@ const playheadSliderOf = (wrapper: Pick<VueWrapper, 'get'>) =>
   wrapper.get('[aria-label="Playhead in the audition"]')
 
 // Where the audition's playhead is in the file.
-const playhead = () => useAuditionStore().playheadSeconds()
+const playhead = () => usePlayerStore().playheadSeconds()
 
 function focusElement(element: Element) {
   if (element instanceof HTMLElement) element.focus()
@@ -347,43 +347,43 @@ describe('SplitZoom', () => {
     async function pausedAtTwoAndAHalf() {
       const parts = mountOnSplit()
       clip = vi.spyOn(useSourceFileStore(), 'clip').mockResolvedValue(clipOfTheAudition)
-      const audition = useAuditionStore()
-      audition.toggle()
+      const player = usePlayerStore()
+      player.toggle()
       await new Promise((done) => setTimeout(done, 0))
       const element = play.mock.contexts[0] as HTMLAudioElement
       element.currentTime = 2.5
-      audition.toggle()
-      return { ...parts, audition, element }
+      player.toggle()
+      return { ...parts, player, element }
     }
 
     it('keeps the audition paused at the same time in the file, and plays on after decoding the moved 8 s', async () => {
-      const { split, audition, element } = await pausedAtTwoAndAHalf()
+      const { split, player, element } = await pausedAtTwoAndAHalf()
 
       await press({ key: 'ArrowRight', shiftKey: true })
 
       expect(split.selectedSplit?.seconds).toBeCloseTo(21.1, 6)
-      expect(audition.status).toBe('paused')
+      expect(player.status).toBe('paused')
       expect(playhead()).toBeCloseTo(19.5, 6)
 
       clip.mockResolvedValueOnce({ ...clipOfTheAudition, startSeconds: 17.1 })
       // Not awaited: the press is seen before the clip arrives.
       document.dispatchEvent(new KeyboardEvent('keydown', { code: 'Space', key: ' ' }))
-      expect(audition.status).toBe('loading')
+      expect(player.status).toBe('loading')
       await new Promise((done) => setTimeout(done, 0))
 
-      expect(audition.status).toBe('playing')
+      expect(player.status).toBe('playing')
       expect(element.currentTime).toBeCloseTo(2.4, 6)
     })
 
     it('pauses a playing audition on a move, and keeps its playhead drawn where the sound was', async () => {
-      const { split, audition, element } = await pausedAtTwoAndAHalf()
-      audition.toggle()
+      const { split, player, element } = await pausedAtTwoAndAHalf()
+      player.toggle()
       element.currentTime = 4
 
       await press({ key: 'ArrowLeft' })
 
       expect(split.selectedSplit?.seconds).toBeCloseTo(20.99, 6)
-      expect(audition.status).toBe('paused')
+      expect(player.status).toBe('paused')
       expect(playhead()).toBeCloseTo(21, 6)
     })
   })
@@ -473,9 +473,9 @@ describe('SplitZoom', () => {
     async function mountPlaying() {
       const parts = mountOnSplit()
       clip = vi.spyOn(useSourceFileStore(), 'clip').mockResolvedValue(clipOfTheAudition)
-      useAuditionStore().toggle()
+      usePlayerStore().toggle()
       await new Promise((done) => setTimeout(done, 0))
-      expect(useAuditionStore().status).toBe('playing')
+      expect(usePlayerStore().status).toBe('playing')
       return parts
     }
 
@@ -488,7 +488,7 @@ describe('SplitZoom', () => {
 
       // 12.346 s into the window is 23.346 s, snapped to 23.35 s.
       expect(playhead()).toBeCloseTo(23.35, 6)
-      expect(useAuditionStore().status).toBe('idle')
+      expect(usePlayerStore().status).toBe('idle')
       expect(clip).not.toHaveBeenCalled()
       expect(split.selectedSplit?.seconds).toBe(21)
     })
@@ -557,31 +557,31 @@ describe('SplitZoom', () => {
 
     it('pauses a playing audition while the pointer is held, and plays on from the release', async () => {
       const { wrapper } = await mountPlaying()
-      const audition = useAuditionStore()
+      const player = usePlayerStore()
 
       await pointer(wrapper, 'pointerdown', 120)
-      expect(audition.status).toBe('paused')
+      expect(player.status).toBe('paused')
 
       await pointer(wrapper, 'pointermove', 130)
-      expect(audition.status).toBe('paused')
+      expect(player.status).toBe('paused')
       expect(playhead()).toBe(24)
 
       await pointer(wrapper, 'pointerup', 130)
-      expect(audition.status).toBe('playing')
+      expect(player.status).toBe('playing')
       expect(playhead()).toBeCloseTo(24, 6)
       expect(clip).toHaveBeenCalledOnce()
     })
 
     it('leaves a paused audition paused after a click and after a drag', async () => {
       const { wrapper } = await mountPlaying()
-      const audition = useAuditionStore()
-      audition.toggle()
+      const player = usePlayerStore()
+      player.toggle()
 
       await pointer(wrapper, 'pointerdown', 120)
       await pointer(wrapper, 'pointermove', 80)
       await pointer(wrapper, 'pointerup', 80)
 
-      expect(audition.status).toBe('paused')
+      expect(player.status).toBe('paused')
       expect(playhead()).toBe(19)
     })
 
@@ -591,33 +591,33 @@ describe('SplitZoom', () => {
       await pointer(wrapper, 'pointerdown', 100)
       await pointer(wrapper, 'pointerup', 100)
 
-      expect(useAuditionStore().status).toBe('playing')
+      expect(usePlayerStore().status).toBe('playing')
     })
 
     it('lets go of the playhead when a move reports no button held, and plays on from there', async () => {
       const { wrapper } = await mountPlaying()
-      const audition = useAuditionStore()
+      const player = usePlayerStore()
 
       await pointer(wrapper, 'pointerdown', 120)
       await pointer(wrapper, 'pointermove', 130)
       await pointer(wrapper, 'pointermove', 150, { buttons: 0 })
 
-      expect(audition.status).toBe('playing')
+      expect(player.status).toBe('playing')
       expect(playhead()).toBeCloseTo(24, 6)
     })
 
     it('lets go of the playhead when the pointer capture is lost, and only once', async () => {
       const { wrapper } = await mountPlaying()
-      const audition = useAuditionStore()
+      const player = usePlayerStore()
 
       await pointer(wrapper, 'pointerdown', 120)
       await pointer(wrapper, 'pointermove', 130)
       wrapper.element.dispatchEvent(new Event('lostpointercapture'))
-      audition.toggle()
+      player.toggle()
       await pointer(wrapper, 'pointerup', 130)
       await pointer(wrapper, 'pointermove', 80)
 
-      expect(audition.status).toBe('paused')
+      expect(player.status).toBe('paused')
       expect(playhead()).toBeCloseTo(24, 6)
     })
 
@@ -682,7 +682,7 @@ describe('SplitZoom', () => {
   describe('Space', () => {
     it('plays or stops the audition, and does not scroll the page', () => {
       setup()
-      const toggle = vi.spyOn(useAuditionStore(), 'toggle').mockImplementation(() => {})
+      const toggle = vi.spyOn(usePlayerStore(), 'toggle').mockImplementation(() => {})
 
       const space = new KeyboardEvent('keydown', { key: ' ', cancelable: true })
       document.dispatchEvent(space)
@@ -693,7 +693,7 @@ describe('SplitZoom', () => {
 
     it('does not toggle again while the key is held down', () => {
       setup()
-      const toggle = vi.spyOn(useAuditionStore(), 'toggle').mockImplementation(() => {})
+      const toggle = vi.spyOn(usePlayerStore(), 'toggle').mockImplementation(() => {})
 
       const repeat = new KeyboardEvent('keydown', { key: ' ', repeat: true, cancelable: true })
       document.dispatchEvent(repeat)
@@ -704,7 +704,7 @@ describe('SplitZoom', () => {
 
     it('leaves the split where it is', async () => {
       const { split } = setup()
-      vi.spyOn(useAuditionStore(), 'toggle').mockImplementation(() => {})
+      vi.spyOn(usePlayerStore(), 'toggle').mockImplementation(() => {})
 
       await press({ key: ' ' })
 
@@ -763,7 +763,7 @@ describe('SplitZoom', () => {
 
     it('stays drawn where the audition was paused', async () => {
       const { wrapper } = mountOnSplit()
-      const audition = useAuditionStore()
+      const player = usePlayerStore()
       vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue()
       vi.spyOn(HTMLMediaElement.prototype, 'load').mockImplementation(() => {})
       vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => {})
@@ -775,16 +775,16 @@ describe('SplitZoom', () => {
       URL.createObjectURL = () => 'blob:clip'
       URL.revokeObjectURL = () => {}
 
-      audition.toggle()
+      player.toggle()
       await new Promise((done) => setTimeout(done, 0))
       const element = vi.mocked(HTMLMediaElement.prototype.play).mock
         .contexts[0] as HTMLAudioElement
       element.currentTime = 2.5
-      audition.toggle()
+      player.toggle()
       await wrapper.vm.$nextTick()
 
       // 17 s + 2.5 s = 19.5 s.
-      expect(audition.status).toBe('paused')
+      expect(player.status).toBe('paused')
       expect(lines.at(-1)).toBe(85)
     })
   })
@@ -915,7 +915,7 @@ describe('SplitZoom', () => {
 
     it('asks for no frames while nothing plays', async () => {
       const { wrapper } = setup()
-      useAuditionStore().status = 'loading'
+      usePlayerStore().status = 'loading'
       await wrapper.vm.$nextTick()
 
       expect(requestFrame).not.toHaveBeenCalled()
@@ -923,7 +923,7 @@ describe('SplitZoom', () => {
 
     it('starts when the audition plays and asks for the next frame after each one', async () => {
       const { wrapper } = setup()
-      useAuditionStore().status = 'playing'
+      usePlayerStore().status = 'playing'
       await wrapper.vm.$nextTick()
       expect(requestFrame).toHaveBeenCalledTimes(1)
 
@@ -933,13 +933,13 @@ describe('SplitZoom', () => {
 
     it('is cancelled when the audition leaves playing, and no further frame is asked for', async () => {
       const { wrapper } = setup()
-      const audition = useAuditionStore()
-      audition.status = 'playing'
+      const player = usePlayerStore()
+      player.status = 'playing'
       await wrapper.vm.$nextTick()
       frames[0]?.(0)
       const lastHandle = requestFrame.mock.results.at(-1)?.value
 
-      audition.status = 'idle'
+      player.status = 'idle'
       await wrapper.vm.$nextTick()
       expect(cancelFrame).toHaveBeenCalledWith(lastHandle)
 
@@ -960,9 +960,9 @@ describe('SplitZoom', () => {
       })
       URL.createObjectURL = () => 'blob:clip'
       URL.revokeObjectURL = () => {}
-      const audition = useAuditionStore()
+      const player = usePlayerStore()
 
-      audition.toggle()
+      player.toggle()
       await new Promise((done) => setTimeout(done, 0))
       const element = vi.mocked(HTMLMediaElement.prototype.play).mock
         .contexts[0] as HTMLAudioElement
@@ -974,14 +974,14 @@ describe('SplitZoom', () => {
       expect(playheadSliderOf(wrapper).attributes('aria-valuenow')).toBe('19')
       expect(playheadSliderOf(wrapper).attributes('aria-valuetext')).toBe('0:00:19.00')
 
-      audition.toggle()
+      player.toggle()
       await wrapper.vm.$nextTick()
       expect(playheadSliderOf(wrapper).attributes('aria-valuenow')).toBe('19.55')
     })
 
     it('is cancelled when the view goes away while playing', async () => {
       const { wrapper } = setup()
-      useAuditionStore().status = 'playing'
+      usePlayerStore().status = 'playing'
       await wrapper.vm.$nextTick()
 
       wrapper.unmount()
@@ -995,12 +995,12 @@ describe('SplitZoom', () => {
       const { wrapper } = setup()
       expect(wrapper.find('[role="status"]').exists()).toBe(false)
 
-      useAuditionStore().failure = "Couldn't play this split: no sound"
+      usePlayerStore().failure = "Couldn't play this split: no sound"
       await wrapper.vm.$nextTick()
 
       expect(wrapper.get('[role="status"]').text()).toBe("Couldn't play this split: no sound")
 
-      useAuditionStore().failure = null
+      usePlayerStore().failure = null
       await wrapper.vm.$nextTick()
       expect(wrapper.find('[role="status"]').exists()).toBe(false)
     })

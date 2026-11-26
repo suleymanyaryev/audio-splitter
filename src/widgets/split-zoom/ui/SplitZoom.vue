@@ -20,7 +20,7 @@ import { usePlayheadFrames } from '../lib/use-playhead-frames.ts'
 import { useSplitDrag } from '../lib/use-split-drag.ts'
 import { zoomBars } from '../lib/zoom-bars.ts'
 import { landSpansInWindow, outsideFileSpans } from '../lib/zoom-spans.ts'
-import { useAuditionStore } from '../model/audition.ts'
+import { usePlayerStore } from '../model/player.ts'
 
 /*
 The Split view: the 20 s around the zoom centre at 160 px, where the selected split is moved. It is
@@ -65,7 +65,7 @@ const PLAYHEAD_KEY_DIRECTIONS: Record<string, -1 | 1> = { Comma: -1, Period: 1 }
 
 const sourceFile = useSourceFileStore()
 const split = useSplitStore()
-const audition = useAuditionStore()
+const player = usePlayerStore()
 const canvas = useTemplateRef('canvas')
 const frame = useTemplateRef('frame')
 const handle = useTemplateRef('handle')
@@ -81,11 +81,6 @@ const handleLeft = computed(() => {
   return fraction < 0 || fraction > 1 ? null : `${Math.round(fraction * 10_000) / 100}%`
 })
 
-// The audition's 8 s, which the playhead slider spans; null with no split selected.
-const extent = computed(() =>
-  split.selectedSplit === null ? null : audition.auditionExtent(split.selectedSplit),
-)
-
 /*
 The playhead slider's value. While the audition plays the playhead follows the audio, which Vue does
 not see, so each frame copies it here to the whole second: a screen reader hears a new value once
@@ -94,7 +89,7 @@ hundredth.
 */
 const heardSeconds = ref(0)
 const sliderSeconds = computed(() =>
-  audition.status === 'playing' ? heardSeconds.value : (audition.playheadSeconds() ?? 0),
+  player.status === 'playing' ? heardSeconds.value : (player.playheadSeconds() ?? 0),
 )
 
 function frameWidth() {
@@ -116,16 +111,16 @@ const { overLine, dragging, onPointerDown, onPointerMove, onPointerEnd } = useSp
   // Rounded to 10 ms, as a dragged split is; the store holds it to the 8 s.
   playheadSeconds: (x) =>
     draggedTime(x, 0, split.zoomCentreSeconds, ZOOM_WINDOW_SECONDS, frameWidth()),
-  grabPlayhead: audition.grabAuditionPlayhead,
-  movePlayhead: audition.seekAudition,
-  dropPlayhead: audition.dropAuditionPlayhead,
+  grabPlayhead: player.grabPlayhead,
+  movePlayhead: player.seek,
+  dropPlayhead: player.dropPlayhead,
 })
 
 function stepPlayhead(direction: -1 | 1, isShifted: boolean) {
-  const playhead = audition.playheadSeconds()
+  const playhead = player.playheadSeconds()
   if (playhead === null) return
   const step = isShifted ? SHIFT_PLAYHEAD_STEP_SECONDS : PLAYHEAD_STEP_SECONDS
-  audition.seekAudition(roundToMillisecond(playhead + direction * step))
+  player.seek(roundToMillisecond(playhead + direction * step))
 }
 
 /*
@@ -133,12 +128,12 @@ Whether the key stepped: at the first or last split, or over the discard questio
 an audition that is on goes on untouched. An audition that was on, playing or still decoded, starts
 again across the new split; a paused one is let go of with the old split and rests at the new
 split's start, and with none on, none starts. Whether it was on is read before the step, which ends
-the old audition (`model/audition.ts`).
+the old audition (`model/player.ts`).
 */
 function isStepKeyActedOn(step: -1 | 1) {
-  const wasOn = audition.isActive
+  const wasOn = player.isActive
   const hasStepped = split.selectAdjacentSplit(step)
-  if (hasStepped && wasOn) audition.toggle()
+  if (hasStepped && wasOn) player.toggle()
   return hasStepped
 }
 
@@ -158,14 +153,14 @@ function isKeyActedOn(event: KeyboardEvent) {
   if (step !== null) return isStepKeyActedOn(step)
   // A held Space must not start and stop the sound over and over.
   if (event.key === ' ') {
-    if (!event.repeat) audition.toggle()
+    if (!event.repeat) player.toggle()
     return true
   }
   const selected = split.selectedSplit
   if (selected === null) return false
   if (event.code === 'KeyK' && !event.shiftKey) return isCheckKeyActedOn(event, selected)
   if (event.key === 'Home') {
-    audition.backToAuditionStart()
+    player.backToStart()
     return true
   }
   // A held key steps again, so the playhead can be swept by keyboard.
@@ -206,11 +201,12 @@ function drawAuditionEdges(
   width: number,
   height: number,
 ) {
-  if (extent.value === null) return
+  // The edges are the audition's, so they wait for a selected split, whatever the player shows.
+  if (split.selectedSplit === null || player.extent === null) return
   context.fillStyle = style.getPropertyValue('--color-ink')
   const edges = [
-    { seconds: extent.value.startSeconds, inward: 1 },
-    { seconds: extent.value.endSeconds, inward: -1 },
+    { seconds: player.extent.startSeconds, inward: 1 },
+    { seconds: player.extent.endSeconds, inward: -1 },
   ] as const
   for (const { seconds, inward } of edges) {
     const x = zoomTimeToX(seconds, centre, ZOOM_WINDOW_SECONDS, width)
@@ -277,7 +273,7 @@ function draw() {
   The playhead goes over the split lines, which it must stay readable against, and under the
   frame, so the frame stays the outermost line of the canvas.
   */
-  const playhead = audition.playheadSeconds()
+  const playhead = player.playheadSeconds()
   if (playhead !== null) {
     const x = zoomTimeToX(playhead, centre, ZOOM_WINDOW_SECONDS, width)
     if (x >= 0 && x <= width) {
@@ -294,12 +290,12 @@ function draw() {
 
 // The playhead moves with the audio, which Vue does not see: draw on every frame while it plays.
 usePlayheadFrames(
-  () => audition.status === 'playing',
+  () => player.status === 'playing',
   () => {
     // Floored, but never below the slider's minimum, the extent's start, which can be fractional.
     heardSeconds.value = Math.max(
-      extent.value?.startSeconds ?? 0,
-      Math.floor(audition.playheadSeconds() ?? 0),
+      player.extent?.startSeconds ?? 0,
+      Math.floor(player.playheadSeconds() ?? 0),
     )
     draw()
   },
@@ -317,7 +313,7 @@ watch(
     split.selectedSplit?.id,
     split.zoomCentreSeconds,
     // The resting place moves while paused, when nothing else here changes.
-    audition.playheadSeconds(),
+    player.playheadSeconds(),
   ],
   draw,
 )
@@ -337,13 +333,13 @@ watch(
     <!-- A slider must take the focus for a screen reader, but it is no tab stop: the keys reach the view
     wherever the focus is. -->
     <div
-      :role="extent === null ? undefined : 'slider'"
-      :tabindex="extent === null ? undefined : -1"
+      :role="player.extent === null ? undefined : 'slider'"
+      :tabindex="player.extent === null ? undefined : -1"
       aria-label="Playhead in the audition"
-      :aria-valuemin="extent?.startSeconds"
-      :aria-valuemax="extent?.endSeconds"
-      :aria-valuenow="extent === null ? undefined : sliderSeconds"
-      :aria-valuetext="extent === null ? undefined : formatHundredths(sliderSeconds)"
+      :aria-valuemin="player.extent?.startSeconds"
+      :aria-valuemax="player.extent?.endSeconds"
+      :aria-valuenow="player.extent === null ? undefined : sliderSeconds"
+      :aria-valuetext="player.extent === null ? undefined : formatHundredths(sliderSeconds)"
       class="size-full"
     >
       <canvas ref="canvas" class="block size-full" aria-label="Zoomed waveform of the split" />
@@ -362,11 +358,11 @@ watch(
       :style="{ left: handleLeft }"
     />
     <p
-      v-if="audition.failure !== null"
+      v-if="player.failure !== null"
       role="status"
       class="pointer-events-none absolute inset-x-0 bottom-3 flex justify-center"
     >
-      <span class="bg-surface px-3 py-1.5 text-sm text-muted">{{ audition.failure }}</span>
+      <span class="bg-surface px-3 py-1.5 text-sm text-muted">{{ player.failure }}</span>
     </p>
     <p
       v-if="split.splits.length === 0"

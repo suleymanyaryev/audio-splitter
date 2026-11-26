@@ -19,7 +19,7 @@ import { usePlayheadFrames } from '../lib/use-playhead-frames.ts'
 import { useRangePress } from '../lib/use-range-press.ts'
 import { zoomBars } from '../lib/zoom-bars.ts'
 import { landSpansInWindow } from '../lib/zoom-spans.ts'
-import { useAuditionStore } from '../model/audition.ts'
+import { usePlayerStore } from '../model/player.ts'
 
 /*
 The Range view (GLOSSARY.md): the range the user dragged out, stretched across a 160 px canvas
@@ -52,13 +52,13 @@ const SHIFT_STEP_SECONDS = 10
 
 const sourceFile = useSourceFileStore()
 const split = useSplitStore()
-const audition = useAuditionStore()
+const player = usePlayerStore()
 const canvas = useTemplateRef('canvas')
 const frame = useTemplateRef('frame')
 
 // The range's start for a new range, then where it is heard or resumes; 0 with no range.
 function playheadSeconds() {
-  return split.range === null ? 0 : audition.stretchPlayheadSeconds(split.range)
+  return player.playheadSeconds() ?? 0
 }
 
 /*
@@ -68,7 +68,7 @@ not on every frame. Otherwise it is the resting place, which Vue does see, to th
 */
 const heardSeconds = ref(0)
 const sliderSeconds = computed(() =>
-  audition.stretchStatus === 'playing' ? heardSeconds.value : playheadSeconds(),
+  player.status === 'playing' ? heardSeconds.value : playheadSeconds(),
 )
 
 function draw() {
@@ -163,13 +163,13 @@ const { overPlayhead, dragging, onPointerDown, onPointerMove, onPointerEnd, onDo
       return map === null ? 0 : draggedTime(x, 0, map.centreSeconds, map.windowSeconds, map.width)
     },
     grab: () => {
-      audition.grabPlayhead()
+      player.grabPlayhead()
     },
     move: (seconds) => {
-      if (split.range !== null) audition.seekStretch(split.range, seconds)
+      player.seek(seconds)
     },
     drop: () => {
-      if (split.range !== null) audition.dropPlayhead(split.range)
+      player.dropPlayhead()
     },
     selectSplit: (index) => {
       const selected = split.splits[index]
@@ -181,9 +181,8 @@ const { overPlayhead, dragging, onPointerDown, onPointerMove, onPointerEnd, onDo
   })
 
 function moveBy(direction: -1 | 1, isShifted: boolean) {
-  if (split.range === null) return
   const step = isShifted ? SHIFT_STEP_SECONDS : STEP_SECONDS
-  audition.seekStretch(split.range, roundToMillisecond(playheadSeconds() + direction * step))
+  player.seek(roundToMillisecond(playheadSeconds() + direction * step))
 }
 
 /*
@@ -204,14 +203,14 @@ function isKeyActedOn(event: KeyboardEvent) {
   switch (event.key) {
     case ' ': {
       // A held key must not start and stop the sound over and over.
-      if (!event.repeat && split.range !== null) audition.toggleStretch(split.range)
+      if (!event.repeat) player.toggle()
       return true
     }
     case 'Enter': {
       return addSplitFromKey(event)
     }
     case 'Home': {
-      if (split.range !== null) audition.backToStretchStart(split.range)
+      player.backToStart()
       return true
     }
     case 'ArrowLeft':
@@ -238,7 +237,7 @@ usePageKeys(isKeyActedOn, {
 })
 
 usePlayheadFrames(
-  () => audition.stretchStatus === 'playing',
+  () => player.status === 'playing',
   () => {
     heardSeconds.value = Math.floor(playheadSeconds())
     draw()
@@ -288,11 +287,11 @@ watch(
       <canvas ref="canvas" class="block size-full" aria-label="Waveform of the range" />
     </div>
     <p
-      v-if="audition.failure !== null"
+      v-if="player.failure !== null"
       role="status"
       class="pointer-events-none absolute inset-x-0 bottom-3 flex justify-center"
     >
-      <span class="bg-surface px-3 py-1.5 text-sm text-muted">{{ audition.failure }}</span>
+      <span class="bg-surface px-3 py-1.5 text-sm text-muted">{{ player.failure }}</span>
     </p>
   </div>
 </template>

@@ -29,13 +29,12 @@ import LoudnessSettings from '@/widgets/loudness-curve/ui/LoudnessSettings.vue'
 import SourceWaveform from '@/widgets/source-waveform/ui/SourceWaveform.vue'
 import { rangeTitle } from '@/widgets/split-zoom/lib/range-title.ts'
 import { confidenceStepOfKey } from '@/widgets/split-zoom/lib/step-of-key.ts'
-import { trackExtent } from '@/widgets/split-zoom/lib/track-extent.ts'
 import { trackTitle } from '@/widgets/split-zoom/lib/track-title.ts'
 import { zoomTitle } from '@/widgets/split-zoom/lib/zoom-title.ts'
 import { useQuestionMarkKey } from '@/widgets/shortcuts-dialog/lib/use-question-mark-key.ts'
 import { useShortcutsDialogStore } from '@/widgets/shortcuts-dialog/model/shortcuts-dialog.ts'
 import ShortcutsDialog from '@/widgets/shortcuts-dialog/ui/ShortcutsDialog.vue'
-import { useAuditionStore } from '@/widgets/split-zoom/model/audition.ts'
+import { usePlayerStore } from '@/widgets/split-zoom/model/player.ts'
 import PlaySpeedControl from '@/widgets/split-zoom/ui/PlaySpeedControl.vue'
 import RangeView from '@/widgets/split-zoom/ui/RangeView.vue'
 import SplitZoom from '@/widgets/split-zoom/ui/SplitZoom.vue'
@@ -84,7 +83,7 @@ gets its own prefix.
 */
 const sourceFile = useSourceFileStore()
 const split = useSplitStore()
-const audition = useAuditionStore()
+const player = usePlayerStore()
 const exporter = useExportTracksStore()
 const singleExport = useExportSingleStore()
 const shortcuts = useShortcutsDialogStore()
@@ -112,14 +111,14 @@ if (loudness && loudnessWindowSeconds !== null && durationSeconds !== null) {
 }
 onUnmounted(() => {
   // First, so that no clip is left playing over a page that has no split to show.
-  audition.stop()
+  player.stop()
   split.reset()
   shortcuts.hide()
 })
 
 // A clip must not play over the export, which locks the page.
 function exportTracks() {
-  audition.stop()
+  player.stop()
   void exporter.start()
 }
 
@@ -137,7 +136,7 @@ function openSingleExport() {
 }
 
 function confirmSingleExport(name: string) {
-  audition.stop()
+  player.stop()
   void singleExport.confirm(name)
 }
 
@@ -215,39 +214,23 @@ titles stay in the smaller headline.
 */
 const showsSplitTime = computed(() => split.view === 'split' && split.selectedSplit !== null)
 
-// "Stop" while the stretch is being decoded, so a press can take it back; "Pause" while it plays.
+/*
+The play button's label follows the player's status and the view: "Stop" while the clip is being
+decoded, so a press can take it back, and "Pause" while it plays. The Split view's button keeps the
+name of what it plays while it is idle or paused.
+*/
 const STRETCH_BUTTON_LABELS = { idle: 'Play', loading: 'Stop', playing: 'Pause', paused: 'Play' }
-const stretchButtonLabel = computed(() => STRETCH_BUTTON_LABELS[audition.stretchStatus])
-
-// The same for the audition, which keeps the name of what it plays while it is idle or paused.
 const AUDITION_BUTTON_LABELS = {
   idle: 'Play across split',
   loading: 'Stop',
   playing: 'Pause',
   paused: 'Play across split',
 }
-const auditionButtonLabel = computed(() => AUDITION_BUTTON_LABELS[audition.status])
-
-/*
-The two buttons of the Range view and of the Track view play the stretch on show: the range, or the
-selected track (all of it, however long). With none there is nothing to play.
-*/
-const stretch = computed(() => {
-  if (split.view === 'range') return split.range
-  return split.view === 'track' && split.selectedTrack !== null
-    ? trackExtent(split.selectedTrack)
-    : null
-})
-
-// The same move as Home: the stretch on show, or the audition in the Split view.
-function backToStart() {
-  if (split.view === 'split') audition.backToAuditionStart()
-  else if (stretch.value !== null) audition.backToStretchStart(stretch.value)
-}
-
-function toggleStretch() {
-  if (stretch.value !== null) audition.toggleStretch(stretch.value)
-}
+const playButtonLabel = computed(() =>
+  split.view === 'split'
+    ? AUDITION_BUTTON_LABELS[player.status]
+    : STRETCH_BUTTON_LABELS[player.status],
+)
 
 // The dialog is open while the store holds a question; closing it any other way is a cancel.
 const asking = computed({
@@ -273,7 +256,7 @@ const viewOptions = computed(() => [
 watch(
   () => split.view,
   () => {
-    audition.stop()
+    player.stop()
   },
 )
 </script>
@@ -347,49 +330,26 @@ watch(
           :label="`Back to ${split.view === 'split' ? 'audition' : split.view} start`"
           hint="Home"
           :disabled="split.view === 'split' && split.selectedSplit === null"
-          @click="backToStart"
+          @click="player.backToStart()"
         >
           <SkipBack class="size-4 shrink-0" />
         </UiIconButton>
         <UiIconButton
-          v-if="split.view !== 'split'"
           variant="primary"
           size="sm"
-          :label="stretchButtonLabel"
+          :label="playButtonLabel"
           hint="Space"
-          @click="toggleStretch"
+          :disabled="split.view === 'split' && split.selectedSplit === null && !player.isActive"
+          @click="player.toggle()"
         >
           <Square
-            v-if="audition.stretchStatus === 'loading'"
+            v-if="player.status === 'loading'"
             class="size-4 shrink-0"
             fill="currentColor"
             :stroke-width="0"
           />
           <Pause
-            v-else-if="audition.stretchStatus === 'playing'"
-            class="size-4 shrink-0"
-            fill="currentColor"
-            :stroke-width="0"
-          />
-          <Play v-else class="size-4 shrink-0" fill="currentColor" :stroke-width="0" />
-        </UiIconButton>
-        <UiIconButton
-          v-else
-          variant="primary"
-          size="sm"
-          :label="auditionButtonLabel"
-          hint="Space"
-          :disabled="split.selectedSplit === null && !audition.isActive"
-          @click="audition.toggle()"
-        >
-          <Square
-            v-if="audition.status === 'loading'"
-            class="size-4 shrink-0"
-            fill="currentColor"
-            :stroke-width="0"
-          />
-          <Pause
-            v-else-if="audition.status === 'playing'"
+            v-else-if="player.status === 'playing'"
             class="size-4 shrink-0"
             fill="currentColor"
             :stroke-width="0"

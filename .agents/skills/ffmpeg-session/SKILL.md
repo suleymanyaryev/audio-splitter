@@ -15,7 +15,7 @@ One ffmpeg session per loaded file, owned by the `source-file` store. Read `docs
 ## Calls after the file is ready
 
 - Every call goes through the store's `inSession` queue, as `clip` and `cutTrack` do: one worker runs one command, and the session's log belongs to one call.
-- A call whose file was reset or replaced while it waited rejects with `FileReplacedError`. The caller treats it as a quiet "nothing to do" and shows any other error. Reference: `decode()` in `widgets/split-zoom/model/audition.ts`.
+- A call whose file was reset or replaced while it waited rejects with `FileReplacedError`. The caller treats it as a quiet "nothing to do" and shows any other error. Reference: `decode()` in `widgets/split-zoom/model/player.ts`.
 - To cancel cuts, set a cancelled flag, then call `sourceFile.stopCuts()`. The stop rejects like a failure; the flag tells the two apart. Reference: `widgets/track-strip/model/export-tracks.ts`.
 - Handle large outputs one at a time: cut, write, drop the bytes, then the next cut.
 

@@ -6,7 +6,7 @@ import { useSourceFileStore } from '@/entities/source-file/model/source-file.ts'
 import { useSplitStore } from '@/entities/split/model/split.ts'
 import { useShortcutsDialogStore } from '@/widgets/shortcuts-dialog/model/shortcuts-dialog.ts'
 import { trackExtent } from '@/widgets/split-zoom/lib/track-extent.ts'
-import { useAuditionStore } from '@/widgets/split-zoom/model/audition.ts'
+import { usePlayerStore } from '@/widgets/split-zoom/model/player.ts'
 import { FakeFolder } from '@/widgets/track-strip/model/__tests__/fake-folder.ts'
 import { useExportSingleStore } from '@/widgets/track-strip/model/export-single.ts'
 import { useExportTracksStore } from '@/widgets/track-strip/model/export-tracks.ts'
@@ -317,13 +317,8 @@ const NEXT = { key: ']', code: 'BracketRight' }
 const PREVIOUS = { key: '[', code: 'BracketLeft' }
 
 // The player's play action, spied on and replaced, as the playback cases do.
-function spyOnToggleStretch() {
-  return vi.spyOn(useAuditionStore(), 'toggleStretch').mockImplementation(() => {})
-}
-
-// The same for the audition across a split.
 function spyOnToggle() {
-  return vi.spyOn(useAuditionStore(), 'toggle').mockImplementation(() => {})
+  return vi.spyOn(usePlayerStore(), 'toggle').mockImplementation(() => {})
 }
 
 // The second split selected, as a click on its row does, on a page that is on the Split view.
@@ -530,12 +525,12 @@ describe('ReviewPage', () => {
 
     it('say Stop (Space) in the Split view while a clip is decoded, and Pause (Space) while it plays', async () => {
       const wrapper = await mountPageOnSplit()
-      const audition = useAuditionStore()
-      audition.status = 'loading'
+      const player = usePlayerStore()
+      player.status = 'loading'
       await wrapper.vm.$nextTick()
       expect(await tooltipOf(auditionButton(wrapper))).toBe('Stop (Space)')
 
-      audition.status = 'playing'
+      player.status = 'playing'
       await wrapper.vm.$nextTick()
       expect(await tooltipOf(auditionButton(wrapper))).toBe('Pause (Space)')
     })
@@ -563,7 +558,7 @@ describe('ReviewPage', () => {
 
     it('have a Play whose name and tooltip follow its state in the Track view and the Range view', async () => {
       const wrapper = await mountPageWithRange()
-      const audition = useAuditionStore()
+      const player = usePlayerStore()
 
       for (const [status, label] of [
         ['loading', 'Stop'],
@@ -571,7 +566,7 @@ describe('ReviewPage', () => {
         ['paused', 'Play'],
         ['idle', 'Play'],
       ] as const) {
-        audition.stretchStatus = status
+        player.status = status
         await wrapper.vm.$nextTick()
         expect(nameOf(rangeButton(wrapper))).toBe(label)
         expect(await tooltipOf(rangeButton(wrapper))).toBe(`${label} (Space)`)
@@ -778,10 +773,10 @@ describe('ReviewPage', () => {
 
     it('reads "Stop" while a clip loads, "Pause" while it plays and "Play across split" when paused, with its own icons, enabled throughout', async () => {
       const wrapper = await mountPageOnSplit()
-      const audition = useAuditionStore()
+      const player = usePlayerStore()
       const playIcon = auditionButton(wrapper).get('svg').classes()
 
-      audition.status = 'loading'
+      player.status = 'loading'
       await wrapper.vm.$nextTick()
       // The button is patched in place, so what each state looks like is read at once.
       const stopIcon = auditionButton(wrapper).get('svg').classes()
@@ -789,7 +784,7 @@ describe('ReviewPage', () => {
       expect(stopIcon).not.toEqual(playIcon)
       expect(auditionButton(wrapper).attributes('disabled')).toBeUndefined()
 
-      audition.status = 'playing'
+      player.status = 'playing'
       await wrapper.vm.$nextTick()
       const pauseIcon = auditionButton(wrapper).get('svg').classes()
       expect(nameOf(auditionButton(wrapper))).toBe('Pause')
@@ -797,20 +792,20 @@ describe('ReviewPage', () => {
       expect(pauseIcon).not.toEqual(stopIcon)
       expect(auditionButton(wrapper).attributes('disabled')).toBeUndefined()
 
-      audition.status = 'paused'
+      player.status = 'paused'
       await wrapper.vm.$nextTick()
       expect(nameOf(auditionButton(wrapper))).toBe('Play across split')
       expect(auditionButton(wrapper).get('svg').classes()).toEqual(playIcon)
       expect(auditionButton(wrapper).attributes('disabled')).toBeUndefined()
 
-      audition.status = 'idle'
+      player.status = 'idle'
       await wrapper.vm.$nextTick()
       expect(nameOf(auditionButton(wrapper))).toBe('Play across split')
     })
 
     it('stops the audition when the page goes away', () => {
       const wrapper = mountPage()
-      const stop = vi.spyOn(useAuditionStore(), 'stop')
+      const stop = vi.spyOn(usePlayerStore(), 'stop')
 
       wrapper.unmount()
 
@@ -833,14 +828,14 @@ describe('ReviewPage', () => {
 
     it('takes the playhead back to the audition’s start when clicked', async () => {
       const wrapper = await mountPageOnSplit()
-      const audition = useAuditionStore()
+      const player = usePlayerStore()
       const selected = useSplitStore().selectedSplit!
-      audition.seekAudition(selected.seconds + 3)
-      expect(audition.playheadSeconds()).toBe(selected.seconds + 3)
+      player.seek(selected.seconds + 3)
+      expect(player.playheadSeconds()).toBe(selected.seconds + 3)
 
       await backToAuditionStartButton(wrapper).trigger('click')
 
-      expect(audition.playheadSeconds()).toBe(selected.seconds - 4)
+      expect(player.playheadSeconds()).toBe(selected.seconds - 4)
     })
 
     it('is disabled while no split is selected', async () => {
@@ -853,10 +848,10 @@ describe('ReviewPage', () => {
 
     it('is enabled whatever the audition is doing', async () => {
       const wrapper = await mountPageOnSplit()
-      const audition = useAuditionStore()
+      const player = usePlayerStore()
 
       for (const status of ['loading', 'playing', 'paused'] as const) {
-        audition.status = status
+        player.status = status
         await wrapper.vm.$nextTick()
         expect(backToAuditionStartButton(wrapper).attributes('disabled')).toBeUndefined()
       }
@@ -1037,35 +1032,27 @@ describe('ReviewPage', () => {
 
       it('plays the track as a stretch when Play is clicked', async () => {
         const wrapper = await mountPageWithTrack(2)
-        const toggleStretch = vi
-          .spyOn(useAuditionStore(), 'toggleStretch')
-          .mockImplementation(() => {})
+        const toggleSpy = vi.spyOn(usePlayerStore(), 'toggle').mockImplementation(() => {})
 
         await rangeButton(wrapper).trigger('click')
 
-        expect(toggleStretch).toHaveBeenCalledExactlyOnceWith({
-          startSeconds: 21,
-          endSeconds: 71.5,
-        })
+        expect(toggleSpy).toHaveBeenCalledExactlyOnceWith()
       })
 
       it('moves the playhead to the track’s start when "Back to track start" is clicked', async () => {
         const wrapper = await mountPageWithTrack(2)
-        const backToStretchStart = vi
-          .spyOn(useAuditionStore(), 'backToStretchStart')
+        const backToStartSpy = vi
+          .spyOn(usePlayerStore(), 'backToStart')
           .mockImplementation(() => {})
 
         await wrapper.get('button[aria-label="Back to track start"]').trigger('click')
 
-        expect(backToStretchStart).toHaveBeenCalledExactlyOnceWith({
-          startSeconds: 21,
-          endSeconds: 71.5,
-        })
+        expect(backToStartSpy).toHaveBeenCalledExactlyOnceWith()
       })
 
       it('reads "Stop" while the track is decoded, "Pause" while it plays and "Play" when paused, enabled throughout', async () => {
         const wrapper = await mountPageWithTrack(2)
-        const audition = useAuditionStore()
+        const player = usePlayerStore()
         const back = () => wrapper.get('button[aria-label="Back to track start"]')
 
         expect(nameOf(rangeButton(wrapper))).toBe('Play')
@@ -1074,7 +1061,7 @@ describe('ReviewPage', () => {
           ['playing', 'Pause'],
           ['paused', 'Play'],
         ] as const) {
-          audition.stretchStatus = status
+          player.status = status
           await wrapper.vm.$nextTick()
           expect(nameOf(rangeButton(wrapper))).toBe(label)
           expect(rangeButton(wrapper).attributes('disabled')).toBeUndefined()
@@ -1084,7 +1071,7 @@ describe('ReviewPage', () => {
 
       it('stops the sound when the view changes to Split', async () => {
         const wrapper = await mountPageWithTrack(2)
-        const stop = vi.spyOn(useAuditionStore(), 'stop')
+        const stop = vi.spyOn(usePlayerStore(), 'stop')
 
         await viewOption(wrapper, 'Split').trigger('click')
 
@@ -1106,7 +1093,7 @@ describe('ReviewPage', () => {
 
       it('stops the audition when the view changes to the Track view', async () => {
         const wrapper = await mountPageOnSplit()
-        const stop = vi.spyOn(useAuditionStore(), 'stop')
+        const stop = vi.spyOn(usePlayerStore(), 'stop')
 
         await wrapper.get('[aria-label^="Select track 3"]').trigger('click')
 
@@ -1116,7 +1103,7 @@ describe('ReviewPage', () => {
 
     it('stops the audition when the view changes', async () => {
       const wrapper = mountPage()
-      const stop = vi.spyOn(useAuditionStore(), 'stop')
+      const stop = vi.spyOn(usePlayerStore(), 'stop')
 
       useSplitStore().setRange(10, 20)
       await wrapper.vm.$nextTick()
@@ -1128,14 +1115,14 @@ describe('ReviewPage', () => {
   describe('the "Back to range start" button', () => {
     it('is an icon button just left of the range button, enabled whatever the player is doing', async () => {
       const wrapper = await mountPageWithRange()
-      const audition = useAuditionStore()
+      const player = usePlayerStore()
       const labels = wrapper.findAll('button').map((button) => nameOf(button))
 
       expect(labels.indexOf('Back to range start')).toBe(labels.indexOf('Play') - 1)
       expect(backButton(wrapper).text()).toBe('')
 
       for (const status of ['loading', 'playing', 'paused'] as const) {
-        audition.stretchStatus = status
+        player.status = status
         await wrapper.vm.$nextTick()
         expect(backButton(wrapper).attributes('disabled')).toBeUndefined()
       }
@@ -1150,7 +1137,7 @@ describe('ReviewPage', () => {
     it('moves the playhead to the range’s start when clicked', async () => {
       const wrapper = await mountPageWithRange()
       const backToRangeStart = vi
-        .spyOn(useAuditionStore(), 'backToStretchStart')
+        .spyOn(usePlayerStore(), 'backToStart')
         .mockImplementation(() => {})
 
       await backButton(wrapper).trigger('click')
@@ -1175,7 +1162,7 @@ describe('ReviewPage', () => {
 
     it('calls the player when clicked', async () => {
       const wrapper = await mountPageWithRange()
-      const toggleRange = vi.spyOn(useAuditionStore(), 'toggleStretch').mockImplementation(() => {})
+      const toggleRange = vi.spyOn(usePlayerStore(), 'toggle').mockImplementation(() => {})
 
       await rangeButton(wrapper).trigger('click')
 
@@ -1184,20 +1171,20 @@ describe('ReviewPage', () => {
 
     it('reads "Stop" while the range is decoded, "Pause" while it plays and "Play" when paused', async () => {
       const wrapper = await mountPageWithRange()
-      const audition = useAuditionStore()
+      const player = usePlayerStore()
       const playIcon = rangeButton(wrapper).get('svg').classes()
 
-      audition.stretchStatus = 'loading'
+      player.status = 'loading'
       await wrapper.vm.$nextTick()
       expect(nameOf(rangeButton(wrapper))).toBe('Stop')
       expect(rangeButton(wrapper).attributes('disabled')).toBeUndefined()
 
-      audition.stretchStatus = 'playing'
+      player.status = 'playing'
       await wrapper.vm.$nextTick()
       expect(nameOf(rangeButton(wrapper))).toBe('Pause')
       expect(rangeButton(wrapper).get('svg').classes()).not.toEqual(playIcon)
 
-      audition.stretchStatus = 'paused'
+      player.status = 'paused'
       await wrapper.vm.$nextTick()
       expect(nameOf(rangeButton(wrapper))).toBe('Play')
     })
@@ -1302,7 +1289,7 @@ describe('ReviewPage', () => {
     it('stops the audition, then starts the export', async () => {
       const wrapper = mountPage()
       const order: string[] = []
-      vi.spyOn(useAuditionStore(), 'stop').mockImplementation(() => {
+      vi.spyOn(usePlayerStore(), 'stop').mockImplementation(() => {
         order.push('stop')
       })
       vi.spyOn(useExportTracksStore(), 'start').mockImplementation(() => {
@@ -1353,7 +1340,7 @@ describe('ReviewPage', () => {
 
     it('opens the name dialog on the track, with the track’s shown name, and does not stop the sound', async () => {
       const wrapper = await mountPageWithTrack(2)
-      const stop = vi.spyOn(useAuditionStore(), 'stop')
+      const stop = vi.spyOn(usePlayerStore(), 'stop')
 
       await exportButtonOf(wrapper, 'Export track…').trigger('click')
       await flushPromises()
@@ -1377,7 +1364,7 @@ describe('ReviewPage', () => {
     it('confirms with Enter: stops the sound first, writes the file, closes and says where it went', async () => {
       const wrapper = await mountPageWithTrack(2)
       const order: string[] = []
-      vi.spyOn(useAuditionStore(), 'stop').mockImplementation(() => {
+      vi.spyOn(usePlayerStore(), 'stop').mockImplementation(() => {
         order.push('stop')
       })
       vi.spyOn(useExportSingleStore(), 'confirm').mockImplementation(async (name) => {
@@ -1957,32 +1944,32 @@ describe('ReviewPage', () => {
         await slider.trigger('keydown', { key: 'ArrowLeft' })
         await slider.trigger('keydown', { key: 'ArrowLeft' })
 
-        expect(useAuditionStore().volumeDecibels).toBe(-2)
+        expect(usePlayerStore().volumeDecibels).toBe(-2)
         expect(slider.attributes('aria-valuenow')).toBe('-2')
         expect(slider.attributes('aria-valuetext')).toBe('−2 dB')
       })
 
       it('mutes and unmutes, the button and its tooltip saying what the next press does', async () => {
         const wrapper = await mountView()
-        const audition = useAuditionStore()
+        const player = usePlayerStore()
 
         await muteButton(wrapper).trigger('click')
 
-        expect(audition.isMuted).toBe(true)
+        expect(player.isMuted).toBe(true)
         expect(muteButton(wrapper).attributes('aria-label')).toBe('Unmute')
         expect(await tooltipOf(muteButton(wrapper))).toBe('Unmute')
 
         await muteButton(wrapper).trigger('click')
 
-        expect(audition.isMuted).toBe(false)
+        expect(player.isMuted).toBe(false)
         expect(muteButton(wrapper).attributes('aria-label')).toBe('Mute')
       })
     })
 
     it('shows the level and the mute the player already has', async () => {
-      const audition = useAuditionStore()
-      audition.setVolume(-12)
-      audition.toggleMute()
+      const player = usePlayerStore()
+      player.setVolume(-12)
+      player.toggleMute()
 
       const wrapper = await mountPageOnSplit()
       const slider = await volumeSlider(wrapper)
@@ -2006,17 +1993,8 @@ describe('ReviewPage', () => {
   describe('the play speed', () => {
     const views = [
       ['Split', mountPageOnSplit, () => useSplitStore().selectedSplit!.seconds],
-      [
-        'Track',
-        () => mountPageWithTrack(2),
-        () =>
-          useAuditionStore().stretchPlayheadSeconds(trackExtent(useSplitStore().selectedTrack!)),
-      ],
-      [
-        'Range',
-        mountPageWithRange,
-        () => useAuditionStore().stretchPlayheadSeconds(useSplitStore().range!),
-      ],
+      ['Track', () => mountPageWithTrack(2), () => usePlayerStore().playheadSeconds()!],
+      ['Range', mountPageWithRange, () => usePlayerStore().playheadSeconds()!],
     ] as const
 
     describe.each(views)('in the %s view', (_, mountView, where) => {
@@ -2046,7 +2024,7 @@ describe('ReviewPage', () => {
           await slider.trigger('keydown', { key: 'ArrowRight' })
         }
 
-        expect(useAuditionStore().playSpeed).toBe(1.5)
+        expect(usePlayerStore().playSpeed).toBe(1.5)
         expect(slider.attributes('aria-valuetext')).toBe('1.5×')
         expect(playSpeedButton(wrapper).text()).toBe('1.5×')
       })
@@ -2057,24 +2035,24 @@ describe('ReviewPage', () => {
 
         await slider.trigger('keydown', { key: 'Home' })
         expect(slider.attributes('aria-valuetext')).toBe('0.5×')
-        expect(useAuditionStore().playSpeed).toBe(0.5)
+        expect(usePlayerStore().playSpeed).toBe(0.5)
 
         await slider.trigger('keydown', { key: 'End' })
         expect(slider.attributes('aria-valuetext')).toBe('2.0×')
-        expect(useAuditionStore().playSpeed).toBe(2)
+        expect(usePlayerStore().playSpeed).toBe(2)
       })
 
       it('is reset to 1.0× by its button, which is on even at 1.0×', async () => {
         const wrapper = await mountView()
-        const audition = useAuditionStore()
+        const player = usePlayerStore()
         expect(playSpeedButton(wrapper).attributes('disabled')).toBeUndefined()
-        audition.setPlaySpeed(1.5)
+        player.setPlaySpeed(1.5)
         await wrapper.vm.$nextTick()
         expect(playSpeedButton(wrapper).text()).toBe('1.5×')
 
         await playSpeedButton(wrapper).trigger('click')
 
-        expect(audition.playSpeed).toBe(1)
+        expect(player.playSpeed).toBe(1)
         expect(playSpeedButton(wrapper).text()).toBe('1.0×')
         const slider = await playSpeedSlider(wrapper)
         expect(slider.attributes('aria-valuetext')).toBe('1.0×')
@@ -2084,15 +2062,15 @@ describe('ReviewPage', () => {
 
       it('leaves the speed and the volume independent', async () => {
         const wrapper = await mountView()
-        const audition = useAuditionStore()
+        const player = usePlayerStore()
         const speed = await playSpeedSlider(wrapper)
         const volume = await volumeSlider(wrapper)
 
         await speed.trigger('keydown', { key: 'End' })
         await volume.trigger('keydown', { key: 'Home' })
 
-        expect(audition.playSpeed).toBe(2)
-        expect(audition.volumeDecibels).toBe(-40)
+        expect(player.playSpeed).toBe(2)
+        expect(player.volumeDecibels).toBe(-40)
       })
 
       it('leaves the view its keys after a drag of the slider and after a click on the button', async () => {
@@ -2114,7 +2092,7 @@ describe('ReviewPage', () => {
     })
 
     it('shows the speed the player already has', async () => {
-      useAuditionStore().setPlaySpeed(1.7)
+      usePlayerStore().setPlaySpeed(1.7)
 
       const wrapper = await mountPageOnSplit()
       const slider = await playSpeedSlider(wrapper)
@@ -2164,16 +2142,14 @@ describe('ReviewPage', () => {
     it('act in the Track view with the focus on the page, after a click on a track-list row', async () => {
       const wrapper = await mountWithMark()
       const split = useSplitStore()
-      const toggleStretch = vi
-        .spyOn(useAuditionStore(), 'toggleStretch')
-        .mockImplementation(() => {})
+      const toggleSpy = vi.spyOn(usePlayerStore(), 'toggle').mockImplementation(() => {})
       expect(document.activeElement).toBe(document.body)
 
       pressKey(' ')
       pressKey('Enter')
       await wrapper.vm.$nextTick()
 
-      expect(toggleStretch).toHaveBeenCalledTimes(1)
+      expect(toggleSpy).toHaveBeenCalledTimes(1)
       expect(split.pendingSplits).toEqual([40])
     })
 
@@ -2182,14 +2158,13 @@ describe('ReviewPage', () => {
       const split = useSplitStore()
       split.placeMark(15)
       await wrapper.vm.$nextTick()
-      const audition = useAuditionStore()
-      const range = split.range!
+      const player = usePlayerStore()
 
       pressKey('ArrowLeft')
       pressKey('Enter')
       await wrapper.vm.$nextTick()
 
-      expect(audition.stretchPlayheadSeconds(range)).toBe(10)
+      expect(player.playheadSeconds()).toBe(10)
       expect(split.splits.map((point) => point.seconds)).toContain(15)
       expect(document.activeElement).not.toBe(playheadInRange(wrapper))
     })
@@ -2227,16 +2202,14 @@ describe('ReviewPage', () => {
 
     it('stay out while the shortcuts dialog is open', async () => {
       const wrapper = await mountWithMark()
-      const toggleStretch = vi
-        .spyOn(useAuditionStore(), 'toggleStretch')
-        .mockImplementation(() => {})
+      const toggleSpy = vi.spyOn(usePlayerStore(), 'toggle').mockImplementation(() => {})
       pressQuestionMark()
       await flushPromises()
 
       pressKey(' ')
       pressKey('Enter')
 
-      expect(toggleStretch).not.toHaveBeenCalled()
+      expect(toggleSpy).not.toHaveBeenCalled()
       expect(useSplitStore().pendingSplits).toEqual([])
       wrapper.unmount()
     })
@@ -2244,54 +2217,47 @@ describe('ReviewPage', () => {
     it('leave Space and Enter to a button reached with Tab, and give it the arrows', async () => {
       const wrapper = await mountWithMark()
       const split = useSplitStore()
-      const audition = useAuditionStore()
-      const toggleStretch = vi.spyOn(audition, 'toggleStretch').mockImplementation(() => {})
-      const stretch = trackExtent(split.selectedTrack!)
+      const player = usePlayerStore()
+      const toggleSpy = vi.spyOn(player, 'toggle').mockImplementation(() => {})
       const button = rangeButton(wrapper).element as HTMLElement
       button.focus()
 
       pressKey(' ', {}, button)
       pressKey('Enter', {}, button)
-      expect(toggleStretch).not.toHaveBeenCalled()
+      expect(toggleSpy).not.toHaveBeenCalled()
       expect(split.pendingSplits).toEqual([])
 
       pressKey('ArrowRight', {}, button)
-      expect(audition.stretchPlayheadSeconds(stretch)).toBe(22)
+      expect(player.playheadSeconds()).toBe(22)
     })
 
     it('are left to the browser with Ctrl, Cmd or Alt held', async () => {
       const wrapper = await mountWithMark()
-      const toggleStretch = vi
-        .spyOn(useAuditionStore(), 'toggleStretch')
-        .mockImplementation(() => {})
+      const toggleSpy = vi.spyOn(usePlayerStore(), 'toggle').mockImplementation(() => {})
 
       pressKey(' ', { ctrlKey: true })
       pressKey(' ', { metaKey: true })
       pressKey(' ', { altKey: true })
       await wrapper.vm.$nextTick()
 
-      expect(toggleStretch).not.toHaveBeenCalled()
+      expect(toggleSpy).not.toHaveBeenCalled()
     })
 
     describe('after a mouse click', () => {
       it('on Play in the Track view, Space pauses the track and does not press Play again', async () => {
         const wrapper = await mountWithMark()
-        const toggleStretch = vi
-          .spyOn(useAuditionStore(), 'toggleStretch')
-          .mockImplementation(() => {})
+        const toggleSpy = vi.spyOn(usePlayerStore(), 'toggle').mockImplementation(() => {})
 
         await mouseClick(rangeButton(wrapper).element)
-        expect(toggleStretch).toHaveBeenCalledTimes(1)
+        expect(toggleSpy).toHaveBeenCalledTimes(1)
         pressWhereFocused(' ')
 
-        expect(toggleStretch).toHaveBeenCalledTimes(2)
+        expect(toggleSpy).toHaveBeenCalledTimes(2)
       })
 
       it('on Play while a track name is being edited, the field lets go and Space acts on the view', async () => {
         const wrapper = await mountWithMark()
-        const toggleStretch = vi
-          .spyOn(useAuditionStore(), 'toggleStretch')
-          .mockImplementation(() => {})
+        const toggleSpy = vi.spyOn(usePlayerStore(), 'toggle').mockImplementation(() => {})
         const field = wrapper.get('input').element
         field.focus()
         expect(document.activeElement).toBe(field)
@@ -2300,39 +2266,35 @@ describe('ReviewPage', () => {
         pressWhereFocused(' ')
 
         expect(document.activeElement).not.toBe(field)
-        expect(toggleStretch).toHaveBeenCalledTimes(2)
+        expect(toggleSpy).toHaveBeenCalledTimes(2)
       })
 
       it('on the Split | Track | Range control, the arrows go to the view now on show', async () => {
         const wrapper = await mountPageWithRange()
         const split = useSplitStore()
-        const audition = useAuditionStore()
+        const player = usePlayerStore()
 
         await mouseClick(viewOption(wrapper, 'Track').element)
         pressWhereFocused('ArrowRight')
 
         expect(split.view).toBe('track')
         const start = trackExtent(split.selectedTrack!)
-        expect(audition.stretchPlayheadSeconds(start)).toBe(start.startSeconds + 1)
+        expect(player.playheadSeconds()).toBe(start.startSeconds + 1)
       })
 
       it('on a track-list row, Space acts on the view on show', async () => {
         const wrapper = await mountWithMark()
-        const toggleStretch = vi
-          .spyOn(useAuditionStore(), 'toggleStretch')
-          .mockImplementation(() => {})
+        const toggleSpy = vi.spyOn(usePlayerStore(), 'toggle').mockImplementation(() => {})
 
         await mouseClick(wrapper.get('[aria-label^="Select track 2"]').element)
         pressWhereFocused(' ')
 
-        expect(toggleStretch).toHaveBeenCalledTimes(1)
+        expect(toggleSpy).toHaveBeenCalledTimes(1)
       })
 
       it('on a track-strip block, Space acts on the view on show', async () => {
         const wrapper = await mountWithMark()
-        const toggleStretch = vi
-          .spyOn(useAuditionStore(), 'toggleStretch')
-          .mockImplementation(() => {})
+        const toggleSpy = vi.spyOn(usePlayerStore(), 'toggle').mockImplementation(() => {})
         const block = wrapper
           .findAll('button')
           .find((candidate) => nameOf(candidate).startsWith('02, '))
@@ -2340,13 +2302,13 @@ describe('ReviewPage', () => {
         await mouseClick(block!.element)
         pressWhereFocused(' ')
 
-        expect(toggleStretch).toHaveBeenCalledTimes(1)
+        expect(toggleSpy).toHaveBeenCalledTimes(1)
       })
 
       it('on a drag of the silence threshold, Left moves the playhead and the threshold stays', async () => {
         const wrapper = await mountWithMark()
         const split = useSplitStore()
-        const audition = useAuditionStore()
+        const player = usePlayerStore()
 
         await dragSlider(wrapper.get('[role="slider"][aria-label="Silence threshold"]').element)
         // The drag may have found other splits, so the track is the one the drag left selected.
@@ -2354,7 +2316,7 @@ describe('ReviewPage', () => {
         const threshold = split.silenceThreshold
         pressWhereFocused('ArrowRight')
 
-        expect(audition.stretchPlayheadSeconds(stretch)).toBe(stretch.startSeconds + 1)
+        expect(player.playheadSeconds()).toBe(stretch.startSeconds + 1)
         expect(split.silenceThreshold).toBe(threshold)
       })
     })
@@ -2362,16 +2324,14 @@ describe('ReviewPage', () => {
     it('switch to the new view as the view on show changes', async () => {
       const wrapper = await mountWithMark()
       const split = useSplitStore()
-      const toggleStretch = vi
-        .spyOn(useAuditionStore(), 'toggleStretch')
-        .mockImplementation(() => {})
+      const toggleSpy = vi.spyOn(usePlayerStore(), 'toggle').mockImplementation(() => {})
       split.setRange(10, 20)
       split.showView('range')
       await wrapper.vm.$nextTick()
 
       pressKey(' ')
 
-      expect(toggleStretch).toHaveBeenCalledExactlyOnceWith(split.range)
+      expect(toggleSpy).toHaveBeenCalledExactlyOnceWith()
     })
   })
 
@@ -2631,39 +2591,36 @@ describe('ReviewPage', () => {
         'play the new track from its start when the track was %s',
         async (status) => {
           const wrapper = await mountPageWithTrack(2)
-          const toggleStretch = spyOnToggleStretch()
-          useAuditionStore().stretchStatus = status
+          const toggleSpy = spyOnToggle()
+          usePlayerStore().status = status
 
           pressKey(NEXT.key, { code: NEXT.code })
           await wrapper.vm.$nextTick()
 
-          expect(toggleStretch).toHaveBeenCalledExactlyOnceWith({
-            startSeconds: 71.5,
-            endSeconds: 100,
-          })
+          expect(toggleSpy).toHaveBeenCalledExactlyOnceWith()
         },
       )
 
       it('play the previous track from its start on [', async () => {
         const wrapper = await mountPageWithTrack(2)
-        const toggleStretch = spyOnToggleStretch()
-        useAuditionStore().stretchStatus = 'playing'
+        const toggleSpy = spyOnToggle()
+        usePlayerStore().status = 'playing'
 
         pressKey(PREVIOUS.key, { code: PREVIOUS.code })
         await wrapper.vm.$nextTick()
 
-        expect(toggleStretch).toHaveBeenCalledExactlyOnceWith({ startSeconds: 0, endSeconds: 21 })
+        expect(toggleSpy).toHaveBeenCalledExactlyOnceWith()
       })
 
       it.each(['paused', 'idle'] as const)(
         'leave the new track resting at its start, with nothing playing, when the track was %s',
         async (status) => {
           const wrapper = await mountPageWithTrack(2)
-          const toggleStretch = spyOnToggleStretch()
-          const audition = useAuditionStore()
+          const toggleSpy = spyOnToggle()
+          const player = usePlayerStore()
           // The player rests part-way along track 2, as after a seek: a step must not carry that on.
-          audition.seekStretch(trackExtent(useSplitStore().selectedTrack!), 40)
-          audition.stretchStatus = status
+          player.seek(40)
+          player.status = status
           await wrapper.vm.$nextTick()
           const playhead = () =>
             wrapper.get('[aria-label="Playhead in the track"]').attributes('aria-valuenow')
@@ -2672,87 +2629,87 @@ describe('ReviewPage', () => {
           pressKey(NEXT.key, { code: NEXT.code })
           await wrapper.vm.$nextTick()
 
-          expect(toggleStretch).not.toHaveBeenCalled()
-          expect(audition.stretchStatus).toBe('idle')
+          expect(toggleSpy).not.toHaveBeenCalled()
+          expect(player.status).toBe('idle')
           expect(playhead()).toBe('71.5')
         },
       )
 
       it('carry on untouched at ] on the last track', async () => {
         const wrapper = await mountPageWithTrack(3)
-        const toggleStretch = spyOnToggleStretch()
-        const audition = useAuditionStore()
-        audition.stretchStatus = 'playing'
+        const toggleSpy = spyOnToggle()
+        const player = usePlayerStore()
+        player.status = 'playing'
 
         pressKey(NEXT.key, { code: NEXT.code })
         await wrapper.vm.$nextTick()
 
-        expect(toggleStretch).not.toHaveBeenCalled()
-        expect(audition.stretchStatus).toBe('playing')
+        expect(toggleSpy).not.toHaveBeenCalled()
+        expect(player.status).toBe('playing')
       })
 
       it('carry on untouched at [ on the first track', async () => {
         const wrapper = await mountPageWithTrack(1)
-        const toggleStretch = spyOnToggleStretch()
-        const audition = useAuditionStore()
-        audition.stretchStatus = 'playing'
+        const toggleSpy = spyOnToggle()
+        const player = usePlayerStore()
+        player.status = 'playing'
 
         pressKey(PREVIOUS.key, { code: PREVIOUS.code })
         await wrapper.vm.$nextTick()
 
-        expect(toggleStretch).not.toHaveBeenCalled()
-        expect(audition.stretchStatus).toBe('playing')
+        expect(toggleSpy).not.toHaveBeenCalled()
+        expect(player.status).toBe('playing')
       })
 
       it('neither step nor play on a held ], a repeat', async () => {
         const wrapper = await mountPageWithTrack(2)
-        const toggleStretch = spyOnToggleStretch()
-        const audition = useAuditionStore()
-        audition.stretchStatus = 'playing'
+        const toggleSpy = spyOnToggle()
+        const player = usePlayerStore()
+        player.status = 'playing'
 
         pressKey(NEXT.key, { code: NEXT.code, repeat: true })
         await wrapper.vm.$nextTick()
 
         expect(useSplitStore().selectedTrack?.number).toBe(2)
-        expect(toggleStretch).not.toHaveBeenCalled()
-        expect(audition.stretchStatus).toBe('playing')
+        expect(toggleSpy).not.toHaveBeenCalled()
+        expect(player.status).toBe('playing')
       })
 
       it.each(['Apply first', 'Discard'])(
         'play nothing while the discard question is open, and the new track rests after "%s"',
         async (answer) => {
           const { split } = await mountWithPending()
-          const toggleStretch = spyOnToggleStretch()
-          const audition = useAuditionStore()
-          audition.stretchStatus = 'playing'
+          const toggleSpy = spyOnToggle()
+          const player = usePlayerStore()
+          player.status = 'playing'
 
           pressKey(NEXT.key, { code: NEXT.code })
           await flushPromises()
           expect(question()).not.toBeNull()
-          expect(toggleStretch).not.toHaveBeenCalled()
-          expect(audition.stretchStatus).toBe('playing')
+          expect(toggleSpy).not.toHaveBeenCalled()
+          expect(player.status).toBe('playing')
 
           await clickElement(questionButton(answer))
 
           expect(split.selectedTrack?.startSeconds).toBe(71.5)
-          expect(toggleStretch).not.toHaveBeenCalled()
-          expect(audition.stretchStatus).toBe('idle')
+          expect(toggleSpy).not.toHaveBeenCalled()
+          expect(player.status).toBe('idle')
         },
       )
 
       it('leave the sound alone when the question is cancelled', async () => {
         const { split } = await mountWithPending()
-        const toggleStretch = spyOnToggleStretch()
-        const audition = useAuditionStore()
-        audition.stretchStatus = 'playing'
+        const toggleSpy = spyOnToggle()
+        const player = usePlayerStore()
+        player.status = 'playing'
         pressKey(NEXT.key, { code: NEXT.code })
         await flushPromises()
 
         await clickElement(questionButton('Cancel'))
 
         expect(split.selectedTrack?.number).toBe(2)
-        expect(toggleStretch).not.toHaveBeenCalled()
-        expect(audition.stretchStatus).toBe('playing')
+        expect(toggleSpy).not.toHaveBeenCalled()
+        expect(player.status).toBe('playing')
       })
     })
 
@@ -3005,7 +2962,7 @@ describe('ReviewPage', () => {
         async (status) => {
           const wrapper = await mountPageOnSplit()
           const toggle = spyOnToggle()
-          useAuditionStore().status = status
+          usePlayerStore().status = status
 
           pressKey(NEXT.key, { code: NEXT.code })
           await wrapper.vm.$nextTick()
@@ -3013,7 +2970,7 @@ describe('ReviewPage', () => {
           expect(useSplitStore().selectedSplit?.seconds).toBe(71.5)
           expect(toggle).toHaveBeenCalledTimes(1)
           // The old clip is let go of by the step, so the new press starts rather than stops.
-          expect(useAuditionStore().status).toBe('idle')
+          expect(usePlayerStore().status).toBe('idle')
         },
       )
 
@@ -3022,7 +2979,7 @@ describe('ReviewPage', () => {
         const split = useSplitStore()
         await selectSecondSplit(wrapper)
         const toggle = spyOnToggle()
-        useAuditionStore().status = 'playing'
+        usePlayerStore().status = 'playing'
 
         pressKey(PREVIOUS.key, { code: PREVIOUS.code })
         await wrapper.vm.$nextTick()
@@ -3040,22 +2997,22 @@ describe('ReviewPage', () => {
 
         expect(useSplitStore().selectedSplit?.seconds).toBe(71.5)
         expect(toggle).not.toHaveBeenCalled()
-        expect(useAuditionStore().status).toBe('idle')
+        expect(usePlayerStore().status).toBe('idle')
       })
 
       it('let go of a paused one, which rests at the start of the new split’s 8 s', async () => {
         const wrapper = await mountPageOnSplit()
         const toggle = spyOnToggle()
-        const audition = useAuditionStore()
-        audition.status = 'paused'
+        const player = usePlayerStore()
+        player.status = 'paused'
 
         pressKey(NEXT.key, { code: NEXT.code })
         await wrapper.vm.$nextTick()
 
         expect(useSplitStore().selectedSplit?.seconds).toBe(71.5)
         expect(toggle).not.toHaveBeenCalled()
-        expect(audition.status).toBe('idle')
-        expect(audition.playheadSeconds()).toBe(67.5)
+        expect(player.status).toBe('idle')
+        expect(player.playheadSeconds()).toBe(67.5)
       })
 
       it.each([
@@ -3067,28 +3024,28 @@ describe('ReviewPage', () => {
         split.selectSplit(split.splits[index]!.id)
         await wrapper.vm.$nextTick()
         const toggle = spyOnToggle()
-        const audition = useAuditionStore()
-        audition.status = 'playing'
+        const player = usePlayerStore()
+        player.status = 'playing'
 
         pressKey(key.key, { code: key.code })
         await wrapper.vm.$nextTick()
 
         expect(toggle).not.toHaveBeenCalled()
-        expect(audition.status).toBe('playing')
+        expect(player.status).toBe('playing')
       })
 
       it('neither step nor play on a held ], a repeat', async () => {
         const wrapper = await mountPageOnSplit()
         const toggle = spyOnToggle()
-        const audition = useAuditionStore()
-        audition.status = 'playing'
+        const player = usePlayerStore()
+        player.status = 'playing'
 
         pressKey(NEXT.key, { code: NEXT.code, repeat: true })
         await wrapper.vm.$nextTick()
 
         expect(useSplitStore().selectedSplit?.seconds).toBe(21)
         expect(toggle).not.toHaveBeenCalled()
-        expect(audition.status).toBe('playing')
+        expect(player.status).toBe('playing')
       })
     })
 
