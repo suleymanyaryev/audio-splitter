@@ -13,7 +13,7 @@ Track names and left-out tracks stay in the store for now, so the removal of a s
 
 **Blocked by:** None (can start immediately).
 
-**Status:** resolved
+Status: resolved
 
 Spec: `.scratch/one-edit-ledger-for-the-edit-rules/spec.md` (Implementation Decisions, Testing Decisions).
 

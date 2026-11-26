@@ -12,7 +12,7 @@ Removing the first track stops calling the rename action for its side effect on 
 
 **Blocked by:** 01 (The edit ledger takes the split edits).
 
-**Status:** resolved
+Status: resolved
 
 Spec: `.scratch/one-edit-ledger-for-the-edit-rules/spec.md` (Implementation Decisions, Testing Decisions).
 
