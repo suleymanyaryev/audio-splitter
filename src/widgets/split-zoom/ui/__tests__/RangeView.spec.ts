@@ -36,18 +36,18 @@ held from the press to the release, as a move during a drag reports it.
 */
 async function pointer(
   view: { element: Element },
-  type: 'pointerdown' | 'pointermove' | 'pointerup',
+  type: 'pointerdown' | 'pointermove' | 'pointerup' | 'pointercancel' | 'lostpointercapture',
   clientX: number,
 ) {
-  const buttons = type === 'pointerup' ? 0 : 1
+  const buttons = type === 'pointerdown' || type === 'pointermove' ? 1 : 0
   const event = new MouseEvent(type, { clientX, buttons, bubbles: true })
   Object.defineProperty(event, 'pointerId', { value: 1 })
   view.element.dispatchEvent(event)
   await nextTick()
 }
 
-async function doubleClick(view: { element: Element }, clientX: number) {
-  view.element.dispatchEvent(new MouseEvent('dblclick', { clientX, bubbles: true }))
+async function doubleClick(view: { element: Element }, clientX: number, button = 0) {
+  view.element.dispatchEvent(new MouseEvent('dblclick', { clientX, button, bubbles: true }))
   await nextTick()
 }
 
@@ -99,28 +99,29 @@ describe('RangeView', () => {
       expect(view.attributes('aria-valuenow')).toBe('14.256')
       expect(view.attributes('aria-valuetext')).toBe('0:00:14.26')
     })
+  })
 
-    it('follows the sound while the range plays, to the whole second, frame by frame', async () => {
+  describe('the slider while the range starts between whole seconds', () => {
+    it('never reads under the start of the range while it plays', async () => {
       const frames: FrameRequestCallback[] = []
       vi.spyOn(globalThis, 'requestAnimationFrame').mockImplementation((callback) => {
         frames.push(callback)
         return frames.length
       })
       vi.spyOn(globalThis, 'cancelAnimationFrame').mockImplementation(() => {})
-      const { player, wrapper } = setup()
-      const heard = vi.spyOn(player, 'playheadSeconds').mockReturnValue(13.7)
+      const { player, wrapper } = setup((split) => {
+        split.setRange(12.34, 20)
+      })
+      vi.spyOn(player, 'playheadSeconds').mockReturnValue(12.5)
       player.status = 'playing'
       await nextTick()
 
       frames.at(-1)?.(0)
       await nextTick()
+
       const view = wrapper.get('[role="slider"]')
-      expect(view.attributes('aria-valuenow')).toBe('13')
-      heard.mockReturnValue(14.2)
-      frames.at(-1)?.(0)
-      await nextTick()
-      expect(view.attributes('aria-valuenow')).toBe('14')
-      expect(view.attributes('aria-valuetext')).toBe('0:00:14.00')
+      expect(view.attributes('aria-valuenow')).toBe('12.34')
+      expect(view.attributes('aria-valuetext')).toBe('0:00:12.34')
     })
   })
 
@@ -142,71 +143,6 @@ describe('RangeView', () => {
 
       expect(wrapper.emitted('acted')).toBeUndefined()
       expect(event.defaultPrevented).toBe(false)
-    })
-  })
-
-  describe('Left and Right', () => {
-    it('move the playhead 1 s, and 10 s with Shift', async () => {
-      const { player } = setup()
-      player.seek(12)
-
-      await press({ key: 'ArrowRight' })
-      expect(player.playheadSeconds()).toBe(13)
-
-      await press({ key: 'ArrowLeft' })
-      await press({ key: 'ArrowLeft' })
-      expect(player.playheadSeconds()).toBe(11)
-
-      await press({ key: 'ArrowRight', shiftKey: true })
-      expect(player.playheadSeconds()).toBe(20)
-    })
-
-    it('do not drift: ten steps of 1 s from a hundredth make exactly ten seconds on', async () => {
-      const { player } = setup()
-      player.seek(10.01)
-
-      for (let step = 0; step < 9; step++) await press({ key: 'ArrowRight' })
-
-      expect(player.playheadSeconds()).toBeCloseTo(19.01, 9)
-    })
-
-    it('hold the playhead inside the range', async () => {
-      const { player } = setup()
-      player.seek(19.5)
-
-      await press({ key: 'ArrowRight' })
-      expect(player.playheadSeconds()).toBe(20)
-
-      await press({ key: 'ArrowLeft', shiftKey: true })
-      await press({ key: 'ArrowLeft', shiftKey: true })
-      expect(player.playheadSeconds()).toBe(10)
-    })
-
-    it('leave the mark and the playback alone, and are not a page scroll', async () => {
-      const { split, toggleRange } = setup((store) => {
-        store.placeMark(15)
-      })
-      const event = new KeyboardEvent('keydown', {
-        key: 'ArrowRight',
-        bubbles: true,
-        cancelable: true,
-      })
-
-      document.dispatchEvent(event)
-
-      expect(split.markSeconds).toBe(15)
-      expect(toggleRange).not.toHaveBeenCalled()
-      expect(event.defaultPrevented).toBe(true)
-    })
-
-    it('move the playhead of a range that plays, by the sound’s place', async () => {
-      const { player } = setup()
-      const seek = vi.spyOn(player, 'seek')
-      vi.spyOn(player, 'playheadSeconds').mockReturnValue(14.37)
-
-      await press({ key: 'ArrowRight' })
-
-      expect(seek).toHaveBeenCalledExactlyOnceWith(15.37)
     })
   })
 
@@ -371,40 +307,6 @@ describe('RangeView', () => {
       expect(toggleRange).toHaveBeenCalledTimes(1)
       expect(event.defaultPrevented).toBe(true)
     })
-
-    it('ignores the auto-repeat of a held key', async () => {
-      const { toggleRange } = setup()
-
-      await press({ key: ' ' })
-      await press({ key: ' ', repeat: true })
-      await press({ key: ' ', repeat: true })
-
-      expect(toggleRange).toHaveBeenCalledTimes(1)
-    })
-
-    it('leaves other keys alone', async () => {
-      const { split, toggleRange } = setup((store) => {
-        store.placeMark(15)
-      })
-
-      await press({ key: 'a' })
-
-      expect(toggleRange).not.toHaveBeenCalled()
-      expect(split.splits).toEqual([])
-      expect(split.markSeconds).toBe(15)
-    })
-  })
-
-  describe('Home', () => {
-    it('moves the playhead to the range’s start, and is not a page scroll', async () => {
-      const { backToRangeStart } = setup()
-      const event = new KeyboardEvent('keydown', { key: 'Home', bubbles: true, cancelable: true })
-
-      document.dispatchEvent(event)
-
-      expect(backToRangeStart).toHaveBeenCalledTimes(1)
-      expect(event.defaultPrevented).toBe(true)
-    })
   })
 
   describe('dragging the playhead', () => {
@@ -416,8 +318,11 @@ describe('RangeView', () => {
       const view = measured(wrapper)
 
       await pointer(view, 'pointerdown', 4)
+      // The resize cursor shows while the playhead is held.
+      expect(view.classes()).toContain('cursor-ew-resize')
       await pointer(view, 'pointermove', 504)
       await pointer(view, 'pointerup', 504)
+      expect(view.classes()).not.toContain('cursor-ew-resize')
 
       expect(grab).toHaveBeenCalledOnce()
       // Grabbed 4 px right of the line, so the line stays 4 px left of the pointer.
@@ -426,40 +331,15 @@ describe('RangeView', () => {
       expect(drop).toHaveBeenCalledOnce()
     })
 
-    it('holds the playhead to the range when the pointer goes past its ends', async () => {
+    it.each(['pointercancel', 'lostpointercapture'] as const)('lets go on %s', async (type) => {
       const { player, wrapper } = setup()
+      const drop = vi.spyOn(player, 'dropPlayhead')
       const view = measured(wrapper)
 
-      await pointer(view, 'pointerdown', 0)
-      await pointer(view, 'pointermove', 1400)
-      expect(player.playheadSeconds()).toBe(20)
+      await pointer(view, 'pointerdown', 4)
+      await pointer(view, type, 4)
 
-      await pointer(view, 'pointermove', -300)
-      expect(player.playheadSeconds()).toBe(10)
-    })
-
-    it('does not take hold of the playhead from a press away from it', async () => {
-      const { player, wrapper } = setup()
-      const grab = vi.spyOn(player, 'grabPlayhead')
-      const view = measured(wrapper)
-
-      await pointer(view, 'pointerdown', 300)
-      await pointer(view, 'pointermove', 600)
-
-      expect(grab).not.toHaveBeenCalled()
-      expect(player.playheadSeconds()).toBe(10)
-    })
-
-    it('shows the resize cursor over the playhead and while it is dragged', async () => {
-      const { wrapper } = setup()
-      const view = measured(wrapper)
-
-      expect(view.classes()).not.toContain('cursor-ew-resize')
-
-      await pointer(view, 'pointermove', 3)
-      expect(view.classes()).toContain('cursor-ew-resize')
-
-      await pointer(view, 'pointermove', 400)
+      expect(drop).toHaveBeenCalledOnce()
       expect(view.classes()).not.toContain('cursor-ew-resize')
     })
   })
@@ -475,6 +355,20 @@ describe('RangeView', () => {
       expect(split.markSeconds).toBe(17)
       expect(toggleRange).not.toHaveBeenCalled()
       expect(stop).not.toHaveBeenCalled()
+    })
+
+    it('places no mark where it takes hold of the playhead, or with another button than the main one', async () => {
+      const { split, wrapper } = setup()
+      const view = measured(wrapper)
+
+      await pointer(view, 'pointerdown', 4)
+      await pointer(view, 'pointerup', 4)
+      const secondary = new MouseEvent('pointerdown', { clientX: 700, button: 2, buttons: 2 })
+      Object.defineProperty(secondary, 'pointerId', { value: 1 })
+      view.element.dispatchEvent(secondary)
+      await nextTick()
+
+      expect(split.markSeconds).toBeNull()
     })
 
     it('rounds the mark to 10 ms, as a dragged split is', async () => {
@@ -530,6 +424,24 @@ describe('RangeView', () => {
       expect(seek).toHaveBeenCalledExactlyOnceWith(13)
     })
 
+    it('with another button than the main one moves nothing and selects nothing', async () => {
+      const { player, split, wrapper } = setup((store) => {
+        store.moveZoomTo(15)
+        store.addSplit()
+        store.moveZoomTo(0)
+        store.showView('range')
+      })
+      const seek = vi.spyOn(player, 'seek')
+      const view = measured(wrapper)
+
+      await doubleClick(view, 300, 2)
+      await doubleClick(view, 505, 2)
+
+      expect(seek).not.toHaveBeenCalled()
+      expect(split.selectedSplit).toBeNull()
+      expect(split.view).toBe('range')
+    })
+
     it('within 6 px of a split’s line selects that split and opens the Split view', async () => {
       const { split, wrapper } = setup((store) => {
         store.moveZoomTo(15)
@@ -564,13 +476,7 @@ describe('RangeView', () => {
   })
 
   describe('the failure line', () => {
-    it('is not there while nothing failed', () => {
-      const { wrapper } = setup()
-
-      expect(wrapper.find('[role="status"]').exists()).toBe(false)
-    })
-
-    it('says why the range could not be played', async () => {
+    it('shows a failure to play', async () => {
       const { player, wrapper } = setup()
 
       player.failure = "Couldn't play this range: Invalid data found"

@@ -22,6 +22,10 @@ Versions follow [Semantic Versioning](https://semver.org/) applied to the produc
 
 - Each view keeps its own playhead, so showing another view and moving its playhead leaves this one where it was: the range resumes where you paused it after a visit to the Track view, and the other way round.
 
+### Fixed
+
+- The Range view's and the Track view's slider no longer reads below the start of the range or track while it plays, so a range that starts at 12.34 s tells a screen reader 12.34 s, not 12 s, while it plays.
+
 ## [2.0.0] - 2026-11-25
 
 ### Added

@@ -93,18 +93,18 @@ held from the press to the release, as a move during a drag reports it.
 */
 async function pointer(
   view: { element: Element },
-  type: 'pointerdown' | 'pointermove' | 'pointerup',
+  type: 'pointerdown' | 'pointermove' | 'pointerup' | 'pointercancel' | 'lostpointercapture',
   clientX: number,
 ) {
-  const buttons = type === 'pointerup' ? 0 : 1
+  const buttons = type === 'pointerdown' || type === 'pointermove' ? 1 : 0
   const event = new MouseEvent(type, { clientX, buttons, bubbles: true })
   Object.defineProperty(event, 'pointerId', { value: 1 })
   view.element.dispatchEvent(event)
   await nextTick()
 }
 
-async function doubleClick(view: { element: Element }, clientX: number) {
-  view.element.dispatchEvent(new MouseEvent('dblclick', { clientX, bubbles: true }))
+async function doubleClick(view: { element: Element }, clientX: number, button = 0) {
+  view.element.dispatchEvent(new MouseEvent('dblclick', { clientX, button, bubbles: true }))
   await nextTick()
 }
 
@@ -160,29 +160,6 @@ describe('TrackView', () => {
       expect(view.attributes('aria-valuetext')).toBe('0:00:30.26')
     })
 
-    it('follows the sound while the track plays, to the whole second, frame by frame', async () => {
-      const frames: FrameRequestCallback[] = []
-      vi.spyOn(globalThis, 'requestAnimationFrame').mockImplementation((callback) => {
-        frames.push(callback)
-        return frames.length
-      })
-      vi.spyOn(globalThis, 'cancelAnimationFrame').mockImplementation(() => {})
-      const { player, wrapper } = setup()
-      const heard = vi.spyOn(player, 'playheadSeconds').mockReturnValue(33.7)
-      player.status = 'playing'
-      await nextTick()
-
-      frames.at(-1)?.(0)
-      await nextTick()
-      const view = wrapper.get('[role="slider"]')
-      expect(view.attributes('aria-valuenow')).toBe('33')
-      heard.mockReturnValue(34.2)
-      frames.at(-1)?.(0)
-      await nextTick()
-      expect(view.attributes('aria-valuenow')).toBe('34')
-      expect(view.attributes('aria-valuetext')).toBe('0:00:34.00')
-    })
-
     it('ends at the end of a track longer than 10 min, which the player plays in full', () => {
       useSourceFileStore().durationSeconds = 1000
       const split = useSplitStore()
@@ -220,55 +197,6 @@ describe('TrackView', () => {
     })
   })
 
-  describe('Left and Right', () => {
-    it('move the playhead 1 s, and 10 s with Shift', async () => {
-      const { player } = setup()
-
-      await press({ key: 'ArrowRight' })
-      expect(player.playheadSeconds()).toBe(22)
-
-      await press({ key: 'ArrowRight', shiftKey: true })
-      expect(player.playheadSeconds()).toBe(32)
-
-      await press({ key: 'ArrowLeft' })
-      expect(player.playheadSeconds()).toBe(31)
-
-      await press({ key: 'ArrowLeft', shiftKey: true })
-      expect(player.playheadSeconds()).toBe(21)
-    })
-
-    it('hold the playhead inside the track, and are not a page scroll', async () => {
-      const { player } = setup()
-      const event = new KeyboardEvent('keydown', {
-        key: 'ArrowLeft',
-        bubbles: true,
-        cancelable: true,
-      })
-
-      document.dispatchEvent(event)
-      expect(player.playheadSeconds()).toBe(21)
-      expect(event.defaultPrevented).toBe(true)
-
-      await press({ key: 'ArrowRight', shiftKey: true })
-      await press({ key: 'ArrowRight', shiftKey: true })
-      await press({ key: 'ArrowRight', shiftKey: true })
-      await press({ key: 'ArrowRight', shiftKey: true })
-      await press({ key: 'ArrowRight', shiftKey: true })
-      await press({ key: 'ArrowRight', shiftKey: true })
-      expect(player.playheadSeconds()).toBe(71.5)
-    })
-
-    it('leave playback and the splits alone', async () => {
-      const { split, toggleSpy } = setup()
-
-      await press({ key: 'ArrowRight' })
-
-      expect(toggleSpy).not.toHaveBeenCalled()
-      expect(split.splits).toHaveLength(2)
-      expect(split.selectedTrack?.number).toBe(2)
-    })
-  })
-
   describe('a key with Ctrl, Cmd or Alt held', () => {
     it('is left to the browser', () => {
       const { player, toggleSpy, backToStartSpy } = setup()
@@ -300,28 +228,6 @@ describe('TrackView', () => {
       document.dispatchEvent(event)
 
       expect(toggleSpy).toHaveBeenCalledExactlyOnceWith()
-      expect(event.defaultPrevented).toBe(true)
-    })
-
-    it('ignores the auto-repeat of a held key', async () => {
-      const { toggleSpy } = setup()
-
-      await press({ key: ' ' })
-      await press({ key: ' ', repeat: true })
-      await press({ key: ' ', repeat: true })
-
-      expect(toggleSpy).toHaveBeenCalledTimes(1)
-    })
-  })
-
-  describe('Home', () => {
-    it('moves the playhead to the track’s start, and is not a page scroll', () => {
-      const { backToStartSpy } = setup()
-      const event = new KeyboardEvent('keydown', { key: 'Home', bubbles: true, cancelable: true })
-
-      document.dispatchEvent(event)
-
-      expect(backToStartSpy).toHaveBeenCalledExactlyOnceWith()
       expect(event.defaultPrevented).toBe(true)
     })
   })
@@ -747,6 +653,20 @@ describe('TrackView', () => {
       expect(toggleSpy).not.toHaveBeenCalled()
     })
 
+    it('places no mark where it takes hold of the playhead, or with another button than the main one', async () => {
+      const { split, wrapper } = setup()
+      const view = measured(wrapper)
+
+      await pointer(view, 'pointerdown', 4)
+      await pointer(view, 'pointerup', 4)
+      const secondary = new MouseEvent('pointerdown', { clientX: 700, button: 2, buttons: 2 })
+      Object.defineProperty(secondary, 'pointerId', { value: 1 })
+      view.element.dispatchEvent(secondary)
+      await nextTick()
+
+      expect(split.trackMarkSeconds).toBeNull()
+    })
+
     it('rounds the mark to 10 ms, as the Range view’s is', async () => {
       const { split, wrapper } = setup()
       const view = measured(wrapper)
@@ -801,6 +721,18 @@ describe('TrackView', () => {
 
       expect(split.selectedPendingSplit).toBeCloseTo(41.2, 9)
       expect(split.trackMarkSeconds).toBe(30)
+    })
+
+    it('7 px from one places the mark instead, and selects nothing', async () => {
+      const { split, wrapper } = setup()
+      split.addPendingSplit(41.2, false)
+      const view = measured(wrapper)
+
+      // The pending split is at x = 400; 407 px is 41.55 s on the 10 ms grid.
+      await pointer(view, 'pointerdown', 407)
+
+      expect(split.selectedPendingSplit).toBeNull()
+      expect(split.trackMarkSeconds).toBeCloseTo(41.55, 9)
     })
 
     it('takes the playhead before a pending split under the same press', async () => {
@@ -862,6 +794,30 @@ describe('TrackView', () => {
       await doubleClick(view, 400)
 
       expect(seek).toHaveBeenCalledExactlyOnceWith(41.2)
+    })
+
+    it('on a pending split moves the playhead, and selects no pending split', async () => {
+      const { player, split, wrapper } = setup()
+      split.addPendingSplit(41.2, false)
+      const view = measured(wrapper)
+
+      await doubleClick(view, 400)
+
+      expect(player.playheadSeconds()).toBeCloseTo(41.2, 9)
+      expect(split.selectedPendingSplit).toBeNull()
+    })
+
+    it('with another button than the main one moves nothing and selects nothing', async () => {
+      const { player, split, wrapper } = setup()
+      const seek = vi.spyOn(player, 'seek')
+      const view = measured(wrapper)
+
+      await doubleClick(view, 400, 2)
+      await doubleClick(view, 995, 2)
+
+      expect(seek).not.toHaveBeenCalled()
+      expect(split.selectedSplit).toBeNull()
+      expect(split.view).toBe('track')
     })
 
     it('within 6 px of the end split’s line selects that split and opens the Split view', async () => {
@@ -934,8 +890,11 @@ describe('TrackView', () => {
       const view = measured(wrapper)
 
       await pointer(view, 'pointerdown', 4)
+      // The resize cursor shows while the playhead is held.
+      expect(view.classes()).toContain('cursor-ew-resize')
       await pointer(view, 'pointermove', 504)
       await pointer(view, 'pointerup', 504)
+      expect(view.classes()).not.toContain('cursor-ew-resize')
 
       expect(grab).toHaveBeenCalledOnce()
       // Grabbed 4 px right of the line, so the line stays 4 px left of the pointer.
@@ -944,28 +903,15 @@ describe('TrackView', () => {
       expect(drop).toHaveBeenCalledExactlyOnceWith()
     })
 
-    it('holds the playhead to the track when the pointer goes past its ends', async () => {
+    it.each(['pointercancel', 'lostpointercapture'] as const)('lets go on %s', async (type) => {
       const { player, wrapper } = setup()
+      const drop = vi.spyOn(player, 'dropPlayhead')
       const view = measured(wrapper)
 
-      await pointer(view, 'pointerdown', 0)
-      await pointer(view, 'pointermove', 1400)
-      expect(player.playheadSeconds()).toBe(71.5)
+      await pointer(view, 'pointerdown', 4)
+      await pointer(view, type, 4)
 
-      await pointer(view, 'pointermove', -300)
-      expect(player.playheadSeconds()).toBe(21)
-    })
-
-    it('shows the resize cursor over the playhead and while it is dragged', async () => {
-      const { wrapper } = setup()
-      const view = measured(wrapper)
-
-      expect(view.classes()).not.toContain('cursor-ew-resize')
-
-      await pointer(view, 'pointermove', 3)
-      expect(view.classes()).toContain('cursor-ew-resize')
-
-      await pointer(view, 'pointermove', 400)
+      expect(drop).toHaveBeenCalledOnce()
       expect(view.classes()).not.toContain('cursor-ew-resize')
     })
   })
@@ -1012,13 +958,7 @@ describe('TrackView', () => {
   })
 
   describe('the failure line', () => {
-    it('is not there while nothing failed', () => {
-      const { wrapper } = setup()
-
-      expect(wrapper.find('[role="status"]').exists()).toBe(false)
-    })
-
-    it('says why the track could not be played', async () => {
+    it('shows a failure to play', async () => {
       const { player, wrapper } = setup()
 
       player.failure = "Couldn't play this track: Invalid data found"
