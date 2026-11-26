@@ -238,7 +238,7 @@ stateDiagram-v2
   failed --> idle: the file started over
 ```
 
-- **The worker does one job.** It is started per press and terminated with its answer, or as soon as the file starts over. Its entry only wires: the rules are in `lib/find-matches.ts`, which a store spec runs in the page through a fake client.
+- **The worker does one job.** It is started per press and terminated with its answer, or as soon as the file starts over. Its entry only wires: the rules are in `lib/find-matches.ts`, which the matches spec (`model/__tests__/matches.spec.ts`) runs in the page through a fake client.
 - **The request holds plain numbers.** A worker refuses a Vue proxy.
 - **The matches drive other stores' views.** The track list, the track strip, the Track view and the export read the live matches from `split`; none of them stores a match.
 

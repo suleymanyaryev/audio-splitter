@@ -85,11 +85,11 @@ A track that stays in the review, shown and heard like any other, that the expor
 _Avoid_: Excluded track, skipped track, disabled track, muted track
 
 **Match**:
-A stretch where a track is the same recording as an earlier track, found by Find duplicates only when the user asks. It names that earlier track, which for a duplicate is the kept copy. It is full or partial, and lasts until the user dismisses it or a split at either track's ends changes.
+A stretch where a track is the same recording as an earlier track, found by Find duplicates only when the user asks. It names that earlier track, which for a duplicate is the kept copy. It is full or partial, and lasts until the user dismisses it or either track's ends change: a split at one of them moved or deleted, or one added inside. A dismissed match stays dismissed, and is one edit, while both tracks keep their ends.
 _Avoid_: Mark, flag, repeat, copy
 
 **Kept copy**:
-The track a duplicate's match names: the earliest track in the source file, among those that are the same recording, that was not left out by hand.
+The track a duplicate's match names: the earliest track in the source file, among those that are the same recording, that was not left out by hand when Find duplicates was last pressed.
 _Avoid_: Original, source, master
 
 **Duplicate**:
@@ -99,6 +99,10 @@ _Avoid_: Copy, repeat, double
 **Partial match**:
 A match that covers only part of one track or of both, at least 30 s long; it usually means a split is missing or misplaced. The track stays in the export.
 _Avoid_: Partial duplicate, overlap, near match
+
+**Swap**:
+Going from the selected track to the same moment in a track it matches, playing on if it was playing; pressed again on that track, it goes back.
+_Avoid_: Jump, toggle, compare
 
 **Zoom window**:
 The 20 second stretch of the source file around a centre time that the Split view shows, outlined on the whole-file view.
