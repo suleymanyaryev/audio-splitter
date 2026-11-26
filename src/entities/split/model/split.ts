@@ -28,6 +28,7 @@ import type { TrackMatch } from '../lib/match-words.ts'
 import { defaultTrackName } from '../lib/default-track-name.ts'
 import { rangeBetween, type TimeRange } from '../lib/range-between.ts'
 import { roundToTenth } from '../lib/round-to-tenth.ts'
+import { useEditLedger } from './edit-ledger.ts'
 import { useMatches, type TrackEnds } from './matches.ts'
 
 const BUILT_IN_SETTINGS: DefaultSettings = {
@@ -211,19 +212,15 @@ export const useSplitStore = defineStore('split', () => {
   let nextSplitId = 0
   /*
   What the user changed since the file opened, counted as things changed, not actions: a split
-  moved ten times is one edit. The sets hold split ids (a rename is keyed by the split where its
-  track starts, null for the file's start); `deletedCount` counts detected splits only, because
-  deleting an added split just takes its "added" edit back. A detected split (one Find splits added)
-  is no edit until it is moved or deleted.
+  moved ten times is one edit. The split edits live in the edit ledger (`edit-ledger.ts`), which
+  the actions report to. The track edits are still sets here, keyed by the split where the track
+  starts (null for the file's start). A detected split (one Find splits added) is no edit until it
+  is moved or deleted.
   */
-  const movedIds = ref(new Set<number>())
-  const addedIds = ref(new Set<number>())
+  const ledger = useEditLedger()
   const renamedKeys = ref(new Set<number | null>())
   // The tracks the user left out or brought back, keyed like a rename; a second toggle takes it back.
   const inclusionKeys = ref(new Set<number | null>())
-  // The splits the user marked checked: each one edit, as a move is.
-  const checkedIds = ref(new Set<number>())
-  const deletedCount = ref(0)
 
   // The index in `splits` of the selected split, or null when no split is selected.
   const selectedSplitIndex = computed(() => {
@@ -425,23 +422,17 @@ export const useSplitStore = defineStore('split', () => {
   }
 
   function clearEdits() {
-    movedIds.value.clear()
-    addedIds.value.clear()
+    ledger.clear()
     renamedKeys.value.clear()
     inclusionKeys.value.clear()
-    checkedIds.value.clear()
-    deletedCount.value = 0
   }
 
   const editCount = computed(
     () =>
-      movedIds.value.size +
-      addedIds.value.size +
+      ledger.count.value +
       renamedKeys.value.size +
       inclusionKeys.value.size +
-      checkedIds.value.size +
-      matches.liveDismissalCount.value +
-      deletedCount.value,
+      matches.liveDismissalCount.value,
   )
 
   // How many tracks the export writes: the ones not left out. With none, the export refuses.
@@ -821,7 +812,7 @@ export const useSplitStore = defineStore('split', () => {
     const current = selectedSplit.value
     if (current === null || current.confidence === null) return
     current.confidence = null
-    checkedIds.value.add(current.id)
+    ledger.splitChecked(current.id)
   }
 
   // The split nearest the zoom window's centre on the `step` side of it, strictly past the centre.
@@ -983,9 +974,7 @@ export const useSplitStore = defineStore('split', () => {
     split.seconds = moved
     // The place is the user's now: it is no longer a detector's guess.
     split.confidence = null
-    // A split the user added is one edit already. A checked split that moves is still one edit.
-    if (!addedIds.value.has(id)) movedIds.value.add(id)
-    checkedIds.value.delete(id)
+    ledger.splitMoved(id)
   }
 
   /*
@@ -1001,7 +990,7 @@ export const useSplitStore = defineStore('split', () => {
     const inclusion = splits.value[index - 1]?.inclusion ?? firstTrackInclusion.value
     const split: Split = { id: nextSplitId++, seconds, name: null, inclusion, confidence }
     splits.value.splice(index, 0, split)
-    if (confidence === null) addedIds.value.add(split.id)
+    if (confidence === null) ledger.splitAdded(split.id)
     return split
   }
 
@@ -1059,12 +1048,10 @@ export const useSplitStore = defineStore('split', () => {
     const wasSelected = current?.kind === 'split' && current.id === id
     const wasTrackStart = current?.kind === 'track' && current.startSplitId === id
     splits.value.splice(index, 1)
-    // A split added and deleted again leaves no edit; a detected one leaves "deleted" for "moved".
-    if (!addedIds.value.delete(id)) deletedCount.value++
-    movedIds.value.delete(id)
+    ledger.splitDeleted(id)
+    // The track edits stay here until the ledger takes them.
     renamedKeys.value.delete(id)
     inclusionKeys.value.delete(id)
-    checkedIds.value.delete(id)
     // The selected track starts at the deleted split: the merged track starts at the one before it.
     if (wasTrackStart) {
       selection.value = { kind: 'track', startSplitId: splits.value[index - 1]?.id ?? null }

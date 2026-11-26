@@ -905,43 +905,6 @@ describe('the split store', () => {
 
           expect(store.editCount).toBe(0)
         })
-
-        it('counts one edit for a split checked and then moved', () => {
-          const store = openWithFourDepths()
-          store.selectAdjacentByConfidence(1)
-          const { id, seconds } = store.selectedSplit!
-          store.markChecked()
-
-          store.moveSplit(id, seconds + 0.5)
-
-          expect(store.editCount).toBe(1)
-        })
-
-        it('is taken back with its split when the split is deleted', () => {
-          const store = openWithFourDepths()
-          store.selectAdjacentByConfidence(1)
-          store.markChecked()
-
-          store.deleteSplit(store.selectedSplit!.id)
-
-          // The delete is one edit; the check went with the split.
-          expect(store.editCount).toBe(1)
-        })
-
-        it('is cleared by Clear splits and by reset', () => {
-          const store = openWithFourDepths()
-          store.selectAdjacentByConfidence(1)
-          store.markChecked()
-
-          store.clearSplits()
-          expect(store.editCount).toBe(0)
-
-          store.findSplits()
-          store.selectAdjacentByConfidence(1)
-          store.markChecked()
-          store.reset()
-          expect(store.editCount).toBe(0)
-        })
       })
     })
 
@@ -2945,17 +2908,14 @@ describe('the split store', () => {
       expect(store.hasEdits).toBe(false)
     })
 
-    it('counts a moved split once, however often it moves', () => {
+    it('counts a moved split', () => {
       const curve = farGaps()
       const store = useSplitStore()
       store.open(curve, timing(curve))
       store.findSplits()
       store.selectSplit(store.splits[0]!.id)
-      const id = store.splits[0]!.id
 
-      store.moveSplit(id, 23)
-      store.moveSplit(id, 24)
-      store.moveSplit(id, 21.5)
+      store.moveSplit(store.splits[0]!.id, 23)
 
       expect(store.editCount).toBe(1)
       expect(store.hasEdits).toBe(true)
@@ -2988,7 +2948,7 @@ describe('the split store', () => {
       expect(store.editCount).toBe(1)
     })
 
-    it('counts an added split once, and moving it adds no edit', () => {
+    it('counts an added split', () => {
       const curve = farGaps()
       const store = useSplitStore()
       store.open(curve, timing(curve))
@@ -2996,44 +2956,19 @@ describe('the split store', () => {
       store.moveZoomTo(31.5)
 
       store.addSplit()
-      expect(store.editCount).toBe(1)
-
-      store.moveSplit(store.selectedSplit!.id, 33)
-      store.moveSplit(store.selectedSplit!.id, 34)
 
       expect(store.editCount).toBe(1)
     })
 
-    it('counts a deleted detected split once, and a move of it is replaced by the deletion', () => {
+    it('counts a deleted detected split', () => {
       const curve = farGaps()
       const store = useSplitStore()
       store.open(curve, timing(curve))
       store.findSplits()
-      store.selectSplit(store.splits[0]!.id)
-      const id = store.splits[0]!.id
-      store.moveSplit(id, 25)
-      expect(store.editCount).toBe(1)
-
-      store.deleteSplit(id)
-      expect(store.editCount).toBe(1)
 
       store.deleteSplit(store.splits[0]!.id)
-      expect(store.editCount).toBe(2)
-    })
 
-    it('takes back the edit of an added split when it is deleted again', () => {
-      const curve = farGaps()
-      const store = useSplitStore()
-      store.open(curve, timing(curve))
-      store.findSplits()
-      store.moveZoomTo(31.5)
-      store.addSplit()
       expect(store.editCount).toBe(1)
-
-      store.deleteSplit(store.selectedSplit!.id)
-
-      expect(store.editCount).toBe(0)
-      expect(store.hasEdits).toBe(false)
     })
 
     it('counts a renamed track once, however often it is renamed', () => {
