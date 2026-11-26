@@ -136,6 +136,14 @@ _Avoid_: Playback rate, tempo, rate
 The loudness of the source file over time, one value in decibels per short window.
 _Avoid_: Energy curve, RMS curve, volume graph
 
+**Spectrum**:
+How strong each tone is in one short moment of the source file.
+_Avoid_: Frequency content, FFT, spectral frame
+
+**Spectrogram**:
+The source file's spectrum over time: time across, frequency up, strength as shade.
+_Avoid_: Spectrum view, sonogram, frequency view, FFT view
+
 **Silence threshold**:
 The loudness, in decibels, under which the source file counts as quiet.
 _Avoid_: Noise floor, cutoff
