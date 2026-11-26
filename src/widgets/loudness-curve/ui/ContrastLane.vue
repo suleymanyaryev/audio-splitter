@@ -186,5 +186,6 @@ watch(
     @pointermove="thresholdDrag.onPointerMove"
     @pointerup="thresholdDrag.onPointerEnd"
     @pointercancel="thresholdDrag.onPointerEnd"
+    @lostpointercapture="thresholdDrag.onPointerEnd"
   />
 </template>

@@ -135,17 +135,23 @@ export interface ContrastPeak {
 /*
 The contrast peaks of a curve: each point at or over the threshold that is the highest within 15 s
 on either side (the earlier of equal ones), and has a full minute either side of it, so none is
-within 60 s of the file's start or end, where one stretch is cut short.
+within 60 s of the file's start or end, where one stretch is cut short. The end is checked in
+seconds, as the last point's block is cut short when the file does not end on a whole block.
 */
 export function findContrastPeaks(
   contrast: Float32Array,
   threshold: number,
   stepSeconds: number,
+  durationSeconds: number,
 ): ContrastPeak[] {
   const radius = Math.round(PEAK_RADIUS_SECONDS / stepSeconds)
   const margin = Math.round(STRETCH_SECONDS / stepSeconds)
   const peaks: ContrastPeak[] = []
-  for (let index = margin; index + margin <= contrast.length; index++) {
+  for (
+    let index = margin;
+    index + margin <= contrast.length && (index + margin) * stepSeconds <= durationSeconds;
+    index++
+  ) {
     const value = contrast[index] ?? 0
     if (value < threshold) continue
     let isHighest = true

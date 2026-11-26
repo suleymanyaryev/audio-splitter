@@ -141,40 +141,49 @@ function curveWith(at: Record<number, number>) {
 
 describe('contrast peaks', () => {
   const STEP = 0.5
+  const DURATION = 400
 
   it('is the point itself, with its time and contrast, for a single peak', () => {
-    expect(findContrastPeaks(curveWith({ 400: 7 }), 5.4, STEP)).toEqual([
+    expect(findContrastPeaks(curveWith({ 400: 7 }), 5.4, STEP, DURATION)).toEqual([
       { seconds: 200, contrast: 7 },
     ])
   })
 
   it('is the highest point within 15 s on either side', () => {
     // 30 points are 15 s: 430 is the edge of 400's reach, 431 beyond it.
-    const peaks = findContrastPeaks(curveWith({ 400: 7, 430: 8, 500: 6 }), 5.4, STEP)
+    const peaks = findContrastPeaks(curveWith({ 400: 7, 430: 8, 500: 6 }), 5.4, STEP, DURATION)
 
     expect(peaks.map((peak) => peak.seconds)).toEqual([215, 250])
-    expect(findContrastPeaks(curveWith({ 400: 7, 431: 8 }), 5.4, STEP)).toHaveLength(2)
+    expect(findContrastPeaks(curveWith({ 400: 7, 431: 8 }), 5.4, STEP, DURATION)).toHaveLength(2)
   })
 
   it('takes the earlier of equal points', () => {
-    const peaks = findContrastPeaks(curveWith({ 400: 7, 410: 7 }), 5.4, STEP)
+    const peaks = findContrastPeaks(curveWith({ 400: 7, 410: 7 }), 5.4, STEP, DURATION)
 
     expect(peaks.map((peak) => peak.seconds)).toEqual([200])
   })
 
   it('has none under the threshold, and one at it', () => {
-    expect(findContrastPeaks(curveWith({ 400: 5.3 }), 5.4, STEP)).toEqual([])
-    expect(findContrastPeaks(curveWith({ 400: 5.4 }), 5.4, STEP)).toHaveLength(1)
+    expect(findContrastPeaks(curveWith({ 400: 5.3 }), 5.4, STEP, DURATION)).toEqual([])
+    expect(findContrastPeaks(curveWith({ 400: 5.4 }), 5.4, STEP, DURATION)).toHaveLength(1)
   })
 
   it('has none within 60 s of the file ends', () => {
     // 60 s are 120 points: the first with a full minute either side is 120, the last length - 120.
     const edges = { 0: 9, 119: 7, 681: 7, 799: 9 }
 
-    expect(findContrastPeaks(curveWith(edges), 5.4, STEP)).toEqual([])
-    expect(findContrastPeaks(curveWith({ 120: 7, 680: 7 }), 5.4, STEP)).toEqual([
+    expect(findContrastPeaks(curveWith(edges), 5.4, STEP, DURATION)).toEqual([])
+    expect(findContrastPeaks(curveWith({ 120: 7, 680: 7 }), 5.4, STEP, DURATION)).toEqual([
       { seconds: 60, contrast: 7 },
       { seconds: 340, contrast: 7 },
+    ])
+  })
+
+  it('keeps a full minute before the end when the last point is a part block', () => {
+    // 399.8 s still take 800 points, the last only 0.3 s long: 340 s is 59.8 s from the end.
+    expect(findContrastPeaks(curveWith({ 680: 7 }), 5.4, STEP, 399.8)).toEqual([])
+    expect(findContrastPeaks(curveWith({ 679: 7 }), 5.4, STEP, 399.8)).toEqual([
+      { seconds: 339.5, contrast: 7 },
     ])
   })
 })

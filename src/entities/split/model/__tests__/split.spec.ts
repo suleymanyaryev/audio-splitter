@@ -4825,6 +4825,16 @@ describe('the contrast splits of the split store', () => {
       expect(far.proposedSplits.map((proposal) => proposal.kind)).toEqual(['gap', 'contrast'])
     })
 
+    it('keeps 60 s from a dip, which proposes its own split', () => {
+      // The dip at 300 s proposes its split at 298.525 s: a change at 358 s is 59.475 s from it.
+      const near = openWithDip(600, [358], { dipAt: 300, dipDepth: 10 })
+      expect(near.proposedSplits.map((proposal) => proposal.kind)).toEqual(['dip'])
+
+      setActivePinia(createPinia())
+      const far = openWithDip(600, [360], { dipAt: 300, dipDepth: 10 })
+      expect(far.proposedSplits.map((proposal) => proposal.kind)).toEqual(['dip', 'contrast'])
+    })
+
     it('keeps 60 s from an existing split', () => {
       const near = openSoundFile(600, [300])
       near.addSplitAt(341)

@@ -275,6 +275,7 @@ watch(
       @pointermove="onPointerMove"
       @pointerup="onPointerEnd"
       @pointercancel="onPointerEnd"
+      @lostpointercapture="onPointerEnd"
     />
     <ContrastLane />
     <div class="mt-1 flex justify-between text-xs text-muted">

@@ -683,6 +683,7 @@ export const useSplitStore = defineStore('split', () => {
           contrastCurve.value,
           contrastThreshold.value,
           contrastStepSeconds(timing.value.windowSeconds),
+          timing.value.durationSeconds,
         ),
   )
 

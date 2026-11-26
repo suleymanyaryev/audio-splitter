@@ -27,6 +27,10 @@ Versions follow [Semantic Versioning](https://semver.org/) applied to the produc
 - While contrast is on, a dip with a contrast peak within 5 s is one band surer, since the two detectors agree, and its tooltip gives both its depth and its contrast.
 - `{` and `}` go through the splits that have a confidence by band, doubtful first, then likely, then sure. Within a band, splits found by contrast come first, least contrast first, then the others, least deep first. With no contrast split the order is as before.
 
+### Fixed
+
+- A threshold line being dragged lets go when the browser takes the pointer away from the curve, instead of following the pointer after the button is up.
+
 ## [2.1.0] - 2026-11-27
 
 ### Added
