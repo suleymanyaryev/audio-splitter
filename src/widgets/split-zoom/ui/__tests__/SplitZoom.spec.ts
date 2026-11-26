@@ -79,6 +79,25 @@ async function pointer(
   await nextTick()
 }
 
+// The split view of `mountOnSplit` with a silent spectrogram of the 100 s: 2000 columns of 50 ms.
+function mountWithSpectrogram() {
+  const sourceFile = useSourceFileStore()
+  sourceFile.spectrogram = { bands: new Uint8Array(2000 * 128), bandCount: 128, topHz: 22_050 }
+  sourceFile.loudnessWindowSeconds = 0.05
+  return mountOnSplit()
+}
+
+// Every other call of a recording 2D context does nothing.
+const ignoreCall = () => {}
+
+// What a recording 2D context gives for `measureText`: every label 30 px wide.
+const measureText = () => ({ width: 30 })
+
+// What a recording 2D context gives for `createImageData`: a real pixel buffer.
+const imageDataOf = (width: number, height: number) => ({
+  data: new Uint8ClampedArray(width * height * 4),
+})
+
 function mountWithoutSplits() {
   setActivePinia(createPinia())
   useSplitStore().open(new Float32Array(400).fill(-10), {
@@ -798,6 +817,85 @@ describe('SplitZoom', () => {
       // 17 s + 2.5 s = 19.5 s.
       expect(player.status).toBe('paused')
       expect(lines.at(-1)).toBe(85)
+    })
+  })
+
+  describe('the spectrogram strip', () => {
+    // A 200 x 320 canvas: the waveform in the top 160 px, the strip in the bottom 160 px.
+    let rects: { x: number; y: number; width: number; height: number }[]
+    let images: unknown[][]
+
+    beforeEach(() => {
+      rects = []
+      images = []
+      const recorder = new Proxy(
+        {},
+        {
+          get: (_target, name) => {
+            const methods: Record<string | symbol, unknown> = {
+              fillRect: (x: number, y: number, width: number, height: number) => {
+                rects.push({ x, y, width, height })
+              },
+              drawImage: (...arguments_: unknown[]) => {
+                images.push(arguments_.slice(1))
+              },
+              createImageData: imageDataOf,
+              measureText,
+            }
+            return methods[name] ?? ignoreCall
+          },
+          set: () => true,
+        },
+      )
+      vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(
+        recorder as unknown as CanvasRenderingContext2D,
+      )
+      vi.spyOn(Element.prototype, 'getBoundingClientRect').mockReturnValue(
+        new DOMRect(0, 0, 200, 320),
+      )
+      HTMLElement.prototype.setPointerCapture = () => {}
+    })
+
+    afterEach(() => {
+      vi.restoreAllMocks()
+      Reflect.deleteProperty(HTMLElement.prototype, 'setPointerCapture')
+    })
+
+    it('is drawn under the waveform, as tall as it', () => {
+      mountWithSpectrogram()
+
+      expect(images.at(-1)).toEqual([0, 160, 200, 160])
+    })
+
+    it('is crossed by the split line and the playhead, while the land stays on the waveform', () => {
+      mountWithSpectrogram()
+
+      // The gap runs 20 to 22 s, at 90 to 110 px of the window 11 to 31 s; its split is at 21 s.
+      const land = rects.find((rect) => rect.x === 90 && rect.y === 0)
+      expect(land?.width).toBeCloseTo(20, 9)
+      expect(land?.height).toBe(160)
+      expect(rects).toContainEqual({ x: 98.5, y: 0, width: 3, height: 320 })
+      // The playhead, at the start of the 8 s: 17 s.
+      expect(rects).toContainEqual({ x: 60, y: 0, width: 1, height: 320 })
+    })
+
+    it('moves the playhead to a press on the strip, as on the waveform', async () => {
+      const { wrapper } = mountWithSpectrogram()
+
+      await pointer(wrapper.get('canvas'), 'pointerdown', 123.46, { clientY: 240 })
+      await pointer(wrapper.get('canvas'), 'pointerup', 123.46, { clientY: 240 })
+
+      expect(playhead()).toBeCloseTo(23.35, 6)
+    })
+
+    it('drags the selected split from the strip, as from the waveform', async () => {
+      const { split, wrapper } = mountWithSpectrogram()
+
+      await pointer(wrapper.get('canvas'), 'pointerdown', 105, { clientY: 300 })
+      await pointer(wrapper.get('canvas'), 'pointermove', 130, { clientY: 300 })
+      await pointer(wrapper.get('canvas'), 'pointerup', 130, { clientY: 300 })
+
+      expect(split.selectedSplit?.seconds).toBe(23.5)
     })
   })
 

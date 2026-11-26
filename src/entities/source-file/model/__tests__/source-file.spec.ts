@@ -76,6 +76,30 @@ describe('the source-file store', () => {
     expect(store.loudness?.[2 * 20 - 1]).toBe(-100)
   })
 
+  it('keeps a spectrogram whose loudest band holds 1 kHz for a 1 kHz sine, one column a window', async () => {
+    // 2 s of a 1 kHz stereo sine: 40 loudness windows. 1 kHz falls in band 62, 955 to 1001 Hz.
+    const pcm = new Float32Array(88_200 * 2)
+    for (let frame = 0; frame < 88_200; frame++) {
+      const sample = 0.5 * Math.sin((2 * Math.PI * 1000 * frame) / 44_100)
+      pcm[frame * 2] = sample
+      pcm[frame * 2 + 1] = sample
+    }
+    vi.mocked(openFfmpeg).mockResolvedValue(fakeFfmpegSession({ probeLog: m4aProbeLog(2), pcm }))
+    const store = useSourceFileStore()
+    expect(store.spectrogram).toBeNull()
+
+    await store.load(file)
+
+    const spectrogram = store.spectrogram!
+    expect(spectrogram.bands).toHaveLength(store.loudness!.length * 128)
+    expect(spectrogram.topHz).toBe(22_050)
+    // The first and last frames run off the file; every other column is full.
+    for (let index = 1; index < 39; index++) {
+      const column = spectrogram.bands.subarray(index * 128, (index + 1) * 128)
+      expect(column.indexOf(Math.max(...column))).toBe(62)
+    }
+  })
+
   it('keeps the length of a loudness window in seconds, from the window size in samples', async () => {
     vi.mocked(openFfmpeg).mockResolvedValue(
       fakeFfmpegSession({ probeLog: m4aProbeLog(2), pcm: toneThenSilencePcm(44_100, 1, 0.5) }),
@@ -266,6 +290,7 @@ describe('the source-file store', () => {
     expect(store.file).toBeNull()
     expect(store.peaks).toBeNull()
     expect(store.loudness).toBeNull()
+    expect(store.spectrogram).toBeNull()
     expect(store.slicesDone).toBe(0)
     expect(store.sliceTotal).toBe(0)
   })
@@ -310,6 +335,7 @@ describe('the source-file store', () => {
     expect(store.file).toBeNull()
     expect(store.peaks).toBeNull()
     expect(store.loudness).toBeNull()
+    expect(store.spectrogram).toBeNull()
     expect(store.loudnessWindowSeconds).toBeNull()
   })
 
@@ -330,6 +356,7 @@ describe('the source-file store', () => {
     expect(store.status).toBe('loading')
     expect(store.loudness).toBeNull()
     expect(store.loudnessWindowSeconds).toBeNull()
+    expect(store.spectrogram).toBeNull()
   })
 
   describe('the ffmpeg core download', () => {

@@ -886,7 +886,9 @@ describe('ReviewPage', () => {
 
       await viewOption(wrapper, 'Split').trigger('click')
 
-      expect(wrapper.find('[aria-label="Zoomed waveform of the split"]').exists()).toBe(true)
+      expect(
+        wrapper.find('[aria-label="Zoomed waveform and spectrogram of the split"]').exists(),
+      ).toBe(true)
       expect(panelTitle(wrapper)).toBe('No split selected')
       expect(deleteSplitButton(wrapper).attributes('disabled')).toBeDefined()
     })
@@ -894,7 +896,9 @@ describe('ReviewPage', () => {
     it('shows the zoom view and its buttons, and no Range view, on Split', async () => {
       const wrapper = await mountPageOnSplit()
 
-      expect(wrapper.find('[aria-label="Zoomed waveform of the split"]').exists()).toBe(true)
+      expect(
+        wrapper.find('[aria-label="Zoomed waveform and spectrogram of the split"]').exists(),
+      ).toBe(true)
       expect(wrapper.find('[aria-label="Waveform of the range"]').exists()).toBe(false)
       expect(addSplitButton(wrapper).exists()).toBe(true)
       expect(auditionButton(wrapper).exists()).toBe(true)
@@ -927,7 +931,9 @@ describe('ReviewPage', () => {
       expect(viewOption(wrapper, 'Range').attributes('aria-checked')).toBe('true')
       expect(viewOption(wrapper, 'Range').attributes('disabled')).toBeUndefined()
       expect(wrapper.find('[aria-label="Waveform of the range"]').exists()).toBe(true)
-      expect(wrapper.find('[aria-label="Zoomed waveform of the split"]').exists()).toBe(false)
+      expect(
+        wrapper.find('[aria-label="Zoomed waveform and spectrogram of the split"]').exists(),
+      ).toBe(false)
       expect(panelTitle(wrapper)).toBe('0:00:10.00 – 0:00:20.00 · 0:10.00')
     })
 
@@ -950,7 +956,9 @@ describe('ReviewPage', () => {
 
       await viewOption(wrapper, 'Split').trigger('click')
       expect(split.view).toBe('split')
-      expect(wrapper.find('[aria-label="Zoomed waveform of the split"]').exists()).toBe(true)
+      expect(
+        wrapper.find('[aria-label="Zoomed waveform and spectrogram of the split"]').exists(),
+      ).toBe(true)
       expect(panelTitle(wrapper)).toBe('No split selected')
 
       await viewOption(wrapper, 'Range').trigger('click')
@@ -979,7 +987,9 @@ describe('ReviewPage', () => {
         expect(viewOption(wrapper, 'Track').attributes('aria-checked')).toBe('true')
         expect(viewOption(wrapper, 'Track').attributes('disabled')).toBeUndefined()
         expect(wrapper.find('[aria-label="Waveform of the track"]').exists()).toBe(true)
-        expect(wrapper.find('[aria-label="Zoomed waveform of the split"]').exists()).toBe(false)
+        expect(
+          wrapper.find('[aria-label="Zoomed waveform and spectrogram of the split"]').exists(),
+        ).toBe(false)
         expect(panelTitle(wrapper)).toBe('03 · 0:01:11.50 – 0:01:40.00')
       })
 
@@ -1015,7 +1025,9 @@ describe('ReviewPage', () => {
 
         await viewOption(wrapper, 'Split').trigger('click')
 
-        expect(wrapper.find('[aria-label="Zoomed waveform of the split"]').exists()).toBe(true)
+        expect(
+          wrapper.find('[aria-label="Zoomed waveform and spectrogram of the split"]').exists(),
+        ).toBe(true)
         expect(panelTitle(wrapper)).toBe('No split selected')
         expect(split.zoomCentreSeconds).toBe(50)
         expect(split.selectedSplit).toBeNull()
@@ -1721,7 +1733,9 @@ describe('ReviewPage', () => {
         expect(split.selectedSplit?.seconds).toBe(30)
         expect(split.zoomCentreSeconds).toBe(30)
         expect(panelTitle(wrapper)).toBe('0:00:30.00')
-        expect(wrapper.find('[aria-label="Zoomed waveform of the split"]').exists()).toBe(true)
+        expect(
+          wrapper.find('[aria-label="Zoomed waveform and spectrogram of the split"]').exists(),
+        ).toBe(true)
       })
 
       it('leaves the arrow keys moving the new split, with nothing focused', async () => {

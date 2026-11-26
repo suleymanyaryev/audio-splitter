@@ -9,6 +9,7 @@ import {
   loudnessWindowSeconds as windowSecondsAt,
 } from '@/shared/lib/audio/loudness-builder.ts'
 import { createPeaksBuilder } from '@/shared/lib/audio/peaks-builder.ts'
+import { createSpectrumBuilder, type Spectrogram } from '@/shared/lib/audio/spectrum-builder.ts'
 import { cutTrack as cutTrackIn, type TrackCut } from '../api/cut-track.ts'
 import { decodeClip } from '../api/decode-clip.ts'
 import { decodeSlice, sliceCount } from '../api/decode-slice.ts'
@@ -59,7 +60,8 @@ function failureOf(error: unknown, step: string): LoadFailure {
 /*
 The one source file being worked on, and what the analysis keeps of it. The file is decoded one
 slice at a time (60 s, or 300 s for an MP3), and each slice's samples are thrown away as soon as
-the peaks and the loudness curve have taken what they need: only the small summaries stay.
+the peaks, the loudness curve and the spectrogram have taken what they need: only the small
+summaries stay.
 */
 export const useSourceFileStore = defineStore('source-file', () => {
   const status = ref<'empty' | 'loading' | 'ready' | 'failed'>('empty')
@@ -79,6 +81,11 @@ export const useSourceFileStore = defineStore('source-file', () => {
   1103 / 22050 at 22.05 kHz. Window i starts at i × this; it is set together with the curve.
   */
   const loudnessWindowSeconds = ref<number | null>(null)
+  /*
+  128 log bands from 50 Hz to half the sample rate, one byte each, per loudness window, so column i
+  belongs to the curve's window i (see shared/lib/audio/spectrum-builder.ts and concept note 14).
+  */
+  const spectrogram = shallowRef<Spectrogram | null>(null)
   const failure = ref<LoadFailure | null>(null)
   // Progress, in slices (the probe is not counted): "38 / 62 slices". Both are 0 when empty.
   const slicesDone = ref(0)
@@ -127,6 +134,7 @@ export const useSourceFileStore = defineStore('source-file', () => {
     peaks.value = null
     loudness.value = null
     loudnessWindowSeconds.value = null
+    spectrogram.value = null
     failure.value = null
     slicesDone.value = 0
     sliceTotal.value = 0
@@ -183,6 +191,7 @@ export const useSourceFileStore = defineStore('source-file', () => {
       sliceTotal.value = total
       const peaksBuilder = createPeaksBuilder(probed.sampleRate)
       const loudnessBuilder = createLoudnessBuilder(probed.sampleRate)
+      const spectrumBuilder = createSpectrumBuilder(probed.sampleRate)
       for (let index = 0; index < total; index++) {
         step = `slice ${index + 1} of ${total}`
         const pcm = await decodeSlice(ffmpeg, index, probed.format)
@@ -190,11 +199,13 @@ export const useSourceFileStore = defineStore('source-file', () => {
         const mono = downmix(pcm, probed.channelCount)
         peaksBuilder.push(mono)
         loudnessBuilder.push(mono)
+        spectrumBuilder.push(mono)
         slicesDone.value = index + 1
       }
       peaks.value = peaksBuilder.finish()
       loudness.value = loudnessBuilder.finish()
       loudnessWindowSeconds.value = windowSecondsAt(probed.sampleRate)
+      spectrogram.value = spectrumBuilder.finish()
       status.value = 'ready'
       isKept = true
       /*
@@ -315,6 +326,7 @@ export const useSourceFileStore = defineStore('source-file', () => {
     peaks,
     loudness,
     loudnessWindowSeconds,
+    spectrogram,
     failure,
     slicesDone,
     sliceTotal,
