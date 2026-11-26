@@ -128,6 +128,15 @@ export function useMatches(trackEnds: Ref<TrackEnds[]>, searchInput: () => Searc
     return live
   })
 
+  // Whether a live match joins the tracks at these two indices, in either order.
+  function isJoined(first: number, second: number) {
+    return liveMatches.value.some(
+      (match) =>
+        (match.later === first && match.earlier === second) ||
+        (match.later === second && match.earlier === first),
+    )
+  }
+
   /*
   The way back of the last swap, as the indices of the two tracks, while both keep their ends and a
   live match joins them; null once either fails, and then `wayBack` is let go for good, so a match
@@ -139,12 +148,7 @@ export function useMatches(trackEnds: Ref<TrackEnds[]>, searchInput: () => Searc
     const from = indexOfMatched.value(back.from)
     const to = indexOfMatched.value(back.to)
     if (from === undefined || to === undefined) return null
-    const isJoined = liveMatches.value.some(
-      (match) =>
-        (match.later === from && match.earlier === to) ||
-        (match.later === to && match.earlier === from),
-    )
-    return isJoined ? { from, to } : null
+    return isJoined(from, to) ? { from, to } : null
   })
   watch(
     liveWayBack,
@@ -270,11 +274,14 @@ export function useMatches(trackEnds: Ref<TrackEnds[]>, searchInput: () => Searc
     return swapMoment(candidates, offsetSeconds)
   }
 
-  // Remembers a swap from track `fromIndex` to track `toIndex`: the way back for the track it went to.
+  /*
+  Remembers a swap from track `fromIndex` to track `toIndex`: the way back for the track it went to.
+  Two tracks no live match joins are refused, so a later search that joins them brings no way back.
+  */
   function rememberSwap(fromIndex: number, toIndex: number) {
     const from = trackEnds.value[fromIndex]
     const to = trackEnds.value[toIndex]
-    if (from === undefined || to === undefined) return
+    if (from === undefined || to === undefined || !isJoined(fromIndex, toIndex)) return
     wayBack.value = { from: matchedOf(from), to: matchedOf(to) }
   }
 

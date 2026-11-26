@@ -915,6 +915,16 @@ describe('useMatches', () => {
       expect(landing(matches, 0, 8)).toBeNull()
     })
 
+    it('is not kept from a swap between tracks no live match joins, so a later search does not bring it', async () => {
+      const matches = matchesOf(A(), B(), A())
+
+      matches.rememberSwap(2, 0)
+      await matches.search()
+
+      // Track 0 is the kept copy: away from a way back, it goes nowhere.
+      expect(landing(matches, 0, 8)).toBeNull()
+    })
+
     it('goes back from a dismissed match to nothing', async () => {
       const matches = await pressedHolder()
       matches.rememberSwap(3, 0)

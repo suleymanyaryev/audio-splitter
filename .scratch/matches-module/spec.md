@@ -1,6 +1,6 @@
 # Matches as their own module inside the split store
 
-Status: ready-for-agent
+Status: resolved
 
 Candidate 1 of the [architecture review](../code-cleanup-and-readability/architecture-review.md#1-give-matches-their-own-module). The grilling settled every decision below. It sharpened **Match** and **Kept copy** in the glossary and added **Swap**; the code already behaved that way. No ADR: every decision is cheap to reverse.
 

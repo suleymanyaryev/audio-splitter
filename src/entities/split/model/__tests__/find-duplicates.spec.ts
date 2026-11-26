@@ -423,6 +423,16 @@ describe('Find duplicates', () => {
       expect(store.duplicateResult).toEqual({ duplicates: 1, partialMatches: 0 })
     })
 
+    it('keeps the match when the kept copy is renamed after the press, and shows the new name', async () => {
+      const store = openPlaylist(A(), B(), A())
+      await store.findDuplicates()
+
+      store.renameTrack(store.tracks[0]?.startSplit?.id ?? null, 'Opening')
+
+      expect(duplicatesOf(store)).toEqual([null, null, 1])
+      expect(store.tracks[2]?.matches[0]).toMatchObject({ number: 1, ownName: 'Opening' })
+    })
+
     it('gives no name while the kept copy has none', async () => {
       const store = openPlaylist(A(), B(), A())
 
