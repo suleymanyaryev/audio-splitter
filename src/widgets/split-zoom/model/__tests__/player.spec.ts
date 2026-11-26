@@ -6,13 +6,8 @@ import type { TimeRange } from '@/entities/split/lib/range-between.ts'
 import { useSplitStore } from '@/entities/split/model/split.ts'
 import { PLAY_SPEED_STORAGE_KEY } from '../../config/play-speed.ts'
 import { VOLUME_STORAGE_KEY } from '../../config/volume.ts'
+import { type Clip } from '../../api/audio-element.ts'
 import { usePlayerStore } from '../player.ts'
-
-interface Clip {
-  wav: Uint8Array
-  startSeconds: number
-  lengthSeconds: number
-}
 
 const LOUD = -10
 const QUIET = -50
@@ -368,6 +363,17 @@ describe('the player store', () => {
 
       expect(player.status).toBe('idle')
       expect(player.isActive).toBe(false)
+    })
+
+    it('reads idle for the track while the range holds the status', async () => {
+      const { split, player } = await playingRange()
+      player.toggle()
+
+      split.selectTrack(split.tracks[1]!)
+
+      expect(player.status).toBe('idle')
+      split.showView('range')
+      expect(player.status).toBe('paused')
     })
   })
 

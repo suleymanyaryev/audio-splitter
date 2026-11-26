@@ -328,6 +328,7 @@ function spyOnToggle() {
     const wasOn = player.isActive
     const hasChanged = isChanged()
     if (wasOn && hasChanged) player.toggle()
+    return hasChanged
   })
   return toggle
 }
@@ -773,7 +774,7 @@ describe('ReviewPage', () => {
       expect(auditionButton(wrapper).attributes('disabled')).toBeDefined()
     })
 
-    it('calls the audition store when clicked', async () => {
+    it('calls the player when clicked', async () => {
       const wrapper = await mountPageOnSplit()
       const toggle = spyOnToggle()
 

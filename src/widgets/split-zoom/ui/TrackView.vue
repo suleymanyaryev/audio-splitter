@@ -249,12 +249,7 @@ then nothing starts; the question's answer steps later, from the dialog. The pla
 that was on over to the new track.
 */
 function isStepKeyActedOn(step: -1 | 1) {
-  let hasStepped = false
-  player.carryOver(() => {
-    hasStepped = split.selectAdjacentTrack(step)
-    return hasStepped
-  })
-  return hasStepped
+  return player.carryOver(() => split.selectAdjacentTrack(step))
 }
 
 // Whether the key was the view's: a key it leaves alone is the browser's, and is not reported.
@@ -285,15 +280,12 @@ function isSwapKeyActedOn(event: KeyboardEvent) {
   const playhead = playheadSeconds()
   // A held key is taken, so the page does not act on it, only when there is somewhere to swap to.
   if (event.repeat) return split.swapTarget(playhead) !== null
-  let hasSwapped = false
-  player.carryOver(() => {
+  return player.carryOver(() => {
     const target = split.swapTrack(playhead)
     // The player let go of the old track when the selection moved; the new one rests at the moment.
     if (target !== null) player.seek(target.seconds)
-    hasSwapped = target !== null
-    return hasSwapped
+    return target !== null
   })
-  return hasSwapped
 }
 
 // The view's other keys: Space, Enter, Delete, Escape, Home, X, C and the arrows.

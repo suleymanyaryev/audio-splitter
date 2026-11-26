@@ -92,9 +92,8 @@ The range and the track each keep their own resting place, which is the stretch'
 stretch and after it has ended, and is tied to its stretch, so a view of another range or track
 never draws it. A subject's place stays while another plays and while another view is shown. A
 playhead moved before a stretch's first play is kept, and it moves without a new decode inside the
-window: `seek` sets
-`currentTime` while the stretch plays and the resting place otherwise (which the next play, or a
-clip still being decoded, starts from).
+window: `seek` sets `currentTime` while the stretch plays and the resting place otherwise (which the
+next play, or a clip still being decoded, starts from).
 
 The status has one owner, the audition or a stretch. Starting one takes the status from the other,
 and a new range, or another selected track, or a selected track whose start or end moved, stops and
@@ -160,12 +159,19 @@ export const usePlayerStore = defineStore('player', () => {
   owns it.
   */
   const status = computed<Status>({
-    get: () => (onShow.value?.owner === owner.value ? state.value : 'idle'),
+    get: () => {
+      const shown = onShow.value
+      if (shown === null || shown.owner !== owner.value) return 'idle'
+      // The range and the track share the stretch owner: a paused range reads idle in the Track view.
+      return shown.owner === 'audition' || activeSubject.value === shown.subject
+        ? state.value
+        : 'idle'
+    },
     set: (next) => {
       const shown = onShow.value
       if (shown === null) return
       if (next !== 'idle') {
-        if (shown.owner === 'stretch') activeSubject = stretchFor(shown).subject
+        if (shown.owner === 'stretch') activeSubject.value = stretchFor(shown).subject
         take(shown.owner, next)
       } else if (owner.value === shown.owner) state.value = 'idle'
     },
@@ -203,7 +209,7 @@ export const usePlayerStore = defineStore('player', () => {
   // The stretch the held WAV is a window of, and the window, which a press can play again without decoding.
   let held: { stretch: Stretch; window: TimeRange } | null = null
   // The stretch that last played, or is decoding: the one the status belongs to when a stretch owns it.
-  let activeSubject: StretchSubject | null = null
+  const activeSubject = ref<StretchSubject | null>(null)
   // The window after the held one, decoded while the held one plays, and the fetch that made it.
   let upcoming: { ready: ReadyClip; window: TimeRange } | undefined
   let ahead: { done: Promise<void>; stopper: AbortController } | undefined
@@ -387,7 +393,7 @@ export const usePlayerStore = defineStore('player', () => {
   // The stretch played to its end: back at its start, with its WAV kept for the next press.
   function endStretch() {
     state.value = 'idle'
-    if (activeSubject !== null) restingPlaces[activeSubject].value = null
+    if (activeSubject.value !== null) restingPlaces[activeSubject.value].value = null
   }
 
   // The stretch gives way to the audition or to a new range: its sound and its WAV go, its place stays.
@@ -529,7 +535,7 @@ export const usePlayerStore = defineStore('player', () => {
     failure.value = null
     letGoOfAudition()
     const { subject } = stretch
-    activeSubject = subject
+    activeSubject.value = subject
     /*
     Where the sound starts. Read when it starts, so a playhead moved while a clip was decoded
     counts. A playhead left at the very end has nothing to play from, so it plays from the start, as
@@ -675,7 +681,12 @@ export const usePlayerStore = defineStore('player', () => {
     if (shown === null) return
     if (status.value === 'loading') stop()
     else if (status.value === 'playing') pauseOnShow(shown)
-    else if (shown.split === null) {
+    else playOnShow(shown)
+  }
+
+  // Plays what is on show from its place: the audition decodes or resumes, a stretch likewise.
+  function playOnShow(shown: OnShow) {
+    if (shown.split === null) {
       void playStretch(stretchFor(shown))
     } else {
       playAudition(shown.split)
@@ -711,12 +722,13 @@ export const usePlayerStore = defineStore('player', () => {
   sound was on is read before `change`, which makes the player let go of the old subject, and the
   new subject plays from its own place only if `change` happened (it returns false at the first or
   last track, or when the discard question holds it). A paused subject counts as off, so a step lets
-  go of it and starts nothing.
+  go of it and starts nothing. Returns whether the change happened.
   */
   function carryOver(isChanged: () => boolean) {
     const wasOn = isActive.value
     const hasChanged = isChanged()
     if (wasOn && hasChanged) toggle()
+    return hasChanged
   }
 
   function backToStart() {
@@ -739,12 +751,7 @@ export const usePlayerStore = defineStore('player', () => {
     // Only a subject still paused is played on: another sound or another subject may have taken over.
     const canResume = shown !== null && grabbedOwner === shown.owner && status.value === 'paused'
     grabbedOwner = null
-    if (!canResume) return
-    if (shown.split === null) {
-      void playStretch(stretchFor(shown))
-    } else {
-      playAudition(shown.split)
-    }
+    if (canResume) playOnShow(shown)
   }
 
   /*
@@ -825,7 +832,7 @@ export const usePlayerStore = defineStore('player', () => {
   press number.
   */
   function resetStretch(subject: StretchSubject) {
-    if (activeSubject === subject) {
+    if (activeSubject.value === subject) {
       if (stretchStatus.value !== 'idle') takePress()
       letGoOfStretch()
     }

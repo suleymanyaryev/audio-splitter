@@ -129,12 +129,7 @@ an audition that is on goes on untouched. The player carries a sound that was on
 split.
 */
 function isStepKeyActedOn(step: -1 | 1) {
-  let hasStepped = false
-  player.carryOver(() => {
-    hasStepped = split.selectAdjacentSplit(step)
-    return hasStepped
-  })
-  return hasStepped
+  return player.carryOver(() => split.selectAdjacentSplit(step))
 }
 
 /*

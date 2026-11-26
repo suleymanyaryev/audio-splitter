@@ -45,6 +45,7 @@ function spyOnToggle(player: ReturnType<typeof usePlayerStore>) {
     const wasOn = player.isActive
     const hasChanged = isChanged()
     if (wasOn && hasChanged) player.toggle()
+    return hasChanged
   })
   return toggle
 }
