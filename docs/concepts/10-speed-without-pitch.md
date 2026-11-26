@@ -11,7 +11,7 @@ This milestone adds a play speed, 0.5× to 2.0×, to the player. The control is 
 - **Time-stretching**: changing how long the sound lasts while keeping its pitch. The samples are not just replayed at another rate: the sound is rebuilt from pieces of itself.
 - **WSOLA** (waveform-similarity overlap-add): the time-stretching method used by ffmpeg's `atempo` and by Chrome, explained below.
 - **Play speed** (GLOSSARY.md): how fast the source is heard against real time. Avoid "rate", which is the sample rate here.
-- **Stretch** (in the player's code, `toggleStretch`): a piece of the source file the player plays, the range or the selected track. It has nothing to do with time-stretching: one word for two unrelated things.
+- **Stretch** (the player’s own word for it): a piece of the source file the player plays, the range or the selected track. It has nothing to do with time-stretching: one word for two unrelated things.
 
 ## Worked example: `samples/sample1.m4a`
 
