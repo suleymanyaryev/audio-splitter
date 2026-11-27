@@ -24,14 +24,14 @@ describe('zoomTimeToX', () => {
     expect(zoomTimeToX(309.05, CENTRE, WINDOW, WIDTH)).toBeCloseTo(-WIDTH / 2, 9)
   })
 
-  it('draws the note gap, 325.25 s to 332.85 s, from 278.8 px to 620.5 px', () => {
+  it('draws the gap of docs/concepts/05-time-on-screen.md, 325.25 s to 332.85 s, from 278.8 px to 620.5 px', () => {
     expect(zoomTimeToX(325.25, CENTRE, WINDOW, WIDTH)).toBeCloseTo(278.8, 1)
     expect(zoomTimeToX(332.85, CENTRE, WINDOW, WIDTH)).toBeCloseTo(620.5, 1)
   })
 })
 
 describe('zoomXToTime', () => {
-  it('turns pixel 500 into 330.17 s, the drag input of the note', () => {
+  it('turns pixel 500 into 330.17 s, the drag input of docs/concepts/05-time-on-screen.md', () => {
     expect(zoomXToTime(500, CENTRE, WINDOW, WIDTH)).toBeCloseTo(330.17, 2)
   })
 

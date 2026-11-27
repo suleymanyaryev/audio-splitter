@@ -17,7 +17,7 @@ export type Readout = {
 
 /*
 The frequency and level under the pointer while it is over a view's spectrogram strip, the bottom
-half of `frame` (`zoomLayout`): "1.0 kHz · −32 dB" (docs/concepts/14-the-spectrum.md).
+half of `frame` (`zoomLayout`): "1.0 kHz · −32 dB" (DESIGN.md).
 `secondsAt` is the view's own time under a pixel. Over the waveform, outside the view or the file
 (its last column may run past the end) or before the load is ready there is no readout, and `hide`
 takes it away when the pointer leaves. When the view moves under a still pointer, `follow` reads it

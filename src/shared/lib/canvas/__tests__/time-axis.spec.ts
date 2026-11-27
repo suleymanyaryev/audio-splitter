@@ -24,7 +24,7 @@ describe('xToTime', () => {
     expect(xToTime(1200, 3600, 1200)).toBe(3600)
   })
 
-  it('is linear in between, on the note 05 worked example', () => {
+  it('is linear in between, on the worked example of docs/concepts/05-time-on-screen.md', () => {
     // sample1.m4a at 1374 px: a click at x = 140 is 375.6 s (6:15.60) in.
     expect(xToTime(140, 3686.213991, 1373.98)).toBeCloseTo(375.6, 1)
   })
