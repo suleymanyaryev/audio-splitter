@@ -82,8 +82,8 @@ async function watched<T>(
 
 /*
 ffmpeg ends each call by throwing, and nothing resets its call stack, so a worker wears out after
-a few dozen calls (docs/concepts/02-long-files.md, section 8, measured failures from the 75th
-call). 20 leaves a wide margin, and a reload takes under 100 ms.
+a few dozen calls (docs/concepts/02-long-files.md, measured failures from the 75th call). 20
+leaves a wide margin, and a reload takes under 100 ms.
 */
 const CALLS_PER_WORKER = 20
 

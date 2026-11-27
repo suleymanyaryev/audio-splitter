@@ -2,7 +2,10 @@ import { describe, it, expect } from 'vitest'
 
 import { zoomTimeToX, zoomXToTime } from '../zoom-axis.ts'
 
-// Note 05: the split at 329.05 s selected, a 20 s window, the zoom canvas 899.33 px wide.
+/*
+docs/concepts/05-time-on-screen.md: the split at 329.05 s selected, a 20 s window, the zoom canvas
+899.33 px wide.
+*/
 const CENTRE = 329.05
 const WINDOW = 20
 const WIDTH = 899.33

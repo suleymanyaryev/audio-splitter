@@ -13,7 +13,7 @@ const SLICE_TIMEOUT_MS = 300_000
 
 /*
 ffmpeg seeks an MP3 by reading from the start, so every slice costs a seek that grows with its
-position. Fewer, longer slices mean fewer seeks (see "Longer MP3 slices" in the concept note). The
+position. Fewer, longer slices mean fewer seeks (docs/concepts/02-long-files.md). The
 other formats seek for free, and longer slices would only cost memory.
 */
 function sliceSeconds(format: TrackFormat): number {
@@ -30,9 +30,9 @@ between −1 and 1, interleaved L R L R …, at the file's own sample rate and c
 slice is shorter.
 
 Slice 0 starts at 0. Any later slice starts decoding 1 s early (the pre-roll) and drops that second,
-because a decoder that jumps into the middle of a file starts cold (see the concept note). The
-`-ss` before `-i` is a fast seek that lands near the spot; the `-ss 1` after it is exact, and cuts
-the pre-roll off the decoded audio.
+because a decoder that jumps into the middle of a file starts cold
+(docs/concepts/02-long-files.md). The `-ss` before `-i` is a fast seek that lands near the spot; the
+`-ss 1` after it is exact, and cuts the pre-roll off the decoded audio.
 */
 export async function decodeSlice(
   ffmpeg: FfmpegSession,

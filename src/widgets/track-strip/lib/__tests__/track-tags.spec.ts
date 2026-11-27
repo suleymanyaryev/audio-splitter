@@ -4,7 +4,7 @@ import { trackTags } from '../track-tags.ts'
 
 describe('trackTags', () => {
   it('titles an unnamed track with its prefixed name, the track "N/TOTAL" and the album the stem', () => {
-    // The concept note's read-back of track 2 of 8 of sample1.m4a.
+    // Track 2 of 8 of sample1.m4a (docs/concepts/07-cutting-without-re-encoding.md).
     expect(
       trackTags({ number: 2, count: 8, name: null, prefix: 'sample1-', sourceStem: 'sample1' }),
     ).toEqual({ title: 'sample1-02', track: '2/8', album: 'sample1' })

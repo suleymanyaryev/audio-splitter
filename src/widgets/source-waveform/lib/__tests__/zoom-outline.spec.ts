@@ -2,7 +2,10 @@ import { describe, it, expect } from 'vitest'
 
 import { zoomOutline } from '../zoom-outline.ts'
 
-// Note 05: sample1.m4a on a 1373.98 px canvas, the window on the split at 329.05 s.
+/*
+docs/concepts/05-time-on-screen.md: sample1.m4a on a 1373.98 px canvas, the window on the split at
+329.05 s.
+*/
 const DURATION = 3686.213991
 const WIDTH = 1373.98
 

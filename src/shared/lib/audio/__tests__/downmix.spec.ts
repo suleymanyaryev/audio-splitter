@@ -10,7 +10,10 @@ describe('downmix', () => {
   })
 
   it('averages left and right of each stereo frame', () => {
-    // Interleaved L R L R: the first frames of sample1.m4a at 1:00, from the concept note.
+    /*
+    Interleaved L R L R: the first frames of sample1.m4a at 1:00, from
+    docs/concepts/01-sound-is-numbers.md.
+    */
     const stereo = Float32Array.of(0.0712, 0.0049, 0.0679, 0.0027, 0.5, -0.5)
 
     const mono = downmix(stereo, 2)

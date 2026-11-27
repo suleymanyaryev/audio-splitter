@@ -81,9 +81,10 @@ sides at 22.05 kHz and falls a little short of it at 44.1 and 48 kHz. A frame th
 the file's start or past its end reads zeros there.
 
 The signal arrives slice by slice with `push`, and a frame can need samples of the next slice. The
-builder keeps the samples from the next frame's start on (the leftover, as in concept note 02) and
-works out a column once every sample of its frame has arrived; `finish` works out the rest with
-zeros past the end. The slice size therefore never changes the result.
+builder keeps the samples from the next frame's start on (the leftover, as in
+docs/concepts/02-long-files.md) and works out a column once every sample of its frame has arrived;
+`finish` works out the rest with zeros past the end. The slice size therefore never changes the
+result.
 */
 export function createSpectrogramBuilder(sampleRate: number) {
   const windowSize = Math.round(sampleRate * loudnessWindowSeconds(sampleRate))

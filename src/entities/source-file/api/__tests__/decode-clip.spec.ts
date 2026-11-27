@@ -9,7 +9,10 @@ describe('decodeClip', () => {
 
     const clip = await decodeClip(ffmpeg, 325.05, 8, 3686.21)
 
-    // The concept note's worked example: 325.05 to 333.05 s, seeking 1 s earlier on the input.
+    /*
+    docs/concepts/06-seeking-compressed-audio.md's worked example: 325.05 to 333.05 s, seeking 1 s
+    earlier on the input.
+    */
     expect(ffmpeg.run).toHaveBeenCalledOnce()
     expect(ffmpeg.run.mock.calls[0]?.[0]).toEqual([
       '-v',

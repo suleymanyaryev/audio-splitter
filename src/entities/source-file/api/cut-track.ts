@@ -43,16 +43,17 @@ interface SeekArguments {
 The seek and stop of one seek method. A container with an index of every frame (MP4, which holds
 `.m4a`) needs one jump before the input: it lands on the frame that holds the time, and the edit
 list trims the rest. The `-ss` and `-to` both go before `-i`: after the jump the clock restarts at
-0, and `-to` before the input counts on the source's clock again (the note's "Why -ss and -to
-both go before -i").
+0, and `-to` before the input counts on the source's clock again
+(docs/concepts/07-cutting-without-re-encoding.md).
 
-Containers with no such index (MP3, Ogg) seek twice (the note's "Why .mp3 and .opus seek twice"),
-and so does Matroska, whose Opus a single seek before the input breaks (ticket 01 of
-video-and-more-formats). The first `-ss` jumps to 2 s before the start, never before 0, and the second, after
-the input, is the exact start counted from there. The stop is `-t`, a length, and never `-to`:
-the clock restarts after the input seek, so a `-to` would count from the jump and not from the
-file's start. The first track starts with the file and needs neither seek. Both numbers are made
-from the rounded start, so no float error creeps into the offset.
+Containers with no such index (MP3, Ogg) seek twice
+(docs/concepts/07-cutting-without-re-encoding.md), and so does Matroska, whose Opus a single seek
+before the input breaks (ticket 01 of video-and-more-formats). The first `-ss` jumps to 2 s before
+the start, never before 0, and the second, after the input, is the exact start counted from there.
+The stop is `-t`, a length, and never `-to`: the clock restarts after the input seek, so a `-to`
+would count from the jump and not from the file's start. The first track starts with the file and
+needs neither seek. Both numbers are made from the rounded start, so no float error creeps into the
+offset.
 */
 function seekArguments(cut: TrackCut): SeekArguments {
   const start = roundToMillisecond(cut.startSeconds)

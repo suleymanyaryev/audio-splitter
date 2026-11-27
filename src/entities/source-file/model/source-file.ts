@@ -104,7 +104,7 @@ export const useSourceFileStore = defineStore('source-file', () => {
   let currentLoad = 0
   /*
   The ffmpeg session of the current load. It stays open once the file is ready, so a clip reuses
-  the loaded core (see the concept note, docs/concepts/06-seeking-compressed-audio.md), and
+  the loaded core (docs/concepts/06-seeking-compressed-audio.md), and
   `reset` and `cancel` close it.
   */
   let session: FfmpegSession | undefined

@@ -24,7 +24,7 @@ import { zoomOutline } from '../lib/zoom-outline.ts'
 const NUMBER_BAND_HEIGHT = 22
 // DESIGN.md: the zoom window's outline is 1.5 px, in ink.
 const OUTLINE_WIDTH = 1.5
-// The range's overlay is ink at about 10 % with 1 px edges (docs/concepts/08-listening-to-a-range.md).
+// The range's overlay is ink at about 10 % with 1 px edges (DESIGN.md).
 const RANGE_FILL_ALPHA = 0.1
 const RANGE_EDGE_WIDTH = 1
 
