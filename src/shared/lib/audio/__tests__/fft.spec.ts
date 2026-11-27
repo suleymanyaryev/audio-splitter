@@ -3,8 +3,8 @@ import { describe, it, expect } from 'vitest'
 import { createFft } from '../fft.ts'
 
 /*
-The plain DFT of concept note 14, the reference: step k compares the frame with a cosine and a
-sine of k cycles across it, sample by sample. Slow, and plain to check by eye.
+The plain DFT of docs/concepts/14-the-spectrum.md, the reference: step k compares the frame with a
+cosine and a sine of k cycles across it, sample by sample. Slow, and plain to check by eye.
 */
 function plainDft(samples: Float64Array) {
   const size = samples.length

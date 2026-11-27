@@ -17,11 +17,11 @@ export type Readout = {
 
 /*
 The frequency and level under the pointer while it is over a view's spectrogram strip, the bottom
-half of `frame` (`zoomLayout`): "1.0 kHz · −32 dB" (concept note 14). `secondsAt` is the view's
-own time under a pixel. Over the waveform, outside the view or the file (its last column may run
-past the end) or before the load is ready there is no readout, and `hide` takes it away when the
-pointer leaves. When the view moves under a still pointer, `follow` reads it again there, so it is
-never stale. The pointer's other actions are the view's own.
+half of `frame` (`zoomLayout`): "1.0 kHz · −32 dB" (docs/concepts/14-the-spectrum.md).
+`secondsAt` is the view's own time under a pixel. Over the waveform, outside the view or the file
+(its last column may run past the end) or before the load is ready there is no readout, and `hide`
+takes it away when the pointer leaves. When the view moves under a still pointer, `follow` reads it
+again there, so it is never stale. The pointer's other actions are the view's own.
 */
 export function useSpectrogramReadout(options: {
   frame: () => HTMLElement | null

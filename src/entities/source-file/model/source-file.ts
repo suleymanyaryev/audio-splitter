@@ -86,7 +86,8 @@ export const useSourceFileStore = defineStore('source-file', () => {
   const loudnessWindowSeconds = ref<number | null>(null)
   /*
   128 log bands from 50 Hz to half the sample rate, one byte each, per loudness window, so column i
-  belongs to the curve's window i (see shared/lib/audio/spectrogram-builder.ts and concept note 14).
+  belongs to the curve's window i (see shared/lib/audio/spectrogram-builder.ts and
+  docs/concepts/14-the-spectrum.md).
   */
   const spectrogram = shallowRef<Spectrogram | null>(null)
   const failure = ref<LoadFailure | null>(null)

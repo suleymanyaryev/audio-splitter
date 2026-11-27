@@ -59,10 +59,11 @@ drags it along until the release; a playing audition pauses while it is held and
 drop (`lib/use-split-drag.ts`). A double-click does nothing here.
 
 Under the waveform, in the same frame and on the same time map, is the spectrogram strip, as tall
-as the waveform (`lib/draw-spectrogram-strip.ts`, concept note 14). The split lines, the playhead
-and the audition's edges cross it; the lands and the confidence marks stay on the waveform. The
-frame takes the pointer, so a press on the strip does what it does on the waveform, and hovering
-the strip shows the frequency and level under the pointer (`lib/use-spectrogram-readout.ts`).
+as the waveform (`lib/draw-spectrogram-strip.ts`, docs/concepts/14-the-spectrum.md). The split
+lines, the playhead and the audition's edges cross it; the lands and the confidence marks stay on
+the waveform. The frame takes the pointer, so a press on the strip does what it does on the
+waveform, and hovering the strip shows the frequency and level under the pointer
+(`lib/use-spectrogram-readout.ts`).
 */
 
 // DESIGN.md: the run-out line is 1 px.

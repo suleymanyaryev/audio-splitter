@@ -1,7 +1,10 @@
 import { createFft } from './fft.ts'
 import { loudnessWindowSeconds } from './loudness-builder.ts'
 
-// Concept note 14: 2048 samples are 46 ms at 44.1 kHz, with a step of 21.5 Hz between tones.
+/*
+2048 samples are 46 ms at 44.1 kHz, with a step of 21.5 Hz between tones
+(docs/concepts/14-the-spectrum.md).
+*/
 const FRAME_SIZE = 2048
 export const SPECTRUM_BAND_COUNT = 128
 // The bottom of the log axis; the top is half the sample rate.
@@ -33,7 +36,7 @@ Which steps each band sums. Band b runs from 50 × r^b to 50 × r^(b+1) Hz, r be
 of (top / 50), so every band is the same ratio wide and each octave gets the same number of bands.
 A band holds the steps whose centres fall in it; a band too narrow to hold any (the bass) takes
 the one step it lies in, the step nearest its middle, so neighbouring bands repeat it: the blocky
-bass of concept note 14.
+bass of docs/concepts/14-the-spectrum.md.
 */
 function bandSteps(sampleRate: number) {
   const step = sampleRate / FRAME_SIZE
@@ -62,7 +65,7 @@ function bandSteps(sampleRate: number) {
 
 /*
 The Hann window, one cycle of a cosine from 0 at the frame's ends to 1 in its middle, so the
-frame has no jump where its end meets its start (concept note 14).
+frame has no jump where its end meets its start (docs/concepts/14-the-spectrum.md).
 */
 function hannWindow() {
   return Float64Array.from(
@@ -93,7 +96,8 @@ export function createSpectrogramBuilder(sampleRate: number) {
   const { first, end } = bandSteps(sampleRate)
   /*
   The power of a full-scale sine through the same window, summed over the steps from 0 Hz to half
-  the rate: N × Σw² / 4. Dividing by it makes that sine read 0 dB (concept note 14).
+  the rate: N × Σw² / 4. Dividing by it makes that sine read 0 dB
+  (docs/concepts/14-the-spectrum.md).
   */
   let sumOfSquares = 0
   for (const weight of hann) sumOfSquares += weight * weight

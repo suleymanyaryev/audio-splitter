@@ -2,9 +2,9 @@ import { DEPTH_MAX_DB, DEPTH_MIN_DB, THRESHOLD_MIN_DB } from '@/entities/split/c
 import { curveY, decibelsAt, isOnThresholdLine } from './threshold-line.ts'
 
 /*
-The moving line (concept note 13): at each pixel column, the loudness around minus the depth. It is
-the fixed threshold line's counterpart, a line that follows the music. Drawn dashed in `ink`, and
-dragged up or down to change the depth.
+The moving line (docs/concepts/13-adaptive-threshold.md): at each pixel column, the loudness around
+minus the depth. It is the fixed threshold line's counterpart, a line that follows the music. Drawn
+dashed in `ink`, and dragged up or down to change the depth.
 */
 
 // The column of a pointer at `x` over `columnCount` columns, kept inside them.

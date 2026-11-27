@@ -20,6 +20,6 @@ export const DIP_EDGE_SECONDS = 10
 /*
 A contrast split keeps this far from every gap, dip and split, and from the file's ends: a minute
 either side is the stretch that contrast compares, and the slopes of a real boundary's contrast peak
-again 15 to 60 s from it (docs/concepts/15-contrast.md, "Peaks, and room around a boundary").
+again 15 to 60 s from it (docs/concepts/15-contrast.md).
 */
 export const CONTRAST_ROOM_SECONDS = 60

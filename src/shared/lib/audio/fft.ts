@@ -1,9 +1,9 @@
 /*
-A radix-2 fast Fourier transform (concept note 14). It gives the same answer as the plain DFT,
-which compares a frame with a cosine and a sine of every step, but it reuses the work those
-comparisons share: the transform of N samples is the transforms of its even and its odd samples,
-joined with one multiply per step. Halving down to pairs takes log2(N) passes over the frame, so
-2048 samples cost 11 × 1024 butterflies instead of 2048 × 2048 multiply-adds.
+A radix-2 fast Fourier transform (docs/concepts/14-the-spectrum.md). It gives the same answer as
+the plain DFT, which compares a frame with a cosine and a sine of every step, but it reuses the
+work those comparisons share: the transform of N samples is the transforms of its even and its odd
+samples, joined with one multiply per step. Halving down to pairs takes log2(N) passes over the
+frame, so 2048 samples cost 11 × 1024 butterflies instead of 2048 × 2048 multiply-adds.
 
 `createFft(size)` works out the cosines, the sines and the reordering once, and returns a
 function that transforms `re` and `im` (each `size` long) in place.
@@ -15,7 +15,7 @@ export function createFft(size: number) {
   const half = size / 2
   /*
   The twiddles: e^(-2πik/size) for the first half of the steps. Working them out inside the loop
-  made the FFT six times slower (concept note 14).
+  made the FFT six times slower (docs/concepts/14-the-spectrum.md).
   */
   const cos = new Float64Array(half)
   const sin = new Float64Array(half)

@@ -122,7 +122,10 @@ describe('createSpectrogramBuilder', () => {
   })
 
   it('reads a full-scale sine at about 0 dB where its band holds the whole tone', () => {
-    // 5 kHz falls in 4812 to 5046 Hz, a band wide enough for the window's spread (concept note 14).
+    /*
+    5 kHz falls in 4812 to 5046 Hz, a band wide enough for the window's spread
+    (docs/concepts/14-the-spectrum.md).
+    */
     const { bands } = spectrogramOf([sine(5000)], 44_100)
     const values = column(bands, 10)
 

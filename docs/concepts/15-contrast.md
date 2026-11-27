@@ -1,6 +1,6 @@
 # 15 · Contrast
 
-Note 13 found the track changes that dip: the loudness falls under the loudness around it. A crossfade that keeps the level up doesn't dip. What changes there is the sound: the new track has other instruments, another key, another mix. Note 14 made that visible as the spectrogram. This milestone turns it into a number. Compare the sound of the minute before a point with the minute after it. Where the two are far apart, a new track has probably begun.
+[Note 13](13-adaptive-threshold.md) found the track changes that dip: the loudness falls under the loudness around it. A crossfade that keeps the level up doesn't dip. What changes there is the sound: the new track has other instruments, another key, another mix. [Note 14](14-the-spectrum.md) made that visible as the spectrogram. This note turns it into a number: compare the sound of the minute before a point with the minute after it. Where the two are far apart, a new track has probably begun.
 
 ## The words
 
@@ -13,15 +13,13 @@ Note 13 found the track changes that dip: the loudness falls under the loudness 
 
 ## Two stretches, one number
 
-Every 50 ms window of the spectrogram holds 128 bands (note 14). Each band is the power of the tones in it, in dB. Over a stretch, each band gets one mean, so a stretch becomes one column of 128 numbers: its mean spectrum.
+Every 50 ms window of the spectrogram holds 128 bands, each the power of the tones in it, in dB. Over a stretch each band gets one mean, so a stretch becomes one column of 128 numbers: its mean spectrum. The bands over 15 kHz are left out, because the encoder cut them away (note 14) and they hold only noise. That leaves 119 bands at 44.1 kHz and 118 at 48 kHz.
 
-The bands over 15 kHz are left out. Every sample's encoder cut them away (note 14, "The 16 kHz wall"), so they hold noise. That leaves 119 bands at 44.1 kHz and 118 at 48 kHz.
-
-Then, band by band, the mean after minus the mean before. A band that got 6 dB louder reads +6, one that got quieter reads a negative number. Contrast is how **unevenly** the bands changed:
+Then, band by band, the mean after minus the mean before. A band that got 6 dB louder reads +6, one that got quieter a negative number. Contrast is how **unevenly** the bands changed:
 
 1. Take the change of every band, in dB.
 2. Take away the mean change. What is left is the change of the shape, not of the level.
-3. Square what is left, take the mean over the bands, and the square root (the RMS, note 03).
+3. Square what is left, take the mean over the bands, and the square root: the RMS of [note 03](03-loudness.md).
 
 A made-up check with three bands:
 
@@ -32,39 +30,15 @@ A made-up check with three bands:
 
 The first row is the same music, 6 dB louder: contrast 0. The second has the low band up and the middle band down, another sound: √((36 + 36 + 0) / 3) = 4.9 dB.
 
-## Why the level is taken out
+**Why the level is taken out.** A loudness change is what dips already find. A quiet verse before a loud chorus is a loudness change inside one track. Taking the level out leaves contrast the one thing dips can't see: the sound itself. On the test mixes below, every version that kept the level scored lower.
 
-A loudness change is what dips already find (note 13). A quiet verse before a loud chorus is a loudness change inside one track. Taking the level out leaves contrast to the one thing dips can't see: the sound itself. The measure (all on the same test mixes, below) agrees: with the level kept, every version scored lower.
+**Why a mean of power.** Each band's mean is the energy mean of note 03, not a mean of dB, so a fade counts for little. One band, 60 s: 50 s of the track at −40 dB and a 10 s fade-in at −70 dB. A mean of dB gives −45.0 dB, pulled 5 dB down by the fade; a mean of power gives −40.8 dB, 0.8 dB. To a mean of dB a fade-in is a sound of its own: on `sample1.m4a`'s tracks joined end to end, a mean of dB over 20 s puts its highest peak 5.2 s after a boundary, at the far edge of a fade-in.
 
-## A mean of power, not of dB
-
-A mean of dB counts every window the same, quiet or loud. Then a fade counts as much as the body of the track. A made-up check, one band, a stretch of 60 s: 50 s of the track at −40 dB, and a 10 s fade-in at −70 dB.
-
-| Mean of | Sum                          | Mean     | Pulled down by the fade |
-| ------- | ---------------------------- | -------- | ----------------------- |
-| dB      | (50 × −40 + 10 × −70) / 60   | −45.0 dB | 5.0 dB                  |
-| Power   | (50 × 10⁻⁴ + 10 × 10⁻⁷) / 60 | −40.8 dB | 0.8 dB                  |
-
-A power is 10^(dB/10), as in note 13's smoothed level. In a mean of power, the loud windows weigh the most, so 10 s of fade hardly moves it.
-
-**On a real file.** `sample1.m4a`'s tracks, joined end to end with no crossfade, with a mean of dB over 20 s: the highest peak is 5.2 s after a boundary, not at it. It is the far edge of the next track's fade-in, which climbs from −38.9 to −17.7 dB over 9 s. To a mean of dB, a fade-in is a sound of its own.
-
-## Why a minute
-
-Inside a track the sound changes too: an intro without drums, a break, a solo. A short stretch hears each of them as a new track. A long one averages them into the track's whole sound. But a stretch longer than a track reaches over the next boundary and blurs it.
-
-The test mixes (below) ranked by how well the real boundaries rise above everything else. The score is the average precision: 1 when every real boundary outranks every false peak, near 0 when they are lost among them. Mean of power, 10 s crossfades:
-
-| Stretch  | 30 s | 45 s | 60 s     | 75 s | 90 s | 120 s |
-| -------- | ---- | ---- | -------- | ---- | ---- | ----- |
-| Hard set | 0.55 | 0.54 | **0.72** | 0.75 | 0.66 | 0.48  |
-| Easy set | 0.52 | 0.58 | **0.70** | 0.63 | 0.51 | 0.46  |
-
-The best stretch is about the shortest track, 72.5 s in these mixes. 60 s is the one that does well on both sets.
+**Why a minute.** Inside a track the sound changes too: an intro without drums, a break, a solo. A short stretch hears each of them as a new track, a long one averages them into the track's whole sound, and one longer than a track reaches over the next boundary and blurs it. The score for a stretch is its **average precision** over the test mixes below: 1 when every real boundary outranks every false peak, near 0 when they are lost among them. 60 s was chosen because it scored best on both sets (0.72 and 0.70), about the length of their shortest track.
 
 ## Worked example: `distant memories.`
 
-One of the user's playlists: its first 9 tracks, each at one loudness, joined with 10 s equal-power crossfades. That makes 8 boundaries. Only one of them dips 15 dB (16.0 dB); the others dip 3.0 to 12.8 dB. So Find splits at its defaults proposes one split. Measured on 2026-11-27, every peak of 5.4 dB and more:
+One of the user's playlists: its first 9 tracks, each at one loudness, joined with 10 s equal-power crossfades, 8 boundaries. Only one of them dips 15 dB; the others dip 3.0 to 12.8 dB, so Find splits without contrast proposes one split. Every contrast peak of 5.4 dB and more:
 
 | Mean of | Stretch | Peaks | Real | False | Boundaries found |
 | ------- | ------- | ----- | ---- | ----- | ---------------- |
@@ -73,94 +47,41 @@ One of the user's playlists: its first 9 tracks, each at one loudness, joined wi
 | dB      | 60 s    | 9     | 5    | 4     | 5 / 8            |
 | Power   | 60 s    | 8     | 8    | 0     | **8 / 8**        |
 
-- With a mean of dB over 20 s, the highest peak of all, 25.2 dB at 5:07.5, is false. It is 18.6 s into a track, where its intro ends. Every real boundary is lower.
+- With a mean of dB over 20 s the highest peak of all, 25.2 dB at 5:07.5, is false: it is 18.6 s into a track, where its intro ends.
 - A mean of power over a minute finds all 8, each within 5 s, and nothing else.
-- On `sample1.m4a`'s tracks the four versions do about as well as each other. Its tracks change little inside, so it doesn't show the difference.
 
 ## Peaks, and room around a boundary
 
-A contrast peak is the highest point within ±15 s, as for a dip. Then three rules:
-
-- **Nothing within 60 s of the file's ends.** There, one stretch is cut short.
-- **Nothing within 60 s of a gap, a dip or a split.** A minute-long stretch makes a wide hump around a real boundary, and its shoulders peak again 15 to 60 s from it. On the user's 19 gapped playlists, contrast added 192 splits with the ±15 s rule alone. 170 of them were within 60 s of a split that already existed. With the 60 s of room it adds 22.
-- **Gaps and dips come first.** Where one of them marks the boundary, it sets the split's place and confidence.
-
-The split goes at the peak. On the test mixes it lands a median 1.5 s from the middle of the crossfade, and at most 4.4 s.
+A contrast peak is the highest point within ±15 s, as a dip is the deepest. A minute-long stretch makes a wide hump around a real boundary, and its shoulders peak again 15 to 60 s from it. So a contrast peak is kept only a full minute from the file's ends, where one stretch is cut short, and 60 s from any gap, dip or split, which set the split's place and confidence where they mark the boundary. On the user's 19 gapped playlists, the ±15 s rule alone let contrast add 192 splits, 170 of them within 60 s of an existing one; with the 60 s of room it adds 22.
 
 ## The test mixes
 
-No crossfaded file with known track times was found. `samples/sample-crossfade.mp3` blends throughout: by ear, no boundary can be heard in it. So the answer key is made: tracks cut from the user's gapped playlists, where every boundary is known, and joined again.
+`samples/sample-crossfade.mp3` blends throughout: by ear, no boundary can be heard in it. So the answer key is made. Tracks are cut from five of the user's gapped playlists, where every boundary is known, each trimmed to its sound, set to one loudness and joined again with equal-power crossfades: the outgoing track fades as cos(πt/2) and the incoming as sin(πt/2), so their powers always add up to one. The boundary is the middle of the crossfade. The **hard** set joins tracks of one playlist, so neighbours sound alike; the **easy** set mixes playlists. Each has 44 boundaries.
 
-- **The tracks.** Five playlists, first pass only: 49 tracks, 72.5 s to 3:41 long. Each is trimmed to its sound and set to one loudness.
-- **The joins.** Equal-power crossfades of 0, 5, 10 and 20 s. The outgoing track fades as cos(πt/2) and the incoming as sin(πt/2), so their powers always add up to one. A boundary is the middle of the crossfade.
-- **Two sets of 44 boundaries.** Hard: each mix from one playlist, so neighbours sound alike. Easy: neighbours from different playlists. They come from one channel, so "easy" is not much easier.
+At 10 s crossfades on the hard set, Find splits finds 7 of 44 without contrast, and **39 with it at 5.4 dB, with 6 false**. The split lands a median 1.5 s from the middle of the crossfade. At 20 s crossfades a third of a minute's stretch is crossfade, and it finds less, less surely.
 
-Find splits at the defaults, then with contrast added at 5.4 dB, found / false:
+**The threshold.** 5.4 dB was chosen as one value that fits both sets, whose own best thresholds were 4.7 to 5.6 dB, while `sample1.m4a` gets only 2 false contrast splits in its hour.
 
-| Crossfade | Hard: Find splits | Hard: with contrast | Easy: Find splits | Easy: with contrast |
-| --------- | ----------------- | ------------------- | ----------------- | ------------------- |
-| 0 s       | 30 / 3            | 39 / 6              | 24 / 3            | 40 / 8              |
-| 5 s       | 11 / 3            | 38 / 7              | 8 / 3             | 37 / 13             |
-| 10 s      | 7 / 2             | **39 / 6**          | 6 / 2             | 41 / 9              |
-| 20 s      | 0 / 2             | 29 / 15             | 1 / 2             | 25 / 20             |
-
-- At 10 s crossfades, Find splits finds 7 of 44. With contrast it finds 39, with 6 false.
-- At 20 s the change is spread over 20 s, and a third of a minute's stretch is crossfade. It finds less, and less surely.
-
-## On the user's playlists, by ear
-
-On gapped files the gaps already mark the boundaries, so whatever contrast adds is either a boundary the gaps missed or a change inside a track. On the 19 playlists (19.3 h) it adds 22 splits, about one an hour. The loops repeat them, so they are 10 moments. The user heard each: **3 are track changes**, 6 are not, 1 is unsure.
-
-- Two of the three real ones dip 12.4 and 14.1 dB: shallow dips that the 15 dB setting leaves out. The third dips 7.7 dB, and the false ones 1.3 to 8.5 dB.
-- Contrast alone does not sort them: 6.3 to 8.9 dB for the real ones, 5.8 to 7.7 dB for the false.
-
-So **the contrast setting starts off**. It is for files the user knows are crossfaded.
+**On gapped files**, where the gaps already mark the boundaries, contrast alone does not tell a real peak from a change inside a track: the real and false peaks it adds there reach overlapping heights.
 
 ## Contrast as a confidence
 
-On the hard 10 s mixes, a contrast peak of 6.5 dB or more is real 34 times in 39 (87 %). From 5.4 to 6.5 dB, 4 times in 11 (36 %). By ear on the playlists, 3 in 10. A contrast split is therefore never sure:
+Contrast also hears a change of sound inside a track, so a contrast split is never sure. On the hard 10 s mixes, a peak of 6.5 dB or more was real 87 % of the time and one from 5.4 to 6.5 dB 36 %, so 6.5 dB and up is **likely** and under it **doubtful**.
 
-| Contrast      | Confidence |
-| ------------- | ---------- |
-| 6.5 dB and up | Likely     |
-| 5.4 to 6.5 dB | Doubtful   |
-
-**Agreement.** A dip with a contrast peak within 5 s is surer than a dip alone. On the test mixes:
-
-| Dip depth | Real, the dip alone | Real, with a contrast peak | Real, without one |
-| --------- | ------------------- | -------------------------- | ----------------- |
-| 15 dB +   | 83 %                | 90 %                       | 68 %              |
-| 9–15 dB   | 59 %                | 88 %                       | 23 %              |
-| 3–9 dB    | 20 %                | 77 %                       | 4 %               |
-
-A 9–15 dB dip with contrast is as sure as a 15 dB dip alone. So, while the contrast setting is on, such a dip goes up one band (note 13's bands).
+**Agreement.** A dip with a contrast peak within 5 s is surer than a dip alone. On the test mixes a 9 to 15 dB dip with a peak was real 88 % of the time, as often as a 15 dB dip alone, against 23 % without one. So such a dip goes up one of note 13's bands.
 
 ## Time
 
-The contrast curve needs only the spectrogram the load already builds. Running sums over 0.5 s blocks give each stretch's mean without adding up a minute again at every point. On `sample3h.m4a` (3:04:19) that takes **447 ms** in Node, and the sums take 21.1 MB.
-
-## Why a mean over a minute
-
-This stands in for an ADR.
-
-- **It can be checked by hand.** Two means, a difference and an RMS. The textbook way, a self-similarity matrix with a checkerboard kernel (Foote), compares every moment with every other near it. It was not needed: the simple one passed first.
-- **Fewer bands were worse, not better.** Grouping the 119 bands into 20, or into 13 MFCCs (a DCT of the bands), scored within 0.04 of all bands with a mean of dB, and 0.44 against 0.72 with a mean of power.
-- **Not by pitch.** A key change is a strong sign of a new track. But under 446 Hz the bands repeat the same steps (note 14, "Why the bass draws as blocks"), so notes can't be told apart there.
-- **A threshold, not a track count.** Taking the N − 1 highest peaks of a file with N tracks was cleaner on the test mixes. But it needs every boundary counted, the gaps' and dips' too, and a video's track list is often off by one or two. It can come later as a second way to set the threshold.
+The contrast curve needs only the spectrogram the load already builds. Running sums over 0.5 s blocks give each stretch's mean as one difference, without adding up a minute again at every point. On `sample3h.m4a` (3:04:19) that takes **447 ms** in Node.
 
 ## What it does not find
 
 - **A track under about a minute.** A stretch then holds two boundaries, and its peak blurs.
 - **A change of track with the same sound.** Two tracks with the same instruments and mix have little contrast.
-- **Ambient mixes**: not tested. The only one, `sample-crossfade.mp3`, has no boundary the ear can find.
-
-It also hears what is not a boundary: a change of sound inside a track. That is why it starts off, and why a contrast split is never sure.
+- **A change of key alone.** Under 446 Hz the bands repeat the same steps ([note 14](14-the-spectrum.md)), so notes can't be told apart there.
 
 ## Where it lives in the code
 
-- [`src/shared/lib/audio/contrast.ts`](../../src/shared/lib/audio/contrast.ts): the contrast curve, one value per 0.5 s. Running sums of each band's power over 0.5 s blocks of loud windows give both stretches' means; bands over 15 kHz and quiet windows are left out; a side with under 2 s of sound scores 0. Its other function finds the peaks: at or over the threshold, the highest within ±15 s, a full minute from both ends.
-- [`src/entities/split/model/split.ts`](../../src/entities/split/model/split.ts): `open` builds the contrast curve once from the spectrogram, beside the depth profile. The contrast setting and its threshold start off at 5.4 dB; the peaks feed `proposedSplits` only while it is on.
-- [`src/entities/split/lib/propose-splits.ts`](../../src/entities/split/lib/propose-splits.ts): a contrast peak proposes its time unless a gap or dip proposal that stands, the middle of a gap that holds a split or a split is within 60 s; a dip with a peak within 5 s carries its contrast.
-- [`src/entities/split/config/confidence-bands.ts`](../../src/entities/split/config/confidence-bands.ts) and [`confidence-band.ts`](../../src/entities/split/lib/confidence-band.ts): the 6.5 dB cut-off, the 5 s agreement, the lift of a dip by one band, and the order of `{` and `}`.
-- [`src/entities/split/api/saved-default-settings.ts`](../../src/entities/split/api/saved-default-settings.ts): the contrast setting in the default settings, version 3.
-- [`src/widgets/loudness-curve/ui/ContrastLane.vue`](../../src/widgets/loudness-curve/ui/ContrastLane.vue) and [`contrast-lane.ts`](../../src/widgets/loudness-curve/lib/contrast-lane.ts): the lane under the loudness curve, its 0 to 15 dB scale, the threshold line with its drag and the marks at the contrast splits Find splits would add.
+- [`src/shared/lib/audio/contrast.ts`](../../src/shared/lib/audio/contrast.ts): `buildContrast`, the contrast curve from running sums of each band's power over the loud windows; `findContrastPeaks`, the highest within ±15 s and a minute from both ends.
+- [`src/entities/split/lib/propose-splits.ts`](../../src/entities/split/lib/propose-splits.ts): `proposeSplits`, a contrast peak kept 60 s from any other proposal or split, and a dip carrying the contrast of a peak within 5 s.
+- [`src/entities/split/lib/confidence-band.ts`](../../src/entities/split/lib/confidence-band.ts): `contrastBandOf` and `confidenceOf`, the 6.5 dB cut-off and the lift of an agreeing dip, from [`confidence-bands.ts`](../../src/entities/split/config/confidence-bands.ts).

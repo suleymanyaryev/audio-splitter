@@ -123,7 +123,7 @@ function findSplitsButton(wrapper: ReturnType<typeof mount>) {
 
 /*
 10 minutes of one loudness whose sound changes at 5:00: 20 of the 119 bands that count go down
-and 20 up by 20 dB, a contrast of 11.6 dB there (concept note 15).
+and 20 up by 20 dB, a contrast of 11.6 dB there (docs/concepts/15-contrast.md).
 */
 function openWithOneChange() {
   const columns = 12_000

@@ -55,7 +55,7 @@ function nearestPeak(peaks: ContrastPeak[], seconds: number) {
 
 /*
 The splits Find splits would add, in time order. Three detectors propose, and a boundary gets one
-split (concept notes 13 and 15):
+split (docs/concepts/13-adaptive-threshold.md, docs/concepts/15-contrast.md):
 
 1. Each gap that has a track on both sides and holds no split proposes its middle, as Find gaps
    did, with the gap's depth.
