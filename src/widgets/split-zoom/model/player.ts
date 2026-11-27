@@ -488,7 +488,10 @@ export const usePlayerStore = defineStore('player', () => {
     }
   }
 
-  // Makes the clip the one held, dropping the previous ones (note 06: 1.4 MB each) and loading it.
+  /*
+  Makes the clip the one held, dropping the previous ones (1.4 MB each,
+  docs/concepts/06-seeking-compressed-audio.md) and loading it.
+  */
   function hold(clip: Clip) {
     held = null
     forgetAhead()

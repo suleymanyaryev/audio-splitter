@@ -1,7 +1,7 @@
 import { computed, ref } from 'vue'
 
 /*
-DESIGN.md's handle is 14 px wide, so a press 7 px either side of the line is on the handle; the
+The handle is 14 px wide (DESIGN.md), so a press 7 px either side of the line is on the handle; the
 line itself is 3 px wide. One reach covers both.
 */
 const GRAB_REACH = 8

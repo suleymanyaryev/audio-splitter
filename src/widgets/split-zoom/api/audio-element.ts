@@ -14,7 +14,10 @@ export interface ReadyClip {
   lengthSeconds: number
 }
 
-// Puts a clip's WAV behind an object URL (note 06: 1.4 MB each) without holding it.
+/*
+Puts a clip's WAV behind an object URL (1.4 MB each, docs/concepts/06-seeking-compressed-audio.md)
+without holding it.
+*/
 function prepare(clip: Clip): ReadyClip {
   const wav = new Blob([clip.wav as BlobPart], { type: 'audio/wav' })
   return {

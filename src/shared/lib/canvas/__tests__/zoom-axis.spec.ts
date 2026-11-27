@@ -2,7 +2,10 @@ import { describe, it, expect } from 'vitest'
 
 import { zoomTimeToX, zoomXToTime } from '../zoom-axis.ts'
 
-// Note 05: the split at 329.05 s selected, a 20 s window, the zoom canvas 899.33 px wide.
+/*
+docs/concepts/05-time-on-screen.md: the split at 329.05 s selected, a 20 s window, the zoom canvas
+899.33 px wide.
+*/
 const CENTRE = 329.05
 const WINDOW = 20
 const WIDTH = 899.33
@@ -21,14 +24,14 @@ describe('zoomTimeToX', () => {
     expect(zoomTimeToX(309.05, CENTRE, WINDOW, WIDTH)).toBeCloseTo(-WIDTH / 2, 9)
   })
 
-  it('draws the note gap, 325.25 s to 332.85 s, from 278.8 px to 620.5 px', () => {
+  it('draws the gap of docs/concepts/05-time-on-screen.md, 325.25 s to 332.85 s, from 278.8 px to 620.5 px', () => {
     expect(zoomTimeToX(325.25, CENTRE, WINDOW, WIDTH)).toBeCloseTo(278.8, 1)
     expect(zoomTimeToX(332.85, CENTRE, WINDOW, WIDTH)).toBeCloseTo(620.5, 1)
   })
 })
 
 describe('zoomXToTime', () => {
-  it('turns pixel 500 into 330.17 s, the drag input of the note', () => {
+  it('turns pixel 500 into 330.17 s, the drag input of docs/concepts/05-time-on-screen.md', () => {
     expect(zoomXToTime(500, CENTRE, WINDOW, WIDTH)).toBeCloseTo(330.17, 2)
   })
 

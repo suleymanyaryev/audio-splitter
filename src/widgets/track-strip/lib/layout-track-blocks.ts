@@ -1,4 +1,4 @@
-// The split item between two blocks, which is the land between them: 8 px (DESIGN.md's strip).
+// The split item between two blocks, which is the land between them: 8 px (DESIGN.md).
 export const SPLIT_ITEM_PX = 8
 // A block never gets narrower than this, so a very short track stays a block that can be clicked.
 const MIN_BLOCK_PX = 12

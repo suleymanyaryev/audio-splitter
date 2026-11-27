@@ -5,9 +5,9 @@ import path from 'node:path'
 import { describe, expect, it } from 'vitest'
 
 /*
-Reads the `--color-*` values of both themes from the CSS entry and checks the pairs DESIGN.md
-names: 4.5:1 for text (WCAG AA) and 3:1 for what is not text (lines, borders, the focus ring).
-A change of palette that breaks a pair fails here; the threshold stays.
+Reads the `--color-*` values of both themes from the CSS entry and checks the pairs it lists
+against the rule DESIGN.md states: 4.5:1 for text (WCAG AA) and 3:1 for what is not text (lines,
+borders, the focus ring). A change of palette that breaks a pair fails here; the threshold stays.
 */
 
 const TEXT_RATIO = 4.5

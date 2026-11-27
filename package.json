@@ -23,7 +23,8 @@
     "verify": "pnpm typecheck && pnpm test && pnpm build-only",
     "release": "node scripts/release.ts",
     "format": "prettier --write src/ scripts/",
-    "depcruise": "depcruise src --output-type err-long"
+    "depcruise": "depcruise src --output-type err-long",
+    "docs:budget": "node scripts/check-word-budgets.ts"
   },
   "dependencies": {
     "@ffmpeg/core": "0.12.10",

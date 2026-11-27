@@ -17,7 +17,7 @@ tooltip and the accessible label give the full name as the track list shows it. 
 wide enough for its name and length, and keeps room for the 8 px split items.
 
 Every block is a button that selects its track, the first included, and the block of the selected
-track is marked with a 2 px `on-track` border (DESIGN.md's "Selected" bullet). A left-out block is
+track is marked with a 2 px `on-track` border (DESIGN.md). A left-out block is
 hollow: the land shows through, with a dashed `track` border and ink text, and its description ends
 with "left out", and a duplicate's with its words, "duplicate of 01"; it stays a button that selects
 its track. A split item is a button that selects the split where the next block starts, which shows

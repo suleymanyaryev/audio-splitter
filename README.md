@@ -14,15 +14,15 @@ The project has a second, equal reason: I wanted to learn how digital audio work
 
 ## What it does
 
-1. **Load** an `.m4a` (AAC), `.mp3`, `.opus` or `.ogg` (Vorbis) file, or an MP4, MOV, WebM or MKV video, whose first audio stream is used and picture ignored. Any other file gets a message saying what it is.
-2. **Analyse.** The file is decoded in slices into a waveform, a loudness curve and a spectrogram of the tones it holds. A 1 h file takes a few seconds.
-3. **Find splits.** The file opens as one track. Settings tune what is found: the silence threshold, the minimum gap length, the depth and, for crossfaded files, a contrast setting that starts off. One button turns the gaps, the dips where the level falls far under its surroundings and the contrast peaks where the sound changes into splits.
-4. **Review.** Listen across a split, to a whole track, or to a range you drag out. Move, add and delete splits, name the tracks, and leave out the ones you don't want. "Find duplicates" leaves out a track that is the same recording as an earlier one, and points at a split that may be missing.
-5. **Export** every track you kept into a new folder, or one track or range as a single file. Tracks are audio-only files in the source's audio format (`.m4a`, `.mp3`, `.opus` or `.ogg`), tagged and never re-encoded.
+1. **Load** an `.m4a`, `.mp3`, `.opus` or `.ogg` file, or the audio of a video.
+2. **Analyse** it into a waveform, a loudness curve and a spectrogram.
+3. **Find splits** at the gaps, the dips and the changes of sound between tracks.
+4. **Review** every split by eye and by ear: move, add and delete splits, name the tracks, and leave some out.
+5. **Export** the tracks you kept to a folder, or one track or range to a file, without re-encoding.
 
-**Requirements:** desktop Chrome, because the export writes through the File System Access API. Everything is kept in memory, so a reload starts over; only the volume, the mute, the play speed, the theme and your default settings are remembered.
+**Requirements:** desktop Chrome, because the export writes through the File System Access API. A reload starts over; only the volume, the mute, the play speed, the theme and your default settings are remembered.
 
-**Not in v1:** CUE sheets, smarter detection, snapping to the quietest point, re-encoded or sample-accurate cuts, help with playlists that repeat, other formats and browsers, and keeping splits across a reload. The reasons are in the [wayfinding map](.scratch/audio-splitter/map.md#out-of-scope).
+**Not supported:** CUE sheets, snapping to the quietest point, re-encoded or sample-accurate cuts, other browsers, and keeping splits across a reload.
 
 ## How it works
 
@@ -68,23 +68,23 @@ Contributing, or handing the repo to a coding agent? Start with [AGENTS.md](AGEN
 
 ### Concept notes
 
-One screen each, with worked numbers from a real 1 h file.
+One audio idea each, with worked numbers from a real 1 h file.
 
-1. [Sound is numbers](docs/concepts/01-sound-is-numbers.md): samples, channels, container and codec, peaks.
-2. [Long files](docs/concepts/02-long-files.md): memory, slices and pre-roll.
+1. [Sound is numbers](docs/concepts/01-sound-is-numbers.md): samples, channels and codecs.
+2. [Long files](docs/concepts/02-long-files.md): decoding in slices.
 3. [Loudness](docs/concepts/03-loudness.md): RMS and decibels.
-4. [Gaps become splits](docs/concepts/04-gaps-become-splits.md): thresholds and the default.
-5. [Time on screen](docs/concepts/05-time-on-screen.md): time to pixels, one array at two scales.
+4. [Gaps become splits](docs/concepts/04-gaps-become-splits.md): a threshold and a minimum gap.
+5. [Time on screen](docs/concepts/05-time-on-screen.md): time to pixels.
 6. [Seeking compressed audio](docs/concepts/06-seeking-compressed-audio.md): frames, VBR and WAV.
-7. [Cutting without re-encoding](docs/concepts/07-cutting-without-re-encoding.md): stream copy and its limits.
-8. [Listening to a range](docs/concepts/08-listening-to-a-range.md): WAV size, and long tracks through a moving window.
-9. [Volume is gain](docs/concepts/09-volume-is-gain.md): gain and decibels.
-10. [Speed without pitch](docs/concepts/10-speed-without-pitch.md): resampling against time-stretching.
-11. [Finding repeats](docs/concepts/11-finding-repeats.md): sliding one loudness curve along another.
-12. [Streams in a container](docs/concepts/12-streams-in-a-container.md): why moving the audio out of a video changes no sound.
-13. [The adaptive threshold](docs/concepts/13-adaptive-threshold.md): a line that follows the music, and depth as a confidence.
-14. [The spectrum](docs/concepts/14-the-spectrum.md): a sound as a sum of tones, the DFT and the FFT, and the spectrogram's bands.
-15. [Contrast](docs/concepts/15-contrast.md): comparing the minute before a point with the minute after it, the mean of power, and contrast as a confidence.
+7. [Cutting without re-encoding](docs/concepts/07-cutting-without-re-encoding.md): stream copy.
+8. [Listening to a range](docs/concepts/08-listening-to-a-range.md): a moving decode window.
+9. [Volume is gain](docs/concepts/09-volume-is-gain.md): gain in decibels.
+10. [Speed without pitch](docs/concepts/10-speed-without-pitch.md): time-stretching.
+11. [Finding repeats](docs/concepts/11-finding-repeats.md): sliding one curve along another.
+12. [Streams in a container](docs/concepts/12-streams-in-a-container.md): taking the audio out of a video.
+13. [The adaptive threshold](docs/concepts/13-adaptive-threshold.md): a line that follows the music.
+14. [The spectrum](docs/concepts/14-the-spectrum.md): a sound as a sum of tones.
+15. [Contrast](docs/concepts/15-contrast.md): the minute before against the minute after.
 
 ### Other docs
 
@@ -93,10 +93,6 @@ One screen each, with worked numbers from a real 1 h file.
 - [DESIGN.md](DESIGN.md): the visual system.
 - [CHANGELOG.md](CHANGELOG.md): what changed in each release.
 - Planning record: the [v1 plan](.scratch/audio-splitter/milestones.md) (retired), and the [wayfinding map](.scratch/audio-splitter/map.md) with its decision tickets.
-
-## What's next
-
-v1 is complete. v2 will be planned the same way, one audio concept per milestone, starting with the app as a general cutting tool (gaps on request, saved default settings, tracks left out of the export), then help for playlists that repeat.
 
 ## Licence
 

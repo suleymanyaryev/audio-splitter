@@ -2,12 +2,15 @@ import { describe, it, expect } from 'vitest'
 
 import { zoomOutline } from '../zoom-outline.ts'
 
-// Note 05: sample1.m4a on a 1373.98 px canvas, the window on the split at 329.05 s.
+/*
+docs/concepts/05-time-on-screen.md: sample1.m4a on a 1373.98 px canvas, the window on the split at
+329.05 s.
+*/
 const DURATION = 3686.213991
 const WIDTH = 1373.98
 
 describe('zoomOutline', () => {
-  it('spans centre ± 10 s, 7.5 px wide on the note 05 example', () => {
+  it('spans centre ± 10 s, 7.5 px wide on the example of docs/concepts/05-time-on-screen.md', () => {
     const { left, right } = zoomOutline(329.05, 20, DURATION, WIDTH)
 
     expect(left).toBeCloseTo(118.9, 1)

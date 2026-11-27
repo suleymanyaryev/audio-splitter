@@ -1,6 +1,6 @@
 import { roundToTenth } from '@/entities/split/lib/round-to-tenth.ts'
 
-// A real minus sign (U+2212), as in DESIGN.md's "−35 dB", never a hyphen.
+// A real minus sign (U+2212), as in DESIGN.md, never a hyphen.
 export function formatDecibels(decibels: number): string {
   const tenths = roundToTenth(decibels)
   const sign = tenths < 0 ? '−' : ''

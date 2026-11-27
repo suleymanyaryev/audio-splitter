@@ -1,6 +1,6 @@
 # Audio Splitter
 
-Browser-only Vue 3 + Vite + TypeScript app that proposes split points in long audio files; nothing is uploaded. pnpm only, Node 24 via `mise.toml`. `README.md` is for people and links here for the detail.
+Browser-only Vue 3 + Vite + TypeScript app that proposes split points in long audio files; nothing is uploaded. pnpm only, Node 24 via `mise.toml`.
 
 ## Learning first
 
@@ -9,54 +9,44 @@ The app is also how the user learns digital audio, so the learnable parts stay h
 A milestone teaches one audio idea, concept before code:
 
 1. Explain the idea in chat, with a number measured on a real sample (`samples/`, git-ignored).
-2. Write `docs/concepts/NN-<slug>.md`, shaped like the notes already there.
+2. Write `docs/concepts/NN-<slug>.md` to the concept-note contract in the `finish-feature` skill.
 3. Stop until the user confirms the note; no code before that.
 4. Build, show it in the browser, then stop again for the user's confirmation of the milestone.
 
 ## Changelog
 
-A user-visible change adds its line under `## [Unreleased]` in `CHANGELOG.md`, in the same commit. The version rules and the release steps are at the top of that file.
+A user-visible change adds a `CHANGELOG.md` line in the same commit: the `finish-feature` skill has the rule.
 
 ## Docs
 
-Each doc has one job, and describes the app as it is now. A change touches a doc only when it changes what that doc is about.
-
-- `README.md` is for people: what the app does, how to run it, and links to the rest. "What it does" keeps one line per step; it changes when what the user can do changes.
-- `docs/architecture.md` is the structure: layers, stores and how they connect, the ffmpeg session, the main flows and their statuses. It changes with a store, a connection, a flow or a status; edge cases, keys and buttons stay in the code.
-- What a feature does lives in the code, its specs and comments, and `CHANGELOG.md`.
-- Write simply: short sentences with one idea each, a bullet of one or two sentences, a table cell of a phrase. Name the file rather than a private variable, and link to the ADR, concept note or code comment rather than repeat it.
-- An update replaces text rather than adding to it, and removes what it makes stale.
+Before a commit, the `finish-feature` skill says what each doc holds, when it changes and how to write it.
 
 ## Checks
 
-The baseline is green: `pnpm typecheck`, `pnpm test`, `pnpm lint`, `pnpm knip`, `pnpm depcruise` and `pnpm build` exit 0 on a clean tree. A failure in any of them is caused by the current work: fix it.
+The baseline is green: `typecheck`, `test`, `lint`, `knip`, `depcruise` and `build` exit 0 on a clean tree, so a failure is caused by the current work: fix it.
 
-| Tier           | When                                           | Run                                                             |
-| -------------- | ---------------------------------------------- | --------------------------------------------------------------- |
-| **Task**       | After each edit loop                           | `pnpm vitest run <touched specs or dirs>` + `pnpm lint:changed` |
-| **Checkpoint** | End of a task-list section, or before a commit | `pnpm test:changed`, `pnpm lint:changed`, `pnpm typecheck`      |
-| **Final**      | Once, before handover or PR                    | `pnpm verify`, `pnpm lint`, `pnpm knip`, `pnpm depcruise`       |
+| Tier           | When                                           | Run                                                                            |
+| -------------- | ---------------------------------------------- | ------------------------------------------------------------------------------ |
+| **Task**       | After each edit loop                           | `pnpm vitest run <touched specs or dirs>` + `pnpm lint:changed`                |
+| **Checkpoint** | End of a task-list section, or before a commit | `pnpm test:changed`, `pnpm lint:changed`, `pnpm typecheck`, `pnpm docs:budget` |
+| **Final**      | Once, before handover or PR                    | `pnpm verify`, `pnpm lint`, `pnpm knip`, `pnpm depcruise`                      |
 
-- Run Checkpoint and Final only at their points, and skip a check whose inputs haven't changed since it last passed.
-- `pnpm test:e2e` runs in Final only when the plan names a real browser flow that unit tests can't cover. The `test:changed` hint about changed e2e inputs is not a gate.
-- `pnpm depcruise` reads the whole import graph (it fails on a cycle in `src/`; type-only imports don't count), so it belongs to Final alone.
+- Run Checkpoint and Final only at their points; skip a check whose inputs haven't changed since it passed.
+- `pnpm test:e2e` joins Final only when the plan names a browser flow unit tests can't cover; the `test:changed` e2e hint is not a gate.
+- `pnpm depcruise` reads the whole import graph (`.dependency-cruiser.mjs`), so it belongs to Final alone.
 - `pnpm cpd` is an audit, never a tier: run it on request or when planning a refactor, and triage each clone as extract, leave or a misplaced slice boundary.
-- Browser work (checking a flow by hand, debugging an e2e spec) goes through the `playwright-cli` skill. Playwright runs the installed Google Chrome; no `playwright install`.
-- `lint:fix`, `knip:fix` and `format` rewrite files; the others write only build output, reports and caches.
-- Report one line per command actually run (`pnpm typecheck -> pass`, `pnpm test:changed -> fail: 2 in peaks.spec.ts, fixed`).
+- Browser work goes through the `playwright-cli` skill, on the installed Google Chrome; no `playwright install`.
+- `lint:fix`, `knip:fix` and `format` rewrite files; the other scripts write only build output, reports and caches.
+- Report one line per command run (`pnpm typecheck -> pass`, `pnpm test:changed -> fail: 2 in peaks.spec.ts, fixed`).
 
 ### Changed checks
 
-`lint:changed` and `test:changed` (`scripts/run-changed-check.ts`) see local work only (staged, unstaged, untracked, deleted), never a branch. `lint:changed` fails only on lines the work added or modified; `test:changed` runs changed specs plus the `vitest related` tests of changed sources.
-
-- Inputs that affect every file fall back to the full run and print the reason. The lists live in `scripts/check-scope.ts`: change scope there.
-- `*.worker.ts` and `*.worklet.ts` entries always trigger the full suite, because the import graph can't see them. Keep entries thin, with the logic in plain modules that specs import.
+`lint:changed` and `test:changed` (`scripts/run-changed-check.ts`) see local work only, never a branch; `lint:changed` fails only on lines the work added or changed.
+An input that affects every file runs the full check; change that scope in `scripts/check-scope.ts`.
 
 ## Code layout
 
 A subset of Feature-Sliced Design ([ADR 0001](docs/adr/0001-fsd-subset.md)): layers `app` → `pages` → `widgets` → `entities` → `shared`, no `features`. A layer imports only the layers after it, and two slices of one layer never import each other; `pnpm lint` enforces both.
-
-The list says where, not what: one line per slice on what it is for. It changes only when a slice is added, removed or renamed. What a slice does lives in its specs, code comments, `CHANGELOG.md` and `docs/architecture.md`.
 
 - `src/app/`: The entry, the page switch and the global styles
 - `src/pages/load/`: Choosing a file and the analysis that follows
@@ -84,7 +74,7 @@ The list says where, not what: one line per slice on what it is for. It changes 
 
 ## Lint
 
-ESLint (typescript-eslint, Vue, SonarJS, Unicorn, Prettier); formatting findings are lint errors that `pnpm lint:fix` applies.
+ESLint runs Prettier too: formatting findings are lint errors that `pnpm lint:fix` applies.
 
 - Green comes from fixing the code at the finding's source. `eslint.config.ts` changes only when the user asks; when a finding looks impossible to fix, ask. No suppressions baseline (`--suppress-all`, `--suppress-rule`).
 - An `eslint-disable` is a last resort for a real contract, with its reason on the line above (`scripts/run-changed-check.ts`).
@@ -92,14 +82,15 @@ ESLint (typescript-eslint, Vue, SonarJS, Unicorn, Prettier); formatting findings
 
 ## Knip
 
-Fix a finding by removing the unused file, export or dependency after checking every consumer: grep the name and the file stem, including strings and dynamic imports. A `knip.json` ignore needs a reason comment.
+Fix a finding by removing the unused file, export or dependency, after grepping its name and file stem for consumers, strings and dynamic imports included. A `knip.json` ignore needs a reason comment.
 
 ## Testing
 
-- Vitest + jsdom + `@vue/test-utils`; `vitest.setup.ts` fills the browser APIs jsdom lacks. Specs are `__tests__/*.spec.ts` next to the code they cover (nowhere else is collected) and import `describe`/`it`/`expect` from `vitest`.
+- `vitest.setup.ts` fills the browser APIs jsdom lacks. Specs are `__tests__/*.spec.ts` beside their code (nowhere else is collected) and import `describe`/`it`/`expect` from `vitest`.
 - Specs for Node-side code start with `// @vitest-environment node`.
-- Playwright specs live in `e2e/`, typed by `e2e/tsconfig.json`: `export.spec.ts` and `theme.spec.ts` run on the dev server, `stored-core.spec.ts` on a production build (`playwright.config.ts`). Each spec's header says what it checks and how.
-- `scripts/*.ts` run under Node type stripping: erasable syntax only and `.ts` extensions on relative imports (`tsconfig.node.json` enforces both).
+- Keep `*.worker.ts` and `*.worklet.ts` entries thin, with the logic in plain modules that specs import: the import graph can't see an entry, so a changed one runs the full suite.
+- Playwright specs live in `e2e/`, typed by `e2e/tsconfig.json`; `playwright.config.ts` says which server each runs on.
+- `scripts/*.ts` run under Node type stripping: erasable syntax and `.ts` extensions on relative imports (`tsconfig.node.json` enforces both).
 
 ## Agent skills
 

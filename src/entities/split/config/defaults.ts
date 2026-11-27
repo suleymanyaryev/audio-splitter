@@ -9,7 +9,10 @@ export const DEFAULT_OFFSET_DB = 18
 // The minimum gap length starts here, in seconds.
 export const DEFAULT_MINIMUM_GAP_SECONDS = 2
 
-// Find splits proposes a split at every dip at least this deep, in dB (concept note 13).
+/*
+Find splits proposes a split at every dip at least this deep, in dB
+(docs/concepts/13-adaptive-threshold.md).
+*/
 export const DEFAULT_DEPTH_DB = 15
 
 /*

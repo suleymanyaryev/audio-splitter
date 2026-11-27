@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { decibelsToGain } from '../decibels-to-gain.ts'
 
 describe('decibelsToGain', () => {
-  // The values are note 09's table, worked out from the definition by hand.
+  // The values of docs/concepts/09-volume-is-gain.md, worked out from the definition by hand.
   it.each([
     [0, 1],
     [-1, 0.8913],

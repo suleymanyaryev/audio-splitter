@@ -3,7 +3,7 @@ import { describe, it, expect } from 'vitest'
 import { hitTestSplit } from '../hit-test-split.ts'
 
 describe('hitTestSplit', () => {
-  it('finds the split under a click, on the note 05 example', () => {
+  it('finds the split under a click, on the example of docs/concepts/05-time-on-screen.md', () => {
     // The split at 329.05 s is at x 122.6; a click at x = 127 is 4.4 px away.
     expect(hitTestSplit(127, [122.6, 480])).toBe(0)
   })

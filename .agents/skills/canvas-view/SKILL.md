@@ -3,39 +3,32 @@ name: canvas-view
 description: How the app's waveform and loudness canvases are drawn and handled. Use when drawing on a canvas, adding pointer or keyboard interaction to one, or adding a whole-file, zoom or range view.
 ---
 
-The canvases (`widgets/source-waveform`, `widgets/loudness-curve`, `widgets/split-zoom`) share one shape: a thin `.vue` component that draws and wires events, and plain `lib/` functions that hold every bit of maths. Build a new view or interaction in that shape, reusing the shared helpers in `@/shared/lib/canvas/` before writing a new one.
+The canvases (`widgets/source-waveform`, `widgets/loudness-curve`, `widgets/split-zoom`) share one shape: a thin `.vue` component that measures, draws and wires events, and plain `lib/` functions that hold all the maths (layout, position, hit tests, pointer to value), so specs cover the maths without a canvas (`widgets/split-zoom/lib/dragged-time.ts`). Reuse the helpers in `@/shared/lib/canvas/` before writing a new one.
 
 ## Drawing
 
-- Start each draw with `prepareCanvas` and keep it painted with `useCanvasRedraw(canvas, draw)`, which covers mount, resize, a change of the theme in effect and font load. The widget adds its own `watch` on the state it draws.
-- Map time to x with `time-axis.ts` (the whole file) or `zoom-axis.ts` (a window centred on a time). A stretch (the range or a track) maps through `stretchAxis(player.extent, width)` (`widgets/split-zoom/lib/stretch-axis.ts`), built when it is needed, which also gives the centre and length the zoom helpers take.
-- Draw with the shared drawers; `draw-lands-and-splits.ts` owns the land and split-line widths.
-- Colours come from the `--color-*` tokens; sizes and layering follow DESIGN.md "Canvas drawing rules". Read it before drawing anything new.
-- Draw back to front: bars, lands, overlays, split lines, playhead, then the frame last so it stays outermost. `drawPlayhead` and `drawFrame` (`@/shared/lib/canvas/draw-playhead-and-frame.ts`) draw the last two. Reference: `draw()` in `SplitZoom.vue`.
-- Layout maths goes in its own `lib/` file with a spec (`zoom-outline.ts`); the component only measures and paints.
-- Anything that moves without Vue seeing it, such as the audio's `currentTime`, redraws through `usePlayheadSlider(draw)` (`widgets/split-zoom/lib/use-playhead-slider.ts`), which wraps `usePlayheadFrames` and returns the slider's value.
-- A view's failure shows through `<PlayerFailure />` (`widgets/split-zoom/ui/PlayerFailure.vue`), a one-line `role="status"` at the bottom centre of the `relative` view.
+- Start each draw with `prepareCanvas`, and keep it painted with `useCanvasRedraw(canvas, draw)`, which redraws on mount, resize, theme change and font load. The widget watches the state it draws itself (`SplitZoom.vue`).
+- Map time to x with a shared axis, so every view agrees on where a time is: `time-axis.ts` for the whole file, `zoom-axis.ts` for a window around a time, `stretchAxis` for the range or a track (`widgets/split-zoom/lib/stretch-axis.ts`).
+- Draw with the shared drawers, which own the widths, so a split line looks the same in every view (`draw-lands-and-splits.ts`).
+- Colours come from the `--color-*` tokens, and sizes and layering from DESIGN.md's canvas drawing rules, so every canvas looks one way. Read them before drawing anything new.
+- Draw back to front: bars, lands, overlays, split lines, playhead, then the frame, so the frame stays outermost (`draw()` in `SplitZoom.vue`).
+- Anything that moves without Vue seeing it, such as the audio's `currentTime`, redraws once per frame through `usePlayheadSlider(draw)` (`widgets/split-zoom/lib/use-playhead-slider.ts`).
 
 ## Pointer
 
-- Position, hit test and pointer-to-value are pure maths in `lib/` (`widgets/split-zoom/lib/dragged-time.ts`, which rounds to the 10 ms grid).
-- A drag goes in a `use-*-drag.ts` composable that the component spreads onto the element (`widgets/split-zoom/lib/use-playhead-drag.ts`, `widgets/source-waveform/lib/use-range-drag.ts`). What a press or a double-click means is the view's own, written in the view, which asks the drag first (`tryGrab`).
-- A drag captures the pointer on press, so it carries on past the canvas edge, and ends on `lostpointercapture` too. It keeps the offset it was grabbed at, so the line doesn't jump.
-- A press that moves under 4 px is a click. A click within 6 px of a split line hits it (`hitTestSplit`).
-- When one press can mean several things, test them in a fixed order and take the first match (`onPointerDown` in `TrackView.vue`).
-- A drag through the replace guard ends when its `set` returns false (`LoudnessCurve.vue`).
+- A drag is a `use-*-drag.ts` composable the component spreads onto the element. What a press or a double-click means belongs to the view, which asks the drag first with `tryGrab` (`widgets/split-zoom/lib/use-playhead-drag.ts`).
+- A drag captures the pointer on press, so it carries on past the canvas edge, and ends on `lostpointercapture` too. It keeps the offset it was grabbed at, so the line doesn't jump (`use-playhead-drag.ts`).
+- A press that barely moves is a click, and a click near a split line hits it, so a shaky hand still selects (`@/shared/lib/canvas/hit-test-split.ts`).
+- When one press can mean several things, test them in a fixed order and take the first match, so the outcome is predictable (`onPointerDown` in `TrackView.vue`).
 
 ## Keyboard
 
-Keys belong to the view on show, not to a focused element (ADR 0002).
+Keys belong to the view on show, not to a focused element (`docs/adr/0002-keys-belong-to-the-view-on-show.md`).
 
-- Register them with `usePageKeys(isKeyActedOn, { root: () => frame.value })` (`@/shared/lib/keyboard/use-page-keys.ts`). `isKeyActedOn` does the key's work and returns `true` only when the key was the view's; `false` leaves it to the browser.
-- Arrow keys step by a small amount, and with Shift by a larger one. A key that adds, deletes or toggles ignores `event.repeat`.
-- A control a mouse press lands on takes `@mousedown="releaseFocus"`, so the keys stay with the view.
-- Focus stays where the user put it. A view that must tell the page a key was used emits `acted`.
-- A key that has a button in the panel's title row is taken exactly while that button is enabled. Both read one computed of the store (`split.canAddSplitAtMark`, `player.hasSubject`), so the two cannot drift apart.
-- Space, Home, Left and Right of a stretch view are `useStretchKeys()` (`widgets/split-zoom/lib/use-stretch-keys.ts`): the view's `isKeyActedOn` asks it first, then its own keys.
-- Reference: `isKeyActedOn` in `RangeView.vue`.
+- Register them with `usePageKeys(isKeyActedOn, { root: () => frame.value })`. `isKeyActedOn` does the key's work and returns `true` only when the key was the view's, so every other key stays the browser's (`isKeyActedOn` in `RangeView.vue`).
+- Arrow keys step by a small amount, and with Shift by a larger one, so one key is both fine and quick (`use-stretch-keys.ts`). A key that adds, deletes or toggles ignores `event.repeat`, so holding it does one thing (`RangeView.vue`).
+- A control a mouse press lands on takes `@mousedown="releaseFocus"`, so the keys stay with the view (`TrackStrip.vue`).
+- Focus stays where the user put it. A view that must tell the page a key was used emits `acted`, because the page, not the view, owns what a key ends, such as the single export's `saved` status (`acted` in `RangeView.vue`, handled in `ReviewPage.vue`).
 
 ## Specs
 

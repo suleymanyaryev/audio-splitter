@@ -16,7 +16,10 @@ const BLOCK_WINDOWS = 10
 const STRETCH_SECONDS = 60
 // A peak is the highest point within 15 s on either side.
 const PEAK_RADIUS_SECONDS = 15
-// The bands whose top edge is over this are left out: the encoder cut them away (note 14).
+/*
+The bands whose top edge is over this are left out: the encoder cut them away
+(docs/concepts/14-the-spectrum.md).
+*/
 const TOP_KEPT_HZ = 15_000
 /*
 A window under the median loudness minus this many dB counts in neither stretch. It is the built-in

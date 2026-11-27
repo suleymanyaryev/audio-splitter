@@ -1,6 +1,6 @@
 # 01 · Sound is numbers
 
-A speaker cone moves back and forth, and that movement is the sound. Digital audio writes down where the cone should be, many times a second, as plain numbers. Everything the splitter does later (loudness, gaps, splits) is arithmetic on those numbers.
+A speaker cone moves back and forth, and that movement is the sound. Digital audio writes down where the cone should be, many times a second, as plain numbers. Everything the splitter does (loudness, gaps, splits) is arithmetic on those numbers.
 
 ## The words
 
@@ -29,17 +29,11 @@ At 1:00.000, in the middle of a track, the first decoded frames are:
 
 The 10 ms bucket starting there is 441 frames (44,100 × 0.01). Its downmix lies between **−0.2170 and 0.1907**: that pair is the bucket's peak. The same bucket at 3:52.000, inside the first gap between tracks, lies between **−0.0022 and 0.0029**, about 75 times smaller: quiet, but not zero.
 
-How big is the whole file as numbers? 3,686.21 s × 44,100 = 162,561,861 frames × 2 channels × 4 bytes ≈ **1.3 GB** of PCM, from an 89 MB file. The peaks of the downmix are 368,622 buckets × 2 values × 4 bytes ≈ **2.9 MB**. The whole-file waveform draws a 2 px bar every 3 px, so a 1,200 px wide panel has 400 bars and merges about 922 buckets (9.2 s) into each.
-
-This milestone decodes the whole file in one call, which is fine for the 30 s fixtures (about 10 MB of PCM) and fails for the real sample. Milestone 2 fixes that.
+How big is the whole file as numbers? 3,686.21 s × 44,100 = 162,561,861 frames × 2 channels × 4 bytes ≈ **1.3 GB** of PCM, from an 89 MB file. The peaks of the downmix are 368,622 buckets × 2 values × 4 bytes ≈ **2.9 MB**. So the app keeps the peaks and never the samples.
 
 ## Where it lives in the code
 
-- [`e2e/fixtures/make-fixtures.sh`](../../e2e/fixtures/make-fixtures.sh): makes the 30 s test files (three tone bursts, two 2 s silences), one per supported format, plus a short FLAC that is not supported.
-- [`src/shared/api/ffmpeg/ffmpeg.ts`](../../src/shared/api/ffmpeg/ffmpeg.ts): loads ffmpeg.wasm, mounts the file read-only, a timeout on every call.
-- [`src/entities/source-file/api/probe.ts`](../../src/entities/source-file/api/probe.ts): reads duration, rate, channels, container and codec from ffmpeg's log; decides the supported format.
-- `src/entities/source-file/api/decode-whole-file.ts`: one `f32le` decode at the file's own rate. Removed in milestone 2: `decode-slice.ts` decodes a slice at a time.
+- [`src/entities/source-file/api/probe.ts`](../../src/entities/source-file/api/probe.ts): reads duration, rate, channels, container and codec from ffmpeg's log, and decides the supported format.
+- [`src/entities/source-file/api/decode-slice.ts`](../../src/entities/source-file/api/decode-slice.ts): the `f32le` decode at the file's own rate.
 - [`src/shared/lib/audio/downmix.ts`](../../src/shared/lib/audio/downmix.ts): the channel average.
-- `src/shared/lib/audio/min-max-peaks.ts`: min/max per 10 ms bucket. Replaced in milestone 2 by `peaks-builder.ts`, which is fed slice by slice.
-- [`src/entities/source-file/model/source-file.ts`](../../src/entities/source-file/model/source-file.ts): the store holding the file, its format, duration and peaks.
-- [`src/widgets/source-waveform/`](../../src/widgets/source-waveform/): merges buckets into bars and draws them.
+- [`src/shared/lib/audio/peaks-builder.ts`](../../src/shared/lib/audio/peaks-builder.ts): min and max per 10 ms bucket.

@@ -19,7 +19,7 @@ describe('cutTrack', () => {
       tags,
     })
 
-    // The concept note's worked example: track 2 of 8 of sample1.m4a.
+    // Track 2 of 8 of sample1.m4a (docs/concepts/07-cutting-without-re-encoding.md).
     expect(ffmpeg.run).toHaveBeenCalledOnce()
     expect(commandOf(ffmpeg)).toEqual([
       '-v',

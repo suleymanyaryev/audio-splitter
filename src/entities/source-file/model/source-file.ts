@@ -86,7 +86,8 @@ export const useSourceFileStore = defineStore('source-file', () => {
   const loudnessWindowSeconds = ref<number | null>(null)
   /*
   128 log bands from 50 Hz to half the sample rate, one byte each, per loudness window, so column i
-  belongs to the curve's window i (see shared/lib/audio/spectrogram-builder.ts and concept note 14).
+  belongs to the curve's window i (see shared/lib/audio/spectrogram-builder.ts and
+  docs/concepts/14-the-spectrum.md).
   */
   const spectrogram = shallowRef<Spectrogram | null>(null)
   const failure = ref<LoadFailure | null>(null)
@@ -104,7 +105,7 @@ export const useSourceFileStore = defineStore('source-file', () => {
   let currentLoad = 0
   /*
   The ffmpeg session of the current load. It stays open once the file is ready, so a clip reuses
-  the loaded core (see the concept note, docs/concepts/06-seeking-compressed-audio.md), and
+  the loaded core (docs/concepts/06-seeking-compressed-audio.md), and
   `reset` and `cancel` close it.
   */
   let session: FfmpegSession | undefined

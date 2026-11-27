@@ -5,8 +5,8 @@ const OUTPUT_PATH = '/clip.wav'
 
 /*
 A clip is up to 10 min (a range, GLOSSARY.md) or as little as the 8 s of an audition. The 8 s is
-about 1.4 MB and well under a second even late in a 3 h MP3, where ffmpeg reads from the start to
-find the spot (docs/concepts/06-seeking-compressed-audio.md, "What it costs"); a 10 min range is
+about 1.4 MB, and its decode grows with its position in an MP3, where ffmpeg reads from the start
+to find the spot (docs/concepts/06-seeking-compressed-audio.md); a 10 min range is
 106 MB (docs/concepts/08-listening-to-a-range.md). 30 s is far above the first and short enough
 that a call that really hangs fails while the user is still waiting for the press to do something.
 */

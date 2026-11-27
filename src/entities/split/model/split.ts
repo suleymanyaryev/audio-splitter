@@ -1110,7 +1110,7 @@ export const useSplitStore = defineStore('split', () => {
   }
 
   /*
-  Removes a track (GLOSSARY.md: Removing a track): deletes the splits at both its ends, whichever
+  Removes a track (GLOSSARY.md: Track removal): deletes the splits at both its ends, whichever
   exist, so the track and its neighbours become one. It is `deleteSplit` twice, so the edits and the
   selection follow as a delete's do: the end split goes first, so a selected split at either end of
   the track lands on the split after it, or, for the last track, on the split before it.

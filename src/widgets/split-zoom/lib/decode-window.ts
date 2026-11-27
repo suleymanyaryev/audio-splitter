@@ -1,7 +1,7 @@
 import { MAXIMUM_RANGE_SECONDS } from '@/entities/split/config/range-limits.ts'
 import type { TimeRange } from '@/entities/split/lib/range-between.ts'
 
-// The most WAV the player decodes at a time: the limit of note 08, 10 min.
+// The most WAV the player decodes at a time: 10 min (docs/concepts/08-listening-to-a-range.md).
 const WINDOW_SECONDS = MAXIMUM_RANGE_SECONDS
 // The next window is decoded ahead once the playhead is this close to the end of the one playing.
 const AHEAD_SECONDS = 30
