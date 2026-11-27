@@ -3,7 +3,7 @@ name: ffmpeg-session
 description: How the app runs ffmpeg.wasm. Use when adding or changing an ffmpeg call (probe, decode, clip, cut), touching the source-file store's session or its cancel, or adding a worker entry.
 ---
 
-One ffmpeg session per loaded file, owned by the `source-file` store. Read `docs/architecture.md` "The ffmpeg session" first; the reasons behind the numbers are in concept notes 02 (slices), 06 (seeking, why WAV) and 07 (stream copy).
+One ffmpeg session per loaded file, owned by the `source-file` store. Read `docs/architecture.md` "The ffmpeg session" first; the reasons behind its design are in concept notes 02 (slices), 06 (seeking, why WAV) and 07 (stream copy).
 
 ## The layers
 

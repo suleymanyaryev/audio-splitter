@@ -29,7 +29,7 @@ The import rules are in AGENTS.md "Code layout" and enforced by `pnpm lint`; thi
 
 ## Sound
 
-- There is one player (`widgets/split-zoom/model/player.ts`). Anything new that plays goes through it, and anything that should silence it calls `stop()`.
+- There is one player (`widgets/split-zoom/model/player.ts`). Anything new that plays goes through it, and anything that should silence it calls `stop()`, so two sounds never play at once.
 - New async work a user action starts drops a late result, as architecture.md "The stores" says. The player's `flush: 'sync'` watchers on the split store stop or pause the sound at once, before a stale clip can start.
 - Work the player starts by itself (`fetchAhead`) keeps its own token and aborts its `AbortSignal` on release, so its ffmpeg call stops holding the queue.
 

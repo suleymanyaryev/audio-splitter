@@ -431,7 +431,7 @@ A crowded title row uses icon buttons; a button keeps its words where the action
 - **Split item:** 8px wide (`SPLIT_ITEM_PX`), full height, only between two blocks: land with a 2px rust rule at rest, wholly rust when hovered, focused or selected. Focus adds the ink ring, so a focused item never reads as selected.
 - **Block:** `track` with `on-track` text, its width proportional to the track's length, never under 12px; when the minimums do not fit, the blocks are equal.
 - **Selected:** a 2px `on-track` border; the others have a transparent 2px one, so nothing shifts.
-- **Left out:** hollow, a dashed `track` border on the land with `ink` text; selected, a solid ink border; an ink focus ring.
+- **Left out:** hollow, a dashed `track` border on the land with `ink` text; selected, the dashed border turns `ink`; an ink focus ring.
 - **Focus:** the `on-track` ring, inside the block.
 - **Text:** the name in Label from 32px wide (4px side padding), the length below in Caption from 72px (10px); narrower, a sliver with no text or padding. Both are always in the `title` and accessible name.
 

@@ -26,9 +26,9 @@ The canvases (`widgets/source-waveform`, `widgets/loudness-curve`, `widgets/spli
 Keys belong to the view on show, not to a focused element (`docs/adr/0002-keys-belong-to-the-view-on-show.md`).
 
 - Register them with `usePageKeys(isKeyActedOn, { root: () => frame.value })`. `isKeyActedOn` does the key's work and returns `true` only when the key was the view's, so every other key stays the browser's (`isKeyActedOn` in `RangeView.vue`).
-- Arrow keys step by a small amount, and with Shift by a larger one. A key that adds, deletes or toggles ignores `event.repeat`, so holding it does one thing.
-- A control a mouse press lands on takes `@mousedown="releaseFocus"`, so the keys stay with the view.
-- Focus stays where the user put it. A view that must tell the page a key was used emits `acted`.
+- Arrow keys step by a small amount, and with Shift by a larger one, so one key is both fine and quick (`use-stretch-keys.ts`). A key that adds, deletes or toggles ignores `event.repeat`, so holding it does one thing (`RangeView.vue`).
+- A control a mouse press lands on takes `@mousedown="releaseFocus"`, so the keys stay with the view (`TrackStrip.vue`).
+- Focus stays where the user put it. A view that must tell the page a key was used emits `acted`, because the page, not the view, owns what a key ends, such as the single export's `saved` status (`acted` in `RangeView.vue`, handled in `ReviewPage.vue`).
 
 ## Specs
 
