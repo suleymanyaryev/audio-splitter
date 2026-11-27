@@ -72,9 +72,10 @@ function playheadSeconds() {
 
 function draw() {
   const peaks = sourceFile.peaks
+  const bucketSeconds = sourceFile.peakBucketSeconds
   const extent = player.extent
   const prepared = peaks && extent && canvas.value ? prepareCanvas(canvas.value) : null
-  if (!peaks || !extent || !prepared) return
+  if (!peaks || bucketSeconds === null || !extent || !prepared) return
   const { context, width, height } = prepared
 
   const style = getComputedStyle(document.documentElement)
@@ -85,7 +86,7 @@ function draw() {
   // A sample of ±1 reaches the frame and the line between the two.
   const halfHeight = middle - FRAME_WIDTH
 
-  const bars = zoomBars(peaks, centreSeconds, windowSeconds, width, BAR_PITCH)
+  const bars = zoomBars(peaks, bucketSeconds, centreSeconds, windowSeconds, width, BAR_PITCH)
   drawPeakBars(context, bars, style.getPropertyValue('--color-wave'), middle, halfHeight)
 
   // Lands cover the bars, at their true width: only a whole-file view widens a land.

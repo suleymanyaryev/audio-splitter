@@ -8,7 +8,10 @@ import {
   createLoudnessBuilder,
   loudnessWindowSeconds as windowSecondsAt,
 } from '@/shared/lib/audio/loudness-builder.ts'
-import { createPeaksBuilder } from '@/shared/lib/audio/peaks-builder.ts'
+import {
+  createPeaksBuilder,
+  peakBucketSeconds as bucketSecondsAt,
+} from '@/shared/lib/audio/peaks-builder.ts'
 import {
   createSpectrogramBuilder,
   type Spectrogram,
@@ -76,6 +79,11 @@ export const useSourceFileStore = defineStore('source-file', () => {
   // [min, max] of the mono downmix per bucket of round(rate / 100) samples: exactly 10 ms at
   // 44.1 and 48 kHz (see shared/lib/audio/peaks-builder.ts).
   const peaks = shallowRef<Float32Array | null>(null)
+  /*
+  How long one bucket of the peaks lasts, from its sample count: 0.01 at 44.1 and 48 kHz, but
+  221 / 22050 at 22.05 kHz. Bucket i starts at i × this; it is set together with the peaks.
+  */
+  const peakBucketSeconds = ref<number | null>(null)
   // dB of the mono downmix per window of round(rate × 0.05) samples: 50 ms at 44.1 and 48 kHz; -100 dB
   // is the floor (see shared/lib/audio/loudness-builder.ts).
   const loudness = shallowRef<Float32Array | null>(null)
@@ -136,6 +144,7 @@ export const useSourceFileStore = defineStore('source-file', () => {
     seek.value = null
     durationSeconds.value = null
     peaks.value = null
+    peakBucketSeconds.value = null
     loudness.value = null
     loudnessWindowSeconds.value = null
     spectrogram.value = null
@@ -207,6 +216,7 @@ export const useSourceFileStore = defineStore('source-file', () => {
         slicesDone.value = index + 1
       }
       peaks.value = peaksBuilder.finish()
+      peakBucketSeconds.value = bucketSecondsAt(probed.sampleRate)
       loudness.value = loudnessBuilder.finish()
       loudnessWindowSeconds.value = windowSecondsAt(probed.sampleRate)
       spectrogram.value = spectrogramBuilder.finish()
@@ -328,6 +338,7 @@ export const useSourceFileStore = defineStore('source-file', () => {
     format,
     durationSeconds,
     peaks,
+    peakBucketSeconds,
     loudness,
     loudnessWindowSeconds,
     spectrogram,

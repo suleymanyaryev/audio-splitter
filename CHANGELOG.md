@@ -18,6 +18,10 @@ Versions follow [Semantic Versioning](https://semver.org/) applied to the produc
 
 ## [Unreleased]
 
+### Fixed
+
+- In a file sampled at 22.05 kHz, the zoom panel's waveform drifted ahead of the gaps, the spectrogram and the playhead, by about 8 s an hour into the file. It now lines up with them wherever the file is.
+
 ## [2.2.0] - 2026-11-27
 
 ### Added

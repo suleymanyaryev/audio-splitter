@@ -1073,6 +1073,7 @@ describe('TrackView', () => {
         new DOMRect(0, 0, 200, 160),
       )
       useSourceFileStore().peaks = new Float32Array(2000)
+      useSourceFileStore().peakBucketSeconds = 0.01
       const { split } = setup()
       // The gaps give sure splits, which have no mark: the second track's first is made doubtful.
       const start = split.splits[0]!
