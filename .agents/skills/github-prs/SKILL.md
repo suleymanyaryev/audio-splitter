@@ -13,7 +13,7 @@ A PR is read by a reviewer with none of this chat. It says what changed and why 
 
    The step is done when every acceptance criterion in the issue is either backed by a commit and its spec, or written down as an open item, and every open question in the issue is marked as settled by the branch or still open.
 
-2. **Final tier.** On a clean tree, run the Final tier from AGENTS.md "Checks". You can reuse a pass from this session if nothing it checks has changed since. Fix a failure on the branch before opening the PR; never open a PR on a red check.
+2. **Final tier.** On a clean tree, run the Final tier from AGENTS.md "Checks". Fix a failure on the branch before opening the PR; never open a PR on a red check.
 3. **Write the body** in these sections, in this order. Drop a section only when it has nothing to say.
    - **`Closes #N`**: the first line, for each issue the branch finishes.
    - **Why**: one or two sentences on the need the change answers, taken from the issue's _Why_.
