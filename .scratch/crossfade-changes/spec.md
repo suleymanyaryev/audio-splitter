@@ -1,6 +1,6 @@
 # Find splits: contrast, for crossfaded tracks
 
-Status: ready-for-agent
+Status: resolved
 
 GitHub issue #18, milestone 8 of v2. The idea and its numbers are in concept note 15 (contrast), confirmed by the user. The 36 decisions behind it, and every measurement, are in `analysis.md` beside this spec.
 
