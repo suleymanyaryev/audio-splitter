@@ -11,7 +11,7 @@ function markOfBand(band: 'sure' | 'likely' | 'doubtful' | null | undefined): Sp
   return band === 'doubtful' ? 'disc' : null
 }
 
-// DESIGN.md "Confidence mark": a ring 6.5 px across, a disc 8 px, 7 px up from the foot of the line.
+// DESIGN.md: a ring 6.5 px across, a disc 8 px, 7 px up from the foot of the line.
 const RING_RADIUS = 3.25
 const DISC_RADIUS = 4
 const MARK_LINE_WIDTH = 1.5

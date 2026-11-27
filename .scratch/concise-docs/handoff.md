@@ -11,9 +11,9 @@ Where the work stopped, for the next agent. The base before this feature was `0f
 | 03 The six skills | resolved | `ff42c23` |
 | 04 Concept notes 01 to 08 | resolved | `d615607` |
 | 05 Concept notes 09 to 15 | resolved | `c45b11d` |
-| 06 The glossary | resolved | this file's commit |
-| 07 DESIGN.md | **ready-for-agent**, unblocked | — |
-| 08 The impeccable sidecar | **ready-for-agent**, blocked by 07 | — |
+| 06 The glossary | resolved | `b72e3c9` |
+| 07 DESIGN.md | resolved | this file's commit |
+| 08 The impeccable sidecar | **ready-for-agent**, unblocked | — |
 
 Each resolved ticket's `## Comments` holds its decisions and its check output.
 
