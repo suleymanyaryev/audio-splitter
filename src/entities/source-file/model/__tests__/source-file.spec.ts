@@ -124,6 +124,19 @@ describe('the source-file store', () => {
     expect(store.loudnessWindowSeconds).toBeCloseTo(1103 / 22_050, 12)
   })
 
+  it('keeps the length of a peak bucket in seconds: 221 / 22050 at 22.05 kHz, not 0.01', async () => {
+    const log = m4aProbeLog(2).map((line) => line.replace('44100 Hz', '22050 Hz'))
+    vi.mocked(openFfmpeg).mockResolvedValue(
+      fakeFfmpegSession({ probeLog: log, pcm: toneThenSilencePcm(22_050, 1, 0.5) }),
+    )
+    const store = useSourceFileStore()
+    expect(store.peakBucketSeconds).toBeNull()
+
+    await store.load(file)
+
+    expect(store.peakBucketSeconds).toBeCloseTo(221 / 22_050, 12)
+  })
+
   it('names what an unsupported file is and does not decode it', async () => {
     const session = fakeFfmpegSession({ probeLog: flacProbeLog(30) })
     vi.mocked(openFfmpeg).mockResolvedValue(session)
@@ -337,6 +350,7 @@ describe('the source-file store', () => {
     expect(store.loudness).toBeNull()
     expect(store.spectrogram).toBeNull()
     expect(store.loudnessWindowSeconds).toBeNull()
+    expect(store.peakBucketSeconds).toBeNull()
   })
 
   it('clears the loudness curve of the previous file when a new load starts', async () => {

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 
-import { createPeaksBuilder } from '../peaks-builder.ts'
+import { createPeaksBuilder, peakBucketSeconds } from '../peaks-builder.ts'
 
 function peaksOf(pieces: Float32Array[], sampleRate: number) {
   const builder = createPeaksBuilder(sampleRate)
@@ -111,5 +111,18 @@ describe('createPeaksBuilder', () => {
     expect(peaks).toHaveLength(2 * 7)
     expect(peaks.subarray(2 * 6)).toEqual(Float32Array.of(signal[24] ?? 0, signal[24] ?? 0))
     expect(peaks).toEqual(peaksOf([signal], 400))
+  })
+})
+
+describe('peakBucketSeconds', () => {
+  it('is 10 ms at 44.1 and 48 kHz', () => {
+    expect(peakBucketSeconds(44_100)).toBeCloseTo(0.01, 12)
+    expect(peakBucketSeconds(48_000)).toBeCloseTo(0.01, 12)
+  })
+
+  it('is the time of a whole number of samples at an odd rate', () => {
+    // 22.05 kHz: 10 ms is 220.5 samples, so a bucket is 221 samples, a little over 10 ms.
+    expect(peakBucketSeconds(22_050)).toBeCloseTo(221 / 22_050, 12)
+    expect(peakBucketSeconds(22_050)).toBeGreaterThan(0.01)
   })
 })

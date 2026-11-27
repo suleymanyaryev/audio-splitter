@@ -39,6 +39,7 @@ function setup() {
 // The window of the playhead specs is 11 s to 31 s on 200 px, so 10 px a second.
 function mountOnSplit() {
   useSourceFileStore().peaks = new Float32Array(2000)
+  useSourceFileStore().peakBucketSeconds = 0.01
   return setup()
 }
 
@@ -1056,6 +1057,7 @@ describe('SplitZoom', () => {
 
     it('follow the file’s start where the audition is held there', () => {
       useSourceFileStore().peaks = new Float32Array(2000)
+      useSourceFileStore().peakBucketSeconds = 0.01
       useSourceFileStore().durationSeconds = 100
       const split = useSplitStore()
       split.open(curveWithGapNearTheStart(), { windowSeconds: 0.05, durationSeconds: 100 })
@@ -1082,6 +1084,7 @@ describe('SplitZoom', () => {
 
     it('are not drawn while no split is selected', () => {
       useSourceFileStore().peaks = new Float32Array(2000)
+      useSourceFileStore().peakBucketSeconds = 0.01
       useSourceFileStore().durationSeconds = 100
       useSplitStore().open(curveWithTwoGaps(), { windowSeconds: 0.05, durationSeconds: 100 })
       useSplitStore().findSplits()

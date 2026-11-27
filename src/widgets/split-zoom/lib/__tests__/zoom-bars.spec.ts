@@ -20,7 +20,7 @@ describe('zoomBars', () => {
     A 2 s window centred on 5 s is 4.0 to 6.0 s: buckets 400 to 600 over 30 px. Ten bars of 3 px
     take 20 buckets each, so the click at bucket 505 is in bar 5 (buckets 500 to 519).
     */
-    const bars = zoomBars(peaksWithClickAt505(), 5, 2, 30, 3)
+    const bars = zoomBars(peaksWithClickAt505(), 0.01, 5, 2, 30, 3)
 
     expect(bars).toHaveLength(20)
     expect(barAt(bars, 5)).toEqual([expect.closeTo(-0.7, 6), expect.closeTo(0.6, 6)])
@@ -30,7 +30,7 @@ describe('zoomBars', () => {
 
   it('rounds the bar count up so the last pixels are covered', () => {
     // 31 px is eleven bars: the eleventh covers the last pixel and a bit beyond the window.
-    expect(zoomBars(peaksWithClickAt505(), 5, 2, 31, 3)).toHaveLength(22)
+    expect(zoomBars(peaksWithClickAt505(), 0.01, 5, 2, 31, 3)).toHaveLength(22)
   })
 
   it('leaves the bars before the file empty when the window starts before 0 s', () => {
@@ -39,7 +39,7 @@ describe('zoomBars', () => {
     two (-50 to -10) are before the file, the third (-10 to 10) holds the first ten buckets.
     */
     const peaks = new Float32Array(2000).fill(0.5)
-    const bars = zoomBars(peaks, 0.5, 2, 30, 3)
+    const bars = zoomBars(peaks, 0.01, 0.5, 2, 30, 3)
 
     expect([0, 1].map((bar) => barAt(bars, bar))).toEqual([
       [0, 0],
@@ -51,9 +51,27 @@ describe('zoomBars', () => {
   it('leaves the bars past the end of the file empty when the window ends after it', () => {
     // 10 s of buckets, a window of 9 to 11 s: buckets 900 to 1100, so the bars from 1000 are empty.
     const peaks = new Float32Array(2000).fill(0.5)
-    const bars = zoomBars(peaks, 10, 2, 30, 3)
+    const bars = zoomBars(peaks, 0.01, 10, 2, 30, 3)
 
     expect(barAt(bars, 4)).toEqual([0.5, 0.5])
     expect(barAt(bars, 5)).toEqual([0, 0])
+  })
+
+  it('places the buckets by their real length at 22.05 kHz, where a bucket is 221 samples', () => {
+    /*
+    An hour of buckets of 221 / 22050 s with one click in bucket 359,186, which starts at
+    3,600.005 s; at a rounded 10 ms that bucket would be drawn at 3,591.86 s, 8 s early. A 2 s
+    window centred on 3,601 s is 3,600 to 3,602 s: the click is in the first bar (3,600 to 3,600.2).
+    */
+    const bucketSeconds = 221 / 22_050
+    const click = Math.round(3600 / bucketSeconds)
+    const peaks = new Float32Array(2 * (click + 1000))
+    peaks[2 * click] = -0.7
+    peaks[2 * click + 1] = 0.6
+
+    const bars = zoomBars(peaks, bucketSeconds, 3601, 2, 30, 3)
+
+    expect(barAt(bars, 0)).toEqual([expect.closeTo(-0.7, 6), expect.closeTo(0.6, 6)])
+    expect(zoomBars(peaks, 0.01, 3601, 2, 30, 3).every((value) => value === 0)).toBe(true)
   })
 })

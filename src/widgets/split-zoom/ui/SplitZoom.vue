@@ -242,8 +242,9 @@ function drawAuditionEdges(
 
 function draw() {
   const peaks = sourceFile.peaks
+  const bucketSeconds = sourceFile.peakBucketSeconds
   const prepared = peaks && canvas.value ? prepareCanvas(canvas.value) : null
-  if (!peaks || !prepared) return
+  if (!peaks || bucketSeconds === null || !prepared) return
   const { context, width, height } = prepared
 
   const style = getComputedStyle(document.documentElement)
@@ -253,7 +254,7 @@ function draw() {
   // A sample of ±1 reaches the frame and the line between the two.
   const halfHeight = middle - FRAME_WIDTH
 
-  const bars = zoomBars(peaks, centre, ZOOM_WINDOW_SECONDS, width, BAR_PITCH)
+  const bars = zoomBars(peaks, bucketSeconds, centre, ZOOM_WINDOW_SECONDS, width, BAR_PITCH)
   drawPeakBars(context, bars, style.getPropertyValue('--color-wave'), middle, halfHeight)
 
   // Lands cover the bars; a gap is near-silence, not nothing, so a flat line runs through it.
