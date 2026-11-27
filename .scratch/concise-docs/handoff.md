@@ -12,8 +12,8 @@ Where the work stopped, for the next agent. The base before this feature was `0f
 | 04 Concept notes 01 to 08 | resolved | `d615607` |
 | 05 Concept notes 09 to 15 | resolved | `c45b11d` |
 | 06 The glossary | resolved | `b72e3c9` |
-| 07 DESIGN.md | resolved | this file's commit |
-| 08 The impeccable sidecar | **ready-for-agent**, unblocked | — |
+| 07 DESIGN.md | resolved | `bf5f722` |
+| 08 The impeccable sidecar | resolved | this file's commit, after the review fixes `76f660f` and `98223d1` |
 
 Each resolved ticket's `## Comments` holds its decisions and its check output.
 
@@ -44,3 +44,4 @@ Each resolved ticket's `## Comments` holds its decisions and its check output.
 
 - **Word targets missed, with every concept and rule kept.** AGENTS.md 964 (~700), the six skills 3,330 (~2,400), notes 01–08 7,273 (~6,400), notes 09–15 9,264 (~8,400), GLOSSARY.md 1,300 (~1,050). The reasons are in each ticket's Comments; the user may want to set the targets again.
 - **History wording left in a comment.** `src/entities/split/config/confidence-bands.ts` still says "The planned ear check on `sample-crossfade.mp3` was dropped". The spec puts rewriting comments beyond their citations out of scope.
+- **Note 15 example not on a sample.** Its worked example is measured on one of the user's playlists, not a file in `samples/` as the concept-note contract asks (see ticket 08 Comments).
