@@ -25,11 +25,11 @@ Before a commit, the `finish-feature` skill says what each doc holds, when it ch
 
 The baseline is green: `typecheck`, `test`, `lint`, `knip`, `depcruise` and `build` exit 0 on a clean tree, so a failure is caused by the current work: fix it.
 
-| Tier           | When                                           | Run                                                             |
-| -------------- | ---------------------------------------------- | --------------------------------------------------------------- |
-| **Task**       | After each edit loop                           | `pnpm vitest run <touched specs or dirs>` + `pnpm lint:changed` |
-| **Checkpoint** | End of a task-list section, or before a commit | `pnpm test:changed`, `pnpm lint:changed`, `pnpm typecheck`      |
-| **Final**      | Once, before handover or PR                    | `pnpm verify`, `pnpm lint`, `pnpm knip`, `pnpm depcruise`       |
+| Tier           | When                                           | Run                                                                            |
+| -------------- | ---------------------------------------------- | ------------------------------------------------------------------------------ |
+| **Task**       | After each edit loop                           | `pnpm vitest run <touched specs or dirs>` + `pnpm lint:changed`                |
+| **Checkpoint** | End of a task-list section, or before a commit | `pnpm test:changed`, `pnpm lint:changed`, `pnpm typecheck`, `pnpm docs:budget` |
+| **Final**      | Once, before handover or PR                    | `pnpm verify`, `pnpm lint`, `pnpm knip`, `pnpm depcruise`                      |
 
 - Run Checkpoint and Final only at their points; skip a check whose inputs haven't changed since it passed.
 - `pnpm test:e2e` joins Final only when the plan names a browser flow unit tests can't cover; the `test:changed` e2e hint is not a gate.

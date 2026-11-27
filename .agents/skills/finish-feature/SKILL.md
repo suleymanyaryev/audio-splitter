@@ -16,7 +16,7 @@ Go through the docs in order. The work is done when every item has an outcome, _
 5. **Concept notes** (`docs/concepts/`) follow "Concept notes" below.
 6. **DESIGN.md.** A changed look (a kit component, a canvas's sizes, colours or layering) updates it.
 7. **AGENTS.md and skills.** The Code layout list changes only when a slice is added, removed or renamed: one line saying what the slice is for. A skill in `.agents/skills/` (`canvas-view`, `ffmpeg-session`, `store-wiring`) changes only when the way to build something changes: a new rule, a new reference file, or a rule that no longer holds. A skill line is the rule, why it holds and one example file.
-8. **Checks.** Run the Checkpoint tier from AGENTS.md "Checks" before the commit, and the Final tier once before handover.
+8. **Checks.** Run the Checkpoint tier from AGENTS.md "Checks" before the commit, and the Final tier once before handover. A `pnpm docs:budget` failure means cut or replace text; raise a budget only when the user agrees.
 
 ## Writing a doc
 
